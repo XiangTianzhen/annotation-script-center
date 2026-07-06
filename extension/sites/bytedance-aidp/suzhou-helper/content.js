@@ -2221,21 +2221,49 @@
     const ai = deps.ai || null;
     const ui = deps.ui || null;
     let activeRun = null;
+    let pendingFill = null;
+    let autoFillEnabled =
+      typeof deps.getAutoFillEnabled === "function" ? deps.getAutoFillEnabled() !== false : true;
 
-    function render(run, phaseText) {
+    function getIdleActionMode() {
+      return autoFillEnabled ? "recognizeAndFill" : "recognize";
+    }
+
+    function pickBatchAiActiveSegment(results) {
+      const list = Array.isArray(results) ? results : [];
+      for (let index = 0; index < list.length; index += 1) {
+        const segmentNumber = Number(list[index]?.segmentNumber || 0) || 0;
+        if (segmentNumber > 0) {
+          return segmentNumber;
+        }
+      }
+      return 0;
+    }
+
+    function render(run, phaseText, actionMode) {
+      const source = run && typeof run === "object" ? run : {};
       ui?.renderBatchState?.({
         phaseText: phaseText,
-        totalCount: run.totalCount,
-        concurrency: run.concurrency,
-        succeededCount: run.succeededCount,
-        failedCount: run.failedCount,
-        skippedCount: run.skippedCount,
-        currentSegmentNumber: run.currentSegmentNumber,
-        failures: run.failures.slice(),
+        actionMode: normalizeText(actionMode) || getIdleActionMode(),
+        totalCount: Number(source.totalCount || 0) || 0,
+        concurrency: Number(source.concurrency || 0) || 0,
+        succeededCount: Number(source.succeededCount || 0) || 0,
+        failedCount: Number(source.failedCount || 0) || 0,
+        skippedCount: Number(source.skippedCount || 0) || 0,
+        currentSegmentNumber: Number(source.currentSegmentNumber || 0) || 0,
+        failures: Array.isArray(source.failures) ? source.failures.slice() : [],
       });
     }
 
-    async function start(selectedNumbers) {
+    function clearPendingFill(keepBatchResults) {
+      pendingFill = null;
+      if (keepBatchResults !== true) {
+        ui?.renderBatchAiResults?.([], 0);
+      }
+      render(null, "", getIdleActionMode());
+    }
+
+    async function runRecognition(selectedNumbers) {
       if (activeRun) {
         ui?.setStatus?.("当前已有正在运行的批量识别，请先等待完成或点击停止批量。", "error");
         return {
@@ -2276,10 +2304,11 @@
         skippedCount: 0,
         failures: [],
         updates: [],
+        results: [],
         stopRequested: false,
       };
       activeRun = run;
-      render(run, "批量识别进行中");
+      render(run, "批量识别进行中", "running");
 
       await createConcurrentTaskRunner(
         tasks,
@@ -2316,6 +2345,7 @@
         function (entry) {
           if (entry.ok) {
             const payload = buildRecommendationDisplayPayload(entry.value);
+            run.results.push(payload);
             if (payload.finalMandarinText) {
               run.updates.push({
                 segmentNumber: payload.segmentNumber,
@@ -2332,7 +2362,7 @@
               message: entry.error?.message || String(entry.error),
             });
           }
-          render(run, run.stopRequested ? "批量识别停止中" : "批量识别进行中");
+          render(run, run.stopRequested ? "批量识别停止中" : "批量识别进行中", "running");
         },
         function () {
           return run.stopRequested === true;
@@ -2345,20 +2375,117 @@
         normalizeText(liveContext?.currentSignature) !== run.currentSignature
       ) {
         activeRun = null;
-        render(run, "批量写回已取消");
+        clearPendingFill();
         return {
           ok: false,
           message: "当前题或分段状态已变化，已取消批量写回，请刷新后重试。",
         };
       }
 
-      const saveResult = await dataApi.writeBatchRegionTexts({
-        selectionKey: run.selectionKey,
-        currentSignature: run.currentSignature,
-        updates: run.updates,
+      run.results.sort(function (left, right) {
+        return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
+      });
+      run.updates.sort(function (left, right) {
+        return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
       });
       activeRun = null;
-      render(run, saveResult.ok ? "批量写回完成" : "批量写回失败");
+      ui?.renderBatchAiResults?.(run.results, pickBatchAiActiveSegment(run.results));
+      return {
+        ok: true,
+        message: "批量识别已完成。",
+        selectionKey: run.selectionKey,
+        currentSignature: run.currentSignature,
+        totalCount: run.totalCount,
+        concurrency: run.concurrency,
+        succeededCount: run.succeededCount,
+        failedCount: run.failedCount,
+        skippedCount: run.skippedCount,
+        failures: run.failures.slice(),
+        results: run.results.slice(),
+        updates: run.updates.slice(),
+      };
+    }
+
+    async function writeUpdates(selectionKey, currentSignature, updates) {
+      return dataApi.writeBatchRegionTexts({
+        selectionKey: selectionKey,
+        currentSignature: currentSignature,
+        updates: Array.isArray(updates) ? updates.slice() : [],
+      });
+    }
+
+    async function start(selectedNumbers, runtimeOptions) {
+      const options = runtimeOptions && typeof runtimeOptions === "object" ? runtimeOptions : {};
+      const shouldAutoFill = options.autoFill === false ? false : options.autoFill === true ? true : autoFillEnabled;
+      const result = await runRecognition(selectedNumbers);
+      if (!result?.ok) {
+        return result;
+      }
+      if (!shouldAutoFill) {
+        pendingFill =
+          Array.isArray(result.updates) && result.updates.length > 0
+            ? {
+                selectionKey: normalizeText(result.selectionKey),
+                currentSignature: normalizeText(result.currentSignature),
+                totalCount: Number(result.totalCount || 0) || 0,
+                concurrency: Number(result.concurrency || 0) || 0,
+                succeededCount: Number(result.succeededCount || 0) || 0,
+                failedCount: Number(result.failedCount || 0) || 0,
+                skippedCount: Number(result.skippedCount || 0) || 0,
+                failures: Array.isArray(result.failures) ? result.failures.slice() : [],
+                results: Array.isArray(result.results) ? result.results.slice() : [],
+                updates: result.updates.slice(),
+              }
+            : null;
+        const hasPendingFill = Boolean(pendingFill && pendingFill.updates.length > 0);
+        render(
+          {
+            totalCount: result.totalCount,
+            concurrency: result.concurrency,
+            succeededCount: result.succeededCount,
+            failedCount: result.failedCount,
+            skippedCount: result.skippedCount,
+            failures: result.failures,
+          },
+          hasPendingFill ? "批量识别已完成" : "",
+          hasPendingFill ? "fill" : getIdleActionMode()
+        );
+        if (hasPendingFill) {
+          const successMessage =
+            "已生成 " + String(pendingFill.updates.length) + " 段识别结果，点击“填入”可写回当前结果。";
+          ui?.setStatus?.(successMessage, "success");
+          return Object.assign({}, result, {
+            message: successMessage,
+            pendingFill: true,
+            writtenCount: 0,
+          });
+        }
+        const warningMessage = "批量识别已完成，但当前没有可填入的文本。";
+        ui?.setStatus?.(warningMessage, "warning");
+        return Object.assign({}, result, {
+          message: warningMessage,
+          pendingFill: false,
+          writtenCount: 0,
+        });
+      }
+
+      const saveResult = await writeUpdates(
+        result.selectionKey,
+        result.currentSignature,
+        result.updates
+      );
+      render(
+        {
+          totalCount: result.totalCount,
+          concurrency: result.concurrency,
+          succeededCount: result.succeededCount,
+          failedCount: result.failedCount,
+          skippedCount: result.skippedCount + Number(saveResult.skippedCount || 0),
+          failures: result.failures,
+        },
+        saveResult.ok ? "批量写回完成" : "批量写回失败",
+        getIdleActionMode()
+      );
       if (saveResult.ok && saveResult.writtenCount > 0) {
         ui?.setStatus?.(saveResult.message, "success");
       } else if (saveResult.ok) {
@@ -2366,9 +2493,65 @@
       } else {
         ui?.setStatus?.(saveResult.message, "error");
       }
-      return Object.assign({}, saveResult, {
-        skippedCount: run.skippedCount + Number(saveResult.skippedCount || 0),
+      return Object.assign({}, result, saveResult, {
+        pendingFill: false,
+        skippedCount: result.skippedCount + Number(saveResult.skippedCount || 0),
       });
+    }
+
+    async function fillPending() {
+      if (activeRun) {
+        return {
+          ok: false,
+          message: "当前仍有批量识别正在运行，请等待结束后再填入。",
+        };
+      }
+      if (!pendingFill || !Array.isArray(pendingFill.updates) || pendingFill.updates.length <= 0) {
+        render(null, "", getIdleActionMode());
+        return {
+          ok: false,
+          message: "当前没有可填入的批量识别结果。",
+        };
+      }
+      const liveContext = await dataApi.getCurrentContext();
+      if (
+        normalizeText(liveContext?.selectionKey) !== pendingFill.selectionKey ||
+        normalizeText(liveContext?.currentSignature) !== pendingFill.currentSignature
+      ) {
+        clearPendingFill();
+        return {
+          ok: false,
+          message: "当前题或分段状态已变化，已取消批量写回，请刷新后重试。",
+        };
+      }
+      render(pendingFill, "批量写回进行中", "running");
+      const saveResult = await writeUpdates(
+        pendingFill.selectionKey,
+        pendingFill.currentSignature,
+        pendingFill.updates
+      );
+      const mergedSkippedCount =
+        Number(pendingFill.skippedCount || 0) + Number(saveResult.skippedCount || 0);
+      render(
+        Object.assign({}, pendingFill, {
+          skippedCount: mergedSkippedCount,
+        }),
+        saveResult.ok ? "批量写回完成" : "批量写回失败",
+        getIdleActionMode()
+      );
+      if (saveResult.ok && saveResult.writtenCount > 0) {
+        ui?.setStatus?.(saveResult.message, "success");
+      } else if (saveResult.ok) {
+        ui?.setStatus?.(saveResult.message, "warning");
+      } else {
+        ui?.setStatus?.(saveResult.message, "error");
+      }
+      const result = Object.assign({}, pendingFill, saveResult, {
+        pendingFill: false,
+        skippedCount: mergedSkippedCount,
+      });
+      pendingFill = null;
+      return result;
     }
 
     function stop() {
@@ -2377,17 +2560,45 @@
       }
       activeRun.stopRequested = true;
       ui?.setStatus?.("正在停止批量识别，已发出的请求会等待返回。", "warning");
-      render(activeRun, "批量识别停止中");
+      render(activeRun, "批量识别停止中", "running");
       return true;
+    }
+
+    function setAutoFillEnabled(enabled) {
+      autoFillEnabled = enabled !== false;
+      if (!activeRun) {
+        render(
+          pendingFill,
+          "",
+          pendingFill && Array.isArray(pendingFill.updates) && pendingFill.updates.length > 0
+            ? "fill"
+            : getIdleActionMode()
+        );
+      }
+    }
+
+    function syncContext(context) {
+      const selectionKey = normalizeText(context?.selectionKey);
+      const currentSignature = normalizeText(context?.currentSignature);
+      if (
+        pendingFill &&
+        (pendingFill.selectionKey !== selectionKey || pendingFill.currentSignature !== currentSignature)
+      ) {
+        clearPendingFill();
+      }
     }
 
     function dispose() {
       activeRun = null;
+      pendingFill = null;
     }
 
     return {
       start,
+      fillPending,
       stop,
+      setAutoFillEnabled,
+      syncContext,
       dispose,
     };
   }
@@ -2709,6 +2920,7 @@
         syncRowRecognizeButtons();
         const context = await helperRuntime.dataApi.getCurrentContext();
         syncRowRecommendCacheContext(helperRuntime, context);
+        helperRuntime.batchController?.syncContext?.(context);
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
           helperRuntime.playbackScopeKey ||
@@ -3033,6 +3245,37 @@
     }
   }
 
+  async function handleBatchFillAction() {
+    if (!helperRuntime?.batchController) {
+      return;
+    }
+    helperRuntime.ui.mount();
+    helperRuntime.ui.setStatus("正在填入最近一次批量识别结果...", "");
+    try {
+      const result = await helperRuntime.batchController.fillPending();
+      if (!result?.ok) {
+        helperRuntime.ui.setStatus(
+          normalizeText(result?.message || "当前没有可填入的批量识别结果。"),
+          "error"
+        );
+        return;
+      }
+      if (result.writtenCount > 0) {
+        scheduleRuntimeReload(helperRuntime);
+        return;
+      }
+      helperRuntime.ui.setStatus(
+        normalizeText(result.message || "当前没有新的批量结果需要填入。"),
+        "warning"
+      );
+    } catch (error) {
+      helperRuntime.ui.setStatus(
+        "批量填入失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    }
+  }
+
   async function handlePreviewAction() {
     if (!helperRuntime) {
       return;
@@ -3170,6 +3413,9 @@
         helperConfig.segmentPreviewAutoApplyEnabled
       );
       helperRuntime.ui.setAiRecommendAutoFillEnabled?.(helperConfig.aiRecommendAutoFillEnabled);
+      helperRuntime.batchController?.setAutoFillEnabled?.(
+        helperConfig.aiRecommendAutoFillEnabled
+      );
       applyWaveToolSettings(
         document,
         Object.assign({}, helperConfig, {
@@ -3231,6 +3477,9 @@
       onBatchStop: function () {
         helperRuntime?.batchController?.stop?.();
       },
+      onBatchFill: function () {
+        void handleBatchFillAction();
+      },
       onPreview: function () {
         void handlePreviewAction();
       },
@@ -3274,6 +3523,9 @@
       dataApi: dataApi,
       ai: ai,
       ui: ui,
+      getAutoFillEnabled: function () {
+        return helperConfig.aiRecommendAutoFillEnabled;
+      },
     });
     helperRuntime = {
       dataApi: dataApi,
@@ -3315,6 +3567,7 @@
     syncRowRecognizeButtons();
     ui.renderCurrentRecommendation(null);
     ui.renderAiMeta(null);
+    ui.renderBatchAiResults([], 0);
     ui.renderBatchSelection({
       totalSegments: 0,
       resetSelection: true,
@@ -3533,6 +3786,7 @@
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
       createShortcutActions: createShortcutActions,
+      createBatchRecommendController: createBatchRecommendController,
       fillEmptyLanguageKinds: fillEmptyLanguageKinds,
       buildSegmentRequestContext: buildSegmentRequestContext,
     },

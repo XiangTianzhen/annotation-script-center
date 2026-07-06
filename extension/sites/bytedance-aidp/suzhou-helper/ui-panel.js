@@ -83,10 +83,10 @@
       "[" + ROOT_ATTR + "] .panel-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .panel-title { font-size: 14px; font-weight: 700; color: #26418b; }",
       "[" + ROOT_ATTR + "] .tooltip-anchor { position: relative; display: inline-flex; align-items: flex-start; line-height: 1; }",
-      "[" + ROOT_ATTR + "] .tooltip-dot { min-height: auto; width: auto; padding: 0; border: none; border-radius: 0; background: transparent; color: #5f6f90; font-size: 12px; font-weight: 700; line-height: 1; vertical-align: super; transform: translateY(-0.18em); cursor: pointer; }",
+      "[" + ROOT_ATTR + "] .tooltip-dot { min-height: auto; width: auto; padding: 0; border: none; border-radius: 0; background: transparent; color: #5f6f90; font-size: 13px; font-weight: 700; line-height: 1; vertical-align: super; transform: translateY(-0.18em); cursor: pointer; }",
       "[" + ROOT_ATTR + "] .tooltip-dot:hover { background: transparent; color: #26418b; text-decoration: none; }",
       "[" + ROOT_ATTR + "] .tooltip-anchor[data-hover='true'] .tooltip-popover, [" + ROOT_ATTR + "] .tooltip-anchor[data-open='true'] .tooltip-popover { display: block; }",
-      "[" + ROOT_ATTR + "] .tooltip-popover { display: none; position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; min-width: 220px; max-width: 320px; padding: 10px 12px; border: 1px solid #d6e4ff; border-radius: 10px; background: #fff; color: #4f5d78; box-shadow: 0 12px 24px rgba(38, 65, 139, 0.14); white-space: normal; line-height: 1.6; }",
+      "[" + ROOT_ATTR + "] .tooltip-popover { display: none; position: absolute; top: calc(100% + 8px); left: 0; z-index: 1200; min-width: 220px; max-width: 320px; padding: 10px 12px; border: 1px solid #d6e4ff; border-radius: 10px; background: #fff; color: #4f5d78; box-shadow: 0 12px 24px rgba(38, 65, 139, 0.14); white-space: normal; line-height: 1.6; }",
       "[" + ROOT_ATTR + "] .status { margin-top: 10px; padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 10px; background: #fff; color: #4f5d78; white-space: pre-wrap; }",
       "[" + ROOT_ATTR + "] .status[data-tone='error'] { border-color: rgba(194, 65, 12, 0.22); color: #c2410c; }",
       "[" + ROOT_ATTR + "] .status[data-tone='success'] { border-color: rgba(29, 122, 54, 0.24); color: #1d7a36; }",
@@ -116,6 +116,7 @@
       "[" + ROOT_ATTR + "] .batch-selector-grid button { min-width: 44px; justify-content: center; }",
       "[" + ROOT_ATTR + "] .batch-selector-grid button[data-selected='true'] { background: #e8f0ff; border-color: #2f57c5; color: #26418b; }",
       "[" + ROOT_ATTR + "] .batch-selector-grid button[data-batch-all='true'] { min-width: 56px; font-weight: 600; }",
+      "[" + ROOT_ATTR + "] .batch-ai-tabs { margin-top: 0; margin-bottom: 10px; }",
       "[" + ROOT_ATTR + "] .batch-state-item { padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 8px; background: #fff; color: #42506a; }",
       "[" + ROOT_ATTR + "] .batch-failure-list { margin: 6px 0 0; padding-left: 18px; color: #b42318; }",
       "[" + ROOT_ATTR + "] button {",
@@ -292,7 +293,7 @@
     const button = document.createElement("button");
     button.type = "button";
     button.className = "tooltip-dot";
-    button.textContent = "™";
+    button.textContent = "?";
     button.setAttribute("aria-label", normalizeText(text));
     button.setAttribute("aria-expanded", "false");
     const popover = document.createElement("div");
@@ -382,13 +383,18 @@
     let aiMetaNode = null;
     let aiMetaCollapseButtonNode = null;
     let batchStateNode = null;
-    let batchSelectionSummaryNode = null;
     let batchSelectionGridNode = null;
+    let batchActionRowNode = null;
+    let batchActionMode = deps.aiRecommendAutoFillEnabled === false ? "recognize" : "recognizeAndFill";
+    let aiRecommendAutoFillEnabled = deps.aiRecommendAutoFillEnabled !== false;
     let segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
     let currentAudioCollapsed = true;
     let previewCollapsed = true;
     let aiMetaCollapsed = true;
     let latestRecommendation = null;
+    let batchAiResults = [];
+    let batchAiActiveSegmentNumber = 0;
+    let batchAiTabSelectHandler = null;
     let batchSelectionState = {
       totalSegments: 0,
       selectedNumbers: [],
@@ -452,6 +458,35 @@
       );
     }
 
+    function renderBatchActionButton() {
+      if (!batchActionRowNode) {
+        return;
+      }
+      clearNode(batchActionRowNode);
+      let actionButton = null;
+      if (batchActionMode === "running") {
+        actionButton = createButton("停止批量", false, function () {
+          deps.onBatchStop?.();
+        });
+      } else if (batchActionMode === "fill") {
+        actionButton = createButton("填入", true, function () {
+          deps.onBatchFill?.();
+        });
+      } else if (aiRecommendAutoFillEnabled) {
+        actionButton = createButton("批量识别并填入", true, function () {
+          deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
+        });
+      } else {
+        actionButton = createButton("批量识别", true, function () {
+          deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
+        });
+      }
+      if (actionButton) {
+        actionButton.setAttribute("data-batch-primary-action", "true");
+        batchActionRowNode.appendChild(actionButton);
+      }
+    }
+
     function stopBatchSelectionDrag() {
       batchSelectionState.dragging = false;
       if (typeof setTimeout === "function") {
@@ -476,10 +511,6 @@
       }
       current = normalizeBatchSelectionNumbers(total, current);
       batchSelectionState.selectedNumbers = current;
-      if (batchSelectionSummaryNode) {
-        batchSelectionSummaryNode.textContent =
-          "当前选择：" + formatBatchSelectionSummary(total, current);
-      }
       if (batchSelectionGridNode) {
         Array.prototype.slice.call(batchSelectionGridNode.children || []).forEach(function (node) {
           const currentNumber = Math.round(Number(node.getAttribute("data-segment-number") || 0)) || 0;
@@ -503,9 +534,6 @@
       }
       if (total <= 0) {
         batchSelectionState.selectedNumbers = [];
-        if (batchSelectionSummaryNode) {
-          batchSelectionSummaryNode.textContent = "当前选择：暂无可选段";
-        }
         return;
       }
 
@@ -643,32 +671,15 @@
         )
       );
       batchSection.appendChild(batchHead);
-      const batchSelectorHead = document.createElement("div");
-      batchSelectorHead.className = "batch-selector-head";
-      batchSelectionSummaryNode = document.createElement("div");
-      batchSelectionSummaryNode.className = "batch-selector-summary";
-      batchSelectionSummaryNode.textContent = "当前选择：正在读取段落...";
-      batchSelectorHead.appendChild(batchSelectionSummaryNode);
-      batchSection.appendChild(batchSelectorHead);
       batchSelectionGridNode = document.createElement("div");
       batchSelectionGridNode.className = "batch-selector-grid";
       batchSection.appendChild(batchSelectionGridNode);
-      const batchActionRow = document.createElement("div");
-      batchActionRow.className = "batch-action-row";
-      batchActionRow.appendChild(
-        createButton("批量识别并填入", true, function () {
-          deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
-        })
-      );
-      batchActionRow.appendChild(
-        createButton("停止批量", false, function () {
-          deps.onBatchStop?.();
-        })
-      );
-      batchSection.appendChild(batchActionRow);
+      batchActionRowNode = document.createElement("div");
+      batchActionRowNode.className = "batch-action-row";
+      batchSection.appendChild(batchActionRowNode);
+      renderBatchActionButton();
       batchStateNode = document.createElement("div");
       batchStateNode.className = "batch-state-list";
-      batchStateNode.textContent = "当前没有批量任务。";
       batchSection.appendChild(batchStateNode);
       grid.appendChild(batchSection);
 
@@ -823,7 +834,23 @@
         return;
       }
       const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+      const effectiveActionMode = normalizeText(source.actionMode)
+        ? normalizeText(source.actionMode)
+        : source.isRunning === true
+          ? "running"
+          : source.hasPendingFill === true
+            ? "fill"
+            : aiRecommendAutoFillEnabled
+              ? "recognizeAndFill"
+              : "recognize";
+      if (batchActionMode !== effectiveActionMode) {
+        batchActionMode = effectiveActionMode;
+        renderBatchActionButton();
+      }
       clearNode(batchStateNode);
+      if (!normalizeText(source.phaseText) && (!Array.isArray(source.failures) || source.failures.length <= 0)) {
+        return;
+      }
       const summary = document.createElement("div");
       summary.className = "batch-state-item";
       summary.textContent =
@@ -860,9 +887,81 @@
         failureBox.appendChild(list);
         batchStateNode.appendChild(failureBox);
       }
-      if (failures.length <= 0 && !normalizeText(source.phaseText)) {
-        batchStateNode.textContent = "当前没有批量任务。";
+    }
+
+    function sortBatchAiResults(results) {
+      return (Array.isArray(results) ? results : [])
+        .filter(function (item) {
+          return item && typeof item === "object" && (Number(item.segmentNumber) > 0 || normalizeText(item.finalMandarinText) || normalizeText(item.listenText));
+        })
+        .slice()
+        .sort(function (left, right) {
+          return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
+        });
+    }
+
+    function renderBatchAiResultTabs() {
+      if (!aiMetaNode || batchAiResults.length <= 0) {
+        return;
       }
+      const tabRow = document.createElement("div");
+      tabRow.className = "batch-selector-grid batch-ai-tabs";
+      batchAiResults.forEach(function (item) {
+        const segmentNumber = Number(item.segmentNumber || 0) || 0;
+        const button = createButton(String(segmentNumber), false, function () {
+          batchAiActiveSegmentNumber = segmentNumber;
+          if (typeof batchAiTabSelectHandler === "function") {
+            batchAiTabSelectHandler(segmentNumber);
+            return;
+          }
+          renderAiMeta(null);
+        });
+        button.setAttribute("data-segment-number", String(segmentNumber));
+        button.setAttribute("data-batch-result-segment", String(segmentNumber));
+        button.setAttribute(
+          "data-selected",
+          batchAiActiveSegmentNumber === segmentNumber ? "true" : "false"
+        );
+        tabRow.appendChild(button);
+      });
+      aiMetaNode.appendChild(tabRow);
+    }
+
+    function renderBatchAiResults(results, activeSegmentNumber) {
+      batchAiResults = sortBatchAiResults(results);
+      batchAiActiveSegmentNumber = Math.max(0, Math.round(Number(activeSegmentNumber || 0)) || 0);
+      batchAiTabSelectHandler = null;
+      if (
+        batchAiResults.length > 0 &&
+        batchAiResults.every(function (item) {
+          return Number(item.segmentNumber || 0) !== batchAiActiveSegmentNumber;
+        })
+      ) {
+        batchAiActiveSegmentNumber = Number(batchAiResults[0].segmentNumber || 0) || 0;
+      }
+      latestRecommendation = null;
+      renderAiMeta(null);
+    }
+
+    function renderBatchResultTabs(snapshot) {
+      const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+      batchAiResults = sortBatchAiResults(source.items);
+      batchAiActiveSegmentNumber = Math.max(0, Math.round(Number(source.activeSegmentNumber || 0)) || 0);
+      batchAiTabSelectHandler =
+        typeof source.onSelect === "function" ? source.onSelect : null;
+      clearNode(aiMetaNode);
+      if (batchAiResults.length <= 0) {
+        batchAiTabSelectHandler = null;
+        return;
+      }
+      if (
+        batchAiResults.every(function (item) {
+          return Number(item.segmentNumber || 0) !== batchAiActiveSegmentNumber;
+        })
+      ) {
+        batchAiActiveSegmentNumber = Number(batchAiResults[0].segmentNumber || 0) || 0;
+      }
+      renderBatchAiResultTabs();
     }
 
     function renderPreview(preview) {
@@ -906,20 +1005,38 @@
       if (!aiMetaNode) {
         return;
       }
-      const source = Object.assign(
-        {},
-        latestRecommendation && typeof latestRecommendation === "object" ? latestRecommendation : {},
-        result && typeof result === "object" ? result : {}
-      );
+      if (result && typeof result === "object" && Object.keys(result).length > 0) {
+        latestRecommendation = Object.assign(
+          {},
+          latestRecommendation && typeof latestRecommendation === "object" ? latestRecommendation : {},
+          result
+        );
+        batchAiResults = [];
+        batchAiActiveSegmentNumber = 0;
+        batchAiTabSelectHandler = null;
+      }
+      let source = null;
+      if (batchAiResults.length > 0) {
+        source =
+          batchAiResults.find(function (item) {
+            return Number(item.segmentNumber || 0) === batchAiActiveSegmentNumber;
+          }) || batchAiResults[0];
+      } else if (latestRecommendation && typeof latestRecommendation === "object") {
+        source = Object.assign({}, latestRecommendation);
+      }
+      if (source && latestRecommendation && typeof latestRecommendation === "object") {
+        source = Object.assign({}, latestRecommendation, source);
+      }
+      clearNode(aiMetaNode);
+      if (!source || Object.keys(source).length <= 0) {
+        aiMetaNode.textContent = "当前还没有 AI 信息。";
+        return;
+      }
       const listenUsage = source.usage?.listen || {};
       const refineUsage = source.usage?.refine || {};
       const listenCost = source.cost?.listen || {};
       const refineCost = source.cost?.refine || {};
-      clearNode(aiMetaNode);
-      if (Object.keys(source).length <= 0) {
-        aiMetaNode.textContent = "当前还没有 AI 信息。";
-        return;
-      }
+      renderBatchAiResultTabs();
       const layout = document.createElement("div");
       layout.className = "info-layout";
       const infoPane = document.createElement("div");
@@ -983,7 +1100,21 @@
     }
 
     function setAiRecommendAutoFillEnabled(enabled) {
-      void enabled;
+      aiRecommendAutoFillEnabled = enabled !== false;
+      if (batchActionMode !== "running" && batchActionMode !== "fill") {
+        batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
+      }
+      renderBatchActionButton();
+    }
+
+    function setBatchActionState(mode) {
+      const normalizedMode = normalizeText(mode);
+      if (!normalizedMode) {
+        batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
+      } else {
+        batchActionMode = normalizedMode;
+      }
+      renderBatchActionButton();
     }
 
     function destroy() {
@@ -997,12 +1128,15 @@
       previewNode = null;
       aiMetaNode = null;
       batchStateNode = null;
-      batchSelectionSummaryNode = null;
       batchSelectionGridNode = null;
+      batchActionRowNode = null;
       previewActionRowNode = null;
       previewCollapseButtonNode = null;
       aiMetaCollapseButtonNode = null;
       latestRecommendation = null;
+      batchAiResults = [];
+      batchAiActiveSegmentNumber = 0;
+      batchAiTabSelectHandler = null;
       batchSelectionState = {
         totalSegments: 0,
         selectedNumbers: [],
@@ -1011,6 +1145,8 @@
         mouseDownHandledSegmentNumber: 0,
       };
       segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
+      aiRecommendAutoFillEnabled = deps.aiRecommendAutoFillEnabled !== false;
+      batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
       previewCollapsed = true;
       aiMetaCollapsed = true;
     }
@@ -1023,10 +1159,13 @@
       renderCurrentRecommendation,
       renderBatchSelection,
       renderBatchState,
+      renderBatchResultTabs,
       renderPreview,
       renderAiMeta,
+      renderBatchAiResults,
       setSegmentPreviewAutoApplyEnabled,
       setAiRecommendAutoFillEnabled,
+      setBatchActionState,
     };
   }
 

@@ -71,6 +71,8 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /async function saveBytedanceAidpSettings\(/);
   assert.match(script, /toggleButton\.textContent = enabled \? "关闭脚本" : "启用脚本"/);
   assert.match(script, /setStatus\("bytedance-aidp-status", "正在保存设置\.\.\."\)/);
+  assert.match(script, /function showTopToast\(/);
+  assert.match(script, /top-toast/);
   assert.match(script, /设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。/);
   assert.match(script, /function renderBytedanceAidpSuzhouAiSettingsSection\(/);
   assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);

@@ -1861,6 +1861,182 @@ test("ByteDance AIDP content keeps toolbar helper buttons on a single line", fun
   assert.equal(fillButton.style.getPropertyValue("white-space") || fillButton.style.whiteSpace, "nowrap");
 });
 
+test("ByteDance AIDP batch controller caches results without writeback when auto-fill is disabled", async function () {
+  const contentModule = loadContentModule();
+  const renderStates = [];
+  const statusCalls = [];
+  const writeCalls = [];
+  const currentContext = {
+    audioUrl: "https://example.test/audio.m4a",
+    selectionKey: "selection-1",
+    currentSignature: "signature-1",
+    taskId: "task-1",
+    itemId: "item-1",
+    entryId: "entry-1",
+    templateID: "template-1",
+    currentSegments: [
+      {
+        segmentNumber: 1,
+        startMs: 0,
+        endMs: 1200,
+        text: "",
+        language: "目标方言",
+      },
+      {
+        segmentNumber: 2,
+        startMs: 1200,
+        endMs: 2400,
+        text: "",
+        language: "目标方言",
+      },
+    ],
+  };
+  const controller = contentModule.__testOnly.createBatchRecommendController({
+    dataApi: {
+      async getCurrentContext() {
+        return currentContext;
+      },
+      async writeBatchRegionTexts(payload) {
+        writeCalls.push(payload);
+        return {
+          ok: true,
+          message: "unexpected write",
+          writtenCount: 2,
+          skippedCount: 0,
+        };
+      },
+    },
+    ai: {
+      createSharedAudioSource(audioUrl) {
+        return { audioUrl };
+      },
+      async recommendForSegment(requestContext) {
+        const segmentNumber = Number(requestContext.segmentNumber || 0) || 0;
+        return {
+          selectionKey: currentContext.selectionKey,
+          segmentNumber,
+          listenText: "第" + String(segmentNumber) + "段听音",
+          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
+          debug: { segmentNumber },
+        };
+      },
+    },
+    ui: {
+      renderBatchState(snapshot) {
+        renderStates.push(snapshot);
+      },
+      setStatus(message, tone) {
+        statusCalls.push({ message, tone });
+      },
+    },
+  });
+
+  const result = await controller.start([1, 2], {
+    autoFill: false,
+  });
+
+  assert.equal(writeCalls.length, 0);
+  assert.equal(result.ok, true);
+  assert.equal(result.pendingFill, true);
+  assert.equal(result.results.length, 2);
+  assert.deepEqual(
+    result.updates.map(function (item) {
+      return item.segmentNumber;
+    }),
+    [1, 2]
+  );
+  assert.equal(
+    renderStates.some(function (item) {
+      return item && item.actionMode === "fill";
+    }),
+    true
+  );
+  assert.equal(
+    statusCalls.some(function (item) {
+      return /点击“填入”/.test(String(item.message || ""));
+    }),
+    true
+  );
+});
+
+test("ByteDance AIDP batch controller writes once after recognition when auto-fill is enabled", async function () {
+  const contentModule = loadContentModule();
+  const writeCalls = [];
+  const currentContext = {
+    audioUrl: "https://example.test/audio.m4a",
+    selectionKey: "selection-2",
+    currentSignature: "signature-2",
+    taskId: "task-2",
+    itemId: "item-2",
+    entryId: "entry-2",
+    templateID: "template-2",
+    currentSegments: [
+      {
+        segmentNumber: 1,
+        startMs: 0,
+        endMs: 1200,
+        text: "",
+        language: "目标方言",
+      },
+      {
+        segmentNumber: 2,
+        startMs: 1200,
+        endMs: 2400,
+        text: "",
+        language: "目标方言",
+      },
+    ],
+  };
+  const controller = contentModule.__testOnly.createBatchRecommendController({
+    dataApi: {
+      async getCurrentContext() {
+        return currentContext;
+      },
+      async writeBatchRegionTexts(payload) {
+        writeCalls.push(payload);
+        return {
+          ok: true,
+          message: "已写回 2 段。",
+          writtenCount: 2,
+          skippedCount: 0,
+        };
+      },
+    },
+    ai: {
+      createSharedAudioSource(audioUrl) {
+        return { audioUrl };
+      },
+      async recommendForSegment(requestContext) {
+        const segmentNumber = Number(requestContext.segmentNumber || 0) || 0;
+        return {
+          selectionKey: currentContext.selectionKey,
+          segmentNumber,
+          listenText: "第" + String(segmentNumber) + "段听音",
+          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
+        };
+      },
+    },
+    ui: {
+      renderBatchState() {},
+      setStatus() {},
+    },
+  });
+
+  const result = await controller.start([1, 2], {
+    autoFill: true,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(writeCalls.length, 1);
+  assert.deepEqual(
+    writeCalls[0].updates.map(function (item) {
+      return item.segmentNumber;
+    }),
+    [1, 2]
+  );
+  assert.equal(result.pendingFill, false);
+});
+
 test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Space play-pause toggle", function () {
   const shortcutsModule = loadShortcutsModule();
   const windowListeners = new Map();

@@ -922,6 +922,7 @@
   let publicCenterDragState = null;
   let betaUnlockTapCount = 0;
   let betaUnlockTapTimer = null;
+  let topToastHideTimer = null;
   const PLATFORM_REORDER_HOVER_DELAY_MS = 200;
   const PLATFORM_REORDER_EDGE_SCROLL_MARGIN = 92;
   const PLATFORM_REORDER_EDGE_SCROLL_STEP = 22;
@@ -12457,9 +12458,11 @@
         },
       });
       applyBytedanceAidpForm(currentSettings);
-      setStatus(
-        "bytedance-aidp-status",
-        "设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。"
+      setStatus("bytedance-aidp-status", "");
+      showTopToast(
+        "设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。",
+        "success",
+        1000
       );
       return true;
     } catch (error) {
@@ -12836,6 +12839,43 @@
     if (node) {
       node.textContent = text || "";
     }
+  }
+
+  function showTopToast(message, tone, durationMs) {
+    if (typeof document === "undefined" || !document.body) {
+      return;
+    }
+    let node = getElement("top-toast");
+    if (!node) {
+      node = document.createElement("div");
+      node.id = "top-toast";
+      node.className = "top-toast";
+      document.body.appendChild(node);
+    }
+    if (topToastHideTimer && typeof clearTimeout === "function") {
+      clearTimeout(topToastHideTimer);
+      topToastHideTimer = null;
+    }
+    const normalizedMessage = String(message || "").trim();
+    if (!normalizedMessage) {
+      node.classList.remove("visible");
+      node.textContent = "";
+      node.removeAttribute("data-tone");
+      return;
+    }
+    node.textContent = normalizedMessage;
+    node.setAttribute("data-tone", normalizeText(tone) || "info");
+    node.classList.add("visible");
+    const hideDelay = Math.max(0, Math.round(Number(durationMs || 0) || 0));
+    if (hideDelay <= 0 || typeof setTimeout !== "function") {
+      return;
+    }
+    topToastHideTimer = setTimeout(function () {
+      node.classList.remove("visible");
+      node.textContent = "";
+      node.removeAttribute("data-tone");
+      topToastHideTimer = null;
+    }, hideDelay);
   }
 
   async function loadSettings() {

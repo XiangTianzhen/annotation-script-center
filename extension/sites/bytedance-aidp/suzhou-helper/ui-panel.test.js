@@ -314,7 +314,8 @@ test("AIDP suzhou ui panel keeps current-audio and AI sections collapsed by defa
     assert.equal(summaryCard.style.display, "none");
     assert.equal(aiInfoCard.style.display, "none");
     assert.equal(panelRoot.textContent.includes("Beta"), false);
-    assert.equal(tooltipButton.textContent, "™");
+    assert.equal(tooltipButton.textContent, "?");
+    assert.equal(tooltipButton.getAttribute("data-icon"), "");
 
     tooltipAnchor.eventListeners.mouseenter({ type: "mouseenter", target: tooltipAnchor });
     assert.equal(tooltipAnchor.getAttribute("data-hover"), "true");
@@ -577,18 +578,170 @@ test("AIDP suzhou ui panel toggles batch selection with a normal click without r
     const batchButtonTwo = findNode(panelRoot, function (node) {
       return node.tagName === "BUTTON" && node.getAttribute("data-segment-number") === "2";
     });
-    const batchSummary = findNode(panelRoot, function (node) {
-      return String(node.className || "").split(/\s+/).includes("batch-selector-summary");
+    const batchAllButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-all") === "true";
     });
 
     assert.ok(batchButtonTwo);
-    assert.ok(batchSummary);
-    assert.match(batchSummary.textContent, /全部 3 段/);
+    assert.ok(batchAllButton);
+    assert.equal(panelRoot.textContent.includes("当前选择："), false);
 
     batchButtonTwo.eventListeners.mousedown({ type: "mousedown", bubbles: true });
     batchButtonTwo.click();
 
-    assert.equal(batchSummary.textContent, "当前选择：1、3");
+    assert.equal(batchButtonTwo.getAttribute("data-selected"), "false");
+    assert.equal(batchAllButton.getAttribute("data-selected"), "false");
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("AIDP suzhou ui panel uses a single batch primary button that follows auto-fill and running states", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({
+      aiRecommendAutoFillEnabled: true,
+    });
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = harness.waveAnchor.nextSibling;
+    runtime.renderBatchSelection({
+      totalSegments: 4,
+      resetSelection: true,
+    });
+
+    let primaryButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
+    });
+    assert.ok(primaryButton);
+    assert.equal(primaryButton.textContent, "批量识别并填入");
+    assert.equal(panelRoot.textContent.includes("当前没有批量任务。"), false);
+
+    runtime.renderBatchState({
+      isRunning: true,
+      phaseText: "批量识别进行中",
+      totalCount: 4,
+      concurrency: 5,
+      succeededCount: 1,
+      failedCount: 0,
+      skippedCount: 0,
+    });
+    primaryButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
+    });
+    assert.ok(primaryButton);
+    assert.equal(primaryButton.textContent, "停止批量");
+
+    runtime.setAiRecommendAutoFillEnabled(false);
+    runtime.renderBatchState({
+      isRunning: false,
+      hasPendingFill: false,
+      phaseText: "",
+      totalCount: 4,
+      concurrency: 5,
+      succeededCount: 0,
+      failedCount: 0,
+      skippedCount: 0,
+    });
+    primaryButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
+    });
+    assert.ok(primaryButton);
+    assert.equal(primaryButton.textContent, "批量识别");
+
+    runtime.renderBatchState({
+      isRunning: false,
+      hasPendingFill: true,
+      phaseText: "",
+      totalCount: 4,
+      concurrency: 5,
+      succeededCount: 3,
+      failedCount: 0,
+      skippedCount: 1,
+    });
+    primaryButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
+    });
+    assert.ok(primaryButton);
+    assert.equal(primaryButton.textContent, "填入");
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("AIDP suzhou ui panel renders batch AI tabs and switches the active segment by click", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = harness.waveAnchor.nextSibling;
+    const selections = [];
+    runtime.renderBatchResultTabs({
+      items: [
+        { segmentNumber: 1 },
+        { segmentNumber: 2 },
+        { segmentNumber: 4 },
+      ],
+      activeSegmentNumber: 2,
+      onSelect(segmentNumber) {
+        selections.push(segmentNumber);
+      },
+    });
+
+    const tabButtons = collectDescendants(panelRoot).filter(function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-result-segment");
+    });
+    assert.deepEqual(
+      tabButtons.map(function (node) {
+        return node.textContent;
+      }),
+      ["1", "2", "4"]
+    );
+    const activeButton = findNode(panelRoot, function (node) {
+      return (
+        node.tagName === "BUTTON" &&
+        node.getAttribute("data-batch-result-segment") === "2"
+      );
+    });
+    assert.ok(activeButton);
+    assert.equal(activeButton.getAttribute("data-selected"), "true");
+
+    const firstButton = findNode(panelRoot, function (node) {
+      return (
+        node.tagName === "BUTTON" &&
+        node.getAttribute("data-batch-result-segment") === "1"
+      );
+    });
+    assert.ok(firstButton);
+    firstButton.click();
+    assert.deepEqual(selections, [1]);
+
+    runtime.renderBatchResultTabs({
+      items: [],
+      activeSegmentNumber: 0,
+      onSelect() {},
+    });
+    assert.equal(
+      collectDescendants(panelRoot).some(function (node) {
+        return node.tagName === "BUTTON" && node.getAttribute("data-batch-result-segment");
+      }),
+      false
+    );
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

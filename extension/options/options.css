@@ -2175,6 +2175,42 @@ body {
   margin-top: 4px;
 }
 
+.top-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 2400;
+  min-width: 260px;
+  max-width: min(680px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(191, 219, 254, 0.96);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.top-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.top-toast[data-tone="success"] {
+  border-color: rgba(134, 239, 172, 0.96);
+  box-shadow: 0 14px 32px rgba(22, 163, 74, 0.12);
+}
+
+.top-toast[data-tone="error"] {
+  border-color: rgba(252, 165, 165, 0.96);
+  box-shadow: 0 14px 32px rgba(220, 38, 38, 0.12);
+}
+
 @media (max-width: 1200px) {
   .workspace-shell {
     grid-template-columns: 1fr;
