@@ -14,6 +14,19 @@ const constants = globalThis.ASREdgeConstants;
 const storage = globalThis.ASREdgeStorage;
 const LOG_PREFIX = "[ASR Edge][background]";
 const AIDP_COOKIE_CLEAR_MESSAGE_TYPE = "ASR_EDGE_CLEAR_AIDP_COOKIES";
+const AIDP_ACCOUNT_SWITCH_SCOPE_URLS = Object.freeze([
+  "https://aidp.bytedance.com/",
+  "https://mpsso.jiyunhudong.com/",
+  "https://accounts.feishu.cn/",
+]);
+const AIDP_ACCOUNT_SWITCH_PARTITIONED_SCOPE_QUERIES = Object.freeze([
+  Object.freeze({
+    url: "https://accounts.feishu.cn/",
+    partitionKey: Object.freeze({
+      topLevelSite: "https://mpsso.jiyunhudong.com",
+    }),
+  }),
+]);
 
 async function bootstrap(reason) {
   const nextSettings = await storage.patchSettings({
@@ -142,13 +155,48 @@ function normalizeAidpCookieScopeUrl(value) {
     if (String(url.protocol || "").toLowerCase() !== "https:") {
       return "";
     }
-    if (String(url.hostname || "").toLowerCase() !== "aidp.bytedance.com") {
+    const hostname = String(url.hostname || "").toLowerCase();
+    if (
+      hostname !== "aidp.bytedance.com" &&
+      hostname !== "mpsso.jiyunhudong.com"
+    ) {
       return "";
     }
     return url.origin + "/";
   } catch (_error) {
     return "";
   }
+}
+
+function clonePartitionKey(partitionKey) {
+  if (!partitionKey || typeof partitionKey !== "object") {
+    return undefined;
+  }
+  const nextKey = {};
+  if (String(partitionKey.topLevelSite || "").trim()) {
+    nextKey.topLevelSite = String(partitionKey.topLevelSite || "").trim();
+  }
+  if (typeof partitionKey.hasCrossSiteAncestor === "boolean") {
+    nextKey.hasCrossSiteAncestor = partitionKey.hasCrossSiteAncestor;
+  }
+  return Object.keys(nextKey).length > 0 ? nextKey : undefined;
+}
+
+function buildAidpCookieScopeQueries(value) {
+  const entryUrl = normalizeAidpCookieScopeUrl(value);
+  if (!entryUrl) {
+    return [];
+  }
+  const queries = AIDP_ACCOUNT_SWITCH_SCOPE_URLS.map(function (url) {
+    return { url: url };
+  });
+  AIDP_ACCOUNT_SWITCH_PARTITIONED_SCOPE_QUERIES.forEach(function (query) {
+    queries.push({
+      url: query.url,
+      partitionKey: clonePartitionKey(query.partitionKey),
+    });
+  });
+  return queries;
 }
 
 function buildCookieRemovalDetails(cookie) {
@@ -174,13 +222,25 @@ function buildCookieRemovalDetails(cookie) {
   return details;
 }
 
+function buildCookieRemovalIdentity(details) {
+  if (!details || typeof details !== "object") {
+    return "";
+  }
+  return JSON.stringify({
+    url: String(details.url || ""),
+    name: String(details.name || ""),
+    storeId: String(details.storeId || ""),
+    partitionKey: clonePartitionKey(details.partitionKey) || null,
+  });
+}
+
 async function clearCookiesForUrl(url, cookieApi) {
-  const targetUrl = normalizeAidpCookieScopeUrl(url);
-  if (!targetUrl) {
+  const queries = buildAidpCookieScopeQueries(url);
+  if (queries.length <= 0) {
     return {
       ok: false,
       reason: "invalid-aidp-url",
-      message: "仅支持清理 aidp.bytedance.com 的登录 Cookie。",
+      message: "仅支持从 ByteDance AIDP 列表页发起切换账号 Cookie 清理。",
       clearedCount: 0,
     };
   }
@@ -194,13 +254,31 @@ async function clearCookiesForUrl(url, cookieApi) {
     };
   }
 
-  const cookies = await api.getAll({ url: targetUrl });
+  const cookies = [];
+  for (const query of queries) {
+    try {
+      const matched = await api.getAll(query);
+      if (Array.isArray(matched) && matched.length > 0) {
+        cookies.push.apply(cookies, matched);
+      }
+    } catch (error) {
+      if (!query.partitionKey) {
+        throw error;
+      }
+    }
+  }
   let clearedCount = 0;
+  const seenRemovalKeys = new Set();
   for (const cookie of Array.isArray(cookies) ? cookies : []) {
     const details = buildCookieRemovalDetails(cookie);
     if (!details) {
       continue;
     }
+    const removalKey = buildCookieRemovalIdentity(details);
+    if (!removalKey || seenRemovalKeys.has(removalKey)) {
+      continue;
+    }
+    seenRemovalKeys.add(removalKey);
     const removed = await api.remove(details);
     if (removed) {
       clearedCount += 1;
@@ -214,7 +292,9 @@ async function clearCookiesForUrl(url, cookieApi) {
         ? "已清除当前账号登录 Cookie。"
         : "当前未找到可清除的登录 Cookie。",
     clearedCount: clearedCount,
-    url: targetUrl,
+    scopeUrls: queries.map(function (query) {
+      return query.url;
+    }),
   };
 }
 
@@ -286,7 +366,9 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     __testOnly: {
       normalizeAidpCookieScopeUrl: normalizeAidpCookieScopeUrl,
+      buildAidpCookieScopeQueries: buildAidpCookieScopeQueries,
       buildCookieRemovalDetails: buildCookieRemovalDetails,
+      buildCookieRemovalIdentity: buildCookieRemovalIdentity,
       clearCookiesForUrl: clearCookiesForUrl,
       AIDP_COOKIE_CLEAR_MESSAGE_TYPE: AIDP_COOKIE_CLEAR_MESSAGE_TYPE,
     },

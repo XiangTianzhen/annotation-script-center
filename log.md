@@ -1100,6 +1100,7 @@
 - 调整 ByteDance AIDP 基础设置首排布局，将 `隐藏平台AI功能` 与 `画段后自动应用建议` 收口到同一排
 - 为扩展新增 `cookies` 权限，并将 ByteDance AIDP `切换账号` 改为直接清理 `aidp.bytedance.com` 登录 Cookie 后刷新页面
 - 新增 background service worker 的 AIDP Cookie 清理回归测试
+- 调整 ByteDance AIDP `切换账号` 的 Cookie 清理范围，补充 `mpsso.jiyunhudong.com` 与其顶层站点下 `accounts.feishu.cn` 分区第三方登录 Cookie 的清理
 
 ## 2026-04-25（历史记录重建摘要）
 - 拆分快判统计本地服务

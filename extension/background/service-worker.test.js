@@ -93,28 +93,73 @@ test("manifest grants cookies permission for direct account switching", function
   assert.ok(manifest.permissions.includes("cookies"));
 });
 
-test("background service worker clears cookies accessible to the AIDP url", async function () {
+test("background service worker clears AIDP, SSO, and partitioned third-party login cookies", async function () {
+  const queried = [];
   const removed = [];
   const worker = loadServiceWorkerModule({
     cookies: {
       getAll: async function (details) {
-        assert.equal(details.url, "https://aidp.bytedance.com/");
-        return [
-          {
-            name: "AIDP_ADS_USER",
-            domain: "aidp.bytedance.com",
-            path: "/",
-            secure: true,
-            storeId: "0",
-          },
-          {
-            name: "msToken",
-            domain: ".bytedance.com",
-            path: "/",
-            secure: true,
-            storeId: "0",
-          },
-        ];
+        queried.push(details);
+        if (
+          details.url === "https://aidp.bytedance.com/" &&
+          !details.partitionKey
+        ) {
+          return [
+            {
+              name: "AIDP_ADS_USER",
+              domain: "aidp.bytedance.com",
+              path: "/",
+              secure: true,
+              storeId: "0",
+            },
+            {
+              name: "msToken",
+              domain: ".bytedance.com",
+              path: "/",
+              secure: true,
+              storeId: "0",
+            },
+          ];
+        }
+        if (
+          details.url === "https://mpsso.jiyunhudong.com/" &&
+          !details.partitionKey
+        ) {
+          return [
+            {
+              name: "sso_session",
+              domain: "mpsso.jiyunhudong.com",
+              path: "/",
+              secure: true,
+              storeId: "0",
+            },
+          ];
+        }
+        if (
+          details.url === "https://accounts.feishu.cn/" &&
+          !details.partitionKey
+        ) {
+          return [];
+        }
+        if (
+          details.url === "https://accounts.feishu.cn/" &&
+          details.partitionKey &&
+          details.partitionKey.topLevelSite === "https://mpsso.jiyunhudong.com"
+        ) {
+          return [
+            {
+              name: "session",
+              domain: ".feishu.cn",
+              path: "/",
+              secure: true,
+              storeId: "0",
+              partitionKey: {
+                topLevelSite: "https://mpsso.jiyunhudong.com",
+              },
+            },
+          ];
+        }
+        throw new Error("unexpected getAll query: " + JSON.stringify(details));
       },
       remove: async function (details) {
         removed.push(details);
@@ -128,7 +173,24 @@ test("background service worker clears cookies accessible to the AIDP url", asyn
   const result = await worker.__testOnly.clearCookiesForUrl("https://aidp.bytedance.com/");
 
   assert.equal(result.ok, true);
-  assert.equal(result.clearedCount, 2);
+  assert.equal(result.clearedCount, 4);
+  assert.deepEqual(queried, [
+    {
+      url: "https://aidp.bytedance.com/",
+    },
+    {
+      url: "https://mpsso.jiyunhudong.com/",
+    },
+    {
+      url: "https://accounts.feishu.cn/",
+    },
+    {
+      url: "https://accounts.feishu.cn/",
+      partitionKey: {
+        topLevelSite: "https://mpsso.jiyunhudong.com",
+      },
+    },
+  ]);
   assert.deepEqual(removed, [
     {
       url: "https://aidp.bytedance.com/",
@@ -139,6 +201,19 @@ test("background service worker clears cookies accessible to the AIDP url", asyn
       url: "https://bytedance.com/",
       name: "msToken",
       storeId: "0",
+    },
+    {
+      url: "https://mpsso.jiyunhudong.com/",
+      name: "sso_session",
+      storeId: "0",
+    },
+    {
+      url: "https://feishu.cn/",
+      name: "session",
+      storeId: "0",
+      partitionKey: {
+        topLevelSite: "https://mpsso.jiyunhudong.com",
+      },
     },
   ]);
 });
