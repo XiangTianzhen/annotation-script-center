@@ -431,6 +431,37 @@ p {
   font-size: 15px;
 }
 
+.field-title-row,
+.asr-ai-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.inline-help-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  min-height: 14px;
+  border: none;
+  background: transparent;
+  color: #5f6f90;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  text-decoration: none;
+  user-select: none;
+}
+
+.inline-help-dot:hover,
+.inline-help-dot:focus {
+  color: #26418b;
+  outline: none;
+}
+
 .field-card span,
 .asr-ai-copy,
 .asr-ai-help,
@@ -483,6 +514,10 @@ p {
 .home-endpoint-row input,
 .admin-auth-field input {
   max-width: 100%;
+}
+
+.asr-ai-help.is-empty-default[data-visible="false"] {
+  display: none;
 }
 
 .asr-ai-panel {

@@ -209,6 +209,51 @@ function createAidpSegmentTableRow(segmentNumber, value) {
   });
 }
 
+function createAidpArcoVirtualRow(segmentNumber, value) {
+  return new FakeElement({
+    tagName: "div",
+    className: "arco-table-tr",
+    attributes: {
+      "data-neeko-table-row-key": "region_" + String(segmentNumber),
+    },
+    children: [
+      new FakeElement({
+        tagName: "div",
+        className: "arco-table-td arco-table-col-fixed-left arco-table-col-fixed-left-last",
+        children: [
+          new FakeElement({
+            tagName: "div",
+            className: "arco-table-cell",
+            children: [
+              new FakeElement({
+                tagName: "span",
+                text: String(segmentNumber),
+              }),
+            ],
+          }),
+        ],
+      }),
+      new FakeElement({
+        tagName: "div",
+        className: "arco-table-td",
+        children: [
+          new FakeElement({
+            tagName: "div",
+            className: "arco-table-cell",
+            children: [
+              new FakeElement({
+                tagName: "textarea",
+                className: "arco-textarea neeko-input-textarea",
+                value: value || "",
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
 function createBaseReceivePayload(regionOverrides) {
   const regions = Array.isArray(regionOverrides)
     ? regionOverrides
@@ -909,6 +954,42 @@ test("AIDP data api fills the target segment textarea through DOM events without
   });
   assert.equal(textarea.value, "普通话听写稿");
   assert.deepEqual(eventTypes, ["beforeinput", "input", "change", "compositionend"]);
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api fills the target textarea inside Arco virtual table rows", async function () {
+  const rowOne = createAidpArcoVirtualRow(1, "旧内容一");
+  const rowTwo = createAidpArcoVirtualRow(2, "");
+  const documentLike = createFakeDocument([
+    new FakeElement({
+      tagName: "div",
+      className: "arco-table",
+      children: [
+        new FakeElement({
+          tagName: "div",
+          className: "arco-table-body",
+          children: [rowOne, rowTwo],
+        }),
+      ],
+    }),
+  ]);
+  const textarea = rowTwo.querySelector("textarea");
+  const harness = createRuntimeHarness({
+    document: documentLike,
+  });
+
+  const result = await harness.runtime.fillCurrentRegionTextIntoDom({
+    segmentNumber: 2,
+    finalMandarinText: "普通话听写稿二",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已填入第 2 段输入框，请继续复核或暂存。",
+    filledCount: 1,
+    skippedCount: 0,
+  });
+  assert.equal(textarea.value, "普通话听写稿二");
   assert.equal(harness.fetchCalls.length, 0);
 });
 

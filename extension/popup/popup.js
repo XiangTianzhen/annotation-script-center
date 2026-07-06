@@ -144,16 +144,8 @@
   }
 
   function buildRuntimeDescription(context) {
-    const parts = [];
     const statusText = String(context?.statusText || "").trim();
-    const description = String(context?.description || "").trim();
-    if (statusText) {
-      parts.push("运行状态：" + statusText);
-    }
-    if (description) {
-      parts.push(description);
-    }
-    return parts.join(" ");
+    return statusText ? "运行状态：" + statusText : "";
   }
 
   function getLabelxActiveScriptId(settings) {

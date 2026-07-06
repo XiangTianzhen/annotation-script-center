@@ -3430,6 +3430,79 @@
     );
   }
 
+  function formatBytedanceAidpSuzhouStageParamDefaultText(definition, value) {
+    if (definition?.type === "number") {
+      return normalizeOptionalNumberText(
+        value,
+        definition.min,
+        definition.max,
+        definition.precision
+      );
+    }
+    if (definition?.type === "integer") {
+      return normalizeOptionalIntegerText(value, definition.min, definition.max);
+    }
+    return normalizeStopSequencesText(value || "");
+  }
+
+  function refreshBytedanceAidpSuzhouStageParamHelpText(stagePrefix, definition, stageDefaults) {
+    const fieldNode = getElement(getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition));
+    const helpNode = getElement(
+      getBytedanceAidpSuzhouStageParamHelpElementId(stagePrefix, definition)
+    );
+    if (
+      (!(fieldNode instanceof HTMLInputElement) && !(fieldNode instanceof HTMLTextAreaElement)) ||
+      !(helpNode instanceof HTMLElement)
+    ) {
+      return;
+    }
+    const rawValue = definition?.type === "stop" ? normalizeStopSequencesText(fieldNode.value || "") : normalizeText(fieldNode.value);
+    if (rawValue) {
+      helpNode.textContent = "";
+      helpNode.setAttribute("data-visible", "false");
+      return;
+    }
+    const defaultValue = formatBytedanceAidpSuzhouStageParamDefaultText(
+      definition,
+      stageDefaults?.[definition.apiKey]
+    );
+    helpNode.textContent =
+      "当前为空，将使用后端默认值：" + (normalizeText(defaultValue) || "空");
+    helpNode.setAttribute("data-visible", "true");
+  }
+
+  function bindBytedanceAidpSuzhouStageParamHelp(stagePrefix, stageDefaults) {
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      const fieldNode = getElement(getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition));
+      if (
+        !(fieldNode instanceof HTMLInputElement) &&
+        !(fieldNode instanceof HTMLTextAreaElement)
+      ) {
+        return;
+      }
+      if (fieldNode.getAttribute("data-aidp-default-help-bound") === "true") {
+        return;
+      }
+      fieldNode.setAttribute("data-aidp-default-help-bound", "true");
+      ["input", "change"].forEach(function (eventName) {
+        fieldNode.addEventListener(eventName, function () {
+          refreshBytedanceAidpSuzhouStageParamHelpText(
+            stagePrefix,
+            definition,
+            stageDefaults
+          );
+        });
+      });
+      refreshBytedanceAidpSuzhouStageParamHelpText(stagePrefix, definition, stageDefaults);
+    });
+  }
+
+  function refreshBytedanceAidpSuzhouStageParamHelpTexts(stagePrefix, stageDefaults) {
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      refreshBytedanceAidpSuzhouStageParamHelpText(stagePrefix, definition, stageDefaults);
+    });
+  }
+
   function applyBytedanceAidpSuzhouStageParamValues(stagePrefix, configPrefix, config, stageDefaults) {
     aishellTechStageParamDefinitions.forEach(function (definition) {
       const node = getElement(
@@ -3438,13 +3511,10 @@
       if (!(node instanceof HTMLInputElement) && !(node instanceof HTMLTextAreaElement)) {
         return;
       }
-      node.value = String(
-        getAsrVoiceAiEffectiveText(
-          config?.[configPrefix + definition.suffix],
-          stageDefaults?.[definition.apiKey]
-        )
-      );
+      const rawValue = config?.[configPrefix + definition.suffix];
+      node.value = rawValue === undefined || rawValue === null ? "" : String(rawValue);
     });
+    refreshBytedanceAidpSuzhouStageParamHelpTexts(stagePrefix, stageDefaults);
   }
 
   function readBytedanceAidpSuzhouStageParamDraft(target, configPrefix, stagePrefix) {
@@ -3488,11 +3558,6 @@
       stageDefaults.listen.modelOptions,
       currentListenModel
     );
-    const listenHelpNode = getElement("bytedance-aidp-ai-listen-model-help");
-    if (listenHelpNode instanceof HTMLElement) {
-      listenHelpNode.textContent =
-        "听音阶段只根据当前段音频生成保守的原始听写草稿，不做普通话收口。";
-    }
   }
 
   function applyBytedanceAidpSuzhouStageFields(config, aiDefaults) {
@@ -6074,15 +6139,115 @@
 
   function buildAsrVoiceAiHeader(scriptId) {
     const scriptLabel = scriptLibrary[scriptId]?.label || scriptId;
+    const headerCopy =
+      scriptId === bytedanceAidpSuzhouScriptId
+        ? ""
+        : '<p class="asr-ai-copy">这些设置仅影响当前脚本的 AI 辅助能力。普通用户无需修改；后端地址仍由首页顶部“后端接口地址”统一控制。</p>';
     return [
       '<div class="asr-ai-head">',
       '<div class="asr-ai-title">',
       "<strong>AI 设置</strong>",
-      '<p class="asr-ai-copy">这些设置仅影响当前脚本的 AI 辅助能力。普通用户无需修改；后端地址仍由首页顶部“后端接口地址”统一控制。</p>',
+      headerCopy,
       "</div>",
       '<span class="asr-ai-pill">' + escapeHtml(scriptLabel) + "</span>",
       "</div>",
     ].join("");
+  }
+
+  function buildInlineHelpDotMarkup(text) {
+    const normalized = normalizeText(text);
+    if (!normalized) {
+      return "";
+    }
+    return (
+      '<span class="inline-help-dot" tabindex="0" title="' +
+      escapeHtml(normalized) +
+      '">?</span>'
+    );
+  }
+
+  function buildAsrAiLabelMarkup(label, helpText) {
+    return (
+      '<span class="asr-ai-label-row"><span>' +
+      escapeHtml(label) +
+      "</span>" +
+      buildInlineHelpDotMarkup(helpText) +
+      "</span>"
+    );
+  }
+
+  function getBytedanceAidpSuzhouStageParamHelpElementId(stagePrefix, definition) {
+    return getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition) + "-help";
+  }
+
+  function getBytedanceAidpSuzhouStageParamExplanation(definition) {
+    const helpMap = {
+      temperature: "控制结果随机度，数值越低越稳定；通常只做小幅调节。",
+      top_p: "控制采样候选范围；通常与 temperature 二选一微调即可。",
+      max_tokens: "限制当前阶段输出长度，避免结果过长。",
+      max_completion_tokens: "限制补全文本长度；模型不支持时由后端按兼容策略处理。",
+      presence_penalty: "控制是否鼓励新内容；通常保持默认值即可。",
+      frequency_penalty: "控制重复惩罚；通常保持默认值即可。",
+      seed: "固定随机种子；留空表示不固定。",
+      stop: "每行一个停止序列；留空表示不额外设置。",
+    };
+    return helpMap[String(definition?.apiKey || "").trim()] || "";
+  }
+
+  function getBytedanceAidpSuzhouStageParamLabel(definition) {
+    const labelMap = {
+      temperature: "temperature",
+      top_p: "top_p",
+      max_tokens: "max_tokens",
+      max_completion_tokens: "max_completion_tokens",
+      presence_penalty: "presence_penalty",
+      frequency_penalty: "frequency_penalty",
+      seed: "seed",
+      stop: "stop sequences（每行一个）",
+    };
+    return labelMap[String(definition?.apiKey || "").trim()] || String(definition?.domSuffix || "");
+  }
+
+  function buildBytedanceAidpSuzhouStageParamFieldsMarkup(stagePrefix) {
+    return aishellTechStageParamDefinitions
+      .map(function (definition) {
+        const fieldId = getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition);
+        const helpId = getBytedanceAidpSuzhouStageParamHelpElementId(stagePrefix, definition);
+        const labelMarkup = buildAsrAiLabelMarkup(
+          getBytedanceAidpSuzhouStageParamLabel(definition),
+          getBytedanceAidpSuzhouStageParamExplanation(definition)
+        );
+        const controlMarkup =
+          definition.type === "stop"
+            ? '<textarea id="' +
+              fieldId +
+              '" maxlength="960"></textarea>'
+            : '<input id="' +
+              fieldId +
+              '" type="number" min="' +
+              String(definition.min) +
+              '" max="' +
+              String(definition.max) +
+              '" step="' +
+              String(
+                definition.type === "integer"
+                  ? 1
+                  : definition.apiKey === "top_p"
+                    ? 0.05
+                    : 0.1
+              ) +
+              '" />';
+        return (
+          '<label class="asr-ai-field"><span>' +
+          labelMarkup +
+          '</span>' +
+          controlMarkup +
+          '<span class="asr-ai-help is-empty-default" data-visible="false" id="' +
+          helpId +
+          '"></span></label>'
+        );
+      })
+      .join("");
   }
 
   function buildAishellTechStageParamFieldsMarkup(stagePrefix, includeThresholdField) {
@@ -6268,25 +6433,56 @@
       headerHtml,
       '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
       '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>启用普通话听写识别</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示单段识别与批量识别能力。</span></label></label>',
-      '<label class="asr-ai-field"><span>识别完成后自动填入</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-auto-fill-enabled" type="checkbox" /><span>默认开启。单段识别成功后直接填入对应输入框，不主动走平台暂存请求。</span></label></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup("启用普通话听写识别", "关闭后不显示单段识别与批量识别能力。") +
+        '</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-enabled" type="checkbox" /><span>开启</span></label></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup(
+          "识别完成后自动填入",
+          "单段识别成功后直接填入对应输入框，不主动走平台暂存请求。"
+        ) +
+        '</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-auto-fill-enabled" type="checkbox" /><span>开启</span></label></label>',
       '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="bytedance-aidp-ai-timeout" type="number" min="1000" max="60000" step="1000" /></label>',
-      '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup("思考开关", "thinking 已全局固定关闭，以避免请求链路拖慢。") +
+        '</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-enable-thinking" type="checkbox" /><span>固定关闭</span></label></label>',
       "</div></div>",
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>听音模型</span><select id="bytedance-aidp-ai-listen-model-select"></select><span class="asr-ai-help" id="bytedance-aidp-ai-listen-model-help"></span></label>',
-      '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt；默认会要求普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取。</span></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup(
+          "听音模型",
+          "听音阶段只根据当前段音频生成保守的原始听写草稿，不做普通话收口。"
+        ) +
+        '</span><select id="bytedance-aidp-ai-listen-model-select"></select></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup(
+          "听音 Prompt（可选）",
+          "普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取；留空时沿用后端默认 Prompt。"
+        ) +
+        '</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000"></textarea></label>',
       '</div><div class="asr-ai-grid three">' +
-        buildDataBakerCvpcStageParamFieldsMarkup("listen").replace(/data-baker-cvpc-ai-/g, "bytedance-aidp-ai-") +
+        buildBytedanceAidpSuzhouStageParamFieldsMarkup("listen") +
         "</div></div>",
       '<div class="asr-ai-block"><strong>普通话听写收口</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>收口模型</span><select id="bytedance-aidp-ai-refine-model-select"></select><span class="asr-ai-help">把听音草稿收口成普通话听写稿，不做语义润色。</span></label>',
-      '<label class="asr-ai-field"><span>收口 Prompt（可选）</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt；默认会限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字。</span></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup("收口模型", "把听音草稿收口成普通话听写稿，不做语义润色。") +
+        '</span><select id="bytedance-aidp-ai-refine-model-select"></select></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup(
+          "收口 Prompt（可选）",
+          "限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字；留空时沿用后端默认 Prompt。"
+        ) +
+        '</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000"></textarea></label>',
       '</div><div class="asr-ai-grid three">' +
-        buildDataBakerCvpcStageParamFieldsMarkup("refine").replace(/data-baker-cvpc-ai-/g, "bytedance-aidp-ai-") +
+        buildBytedanceAidpSuzhouStageParamFieldsMarkup("refine") +
         "</div></div>",
       "</div>",
     ].join("");
+
+    const aiDefaults = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId).defaults || {};
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    bindBytedanceAidpSuzhouStageParamHelp("listen", stageDefaults.listen);
+    bindBytedanceAidpSuzhouStageParamHelp("refine", stageDefaults.refine);
 
     const listenNode = getElement("bytedance-aidp-ai-listen-model-select");
     if (listenNode instanceof HTMLSelectElement) {

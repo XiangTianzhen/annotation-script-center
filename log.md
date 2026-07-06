@@ -1069,6 +1069,11 @@
 - `AI信息` 增加批量结果段号切换按钮，按数字顺序展示最近一轮批量返回结果
 - 运行时帮助提示统一改为纯 `?`
 - ByteDance AIDP 苏州话设置保存成功改为顶部短时 toast 提示
+- `AI信息` 右侧调试区改名为 `AI返回内容`，并新增 `复制内容` 按钮
+- `清空画段` 与 `填充语言种类` 从波形工具栏移到题目头部操作区 `.operation-group-btn-GcvnvK`
+- 修复 ByteDance AIDP 单段普通话听写稿直填时对 Arco 虚拟表格行的定位，优先按真实 `.arco-table-tr[data-neeko-table-row-key]` 与行内 `textarea.arco-textarea.neeko-input-textarea` 写入
+- 收口 ByteDance AIDP 苏州话设置页文案：移除可见的“写入契约状态 / 当前边界”，并将 AIDP 参数默认值提示改为空值时按字段动态展示
+- 收口 popup：苏州话脚本卡片只展示脚本名、启停状态和单行运行状态
 
 ## 2026-04-25（历史记录重建摘要）
 - 拆分快判统计本地服务

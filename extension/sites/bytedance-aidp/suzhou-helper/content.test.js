@@ -1121,70 +1121,76 @@ test("ByteDance AIDP content only auto-syncs playback rate once per page scope",
   assert.equal(contentModule.__testOnly.getPlaybackComboboxLabel(playbackSelect), "1.50倍速");
 });
 
-test("ByteDance AIDP content injects clear-segments button into play toolbar", function () {
+test("ByteDance AIDP content injects clear-segments button into the detail header action group", function () {
   const contentModule = loadContentModule();
   let clicked = 0;
-  const playToolbar = new FakeElement({
-    className: "btns-play",
-    children: [new FakeElement({ tagName: "svg" })],
+  const headerActionGroup = new FakeElement({
+    className: "operation-group-btn-GcvnvK",
   });
-  const waveRoot = createFakeDocument([
+  const root = createFakeDocument([
     new FakeElement({
-      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      className: "item-info-Gr9sCs",
       children: [
         new FakeElement({
-          className: "wave-toolbar",
-          children: [playToolbar],
+          className: "item-content-YPvk0h",
+          children: [
+            new FakeElement({
+              className: "agent-wrapper-g36cL8",
+              children: [headerActionGroup],
+            }),
+          ],
         }),
       ],
     }),
   ]);
 
-  const inserted = contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {
+  const inserted = contentModule.__testOnly.ensureClearSegmentsButton(root, function () {
     clicked += 1;
   });
-  const actionGroup = playToolbar.querySelector("[data-asc-toolbar-action-group='true']");
-  const button = actionGroup?.querySelector("[data-asc-clear-segments-button='true']");
+  const button = headerActionGroup.querySelector("[data-asc-clear-segments-button='true']");
 
   assert.equal(inserted, true);
-  assert.ok(actionGroup);
+  assert.equal(root.querySelector("[data-asc-toolbar-action-group='true']"), null);
   assert.equal(button.getAttribute("data-asc-clear-segments-button"), "true");
   button.click();
   assert.equal(clicked, 1);
 });
 
-test("ByteDance AIDP content injects fill-language-kind button next to clear button", function () {
+test("ByteDance AIDP content injects fill-language-kind button next to clear button in the detail header", function () {
   const contentModule = loadContentModule();
   let filled = 0;
-  const playToolbar = new FakeElement({
-    className: "btns-play",
-    children: [new FakeElement({ tagName: "svg" })],
+  const headerActionGroup = new FakeElement({
+    className: "operation-group-btn-GcvnvK",
   });
-  const waveRoot = createFakeDocument([
+  const root = createFakeDocument([
     new FakeElement({
-      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      className: "item-info-Gr9sCs",
       children: [
         new FakeElement({
-          className: "wave-toolbar",
-          children: [playToolbar],
+          className: "item-content-YPvk0h",
+          children: [
+            new FakeElement({
+              className: "agent-wrapper-g36cL8",
+              children: [headerActionGroup],
+            }),
+          ],
         }),
       ],
     }),
   ]);
 
-  contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {});
+  contentModule.__testOnly.ensureClearSegmentsButton(root, function () {});
   const inserted = contentModule.__testOnly.ensureFillLanguageKindsButton(
-    waveRoot,
+    root,
     function () {
       filled += 1;
     }
   );
-  const actionGroup = playToolbar.querySelector("[data-asc-toolbar-action-group='true']");
-  const clearButton = actionGroup?.querySelector("[data-asc-clear-segments-button='true']");
-  const fillButton = actionGroup?.querySelector("[data-asc-fill-language-kind-button='true']");
+  const clearButton = headerActionGroup.querySelector("[data-asc-clear-segments-button='true']");
+  const fillButton = headerActionGroup.querySelector("[data-asc-fill-language-kind-button='true']");
 
   assert.equal(inserted, true);
-  assert.ok(actionGroup);
+  assert.equal(root.querySelector("[data-asc-toolbar-action-group='true']"), null);
   assert.equal(clearButton.getAttribute("data-asc-clear-segments-button"), "true");
   assert.equal(fillButton.getAttribute("data-asc-fill-language-kind-button"), "true");
   assert.equal(fillButton.textContent, "填充语言种类");
@@ -1828,35 +1834,37 @@ test("ByteDance AIDP content exposes exactly the expected shortcut action handle
   ]);
 });
 
-test("ByteDance AIDP content keeps toolbar helper buttons on a single line", function () {
+test("ByteDance AIDP content keeps header helper buttons on a single line", function () {
   const contentModule = loadContentModule();
-  const playToolbar = new FakeElement({
-    className: "btns-play",
-    children: [new FakeElement({ tagName: "svg" })],
+  const headerActionGroup = new FakeElement({
+    className: "operation-group-btn-GcvnvK",
   });
-  const waveRoot = createFakeDocument([
+  const root = createFakeDocument([
     new FakeElement({
-      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      className: "item-info-Gr9sCs",
       children: [
         new FakeElement({
-          className: "wave-toolbar",
-          children: [playToolbar],
+          className: "item-content-YPvk0h",
+          children: [
+            new FakeElement({
+              className: "agent-wrapper-g36cL8",
+              children: [headerActionGroup],
+            }),
+          ],
         }),
       ],
     }),
   ]);
 
-  contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {});
-  contentModule.__testOnly.ensureFillLanguageKindsButton(waveRoot, function () {});
+  contentModule.__testOnly.ensureClearSegmentsButton(root, function () {});
+  contentModule.__testOnly.ensureFillLanguageKindsButton(root, function () {});
 
-  const actionGroup = playToolbar.querySelector("[data-asc-toolbar-action-group='true']");
-  const clearButton = actionGroup?.querySelector("[data-asc-clear-segments-button='true']");
-  const fillButton = actionGroup?.querySelector("[data-asc-fill-language-kind-button='true']");
+  const clearButton = headerActionGroup.querySelector("[data-asc-clear-segments-button='true']");
+  const fillButton = headerActionGroup.querySelector("[data-asc-fill-language-kind-button='true']");
 
-  assert.ok(actionGroup);
-  assert.equal(playToolbar.children[0].tagName, "SVG");
-  assert.equal(actionGroup.style.display, "inline-flex");
-  assert.equal(actionGroup.style.flex, "0 0 auto");
+  assert.ok(headerActionGroup);
+  assert.equal(headerActionGroup.style.display, "inline-flex");
+  assert.equal(headerActionGroup.style.gap, "8px");
   assert.equal(clearButton.style.getPropertyValue("white-space") || clearButton.style.whiteSpace, "nowrap");
   assert.equal(fillButton.style.getPropertyValue("white-space") || fillButton.style.whiteSpace, "nowrap");
 });

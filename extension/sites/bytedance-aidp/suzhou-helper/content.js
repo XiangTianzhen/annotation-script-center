@@ -1453,41 +1453,56 @@
     return safeQuerySelectorAll(workbench, ".btns-play")[0] || null;
   }
 
-  function getToolbarActionGroup(toolbar, documentLike) {
-    if (!toolbar || typeof toolbar.querySelector === "undefined") {
-      return null;
+  function findDetailHeaderActionGroup(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const currentRoot = searchRoots[index];
+      const candidates = [currentRoot].concat(collectDescendantElements(currentRoot));
+      const headerContainer = candidates.find(function (node) {
+        return getClassName(node)
+          .split(/\s+/)
+          .filter(Boolean)
+          .includes("item-info-Gr9sCs");
+      });
+      if (!headerContainer) {
+        continue;
+      }
+      const actionGroup = [headerContainer].concat(collectDescendantElements(headerContainer)).find(
+        function (node) {
+          return getClassName(node)
+            .split(/\s+/)
+            .filter(Boolean)
+            .includes("operation-group-btn-GcvnvK");
+        }
+      );
+      if (actionGroup) {
+        return actionGroup;
+      }
     }
-    const existing =
-      typeof toolbar.querySelector === "function"
-        ? toolbar.querySelector("[" + TOOLBAR_ACTION_GROUP_ATTR + "='true']")
-        : null;
-    if (existing) {
-      return existing;
-    }
-    if (!documentLike || typeof documentLike.createElement !== "function") {
-      return null;
-    }
-    const group = documentLike.createElement("div");
-    group.setAttribute(TOOLBAR_ACTION_GROUP_ATTR, "true");
-    group.style.display = "inline-flex";
-    group.style.alignItems = "center";
-    group.style.gap = "8px";
-    group.style.marginLeft = "8px";
-    group.style.flex = "0 0 auto";
-    toolbar.appendChild(group);
-    return group;
+    return null;
   }
 
-  function ensureToolbarActionButton(root, attrName, label, onClick) {
-    const toolbar = findPlayToolbarRoot(root);
-    if (!toolbar || typeof toolbar.querySelector === "undefined") {
+  function removeLegacyToolbarActionGroups(root) {
+    safeQuerySelectorAll(root, "[" + TOOLBAR_ACTION_GROUP_ATTR + "='true']").forEach(function (node) {
+      if (node?.parentNode && typeof node.parentNode.removeChild === "function") {
+        node.parentNode.removeChild(node);
+      }
+    });
+  }
+
+  function ensureHeaderActionButton(root, attrName, label, onClick) {
+    const actionGroup = findDetailHeaderActionGroup(root);
+    if (!actionGroup || typeof actionGroup.querySelector === "undefined") {
       return false;
     }
-    const documentLike = toolbar.ownerDocument || globalThis.document;
-    const actionGroup = getToolbarActionGroup(toolbar, documentLike);
-    if (!actionGroup) {
-      return false;
+    if (actionGroup.style) {
+      actionGroup.style.display = "inline-flex";
+      actionGroup.style.alignItems = "center";
+      actionGroup.style.gap = "8px";
+      actionGroup.style.flexWrap = "wrap";
     }
+    removeLegacyToolbarActionGroups(root);
+    const documentLike = actionGroup.ownerDocument || globalThis.document;
     const existing =
       typeof actionGroup.querySelector === "function"
         ? actionGroup.querySelector("[" + attrName + "='true']")
@@ -1510,7 +1525,11 @@
     button.style.color = "#39424e";
     button.style.cursor = "pointer";
     button.style.fontSize = "12px";
+    button.style.display = "inline-flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
     button.style.whiteSpace = "nowrap";
+    button.style.flex = "0 0 auto";
     button.addEventListener("click", function () {
       if (typeof onClick === "function") {
         onClick();
@@ -1521,11 +1540,11 @@
   }
 
   function ensureClearSegmentsButton(root, onClick) {
-    return ensureToolbarActionButton(root, CLEAR_SEGMENTS_BUTTON_ATTR, "清空画段", onClick);
+    return ensureHeaderActionButton(root, CLEAR_SEGMENTS_BUTTON_ATTR, "清空画段", onClick);
   }
 
   function ensureFillLanguageKindsButton(root, onClick) {
-    return ensureToolbarActionButton(
+    return ensureHeaderActionButton(
       root,
       FILL_LANGUAGE_KIND_BUTTON_ATTR,
       "填充语言种类",

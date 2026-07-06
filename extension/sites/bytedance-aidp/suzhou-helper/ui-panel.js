@@ -60,6 +60,59 @@
     return "";
   }
 
+  async function copyTextToClipboard(text) {
+    const normalized = String(text || "");
+    if (!normalized) {
+      return false;
+    }
+    try {
+      if (
+        globalThis.navigator?.clipboard &&
+        typeof globalThis.navigator.clipboard.writeText === "function"
+      ) {
+        await globalThis.navigator.clipboard.writeText(normalized);
+        return true;
+      }
+    } catch (_error) {
+      // Fall back to the temporary textarea path below.
+    }
+
+    const documentLike = globalThis.document;
+    if (!documentLike || typeof documentLike.createElement !== "function") {
+      return false;
+    }
+    const bodyNode = documentLike.body || documentLike.documentElement || null;
+    if (!bodyNode || typeof bodyNode.appendChild !== "function") {
+      return false;
+    }
+    const textarea = documentLike.createElement("textarea");
+    textarea.value = normalized;
+    textarea.setAttribute("readonly", "true");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.pointerEvents = "none";
+    textarea.style.top = "-1000px";
+    bodyNode.appendChild(textarea);
+    try {
+      if (typeof textarea.focus === "function") {
+        textarea.focus();
+      }
+      if (typeof textarea.select === "function") {
+        textarea.select();
+      }
+      if (typeof documentLike.execCommand === "function") {
+        return documentLike.execCommand("copy") === true;
+      }
+    } catch (_error) {
+      return false;
+    } finally {
+      if (textarea.parentNode && typeof textarea.parentNode.removeChild === "function") {
+        textarea.parentNode.removeChild(textarea);
+      }
+    }
+    return false;
+  }
+
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -141,7 +194,9 @@
       "[" + ROOT_ATTR + "] .preview-unsafe { margin-top: 8px; color: #c2410c; }",
       "[" + ROOT_ATTR + "] .info-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(240px, 0.9fr); gap: 12px; align-items: start; }",
       "[" + ROOT_ATTR + "] .info-pane, [" + ROOT_ATTR + "] .debug-pane { display: grid; gap: 10px; min-width: 0; }",
+      "[" + ROOT_ATTR + "] .debug-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .debug-title { font-weight: 600; color: #26418b; }",
+      "[" + ROOT_ATTR + "] .debug-copy-button { min-height: 28px; padding: 0 12px; font-size: 12px; }",
       "[" + ROOT_ATTR + "] .debug-card { margin: 0; padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 10px; background: #f8fbff; color: #334155; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }",
       "@media (max-width: 1120px) {",
       "  [" + ROOT_ATTR + "] .panel-grid { grid-template-columns: minmax(0, 1fr); }",
@@ -1079,16 +1134,39 @@
 
       const debugPane = document.createElement("div");
       debugPane.className = "debug-pane";
+      const debugHead = document.createElement("div");
+      debugHead.className = "debug-head";
       const debugTitle = document.createElement("div");
       debugTitle.className = "debug-title";
-      debugTitle.textContent = "debug";
-      debugPane.appendChild(debugTitle);
-      const debugCard = document.createElement("pre");
-      debugCard.className = "debug-card";
-      debugCard.textContent =
+      debugTitle.textContent = "AI返回内容";
+      debugHead.appendChild(debugTitle);
+      const debugContentText =
         source.debug && typeof source.debug === "object" && Object.keys(source.debug).length > 0
           ? JSON.stringify(source.debug, null, 2)
-          : "当前还没有 debug 信息。";
+          : "";
+      const copyButton = createButton("复制内容", false, async function () {
+        if (!debugContentText) {
+          setStatus("当前还没有 AI 返回内容。", "warning");
+          return;
+        }
+        const copied = await copyTextToClipboard(debugContentText);
+        const nextLabel = copied ? "已复制" : "复制失败";
+        copyButton.textContent = nextLabel;
+        if (!copied) {
+          setStatus("复制 AI 返回内容失败，请手动复制。", "error");
+        }
+        if (typeof setTimeout === "function") {
+          setTimeout(function () {
+            copyButton.textContent = "复制内容";
+          }, copied ? 1200 : 1600);
+        }
+      });
+      copyButton.className = normalizeText(copyButton.className + " debug-copy-button");
+      debugHead.appendChild(copyButton);
+      debugPane.appendChild(debugHead);
+      const debugCard = document.createElement("pre");
+      debugCard.className = "debug-card";
+      debugCard.textContent = debugContentText || "当前还没有 AI 返回内容。";
       debugPane.appendChild(debugCard);
       layout.appendChild(debugPane);
       aiMetaNode.appendChild(layout);

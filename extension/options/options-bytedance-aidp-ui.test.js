@@ -9,6 +9,12 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   const script = fs.readFileSync(path.resolve(__dirname, "options.js"), "utf8");
   const html = fs.readFileSync(path.resolve(__dirname, "options.html"), "utf8");
   const combinedSource = html + "\n" + script;
+  const aidpPanelStart = html.indexOf('id="detail-bytedance-aidp-suzhou-panel"');
+  const aidpPanelEnd = html.indexOf('<section id="detail-aishell-tech-minnan-helper-panel"', aidpPanelStart);
+  const aidpPanelHtml =
+    aidpPanelStart >= 0 && aidpPanelEnd > aidpPanelStart
+      ? html.slice(aidpPanelStart, aidpPanelEnd)
+      : html;
 
   assert.match(html, /id="detail-bytedance-aidp-suzhou-panel"/);
   assert.match(html, /id="bytedance-aidp-platform-ai-enabled"/);
@@ -26,10 +32,6 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /id="bytedance-aidp-recording-status"/);
   assert.match(html, /普通话听写稿 AI、批量识别、分段建议写回/);
   assert.match(html, /单段识别直填输入框/);
-  assert.match(html, /AI 设置说明/);
-  assert.match(html, /普通话听写识别的开关、自动填入、超时、听音模型和普通话听写收口模型已移动到右侧共享 `AI 设置` 面板/);
-  assert.match(html, /普通话不截取、仅允许 `，。？！`、不知名实体用 `##名称##` 包裹、阿拉伯数字改写为汉字数字/);
-  assert.match(html, /单段识别直填输入框，批量识别和分段建议只调用现有暂存写回链路，不改 `ms`/);
   assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"/);
   assert.match(html, /<option value="1">1\.00倍速<\/option>/);
   assert.match(html, /<option value="2">2<\/option>/);
@@ -59,13 +61,17 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(combinedSource, /清空画段/);
   assert.match(combinedSource, /生成分段建议/);
   assert.match(combinedSource, /应用分段建议/);
-  assert.match(html, /默认勾选后隐藏平台原生 AI 洞察面板和猫形浮动入口/);
-  assert.match(html, /勾选后在 `mark-v3` 详情页隐藏平台 AI 原生板块/);
-  assert.match(html, /只在应用分段建议写回时默认带上“目标方言”/);
-  assert.match(html, /工具栏里的“填充语言种类”按钮/);
   assert.match(html, /0s ~ 0\.5s/);
   assert.match(html, /无人声留白都不能超过 `500ms`/);
   assert.match(html, /-31 dBFS/);
+  assert.doesNotMatch(aidpPanelHtml, /写入契约状态/);
+  assert.doesNotMatch(aidpPanelHtml, /当前边界/);
+  assert.doesNotMatch(
+    aidpPanelHtml,
+    /普通话听写识别的开关、自动填入、超时、听音模型和普通话听写收口模型已移动到右侧共享 `AI 设置` 面板/
+  );
+  assert.doesNotMatch(aidpPanelHtml, /这里继续只保留平台 AI 显隐、画段后自动应用建议、波形控件和当前边界说明/);
+  assert.doesNotMatch(aidpPanelHtml, /工具栏里的“填充语言种类”按钮/);
   assert.match(script, /function getBytedanceAidpSuzhouConfig\(/);
   assert.match(script, /function applyBytedanceAidpForm\(/);
   assert.match(script, /async function saveBytedanceAidpSettings\(/);
@@ -76,6 +82,8 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。/);
   assert.match(script, /function renderBytedanceAidpSuzhouAiSettingsSection\(/);
   assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);
+  assert.match(script, /function refreshBytedanceAidpSuzhouStageParamHelpText\(/);
+  assert.match(script, /当前为空，将使用后端默认值：/);
   assert.match(script, /function getBytedanceAidpSuzhouSettingsDraftConfig\(/);
   assert.match(script, /function ensureBytedanceAidpShortcutDraft\(/);
   assert.match(script, /function renderBytedanceAidpShortcutGrid\(/);
@@ -99,6 +107,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /单段识别成功后直接填入对应输入框，不主动走平台暂存请求/);
   assert.match(script, /普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取/);
   assert.match(script, /限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字/);
+  assert.doesNotMatch(script, /bytedance-aidp-ai-listen-prompt" maxlength="8000"><\/textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt/);
   assert.match(script, /普通话听写收口/);
   assert.match(script, /detail-bytedance-aidp-shortcuts-panel/);
   assert.match(script, /bytedance-aidp-shortcut-grid/);

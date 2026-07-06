@@ -71,6 +71,45 @@
     }
   }
 
+  function getChildElements(node) {
+    if (!node) {
+      return [];
+    }
+    if (node.children && typeof node.children.length === "number") {
+      return Array.from(node.children).filter(function (child) {
+        return child && child.nodeType === 1;
+      });
+    }
+    if (node.childNodes && typeof node.childNodes.length === "number") {
+      return Array.from(node.childNodes).filter(function (child) {
+        return child && child.nodeType === 1;
+      });
+    }
+    return [];
+  }
+
+  function collectDescendantElements(root) {
+    const results = [];
+    (function visit(node) {
+      getChildElements(node).forEach(function (child) {
+        results.push(child);
+        visit(child);
+      });
+    })(root);
+    return results;
+  }
+
+  function getClassName(node) {
+    return String(node?.className || node?.getAttribute?.("class") || "");
+  }
+
+  function hasClassToken(node, className) {
+    return getClassName(node)
+      .split(/\s+/)
+      .filter(Boolean)
+      .includes(String(className || "").trim());
+  }
+
   function getNodeText(node) {
     return normalizeText(node?.textContent || node?.innerText || "");
   }
@@ -229,6 +268,17 @@
         return tables[index];
       }
     }
+    const arcoBodies = queryAll(documentLike, "div").filter(function (node) {
+      if (!hasClassToken(node, "arco-table-body")) {
+        return false;
+      }
+      return collectDescendantElements(node).some(function (child) {
+        return hasClassToken(child, "arco-table-tr") && queryAll(child, "textarea").length > 0;
+      });
+    });
+    if (arcoBodies.length > 0) {
+      return arcoBodies[0];
+    }
     const containers = queryAll(documentLike, "div,section,article");
     for (let index = 0; index < containers.length; index += 1) {
       const text = getNodeText(containers[index]);
@@ -295,6 +345,16 @@
     if (!tableRoot) {
       return [];
     }
+    const arcoVirtualRows = collectDescendantElements(tableRoot).filter(function (node) {
+      return (
+        hasClassToken(node, "arco-table-tr") &&
+        normalizeText(node.getAttribute?.("data-neeko-table-row-key")) &&
+        queryAll(node, "textarea").length > 0
+      );
+    });
+    if (arcoVirtualRows.length > 0) {
+      return arcoVirtualRows;
+    }
     const tableRows = queryAll(tableRoot, "tr").filter(function (node) {
       return queryAll(node, "textarea").length > 0;
     });
@@ -311,6 +371,18 @@
   }
 
   function getSegmentNumberFromInputRow(rowNode, fallbackNumber) {
+    if (hasClassToken(rowNode, "arco-table-tr")) {
+      const fixedCell = collectDescendantElements(rowNode).find(function (node) {
+        return hasClassToken(node, "arco-table-col-fixed-left");
+      });
+      const fixedCellMatch = getNodeText(fixedCell).match(/\d+/);
+      if (fixedCellMatch) {
+        const fixedCellNumber = Math.max(0, Math.round(Number(fixedCellMatch[0])) || 0);
+        if (fixedCellNumber > 0) {
+          return fixedCellNumber;
+        }
+      }
+    }
     const firstCellText = normalizeText(
       queryAll(rowNode, "td,th,div,span")[0]?.textContent ||
         queryAll(rowNode, "td,th,div,span")[0]?.innerText ||
@@ -335,7 +407,11 @@
     for (let index = 0; index < rows.length; index += 1) {
       const currentNumber = getSegmentNumberFromInputRow(rows[index], index + 1);
       if (currentNumber === targetNumber) {
-        return queryAll(rows[index], "textarea")[0] || null;
+        const textareas = queryAll(rows[index], "textarea");
+        const matchingTextarea = textareas.find(function (node) {
+          return hasClassToken(node, "arco-textarea") && hasClassToken(node, "neeko-input-textarea");
+        });
+        return matchingTextarea || textareas[0] || null;
       }
     }
     return null;

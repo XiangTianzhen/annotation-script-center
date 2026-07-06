@@ -35,9 +35,9 @@
       }
 
       .head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(88px, 1fr);
+        align-items: start;
         gap: 12px;
       }
 
@@ -81,6 +81,8 @@
       .stage-link {
         border: none;
         cursor: pointer;
+        width: 100%;
+        justify-content: center;
       }
 
       .status-card {

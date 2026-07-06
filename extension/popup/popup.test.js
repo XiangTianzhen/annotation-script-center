@@ -191,7 +191,7 @@ test("popup shows the detected Suzhou script and toggles enable state via setScr
   await flushTasks();
 
   assert.equal(documentLike.getElementById("detected-title").textContent, "苏州话脚本");
-  assert.match(documentLike.getElementById("detected-description").textContent, /运行状态：未启用/);
+  assert.equal(documentLike.getElementById("detected-description").textContent, "运行状态：未启用");
   assert.equal(documentLike.getElementById("detected-status-pill").textContent, "未启用");
   assert.equal(documentLike.getElementById("popup-status").textContent, "");
 

@@ -447,12 +447,25 @@ test("AIDP suzhou ui panel switches preview buttons from settings-only auto-appl
   }
 });
 
-test("AIDP suzhou ui panel renders recommendation and AI meta with Mandarin transcript wording", function () {
+test("AIDP suzhou ui panel renders Mandarin transcript wording and AI return copy action", async function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
+  const previousNavigator = globalThis.navigator;
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  let copiedText = "";
   globalThis.document = harness.document;
   globalThis.HTMLElement = FakeNode;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      clipboard: {
+        writeText: async function (text) {
+          copiedText = String(text || "");
+        },
+      },
+    },
+  });
 
   try {
     const module = loadUiPanelModule();
@@ -506,12 +519,30 @@ test("AIDP suzhou ui panel renders recommendation and AI meta with Mandarin tran
     assert.match(panelRoot.textContent, /听音预估人民币/);
     assert.match(panelRoot.textContent, /收口预估人民币/);
     assert.match(panelRoot.textContent, /总预估人民币/);
-    assert.match(panelRoot.textContent, /debug/);
+    assert.match(panelRoot.textContent, /AI返回内容/);
+    assert.match(panelRoot.textContent, /复制内容/);
     assert.match(panelRoot.textContent, /unit-test/);
     assert.doesNotMatch(panelRoot.textContent, /raw\.listen/);
+    const copyButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.textContent.includes("复制内容");
+    });
+    assert.ok(copyButton);
+    copyButton.click();
+    await Promise.resolve();
+    assert.match(copiedText, /"reason": "unit-test"/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
+    if (navigatorDescriptor) {
+      Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
+    } else if (previousNavigator === undefined) {
+      delete globalThis.navigator;
+    } else {
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: previousNavigator,
+      });
+    }
   }
 });
 
