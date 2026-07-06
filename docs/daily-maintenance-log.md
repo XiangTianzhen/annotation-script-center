@@ -26,3 +26,10 @@
 - 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md 维护记录，未修改业务代码、接口、页面、数据库、依赖、配置文件或环境变量
 - 后续待办：继续关注 ByteDance AIDP 等近期活跃模块的文档边界与工作区状态，后续维护仍需先确认工作树干净再执行日志追加
 - 自动维护记录说明：本条为 automation-3 的日常巡检留痕，用于记录本次只做文档级维护且按固定提交流程执行
+## 2026-07-06
+- 日期：2026-07-06
+- 项目：标注脚本中心（annotation-script-center）
+- 检查范围：已阅读 AGENTS.md、README.md、log.md、docs/README.md、docs/platforms-index.md、extension/README.md、platform-resources/README.md、platform-resources/backend/README.md，并复核当前仓库 `git status --short` 为干净
+- 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md 维护记录，未修改扩展运行时代码、统一后端、接口、页面、数据库、依赖、配置文件或环境变量
+- 后续待办：继续关注 ByteDance AIDP 近期活跃脚本、统一后端文档边界和每日维护提交前的工作区清洁状态
+- 自动维护记录说明：本条为 automation-3 的每日检查留痕，用于确认本轮只做文档级维护并按固定 add/commit/push 流程执行
