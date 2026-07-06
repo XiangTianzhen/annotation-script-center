@@ -71,7 +71,7 @@ body
   - 以 `header.aidp-foundation-layout-header` 为顶层锚点
   - 在右侧用户区头像左侧插入紧凑 `切换账号` 按钮
   - 该按钮方案现已推广到整个 `/management/*` 管理区，只要命中同款 header 就会挂载
-  - 按钮点击后先清理 `https://aidp.bytedance.com` 站点储存，再补清 AIDP 主站、`mpsso.jiyunhudong.com` 与该 SSO 顶层站点下的第三方登录 Cookie 并刷新页面
+  - 按钮点击后先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 站点储存，再补清 AIDP 主站、`bytedance.com`、`mpsso.jiyunhudong.com`、`api.feelgood.cn` 与该 SSO 顶层站点下的第三方登录 Cookie 并刷新页面
 - 不建议：
   - 回退到主内容区上方独立助手条
   - 直接覆盖行级详情入口
@@ -86,7 +86,7 @@ body
 
 ## 写操作边界 / 未确认项
 
-- 当前管理区账号切换按钮直接调用扩展后台清理 AIDP 站点储存，并补清 AIDP 主站、`mpsso.jiyunhudong.com` 与该 SSO 顶层站点下的第三方登录 Cookie，再刷新页面；不调用平台写接口。
+- 当前管理区账号切换按钮直接调用扩展后台清理 AIDP / MPSSO 站点储存，并补清 AIDP 主站、`bytedance.com`、`mpsso.jiyunhudong.com`、`api.feelgood.cn` 与该 SSO 顶层站点下的第三方登录 Cookie，再刷新页面；不调用平台写接口。
 - 当前未确认列表页是否存在领取、分配、批量操作或状态流转按钮。
 - 当前未确认筛选区是否会触发服务端写状态或仅改本地视图。
 - 在真实页面补采前，任何行级按钮和批量动作都应视为 `write-action`。

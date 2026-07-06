@@ -139,6 +139,13 @@ test("background service worker resets AIDP login state by clearing site storage
               secure: true,
               storeId: "0",
             },
+          ];
+        }
+        if (
+          details.url === "https://bytedance.com/" &&
+          !details.partitionKey
+        ) {
+          return [
             {
               name: "msToken",
               domain: ".bytedance.com",
@@ -186,6 +193,20 @@ test("background service worker resets AIDP login state by clearing site storage
             },
           ];
         }
+        if (
+          details.url === "https://api.feelgood.cn/" &&
+          !details.partitionKey
+        ) {
+          return [
+            {
+              name: "fg_session",
+              domain: "api.feelgood.cn",
+              path: "/",
+              secure: true,
+              storeId: "0",
+            },
+          ];
+        }
         throw new Error("unexpected getAll query: " + JSON.stringify(details));
       },
       remove: async function (details) {
@@ -209,7 +230,10 @@ test("background service worker resets AIDP login state by clearing site storage
   assert.deepEqual(calls[0], {
     type: "browsingData.remove",
     options: {
-      origins: ["https://aidp.bytedance.com"],
+      origins: [
+        "https://aidp.bytedance.com",
+        "https://mpsso.jiyunhudong.com",
+      ],
     },
     dataToRemove: {
       cache: true,
@@ -222,16 +246,21 @@ test("background service worker resets AIDP login state by clearing site storage
       webSQL: true,
     },
   });
-  assert.equal(result.clearedCount, 4);
   assert.deepEqual(queried, [
     {
       url: "https://aidp.bytedance.com/",
+    },
+    {
+      url: "https://bytedance.com/",
     },
     {
       url: "https://mpsso.jiyunhudong.com/",
     },
     {
       url: "https://accounts.feishu.cn/",
+    },
+    {
+      url: "https://api.feelgood.cn/",
     },
     {
       url: "https://accounts.feishu.cn/",
@@ -257,6 +286,11 @@ test("background service worker resets AIDP login state by clearing site storage
       storeId: "0",
     },
     {
+      url: "https://api.feelgood.cn/",
+      name: "fg_session",
+      storeId: "0",
+    },
+    {
       url: "https://feishu.cn/",
       name: "session",
       storeId: "0",
@@ -265,6 +299,7 @@ test("background service worker resets AIDP login state by clearing site storage
       },
     },
   ]);
+  assert.equal(result.clearedCount, 5);
 });
 
 test("background service worker fails closed when browsingData is unavailable", async function () {

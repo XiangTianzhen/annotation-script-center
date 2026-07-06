@@ -24,8 +24,8 @@
 - 设置页基础设置卡片已统一使用可点击 `?` 说明入口；`当前隐藏目标`、`语言种类补齐` 等长说明已并回对应设置项，不再单独占卡片。
 - 在 `/management/*` 管理区页面会在顶部 header 右侧账号区补挂一个紧凑 `切换账号` 按钮：
   - 按钮插在真实头像入口左侧
-  - 点击后先确认，再先清理 `https://aidp.bytedance.com` 的站点储存
-  - 随后补清 `aidp.bytedance.com`、`mpsso.jiyunhudong.com`、`accounts.feishu.cn` 与 `topLevelSite=https://mpsso.jiyunhudong.com` 下的第三方登录 Cookie
+  - 点击后先确认，再先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 的站点储存
+  - 随后补清 `aidp.bytedance.com`、`bytedance.com`、`mpsso.jiyunhudong.com`、`accounts.feishu.cn`、`api.feelgood.cn` 与 `topLevelSite=https://mpsso.jiyunhudong.com` 下的第三方登录 Cookie
   - 清理成功后直接刷新当前页面；任一步失败都 fail closed 停止刷新
 - `mark-v3` 详情页继续承载苏州话脚本的核心运行时能力。
 - 当脚本中心勾选 `隐藏平台AI功能` 时，自动隐藏两类平台原生 AI 板块：
@@ -152,7 +152,7 @@
 1. 在仓库根目录启动统一后端：`node platform-resources/backend/server.js`
 2. 在真实 Edge / Chrome 重新加载 unpacked extension，并先刷新任一管理区页面，例如 `/management/governance/team` 或 `/management/task-v2?page=1`。
 3. 进入脚本中心 `ByteDance AIDP -> 苏州话脚本`，确认基础设置和 AI 设置都能正确回显，且基础设置里的说明统一收进可点击 `?`。
-4. 在 `/management/governance/team` 与 `/management/task-v2?page=1` 确认顶部 header 右侧账号区、头像左侧都出现 `切换账号` 按钮；点击后先出现确认，再清理 AIDP 站点储存与 SSO 相关登录 Cookie 并刷新页面。
+4. 在 `/management/governance/team` 与 `/management/task-v2?page=1` 确认顶部 header 右侧账号区、头像左侧都出现 `切换账号` 按钮；点击后先出现确认，再清理 AIDP / MPSSO 站点储存与 AIDP / SSO 相关登录 Cookie 并刷新页面。
 5. 刷新 `mark-v3` 详情页，确认左侧 `AI 洞察` 卡片和右下角平台 AI 浮动入口按开关显隐。
 6. 确认 `苏州话脚本` 第一排左侧是 `分段建议`、右侧是 `批量识别`，下方依次是 `当前音频信息` 和 `AI信息`，且不再出现旧版单段识别和手动写回入口。
 7. 在分段表格里确认只有存在真实分段时才会新增 `识别音频` 列，并且每行 `暂停` 右侧都有行内按钮；空表格时不出现该列和按钮。

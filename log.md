@@ -25,6 +25,10 @@
   - `extension/background/service-worker.test.js`
   - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
   - 回归覆盖 `browsingData.remove` 调用顺序、管理区路由识别和新的登录态重置消息
+- 继续扩大 ByteDance AIDP 登录态清理范围
+  - `browsingData` 额外补清 `https://mpsso.jiyunhudong.com` 站点储存
+  - Cookie 补清额外覆盖 `bytedance.com` 与 `api.feelgood.cn`
+  - 更新相关 README 与背景回归测试，保持清理链路说明一致
 
 ## 2026-07-04（收口 ByteDance AIDP 苏州话前端样式与行内识别交互）
 - 更新 `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`

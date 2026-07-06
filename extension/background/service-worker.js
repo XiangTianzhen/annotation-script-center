@@ -15,7 +15,10 @@ const storage = globalThis.ASREdgeStorage;
 const LOG_PREFIX = "[ASR Edge][background]";
 const AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE = "ASR_EDGE_RESET_AIDP_LOGIN_STATE";
 const AIDP_COOKIE_CLEAR_MESSAGE_TYPE = "ASR_EDGE_CLEAR_AIDP_COOKIES";
-const AIDP_SITE_STORAGE_CLEAR_ORIGINS = Object.freeze(["https://aidp.bytedance.com"]);
+const AIDP_SITE_STORAGE_CLEAR_ORIGINS = Object.freeze([
+  "https://aidp.bytedance.com",
+  "https://mpsso.jiyunhudong.com",
+]);
 const AIDP_SITE_STORAGE_REMOVE_OPTIONS = Object.freeze({
   cache: true,
   cacheStorage: true,
@@ -28,8 +31,10 @@ const AIDP_SITE_STORAGE_REMOVE_OPTIONS = Object.freeze({
 });
 const AIDP_ACCOUNT_SWITCH_SCOPE_URLS = Object.freeze([
   "https://aidp.bytedance.com/",
+  "https://bytedance.com/",
   "https://mpsso.jiyunhudong.com/",
   "https://accounts.feishu.cn/",
+  "https://api.feelgood.cn/",
 ]);
 const AIDP_ACCOUNT_SWITCH_PARTITIONED_SCOPE_QUERIES = Object.freeze([
   Object.freeze({
