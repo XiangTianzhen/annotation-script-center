@@ -1027,6 +1027,67 @@
     return null;
   }
 
+  function hasClassToken(node, token) {
+    const normalizedToken = normalizeText(token);
+    if (!normalizedToken) {
+      return false;
+    }
+    return getClassName(node)
+      .split(/\s+/)
+      .filter(Boolean)
+      .some(function (className) {
+        return className === normalizedToken;
+      });
+  }
+
+  function hasClassPrefix(node, prefix) {
+    const normalizedPrefix = normalizeText(prefix);
+    if (!normalizedPrefix) {
+      return false;
+    }
+    return getClassName(node)
+      .split(/\s+/)
+      .filter(Boolean)
+      .some(function (className) {
+        return className.indexOf(normalizedPrefix) === 0;
+      });
+  }
+
+  function isTaskListHeaderNode(node) {
+    return (
+      isNodeVisible(node) &&
+      String(node?.tagName || "").toUpperCase() === "HEADER" &&
+      hasClassToken(node, "aidp-foundation-layout-header") &&
+      hasClassPrefix(node, "frame-header-")
+    );
+  }
+
+  function findTaskListHeader(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const searchRoot = searchRoots[index];
+      const candidates = [searchRoot].concat(collectDescendantElements(searchRoot));
+      const headerNode = candidates.find(isTaskListHeaderNode);
+      if (headerNode) {
+        return headerNode;
+      }
+    }
+    return null;
+  }
+
+  function isTaskListHeaderUserInfoNode(node) {
+    return isNodeVisible(node) && hasClassPrefix(node, "frame-user-info-");
+  }
+
+  function findTaskListHeaderUserInfo(root) {
+    const headerNode = findTaskListHeader(root);
+    if (!headerNode) {
+      return null;
+    }
+    const candidates = [headerNode].concat(collectDescendantElements(headerNode));
+    return candidates.find(isTaskListHeaderUserInfoNode) || null;
+  }
+
   function findAccountSwitchBar(root) {
     return safeQuerySelectorAll(root, "[" + ACCOUNT_SWITCH_BAR_ATTR + "='true']")[0] || null;
   }
@@ -1086,10 +1147,16 @@
         created: false,
       };
     }
-    const anchor = findTaskListMountAnchor(root);
-    const host = anchor?.parentElement || anchor;
-    const documentLike = host?.ownerDocument || globalThis.document;
-    if (!host || !documentLike || typeof documentLike.createElement !== "function") {
+    const userInfoNode = findTaskListHeaderUserInfo(root);
+    const avatarTrigger = userInfoNode ? findAccountAvatarTrigger(userInfoNode) : null;
+    const documentLike = userInfoNode?.ownerDocument || globalThis.document;
+    if (
+      !userInfoNode ||
+      !avatarTrigger ||
+      avatarTrigger.parentElement !== userInfoNode ||
+      !documentLike ||
+      typeof documentLike.createElement !== "function"
+    ) {
       return {
         node: null,
         created: false,
@@ -1098,41 +1165,23 @@
 
     const bar = documentLike.createElement("div");
     bar.setAttribute(ACCOUNT_SWITCH_BAR_ATTR, "true");
-    bar.style.display = "flex";
+    bar.style.display = "inline-flex";
     bar.style.alignItems = "center";
-    bar.style.justifyContent = "space-between";
-    bar.style.gap = "12px";
-    bar.style.padding = "12px 14px";
-    bar.style.margin = "0 0 12px";
-    bar.style.border = "1px solid #d6e4ff";
-    bar.style.borderRadius = "10px";
-    bar.style.background = "#f7faff";
-
-    const copy = documentLike.createElement("div");
-    copy.style.display = "flex";
-    copy.style.flexDirection = "column";
-    copy.style.gap = "4px";
-
-    const title = documentLike.createElement("strong");
-    title.textContent = "苏州话脚本";
-    copy.appendChild(title);
-
-    const hint = documentLike.createElement("span");
-    hint.textContent = "需要切换账号时，可先清除平台缓存，再退出登录。";
-    hint.style.color = "#5f6f90";
-    hint.style.fontSize = "12px";
-    copy.appendChild(hint);
-
-    const actionWrap = documentLike.createElement("div");
-    actionWrap.style.display = "flex";
-    actionWrap.style.alignItems = "center";
-    actionWrap.style.gap = "10px";
+    bar.style.gap = "8px";
+    bar.style.marginRight = "8px";
+    bar.style.flexShrink = "0";
 
     const status = documentLike.createElement("span");
     status.setAttribute(ACCOUNT_SWITCH_STATUS_ATTR, "true");
+    status.textContent = "";
+    status.style.maxWidth = "200px";
     status.style.color = "#5f6f90";
     status.style.fontSize = "12px";
-    actionWrap.appendChild(status);
+    status.style.lineHeight = "1.4";
+    status.style.whiteSpace = "nowrap";
+    status.style.overflow = "hidden";
+    status.style.textOverflow = "ellipsis";
+    bar.appendChild(status);
 
     const button = documentLike.createElement("button");
     button.type = "button";
@@ -1141,9 +1190,10 @@
     button.style.padding = "0 12px";
     button.style.height = "32px";
     button.style.border = "1px solid #26418b";
-    button.style.borderRadius = "8px";
-    button.style.background = "#26418b";
-    button.style.color = "#fff";
+    button.style.borderRadius = "999px";
+    button.style.background = "#ffffff";
+    button.style.color = "#26418b";
+    button.style.fontWeight = "600";
     button.style.cursor = "pointer";
     button.style.whiteSpace = "nowrap";
     button.addEventListener("click", function () {
@@ -1151,16 +1201,9 @@
         onClick();
       }
     });
-    actionWrap.appendChild(button);
+    bar.appendChild(button);
 
-    bar.appendChild(copy);
-    bar.appendChild(actionWrap);
-
-    if (host !== anchor && typeof host.insertBefore === "function") {
-      host.insertBefore(bar, anchor);
-    } else {
-      host.appendChild(bar);
-    }
+    userInfoNode.insertBefore(bar, avatarTrigger);
     return {
       node: bar,
       created: true,

@@ -45,6 +45,8 @@ body
 | 列表页路由 | `location.pathname === "/management/task-v2"` | `high` | 首层页面识别锚点 |
 | 当前页码 | `new URLSearchParams(location.search).get("page")` | `high` | 分页上下文直接来自 URL |
 | 详情跳转链接 | `a[href*="/management/task-v2/"][href*="/mark-v3/"]` | `medium` | 依赖详情页 URL 模式，待真实页面复核 |
+| 顶部 header | `header.aidp-foundation-layout-header` | `medium` | 当前用于列表页账号切换按钮挂载 |
+| 右侧用户区 | `[class^="frame-user-info-"]` | `medium` | 当前用于定位头像与按钮插入区 |
 | 主内容区 | `main, [role="main"]` | `medium` | 只作外层语义容器候选 |
 | 表格行 | `table tbody tr, [role="row"]` | `medium` | 当前仅作通用语义候选 |
 | 分页控件 | `a[href*="page="], button[aria-label*="page"]` | `medium` | 需真实页面确认组件实现 |
@@ -63,12 +65,13 @@ body
 ## 可挂载点建议
 
 - 如后续要接入列表页辅助 UI，优先选择：
-  - 主内容区外层的独立 sibling 节点
-  - 列表筛选区下方、列表区上方的安全空白区
+  - 顶部 header 内已确认的右侧用户区
+  - 真实头像入口左侧的独立 sibling 节点
 - 当前扩展已采用：
-  - 以 `main` / `[role="main"]` 为主内容锚点
-  - 在其外层插入独立助手条，用于 `切换账号`
+  - 以 `header.aidp-foundation-layout-header` 为顶层锚点
+  - 在右侧用户区头像左侧插入紧凑 `切换账号` 按钮
 - 不建议：
+  - 回退到主内容区上方独立助手条
   - 直接覆盖行级详情入口
   - 直接插进分页控件内部
   - 依赖未确认的哈希类名挂载
@@ -81,7 +84,7 @@ body
 
 ## 写操作边界 / 未确认项
 
-- 当前列表页辅助条只复用平台原生 `清除缓存` 与 `退出登录`，不新增平台写接口。
+- 当前列表页账号切换按钮只复用平台原生 `清除缓存` 与 `退出登录`，不新增平台写接口。
 - 当前未确认列表页是否存在领取、分配、批量操作或状态流转按钮。
 - 当前未确认筛选区是否会触发服务端写状态或仅改本地视图。
 - 在真实页面补采前，任何行级按钮和批量动作都应视为 `write-action`。

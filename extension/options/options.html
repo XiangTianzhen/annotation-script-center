@@ -705,7 +705,7 @@
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    title="勾选后会在 mark-v3 详情页隐藏已确认的平台 AI 原生板块，不影响题目列表、波形区、保留/丢弃和分段表格。"
+                    data-help-text="勾选后会在 mark-v3 详情页隐藏已确认的平台 AI 原生板块，不影响题目列表、波形区、保留/丢弃和分段表格。当前只处理已确认的平台 AI 洞察卡片和右下角浮动入口；页面重渲染后会继续按开关补做显隐。"
                     >?</span
                   >
                 </strong>
@@ -714,19 +714,6 @@
                   隐藏平台 AI 原生板块
                 </span>
               </label>
-
-              <div class="field-card">
-                <strong class="field-title-row">
-                  <span>当前隐藏目标</span>
-                  <span
-                    class="inline-help-dot"
-                    tabindex="0"
-                    title="当前只处理已确认的平台 AI 洞察卡片和右下角浮动入口；页面重渲染后会继续按开关补做显隐。"
-                    >?</span
-                  >
-                </strong>
-                <span>仅处理已确认的平台 AI 板块。</span>
-              </div>
             </div>
 
             <div class="detail-grid two">
@@ -736,7 +723,7 @@
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    title="默认开启。仅在你手动点击“生成分段建议”后，立即把当前建议写回平台暂存答案。"
+                    data-help-text="默认开启。仅在你手动点击“生成分段建议”后，立即把当前建议写回平台暂存答案；应用分段建议写回时会一起补齐空语言种类并带上目标方言。"
                     >?</span
                   >
                 </strong>
@@ -748,19 +735,6 @@
                   画段后自动应用建议
                 </span>
               </label>
-
-              <div class="field-card">
-                <strong class="field-title-row">
-                  <span>语言种类补齐</span>
-                  <span
-                    class="inline-help-dot"
-                    tabindex="0"
-                    title="应用分段建议写回时会带上目标方言；手动画段后的空语言种类可按需再补齐。"
-                    >?</span
-                  >
-                </strong>
-                <span>应用分段建议写回时会补齐空语言种类。</span>
-              </div>
             </div>
 
             <div class="detail-grid two">
@@ -770,7 +744,7 @@
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    title="用于画段建议的前后静音补偿。默认 `0.3s`，可配置范围 `0s ~ 0.5s`。截取区间开头和结尾的无人声留白都不能超过 `500ms`。"
+                    data-help-text="用于画段建议的前后静音补偿。默认 `0.3s`，可配置范围 `0s ~ 0.5s`。截取区间开头和结尾的无人声留白都不能超过 `500ms`。"
                     >?</span
                   >
                 </strong>
@@ -789,7 +763,7 @@
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    title="仅按 dBFS 数字配置分段静音阈值。默认 `-31 dBFS`，范围 `-80 ~ -5`。"
+                    data-help-text="仅按 dBFS 数字配置分段静音阈值。默认 `-31 dBFS`，范围 `-80 ~ -5`。"
                     >?</span
                   >
                 </strong>
@@ -803,14 +777,14 @@
               </label>
             </div>
 
-            <div class="detail-grid three">
+            <div class="detail-grid two">
               <label class="field-card">
                 <strong class="field-title-row">
                   <span>默认播放倍数</span>
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    title="详情页进入和波形区重渲染后，只会对齐到平台系统自带倍速选项。"
+                    data-help-text="详情页进入和波形区重渲染后，只会对齐到平台系统自带倍速选项。"
                     >?</span
                   >
                 </strong>
@@ -833,7 +807,7 @@
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    title="详情页进入和波形区重渲染后，自动回填到平台缩放控件；只允许整数 `1~10`。"
+                    data-help-text="详情页进入和波形区重渲染后，自动回填到平台缩放控件；只允许整数 `1~10`。"
                     >?</span
                   >
                 </strong>
@@ -853,13 +827,16 @@
                 </select>
               </label>
 
+            </div>
+
+            <div class="detail-grid">
               <label class="field-card">
                 <strong class="field-title-row">
                   <span>连续相接自动合并</span>
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    title="默认开启。若相邻建议段首尾实际相接，或只差极小显示误差，会自动并回一整段。"
+                    data-help-text="默认开启。若相邻建议段首尾实际相接，或只差极小显示误差，会自动并回一整段。"
                     >?</span
                   >
                 </strong>

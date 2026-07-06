@@ -760,7 +760,69 @@ test("ByteDance AIDP content also matches task-v2 list routes", function () {
   );
 });
 
-test("ByteDance AIDP content mounts the task-v2 account switch bar only once", function () {
+test("ByteDance AIDP content mounts the task-v2 account switch control into the header user area only once", function () {
+  const contentModule = loadContentModule();
+  const avatarTrigger = new FakeElement({
+    tagName: "button",
+    className: "aidp-foundation-avatar aidp-foundation-avatar-circle",
+    text: "头像",
+  });
+  const userInfo = new FakeElement({
+    className: "frame-user-info-yRAnfL",
+    children: [
+      new FakeElement({
+        tagName: "span",
+        className: "help-icon-RpIVBN",
+      }),
+      new FakeElement({
+        tagName: "span",
+        className: "aidp-foundation-badge user-message-T1njNS",
+      }),
+      avatarTrigger,
+    ],
+  });
+  const pageRoot = new FakeElement({
+    className: "page-root",
+    children: [
+      new FakeElement({
+        tagName: "header",
+        className: "aidp-foundation-layout-header frame-header-CsvDkf",
+        children: [
+          new FakeElement({
+            className: "frame-logo-daSnmi",
+          }),
+          userInfo,
+        ],
+      }),
+      new FakeElement({
+        tagName: "main",
+        attributes: {
+          role: "main",
+        },
+      }),
+    ],
+  });
+  const root = createFakeDocument([pageRoot]);
+
+  const firstMount = contentModule.__testOnly.ensureAccountSwitchBar(root, function () {});
+  const secondMount = contentModule.__testOnly.ensureAccountSwitchBar(root, function () {});
+  const bars = userInfo.querySelectorAll("[data-asc-aidp-account-switch-bar='true']");
+  const button = root.querySelector("[data-asc-aidp-account-switch-button='true']");
+
+  assert.equal(bars.length, 1);
+  assert.ok(button);
+  assert.equal(button.textContent, "切换账号");
+  assert.equal(firstMount.created, true);
+  assert.equal(secondMount.created, false);
+  assert.equal(userInfo.children[userInfo.children.length - 2], bars[0]);
+  assert.equal(userInfo.children[userInfo.children.length - 1], avatarTrigger);
+  assert.equal(
+    root.querySelectorAll("[role='main'] [data-asc-aidp-account-switch-bar='true']").length,
+    0
+  );
+});
+
+test("ByteDance AIDP content does not mount the task-v2 account switch control when the header user area is missing", function () {
   const contentModule = loadContentModule();
   const pageRoot = new FakeElement({
     className: "page-root",
@@ -775,16 +837,11 @@ test("ByteDance AIDP content mounts the task-v2 account switch bar only once", f
   });
   const root = createFakeDocument([pageRoot]);
 
-  const firstMount = contentModule.__testOnly.ensureAccountSwitchBar(root, function () {});
-  const secondMount = contentModule.__testOnly.ensureAccountSwitchBar(root, function () {});
-  const bars = root.querySelectorAll("[data-asc-aidp-account-switch-bar='true']");
-  const button = root.querySelector("[data-asc-aidp-account-switch-button='true']");
+  const mountResult = contentModule.__testOnly.ensureAccountSwitchBar(root, function () {});
 
-  assert.equal(bars.length, 1);
-  assert.ok(button);
-  assert.equal(button.textContent, "切换账号");
-  assert.equal(firstMount.created, true);
-  assert.equal(secondMount.created, false);
+  assert.equal(mountResult.created, false);
+  assert.equal(mountResult.node, null);
+  assert.equal(root.querySelectorAll("[data-asc-aidp-account-switch-bar='true']").length, 0);
 });
 
 test("ByteDance AIDP content switches account by clearing cache before logout", async function () {
@@ -857,6 +914,78 @@ test("ByteDance AIDP content switches account by clearing cache before logout", 
   assert.deepEqual(calls, ["clear", "logout"]);
   assert.equal(result.ok, true);
   assert.equal(loggedIn, false);
+});
+
+test("ByteDance AIDP content treats clear-cache logout as a successful account switch", async function () {
+  const contentModule = loadContentModule();
+  const calls = [];
+  let triggerClickCount = 0;
+  let currentPopover = null;
+  let loggedIn = true;
+  const pageRoot = new FakeElement({
+    className: "page-root",
+  });
+  const avatarTrigger = new FakeElement({
+    tagName: "button",
+    className: "aidp-avatar-trigger",
+    text: "头像",
+  });
+
+  avatarTrigger.addEventListener("click", function () {
+    triggerClickCount += 1;
+    if (currentPopover?.parentElement) {
+      currentPopover.parentElement.removeChild(currentPopover);
+    }
+    const clearItem = new FakeElement({
+      tagName: "button",
+      className: "operation-item-HUrjDW",
+      text: "清除缓存",
+    });
+    const logoutItem = new FakeElement({
+      tagName: "button",
+      className: "operation-item-HUrjDW user-exit-Aet6BL",
+      text: "退出登录",
+    });
+    clearItem.addEventListener("click", function () {
+      calls.push("clear");
+      loggedIn = false;
+      if (currentPopover?.parentElement) {
+        currentPopover.parentElement.removeChild(currentPopover);
+      }
+      currentPopover = null;
+    });
+    logoutItem.addEventListener("click", function () {
+      calls.push("logout");
+      if (currentPopover?.parentElement) {
+        currentPopover.parentElement.removeChild(currentPopover);
+      }
+      currentPopover = null;
+    });
+    currentPopover = new FakeElement({
+      className:
+        "aidp-foundation-trigger aidp-foundation-popover avatar-popover-LItfYv zoomInFadeOut-enter-done",
+      children: [clearItem, logoutItem],
+    });
+    pageRoot.appendChild(currentPopover);
+  });
+
+  pageRoot.appendChild(avatarTrigger);
+  const root = createFakeDocument([pageRoot]);
+
+  const result = await contentModule.__testOnly.runAccountSwitchFlow(root, {
+    confirm: function () {
+      return true;
+    },
+    isLoggedIn: function () {
+      return loggedIn;
+    },
+    waitFor: async function () {},
+  });
+
+  assert.equal(triggerClickCount, 1);
+  assert.deepEqual(calls, ["clear"]);
+  assert.equal(result.ok, true);
+  assert.match(result.message, /已执行清除缓存/);
 });
 
 test("ByteDance AIDP content fails closed when logout action cannot be found after cache clear", async function () {

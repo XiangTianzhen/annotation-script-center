@@ -54,29 +54,39 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /画段后自动应用建议/);
   assert.match(html, /默认播放倍数/);
   assert.match(html, /固定缩放倍数/);
-  assert.match(
+  assert.doesNotMatch(aidpPanelHtml, /当前隐藏目标/);
+  assert.doesNotMatch(aidpPanelHtml, /语言种类补齐/);
+  assert.doesNotMatch(
     aidpPanelHtml,
-    /<strong class="field-title-row">\s*<span>画段后自动应用建议<\/span>\s*<span\s+class="inline-help-dot"/
+    /<span\s+class="inline-help-dot"[^>]*title=/
   );
   assert.match(
     aidpPanelHtml,
-    /<strong class="field-title-row">\s*<span>前后静音时长<\/span>\s*<span\s+class="inline-help-dot"/
+    /<strong class="field-title-row">\s*<span>隐藏平台AI功能<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
   );
   assert.match(
     aidpPanelHtml,
-    /<strong class="field-title-row">\s*<span>静音阈值<\/span>\s*<span\s+class="inline-help-dot"/
+    /<strong class="field-title-row">\s*<span>画段后自动应用建议<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
   );
   assert.match(
     aidpPanelHtml,
-    /<strong class="field-title-row">\s*<span>默认播放倍数<\/span>\s*<span\s+class="inline-help-dot"/
+    /<strong class="field-title-row">\s*<span>前后静音时长<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
   );
   assert.match(
     aidpPanelHtml,
-    /<strong class="field-title-row">\s*<span>固定缩放倍数<\/span>\s*<span\s+class="inline-help-dot"/
+    /<strong class="field-title-row">\s*<span>静音阈值<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
   );
   assert.match(
     aidpPanelHtml,
-    /<strong class="field-title-row">\s*<span>连续相接自动合并<\/span>\s*<span\s+class="inline-help-dot"/
+    /<strong class="field-title-row">\s*<span>默认播放倍数<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>固定缩放倍数<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>连续相接自动合并<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
   );
   assert.doesNotMatch(
     aidpPanelHtml,
