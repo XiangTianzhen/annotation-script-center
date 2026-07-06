@@ -72,6 +72,15 @@ function loadServiceWorkerModule(overrides) {
         },
       },
     },
+    browsingData: Object.prototype.hasOwnProperty.call(source, "browsingData")
+      ? source.browsingData
+      : {
+          remove: function (_options, _dataToRemove, callback) {
+            if (typeof callback === "function") {
+              callback();
+            }
+          },
+        },
     cookies: source.cookies || {
       getAll: async function () {
         return [];
@@ -86,19 +95,37 @@ function loadServiceWorkerModule(overrides) {
   return loaded;
 }
 
-test("manifest grants cookies permission for direct account switching", function () {
+test("manifest grants cookies and browsingData permissions for direct account switching", function () {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
   assert.ok(Array.isArray(manifest.permissions));
   assert.ok(manifest.permissions.includes("cookies"));
+  assert.ok(manifest.permissions.includes("browsingData"));
 });
 
-test("background service worker clears AIDP, SSO, and partitioned third-party login cookies", async function () {
+test("background service worker resets AIDP login state by clearing site storage before cookies", async function () {
+  const calls = [];
   const queried = [];
   const removed = [];
   const worker = loadServiceWorkerModule({
+    browsingData: {
+      remove: function (options, dataToRemove, callback) {
+        calls.push({
+          type: "browsingData.remove",
+          options: options,
+          dataToRemove: dataToRemove,
+        });
+        if (typeof callback === "function") {
+          callback();
+        }
+      },
+    },
     cookies: {
       getAll: async function (details) {
+        calls.push({
+          type: "cookies.getAll",
+          details: details,
+        });
         queried.push(details);
         if (
           details.url === "https://aidp.bytedance.com/" &&
@@ -162,6 +189,10 @@ test("background service worker clears AIDP, SSO, and partitioned third-party lo
         throw new Error("unexpected getAll query: " + JSON.stringify(details));
       },
       remove: async function (details) {
+        calls.push({
+          type: "cookies.remove",
+          details: details,
+        });
         removed.push(details);
         return {
           name: details.name,
@@ -170,9 +201,27 @@ test("background service worker clears AIDP, SSO, and partitioned third-party lo
     },
   });
 
-  const result = await worker.__testOnly.clearCookiesForUrl("https://aidp.bytedance.com/");
+  const result = await worker.__testOnly.resetAidpLoginState(
+    "https://aidp.bytedance.com/management/task-v2?page=1"
+  );
 
   assert.equal(result.ok, true);
+  assert.deepEqual(calls[0], {
+    type: "browsingData.remove",
+    options: {
+      origins: ["https://aidp.bytedance.com"],
+    },
+    dataToRemove: {
+      cache: true,
+      cacheStorage: true,
+      cookies: true,
+      fileSystems: true,
+      indexedDB: true,
+      localStorage: true,
+      serviceWorkers: true,
+      webSQL: true,
+    },
+  });
   assert.equal(result.clearedCount, 4);
   assert.deepEqual(queried, [
     {
@@ -216,4 +265,21 @@ test("background service worker clears AIDP, SSO, and partitioned third-party lo
       },
     },
   ]);
+});
+
+test("background service worker fails closed when browsingData is unavailable", async function () {
+  const worker = loadServiceWorkerModule({
+    browsingData: null,
+  });
+
+  const result = await worker.__testOnly.resetAidpLoginState(
+    "https://aidp.bytedance.com/management"
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    reason: "browsing-data-api-unavailable",
+    message: "扩展当前没有可用的站点储存清理能力。",
+    clearedCount: 0,
+  });
 });

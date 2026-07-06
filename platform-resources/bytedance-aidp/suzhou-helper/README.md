@@ -5,12 +5,13 @@
 - 平台：`bytedance-aidp`
 - 资料目录：`suzhou-helper`
 - 目标页：
+  - `https://aidp.bytedance.com/management/*`
   - `https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}`
 - 当前阶段：已接入运行时
 - 当前状态：已接入运行时、分段建议、单段识别直填输入框、批量识别、AI 调用记录与平台暂存写回
   - 设置页可控制 `画段后自动应用建议` 与 `识别完成后立即填入`
   - 设置页基础设置区已统一把详细说明收进可点击 `?`，并移除单独占位的说明卡
-  - 列表页 `/management/task-v2?page=1` 已补 header 账号区 `切换账号` 按钮，会同时清理 AIDP 主站、`mpsso.jiyunhudong.com` 和相关第三方登录 Cookie 后刷新页面
+  - 管理区 `/management/*` 已补 header 账号区 `切换账号` 按钮，会先清理 `https://aidp.bytedance.com` 站点储存，再补清 AIDP / SSO / 第三方登录 Cookie 后刷新页面
   - 关闭自动填入时，行内识别会先缓存结果，再由同一行 `填入` 按钮直填 textarea
 
 ## 当前资料覆盖
@@ -20,7 +21,7 @@
 - 详情页语义分区、平台 AI 板块、挂载建议与动态重渲染风险
 - 苏州话脚本最小完整闭环：
   - 脚本中心基础设置
-  - 列表页切换账号
+  - 管理区切换账号
   - 平台 AI 显隐
   - 分段建议
   - 单段普通话听写识别直填输入框

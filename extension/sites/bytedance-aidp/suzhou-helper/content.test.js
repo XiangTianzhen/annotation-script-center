@@ -747,15 +747,20 @@ test("ByteDance AIDP content only matches mark-v3 detail routes", function () {
   );
 });
 
-test("ByteDance AIDP content also matches task-v2 list routes", function () {
+test("ByteDance AIDP content matches management routes for account-switch header UI", function () {
   const contentModule = loadContentModule();
 
-  assert.equal(contentModule.__testOnly.isTaskListPagePathname("/management/task-v2"), true);
-  assert.equal(contentModule.__testOnly.isTaskListPagePathname("/management/task-v2?page=1"), true);
+  assert.equal(contentModule.__testOnly.isManagementPagePathname("/management"), true);
+  assert.equal(contentModule.__testOnly.isManagementPagePathname("/management/governance/team"), true);
+  assert.equal(contentModule.__testOnly.isManagementPagePathname("/management/task-v2?page=1"), true);
   assert.equal(
-    contentModule.__testOnly.isTaskListPagePathname(
+    contentModule.__testOnly.isManagementPagePathname(
       "/management/task-v2/7632228385175129882/mark-v3/1"
     ),
+    true
+  );
+  assert.equal(
+    contentModule.__testOnly.isManagementPagePathname("/workspace/home"),
     false
   );
 });
@@ -844,7 +849,44 @@ test("ByteDance AIDP content does not mount the task-v2 account switch control w
   assert.equal(root.querySelectorAll("[data-asc-aidp-account-switch-bar='true']").length, 0);
 });
 
-test("ByteDance AIDP content switches account by clearing login cookies and reloading the page", async function () {
+test("ByteDance AIDP content requests resetting AIDP login state through the new runtime message", async function () {
+  const contentModule = loadContentModule();
+  const previousChrome = globalThis.chrome;
+  const sent = [];
+  globalThis.chrome = {
+    runtime: {
+      sendMessage(message, callback) {
+        sent.push(message);
+        callback({
+          ok: true,
+          result: {
+            ok: true,
+            clearedCount: 4,
+          },
+        });
+      },
+      lastError: null,
+    },
+  };
+
+  try {
+    const result = await contentModule.__testOnly.requestAidpLoginStateReset({
+      url: "https://aidp.bytedance.com/management/governance/team",
+    });
+
+    assert.deepEqual(sent, [
+      {
+        type: "ASR_EDGE_RESET_AIDP_LOGIN_STATE",
+        url: "https://aidp.bytedance.com/management/governance/team",
+      },
+    ]);
+    assert.equal(result.ok, true);
+  } finally {
+    globalThis.chrome = previousChrome;
+  }
+});
+
+test("ByteDance AIDP content switches account by resetting login state and reloading the page", async function () {
   const contentModule = loadContentModule();
   const calls = [];
 
@@ -852,14 +894,14 @@ test("ByteDance AIDP content switches account by clearing login cookies and relo
     confirm: function () {
       return true;
     },
-    clearLoginCookies: async function (payload) {
+    resetLoginState: async function (payload) {
       calls.push({
-        type: "clear",
+        type: "reset",
         payload: payload,
       });
       return {
         ok: true,
-        clearedCount: 3,
+        clearedCount: 4,
       };
     },
     reloadPage: function () {
@@ -872,7 +914,7 @@ test("ByteDance AIDP content switches account by clearing login cookies and relo
 
   assert.deepEqual(calls, [
     {
-      type: "clear",
+      type: "reset",
       payload: {
         url: "https://aidp.bytedance.com/management/task-v2?page=1",
       },
@@ -882,10 +924,10 @@ test("ByteDance AIDP content switches account by clearing login cookies and relo
     },
   ]);
   assert.equal(result.ok, true);
-  assert.match(result.message, /已清除登录 Cookie/);
+  assert.match(result.message, /已重置登录态|已清除登录态/);
 });
 
-test("ByteDance AIDP content does not reload the page when clearing login cookies fails", async function () {
+test("ByteDance AIDP content does not reload the page when resetting login state fails", async function () {
   const contentModule = loadContentModule();
   const calls = [];
 
@@ -893,11 +935,11 @@ test("ByteDance AIDP content does not reload the page when clearing login cookie
     confirm: function () {
       return true;
     },
-    clearLoginCookies: async function () {
-      calls.push("clear");
+    resetLoginState: async function () {
+      calls.push("reset");
       return {
         ok: false,
-        message: "没有权限删除 Cookie。",
+        message: "没有权限清理站点储存。",
       };
     },
     reloadPage: function () {
@@ -906,12 +948,12 @@ test("ByteDance AIDP content does not reload the page when clearing login cookie
     url: "https://aidp.bytedance.com/management/task-v2?page=1",
   });
 
-  assert.deepEqual(calls, ["clear"]);
+  assert.deepEqual(calls, ["reset"]);
   assert.equal(result.ok, false);
-  assert.equal(result.message, "没有权限删除 Cookie。");
+  assert.equal(result.message, "没有权限清理站点储存。");
 });
 
-test("ByteDance AIDP content cancels account switch before clearing login cookies", async function () {
+test("ByteDance AIDP content cancels account switch before resetting login state", async function () {
   const contentModule = loadContentModule();
   const calls = [];
 
@@ -919,8 +961,8 @@ test("ByteDance AIDP content cancels account switch before clearing login cookie
     confirm: function () {
       return false;
     },
-    clearLoginCookies: async function () {
-      calls.push("clear");
+    resetLoginState: async function () {
+      calls.push("reset");
       return {
         ok: true,
       };

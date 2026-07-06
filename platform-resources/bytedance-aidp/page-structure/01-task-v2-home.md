@@ -45,8 +45,8 @@ body
 | 列表页路由 | `location.pathname === "/management/task-v2"` | `high` | 首层页面识别锚点 |
 | 当前页码 | `new URLSearchParams(location.search).get("page")` | `high` | 分页上下文直接来自 URL |
 | 详情跳转链接 | `a[href*="/management/task-v2/"][href*="/mark-v3/"]` | `medium` | 依赖详情页 URL 模式，待真实页面复核 |
-| 顶部 header | `header.aidp-foundation-layout-header` | `medium` | 当前用于列表页账号切换按钮挂载 |
-| 右侧用户区 | `[class^="frame-user-info-"]` | `medium` | 当前用于定位头像与按钮插入区 |
+| 顶部 header | `header.aidp-foundation-layout-header` | `medium` | 当前用于 `management/*` 账号切换按钮挂载 |
+| 右侧用户区 | `[class^="frame-user-info-"]` | `medium` | 当前用于定位头像与管理区按钮插入区 |
 | 主内容区 | `main, [role="main"]` | `medium` | 只作外层语义容器候选 |
 | 表格行 | `table tbody tr, [role="row"]` | `medium` | 当前仅作通用语义候选 |
 | 分页控件 | `a[href*="page="], button[aria-label*="page"]` | `medium` | 需真实页面确认组件实现 |
@@ -70,7 +70,8 @@ body
 - 当前扩展已采用：
   - 以 `header.aidp-foundation-layout-header` 为顶层锚点
   - 在右侧用户区头像左侧插入紧凑 `切换账号` 按钮
-  - 按钮点击后直接清理 AIDP 主站、`mpsso.jiyunhudong.com` 与该 SSO 顶层站点下的第三方登录 Cookie 并刷新页面
+  - 该按钮方案现已推广到整个 `/management/*` 管理区，只要命中同款 header 就会挂载
+  - 按钮点击后先清理 `https://aidp.bytedance.com` 站点储存，再补清 AIDP 主站、`mpsso.jiyunhudong.com` 与该 SSO 顶层站点下的第三方登录 Cookie 并刷新页面
 - 不建议：
   - 回退到主内容区上方独立助手条
   - 直接覆盖行级详情入口
@@ -85,7 +86,7 @@ body
 
 ## 写操作边界 / 未确认项
 
-- 当前列表页账号切换按钮直接调用扩展后台清理 AIDP 主站、`mpsso.jiyunhudong.com` 与该 SSO 顶层站点下的第三方登录 Cookie，再刷新页面；不调用平台写接口。
+- 当前管理区账号切换按钮直接调用扩展后台清理 AIDP 站点储存，并补清 AIDP 主站、`mpsso.jiyunhudong.com` 与该 SSO 顶层站点下的第三方登录 Cookie，再刷新页面；不调用平台写接口。
 - 当前未确认列表页是否存在领取、分配、批量操作或状态流转按钮。
 - 当前未确认筛选区是否会触发服务端写状态或仅改本地视图。
 - 在真实页面补采前，任何行级按钮和批量动作都应视为 `write-action`。

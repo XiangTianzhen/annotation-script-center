@@ -13,7 +13,19 @@ importScripts(sharedConstantsUrl, sharedStorageUrl);
 const constants = globalThis.ASREdgeConstants;
 const storage = globalThis.ASREdgeStorage;
 const LOG_PREFIX = "[ASR Edge][background]";
+const AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE = "ASR_EDGE_RESET_AIDP_LOGIN_STATE";
 const AIDP_COOKIE_CLEAR_MESSAGE_TYPE = "ASR_EDGE_CLEAR_AIDP_COOKIES";
+const AIDP_SITE_STORAGE_CLEAR_ORIGINS = Object.freeze(["https://aidp.bytedance.com"]);
+const AIDP_SITE_STORAGE_REMOVE_OPTIONS = Object.freeze({
+  cache: true,
+  cacheStorage: true,
+  cookies: true,
+  fileSystems: true,
+  indexedDB: true,
+  localStorage: true,
+  serviceWorkers: true,
+  webSQL: true,
+});
 const AIDP_ACCOUNT_SWITCH_SCOPE_URLS = Object.freeze([
   "https://aidp.bytedance.com/",
   "https://mpsso.jiyunhudong.com/",
@@ -234,13 +246,66 @@ function buildCookieRemovalIdentity(details) {
   });
 }
 
+function cloneAidpSiteStorageRemovalOptions() {
+  return {
+    cache: true,
+    cacheStorage: true,
+    cookies: true,
+    fileSystems: true,
+    indexedDB: true,
+    localStorage: true,
+    serviceWorkers: true,
+    webSQL: true,
+  };
+}
+
+async function clearAidpSiteStorage(browsingDataApi) {
+  const api = browsingDataApi || chrome.browsingData;
+  if (!api || typeof api.remove !== "function") {
+    return {
+      ok: false,
+      reason: "browsing-data-api-unavailable",
+      message: "扩展当前没有可用的站点储存清理能力。",
+      clearedCount: 0,
+    };
+  }
+
+  await new Promise(function (resolve, reject) {
+    try {
+      api.remove(
+        {
+          origins: AIDP_SITE_STORAGE_CLEAR_ORIGINS.slice(),
+        },
+        cloneAidpSiteStorageRemovalOptions(),
+        function () {
+          const lastError = chrome.runtime && chrome.runtime.lastError;
+          if (lastError) {
+            reject(new Error(lastError.message || String(lastError)));
+            return;
+          }
+          resolve();
+        }
+      );
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+  return {
+    ok: true,
+    message: "已清理 AIDP 站点储存。",
+    clearedCount: 0,
+    origins: AIDP_SITE_STORAGE_CLEAR_ORIGINS.slice(),
+  };
+}
+
 async function clearCookiesForUrl(url, cookieApi) {
   const queries = buildAidpCookieScopeQueries(url);
   if (queries.length <= 0) {
     return {
       ok: false,
       reason: "invalid-aidp-url",
-      message: "仅支持从 ByteDance AIDP 列表页发起切换账号 Cookie 清理。",
+      message: "仅支持从 ByteDance AIDP 管理区发起登录态清理。",
       clearedCount: 0,
     };
   }
@@ -289,12 +354,66 @@ async function clearCookiesForUrl(url, cookieApi) {
     ok: true,
     message:
       clearedCount > 0
-        ? "已清除当前账号登录 Cookie。"
-        : "当前未找到可清除的登录 Cookie。",
+        ? "已补清当前账号登录 Cookie。"
+        : "当前未找到额外登录 Cookie。",
     clearedCount: clearedCount,
     scopeUrls: queries.map(function (query) {
       return query.url;
     }),
+  };
+}
+
+async function resetAidpLoginState(url, dependencies) {
+  const source = dependencies && typeof dependencies === "object" ? dependencies : {};
+  let siteStorageResult = null;
+  try {
+    siteStorageResult = await clearAidpSiteStorage(source.browsingDataApi);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "clear-site-storage-failed",
+      message:
+        error && error.message ? error.message : "清理 AIDP 站点储存失败。",
+      clearedCount: 0,
+    };
+  }
+  if (!siteStorageResult || siteStorageResult.ok !== true) {
+    return siteStorageResult || {
+      ok: false,
+      reason: "clear-site-storage-failed",
+      message: "清理站点储存失败。",
+      clearedCount: 0,
+    };
+  }
+  let cookieResult = null;
+  try {
+    cookieResult = await clearCookiesForUrl(url, source.cookieApi);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "clear-cookie-failed",
+      message:
+        error && error.message ? error.message : "补清登录 Cookie 失败。",
+      clearedCount: 0,
+    };
+  }
+  if (!cookieResult || cookieResult.ok !== true) {
+    return cookieResult || {
+      ok: false,
+      reason: "clear-cookie-failed",
+      message: "补清登录 Cookie 失败。",
+      clearedCount: 0,
+    };
+  }
+  return {
+    ok: true,
+    message:
+      cookieResult.clearedCount > 0
+        ? "已重置 AIDP 登录态。"
+        : "已清理站点储存，当前未找到额外登录 Cookie。",
+    clearedCount: cookieResult.clearedCount,
+    origins: AIDP_SITE_STORAGE_CLEAR_ORIGINS.slice(),
+    scopeUrls: cookieResult.scopeUrls,
   };
 }
 
@@ -343,8 +462,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === AIDP_COOKIE_CLEAR_MESSAGE_TYPE) {
-    clearCookiesForUrl(message.url)
+  if (
+    message.type === AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE ||
+    message.type === AIDP_COOKIE_CLEAR_MESSAGE_TYPE
+  ) {
+    resetAidpLoginState(message.url)
       .then(function (result) {
         sendResponse({ ok: true, result: result });
       })
@@ -369,8 +491,13 @@ if (typeof module !== "undefined" && module.exports) {
       buildAidpCookieScopeQueries: buildAidpCookieScopeQueries,
       buildCookieRemovalDetails: buildCookieRemovalDetails,
       buildCookieRemovalIdentity: buildCookieRemovalIdentity,
+      clearAidpSiteStorage: clearAidpSiteStorage,
       clearCookiesForUrl: clearCookiesForUrl,
+      resetAidpLoginState: resetAidpLoginState,
+      AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE: AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE,
       AIDP_COOKIE_CLEAR_MESSAGE_TYPE: AIDP_COOKIE_CLEAR_MESSAGE_TYPE,
+      AIDP_SITE_STORAGE_CLEAR_ORIGINS: AIDP_SITE_STORAGE_CLEAR_ORIGINS,
+      AIDP_SITE_STORAGE_REMOVE_OPTIONS: AIDP_SITE_STORAGE_REMOVE_OPTIONS,
     },
   };
 }

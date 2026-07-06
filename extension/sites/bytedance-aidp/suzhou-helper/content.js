@@ -81,7 +81,7 @@
   };
   let storageListenerBound = false;
   let helperRuntime = null;
-  let taskListUiActive = false;
+  let managementUiActive = false;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -285,9 +285,9 @@
     return /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+$/i.test(text);
   }
 
-  function isTaskListPagePathname(pathname) {
+  function isManagementPagePathname(pathname) {
     const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
-    return /^\/management\/task-v2$/i.test(text);
+    return /^\/management(?:\/.*)?$/i.test(text);
   }
 
   function isDetailPage() {
@@ -298,12 +298,17 @@
     }
   }
 
-  function isTaskListPage() {
+  function isManagementPage() {
     try {
-      return isTaskListPagePathname(globalThis.location?.pathname || "");
+      return isManagementPagePathname(globalThis.location?.pathname || "");
     } catch (_error) {
       return false;
     }
+  }
+
+  function isTaskListPagePathname(pathname) {
+    const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
+    return /^\/management\/task-v2$/i.test(text);
   }
 
   function isHideableNode(node) {
@@ -1344,10 +1349,10 @@
     return "https://aidp.bytedance.com/";
   }
 
-  async function requestAidpLoginCookieClear(payload) {
+  async function requestAidpLoginStateReset(payload) {
     const source = payload && typeof payload === "object" ? payload : {};
     const response = await sendRuntimeMessage({
-      type: "ASR_EDGE_CLEAR_AIDP_COOKIES",
+      type: "ASR_EDGE_RESET_AIDP_LOGIN_STATE",
       url: getAidpCookieClearUrl(source.url),
     });
     if (!response || response.ok !== true || !response.result) {
@@ -1355,10 +1360,14 @@
         ok: false,
         message:
           normalizeText(response?.error || response?.result?.message || "") ||
-          "清理登录 Cookie 失败。",
+          "重置登录态失败。",
       };
     }
     return response.result;
+  }
+
+  async function requestAidpLoginCookieClear(payload) {
+    return requestAidpLoginStateReset(payload);
   }
 
   function reloadCurrentPage() {
@@ -1373,17 +1382,19 @@
         : typeof globalThis.confirm === "function"
           ? globalThis.confirm
           : null;
-    const clearLoginCookies =
-      typeof source.clearLoginCookies === "function"
-        ? source.clearLoginCookies
-        : requestAidpLoginCookieClear;
+    const resetLoginState =
+      typeof source.resetLoginState === "function"
+        ? source.resetLoginState
+        : typeof source.clearLoginCookies === "function"
+          ? source.clearLoginCookies
+        : requestAidpLoginStateReset;
     const reloadPage =
       typeof source.reloadPage === "function" ? source.reloadPage : reloadCurrentPage;
     const pageUrl = getAidpCookieClearUrl(source.url);
 
     if (
       confirmFn &&
-      confirmFn("确认清除当前账号登录 Cookie 并刷新页面吗？") === false
+      confirmFn("确认清理当前站点储存和登录态并刷新页面吗？") === false
     ) {
       return {
         ok: false,
@@ -1392,21 +1403,21 @@
       };
     }
 
-    const clearResult = await clearLoginCookies({
+    const clearResult = await resetLoginState({
       url: pageUrl,
     });
     if (!clearResult || clearResult.ok !== true) {
       return {
         ok: false,
-        reason: normalizeText(clearResult?.reason || "") || "clear-cookie-failed",
-        message: normalizeText(clearResult?.message || "") || "清理登录 Cookie 失败。",
+        reason: normalizeText(clearResult?.reason || "") || "reset-login-state-failed",
+        message: normalizeText(clearResult?.message || "") || "重置登录态失败。",
       };
     }
 
     reloadPage();
     return {
       ok: true,
-      message: "已清除登录 Cookie，正在刷新页面。",
+      message: "已重置登录态，正在刷新页面。",
     };
   }
 
@@ -3876,8 +3887,8 @@
     }
   }
 
-  function syncTaskListAccountSwitchBar(root) {
-    if (!root || !isTaskListPage()) {
+  function syncManagementAccountSwitchBar(root) {
+    if (!root || !isManagementPage()) {
       destroyAccountSwitchBar(root);
       return;
     }
@@ -3891,7 +3902,7 @@
   }
 
   function destroyTaskListUi() {
-    taskListUiActive = false;
+    managementUiActive = false;
     if (typeof document !== "undefined") {
       destroyAccountSwitchBar(document);
     }
@@ -3901,16 +3912,16 @@
   }
 
   async function installTaskListUi() {
-    if (!isTaskListPage()) {
+    if (!isManagementPage()) {
       destroyTaskListUi();
       return runtimePolicy;
     }
-    taskListUiActive = true;
+    managementUiActive = true;
     bindStorageListener();
     const settings = await loadSettings();
     runtimePolicy = resolveRuntimePolicy(settings);
     if (typeof document !== "undefined") {
-      syncTaskListAccountSwitchBar(document);
+      syncManagementAccountSwitchBar(document);
     }
     return runtimePolicy;
   }
@@ -4204,10 +4215,14 @@
       return;
     }
     if (runtimeActive && isDetailPage()) {
-      void refreshRuntimePolicy();
+      void refreshRuntimePolicy().then(function () {
+        if (managementUiActive && isManagementPage() && typeof document !== "undefined") {
+          syncManagementAccountSwitchBar(document);
+        }
+      });
       return;
     }
-    if (taskListUiActive && isTaskListPage()) {
+    if (managementUiActive && isManagementPage()) {
       void installTaskListUi();
     }
   }
@@ -4246,7 +4261,7 @@
     runtimeActive = false;
     disconnectMutationObserver();
     destroyHelperRuntime();
-    if (!taskListUiActive) {
+    if (!managementUiActive) {
       unbindStorageListener();
     }
     if (typeof document !== "undefined") {
@@ -4271,10 +4286,20 @@
       return;
     }
     routeTimer = window.setInterval(function () {
-      if (isDetailPage()) {
-        if (taskListUiActive) {
-          destroyTaskListUi();
+      const onManagementPage = isManagementPage();
+      const onDetailPage = isDetailPage();
+
+      if (onManagementPage) {
+        if (!managementUiActive) {
+          void installTaskListUi();
+        } else {
+          syncManagementAccountSwitchBar(document);
         }
+      } else if (managementUiActive) {
+        destroyTaskListUi();
+      }
+
+      if (onDetailPage) {
         if (!runtimeActive) {
           void installRuntime();
           return;
@@ -4292,23 +4317,8 @@
         return;
       }
 
-      if (isTaskListPage()) {
-        if (runtimeActive) {
-          destroyRuntime();
-        }
-        if (!taskListUiActive) {
-          void installTaskListUi();
-          return;
-        }
-        syncTaskListAccountSwitchBar(document);
-        return;
-      }
-
       if (runtimeActive) {
         destroyRuntime();
-      }
-      if (taskListUiActive) {
-        destroyTaskListUi();
       }
     }, 1200);
   }
@@ -4321,11 +4331,13 @@
       syncPlatformAiVisibility: syncPlatformAiVisibility,
       isDetailPagePathname: isDetailPagePathname,
       isTaskListPagePathname: isTaskListPagePathname,
+      isManagementPagePathname: isManagementPagePathname,
       normalizeInsightTarget: normalizeInsightTarget,
       normalizeFloatingTarget: normalizeFloatingTarget,
       getInsightCandidateScore: getInsightCandidateScore,
       getFloatingAssistantScore: getFloatingAssistantScore,
       ensureAccountSwitchBar: ensureAccountSwitchBar,
+      requestAidpLoginStateReset: requestAidpLoginStateReset,
       runAccountSwitchFlow: runAccountSwitchFlow,
       resolveHelperConfig: resolveHelperConfig,
       applyWaveToolSettings: applyWaveToolSettings,
@@ -4356,7 +4368,12 @@
     globalThis.__ASREdgeBytedanceAidpSuzhouInstalled !== true
   ) {
     globalThis.__ASREdgeBytedanceAidpSuzhouInstalled = true;
-    void installRuntime();
+    if (isManagementPage()) {
+      void installTaskListUi();
+    }
+    if (isDetailPage()) {
+      void installRuntime();
+    }
     startRouteWatcher();
   }
 })();
