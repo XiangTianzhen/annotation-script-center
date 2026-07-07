@@ -30,6 +30,7 @@
   const TOOLBAR_ACTION_GROUP_ATTR = "data-asc-toolbar-action-group";
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
+  const HIDE_AUXILIARY_ZONE_BUTTON_ATTR = "data-asc-hide-auxiliary-zone-button";
   const ACCOUNT_SWITCH_BAR_ATTR = "data-asc-aidp-account-switch-bar";
   const ACCOUNT_SWITCH_BUTTON_ATTR = "data-asc-aidp-account-switch-button";
   const ACCOUNT_SWITCH_STATUS_ATTR = "data-asc-aidp-account-switch-status";
@@ -56,6 +57,7 @@
     "hidden",
     "aria-hidden",
   ];
+  const JINHUA_PANEL_ROOT_ATTR = "data-asc-bytedance-aidp-jinhua-panel";
 
   let runtimeActive = false;
   let runtimePolicy = {
@@ -92,6 +94,7 @@
   let storageListenerBound = false;
   let helperRuntime = null;
   let managementUiActive = false;
+  let jinhuaAuxiliaryZonesHidden = false;
 
   function createPlaybackScrollGuardTargetState(name) {
     return {
@@ -2016,6 +2019,25 @@
     });
   }
 
+  function applyHeaderActionButtonStyle(button) {
+    if (!button || !button.style) {
+      return;
+    }
+    button.style.padding = "0 8px";
+    button.style.height = "24px";
+    button.style.border = "1px solid #d7dce5";
+    button.style.borderRadius = "6px";
+    button.style.background = "#fff";
+    button.style.color = "#39424e";
+    button.style.cursor = "pointer";
+    button.style.fontSize = "12px";
+    button.style.display = "inline-flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.whiteSpace = "nowrap";
+    button.style.flex = "0 0 auto";
+  }
+
   function ensureHeaderActionButton(root, attrName, label, onClick) {
     const actionGroup = findDetailHeaderActionGroup(root);
     if (!actionGroup || typeof actionGroup.querySelector === "undefined") {
@@ -2043,19 +2065,7 @@
     button.type = "button";
     button.setAttribute(attrName, "true");
     button.textContent = label;
-    button.style.padding = "0 8px";
-    button.style.height = "24px";
-    button.style.border = "1px solid #d7dce5";
-    button.style.borderRadius = "6px";
-    button.style.background = "#fff";
-    button.style.color = "#39424e";
-    button.style.cursor = "pointer";
-    button.style.fontSize = "12px";
-    button.style.display = "inline-flex";
-    button.style.alignItems = "center";
-    button.style.justifyContent = "center";
-    button.style.whiteSpace = "nowrap";
-    button.style.flex = "0 0 auto";
+    applyHeaderActionButtonStyle(button);
     button.addEventListener("click", function () {
       if (typeof onClick === "function") {
         onClick();
@@ -2076,6 +2086,200 @@
       "填充语言种类",
       onClick
     );
+  }
+
+  function hasClassToken(node, className) {
+    return getClassName(node)
+      .split(/\s+/)
+      .filter(Boolean)
+      .includes(String(className || ""));
+  }
+
+  function findJinhuaPanelRoot(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const candidates = [searchRoots[index]].concat(collectDescendantElements(searchRoots[index]));
+      const matched = candidates.find(function (node) {
+        if (!node || node.nodeType !== 1) {
+          return false;
+        }
+        if (typeof node.hasAttribute === "function") {
+          return node.hasAttribute(JINHUA_PANEL_ROOT_ATTR);
+        }
+        return normalizeText(node.getAttribute?.(JINHUA_PANEL_ROOT_ATTR)) !== "";
+      });
+      if (matched) {
+        return matched;
+      }
+    }
+    return null;
+  }
+
+  function findNativeSegmentTableContainer(root) {
+    const searchRoots = getSearchRoots(root);
+    let bestCandidate = null;
+    let bestScore = -1;
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const candidates = [searchRoots[index]].concat(collectDescendantElements(searchRoots[index]));
+      candidates.forEach(function (candidate) {
+        if (!hasClassToken(candidate, "neeko-container")) {
+          return;
+        }
+        const descendants = collectDescendantElements(candidate);
+        const text = getNodeText(candidate);
+        const hasTable = descendants.some(function (node) {
+          return hasClassToken(node, "arco-table");
+        });
+        if (!hasTable) {
+          return;
+        }
+        let headerScore = 0;
+        ["序号", "区间", "转写文本", "音频段", "操作"].forEach(function (label) {
+          if (text.includes(label)) {
+            headerScore += 1;
+          }
+        });
+        if (text.includes("语言种类") || text.includes("语音种类")) {
+          headerScore += 1;
+        }
+        if (headerScore < 5) {
+          return;
+        }
+        const hasTableBody = descendants.some(function (node) {
+          return hasClassToken(node, "arco-table-body");
+        });
+        const hasTextarea = descendants.some(function (node) {
+          return (
+            String(node?.tagName || "").toUpperCase() === "TEXTAREA" &&
+            hasClassToken(node, "arco-textarea") &&
+            hasClassToken(node, "neeko-input-textarea")
+          );
+        });
+        const score = headerScore + (hasTableBody ? 3 : 0) + (hasTextarea ? 5 : 0);
+        if (score > bestScore) {
+          bestScore = score;
+          bestCandidate = candidate;
+        }
+      });
+    }
+    return bestCandidate;
+  }
+
+  function setHideableNodeHidden(node, hidden) {
+    if (!node || !node.style) {
+      return false;
+    }
+    const style = node.style;
+    const currentDisplayValue =
+      typeof style.getPropertyValue === "function"
+        ? String(style.getPropertyValue("display") || "")
+        : String(style.display || "");
+    const currentDisplayPriority =
+      typeof style.getPropertyPriority === "function"
+        ? String(style.getPropertyPriority("display") || "")
+        : "";
+    if (hidden === true) {
+      if (node.__ascPrevDisplayValue === undefined) {
+        node.__ascPrevDisplayValue = currentDisplayValue;
+        node.__ascPrevDisplayPriority = currentDisplayPriority;
+      }
+      if (typeof style.setProperty === "function") {
+        style.setProperty("display", "none", "important");
+      } else {
+        style.display = "none";
+      }
+      return currentDisplayValue !== "none" || currentDisplayPriority !== "important";
+    }
+    const previousValue = String(node.__ascPrevDisplayValue || "");
+    const previousPriority = String(node.__ascPrevDisplayPriority || "");
+    if (typeof style.removeProperty === "function") {
+      style.removeProperty("display");
+    } else {
+      style.display = "";
+    }
+    if (previousValue) {
+      if (typeof style.setProperty === "function") {
+        style.setProperty("display", previousValue, previousPriority);
+      } else {
+        style.display = previousValue;
+      }
+    } else if (typeof style.setProperty === "function" && previousPriority) {
+      style.setProperty("display", "", previousPriority);
+    } else {
+      style.display = "";
+    }
+    delete node.__ascPrevDisplayValue;
+    delete node.__ascPrevDisplayPriority;
+    return currentDisplayValue === "none" || currentDisplayPriority === "important";
+  }
+
+  function syncHideAuxiliaryZoneButtonLabel(root) {
+    const actionGroup = findDetailHeaderActionGroup(root);
+    if (!actionGroup || typeof actionGroup.querySelector !== "function") {
+      return false;
+    }
+    const button = actionGroup.querySelector(
+      "[" + HIDE_AUXILIARY_ZONE_BUTTON_ATTR + "='true']"
+    );
+    if (!button) {
+      return false;
+    }
+    const nextLabel = jinhuaAuxiliaryZonesHidden ? "显示辅助区" : "隐藏辅助区";
+    const changed = String(button.textContent || "") !== nextLabel;
+    button.textContent = nextLabel;
+    return changed;
+  }
+
+  function ensureHideAuxiliaryZoneButton(root, onClick) {
+    const actionGroup = findDetailHeaderActionGroup(root);
+    if (!actionGroup || typeof actionGroup.querySelector === "undefined") {
+      return false;
+    }
+    if (actionGroup.style) {
+      actionGroup.style.display = "inline-flex";
+      actionGroup.style.alignItems = "center";
+      actionGroup.style.gap = "8px";
+      actionGroup.style.flexWrap = "wrap";
+    }
+    removeLegacyToolbarActionGroups(root);
+    const documentLike = actionGroup.ownerDocument || globalThis.document;
+    let button =
+      typeof actionGroup.querySelector === "function"
+        ? actionGroup.querySelector("[" + HIDE_AUXILIARY_ZONE_BUTTON_ATTR + "='true']")
+        : null;
+    let changed = false;
+    if (!button) {
+      if (!documentLike || typeof documentLike.createElement !== "function") {
+        return false;
+      }
+      button = documentLike.createElement("button");
+      button.type = "button";
+      button.setAttribute(HIDE_AUXILIARY_ZONE_BUTTON_ATTR, "true");
+      applyHeaderActionButtonStyle(button);
+      button.addEventListener("click", function () {
+        if (typeof button.__ascOnClick === "function") {
+          button.__ascOnClick();
+        }
+      });
+      actionGroup.appendChild(button);
+      changed = true;
+    }
+    button.__ascOnClick = onClick;
+    return syncHideAuxiliaryZoneButtonLabel(root) || changed;
+  }
+
+  function setJinhuaAuxiliaryZonesHidden(root, hidden) {
+    const nextHidden = hidden === true;
+    let changed = jinhuaAuxiliaryZonesHidden !== nextHidden;
+    jinhuaAuxiliaryZonesHidden = nextHidden;
+    if (helperRuntime?.ui?.setPanelHidden) {
+      helperRuntime.ui.setPanelHidden(nextHidden);
+    } else {
+      changed = setHideableNodeHidden(findJinhuaPanelRoot(root), nextHidden) || changed;
+    }
+    changed = setHideableNodeHidden(findNativeSegmentTableContainer(root), nextHidden) || changed;
+    changed = syncHideAuxiliaryZoneButtonLabel(root) || changed;
+    return changed;
   }
 
   function findSegmentRowsTableRoot(root) {
@@ -3292,6 +3496,11 @@
         ensureFillLanguageKindsButton(root, function () {
           void handleFillLanguageKindsAction();
         }) || changed;
+      changed =
+        ensureHideAuxiliaryZoneButton(root, function () {
+          setJinhuaAuxiliaryZonesHidden(root, !jinhuaAuxiliaryZonesHidden);
+        }) || changed;
+      changed = setJinhuaAuxiliaryZonesHidden(root, jinhuaAuxiliaryZonesHidden) || changed;
       changed =
         syncRowRecognizeButtons({
           root: root,
@@ -4912,6 +5121,11 @@
     disconnectMutationObserver();
     clearPlaybackScrollGuardWatchdog();
     deactivatePlaybackScrollGuard();
+    if (typeof document !== "undefined") {
+      setJinhuaAuxiliaryZonesHidden(document, false);
+    } else {
+      jinhuaAuxiliaryZonesHidden = false;
+    }
     destroyHelperRuntime();
     if (!managementUiActive) {
       unbindStorageListener();
@@ -5005,6 +5219,7 @@
       isWavePlaybackActive: isWavePlaybackActive,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
+      ensureHideAuxiliaryZoneButton: ensureHideAuxiliaryZoneButton,
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
       createShortcutActions: createShortcutActions,
@@ -5012,6 +5227,8 @@
       fillEmptyLanguageKinds: fillEmptyLanguageKinds,
       buildSegmentRequestContext: buildSegmentRequestContext,
       buildSegmentRecognizeLayoutSignature: buildSegmentRecognizeLayoutSignature,
+      findNativeSegmentTableContainer: findNativeSegmentTableContainer,
+      setJinhuaAuxiliaryZonesHidden: setJinhuaAuxiliaryZonesHidden,
       syncPlaybackSensitiveDecorations: syncPlaybackSensitiveDecorations,
       syncPlaybackScrollGuard: syncPlaybackScrollGuard,
       getPlaybackScrollGuardState: getPlaybackScrollGuardState,

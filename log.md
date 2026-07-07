@@ -1,11 +1,14 @@
-## 2026-07-07（为 ByteDance AIDP 金华话脚本增加常驻面板显隐开关）
+## 2026-07-07（收口 ByteDance AIDP 金华话辅助区隐藏入口）
+- 更新 `extension/sites/bytedance-aidp/jinhua-helper/content.js`
+  - 在题目头部 `.operation-group-btn-GcvnvK` 新增 `隐藏辅助区 / 显示辅助区`
+  - 联动控制扩展 `金华话脚本` 面板和平台原生分段表格区 `.neeko-container`
+  - 隐藏态只保留当前页 runtime，切题重渲染时继续补回，刷新后恢复默认显示
 - 更新 `extension/sites/bytedance-aidp/jinhua-helper/ui-panel.js`
-  - 新增常驻 `隐藏金华话脚本 / 显示金华话脚本` 按钮
-  - 面板隐藏时按钮继续保留，支持再次显示
-  - 显隐只作用于扩展辅助面板，不影响平台原生区域
+  - 删除旧的面板外独立显隐按钮，收口为纯面板渲染与显隐接口
 - 更新测试：
+  - `extension/sites/bytedance-aidp/jinhua-helper/content.test.js`
   - `extension/sites/bytedance-aidp/jinhua-helper/ui-panel.test.js`
-  - 新增常驻显隐按钮回归
+  - 回归覆盖头部新按钮、联动隐藏原生表格区，以及不再渲染旧外置显隐按钮
 - 更新文档：
   - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
 

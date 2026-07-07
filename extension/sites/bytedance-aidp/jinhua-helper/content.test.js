@@ -505,6 +505,68 @@ function createAidpVirtualSegmentTable(rows) {
   });
 }
 
+function createAidpNativeSegmentContainer() {
+  return new FakeElement({
+    className: "neeko-container",
+    children: [
+      new FakeElement({
+        className: "arco-table",
+        children: [
+          new FakeElement({
+            className: "arco-table-header",
+            children: [
+              new FakeElement({ tagName: "span", text: "序号" }),
+              new FakeElement({ tagName: "span", text: "区间" }),
+              new FakeElement({ tagName: "span", text: "转写文本" }),
+              new FakeElement({ tagName: "span", text: "语言种类" }),
+              new FakeElement({ tagName: "span", text: "音频段" }),
+              new FakeElement({ tagName: "span", text: "操作" }),
+            ],
+          }),
+          new FakeElement({
+            className: "arco-table-body",
+            children: [
+              new FakeElement({
+                className: "arco-table-tr",
+                children: [
+                  new FakeElement({
+                    className: "arco-table-td",
+                    children: [
+                      new FakeElement({
+                        tagName: "textarea",
+                        className: "arco-textarea neeko-input-textarea",
+                        value: "",
+                      }),
+                    ],
+                  }),
+                  new FakeElement({
+                    className: "arco-table-td",
+                    children: [
+                      new FakeElement({
+                        tagName: "button",
+                        text: "播放选段",
+                      }),
+                    ],
+                  }),
+                  new FakeElement({
+                    className: "arco-table-td",
+                    children: [
+                      new FakeElement({
+                        tagName: "button",
+                        text: "暂停",
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
 test("ByteDance AIDP content derives hide policy from script settings", function () {
   const contentModule = loadContentModule();
   const policy = contentModule.__testOnly.resolveRuntimePolicy({
@@ -2432,15 +2494,57 @@ test("ByteDance AIDP content keeps header helper buttons on a single line", func
 
   contentModule.__testOnly.ensureClearSegmentsButton(root, function () {});
   contentModule.__testOnly.ensureFillLanguageKindsButton(root, function () {});
+  contentModule.__testOnly.ensureHideAuxiliaryZoneButton(root, function () {});
 
   const clearButton = headerActionGroup.querySelector("[data-asc-clear-segments-button='true']");
   const fillButton = headerActionGroup.querySelector("[data-asc-fill-language-kind-button='true']");
+  const hideButton = headerActionGroup.querySelector(
+    "[data-asc-hide-auxiliary-zone-button='true']"
+  );
 
   assert.ok(headerActionGroup);
   assert.equal(headerActionGroup.style.display, "inline-flex");
   assert.equal(headerActionGroup.style.gap, "8px");
+  assert.equal(hideButton.textContent, "隐藏辅助区");
   assert.equal(clearButton.style.getPropertyValue("white-space") || clearButton.style.whiteSpace, "nowrap");
   assert.equal(fillButton.style.getPropertyValue("white-space") || fillButton.style.whiteSpace, "nowrap");
+  assert.equal(hideButton.style.getPropertyValue("white-space") || hideButton.style.whiteSpace, "nowrap");
+});
+
+test("ByteDance AIDP content hides both panel root and native segment table container together", function () {
+  const contentModule = loadContentModule();
+  const panelRoot = new FakeElement({
+    attributes: {
+      "data-asc-bytedance-aidp-jinhua-panel": "true",
+    },
+  });
+  const nativeContainer = createAidpNativeSegmentContainer();
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "page-root",
+      children: [panelRoot, nativeContainer],
+    }),
+  ]);
+
+  contentModule.__testOnly.setJinhuaAuxiliaryZonesHidden(root, true);
+  assert.equal(
+    panelRoot.style.getPropertyValue("display") || panelRoot.style.display,
+    "none"
+  );
+  assert.equal(
+    nativeContainer.style.getPropertyValue("display") || nativeContainer.style.display,
+    "none"
+  );
+
+  contentModule.__testOnly.setJinhuaAuxiliaryZonesHidden(root, false);
+  assert.notEqual(
+    panelRoot.style.getPropertyValue("display") || panelRoot.style.display,
+    "none"
+  );
+  assert.notEqual(
+    nativeContainer.style.getPropertyValue("display") || nativeContainer.style.display,
+    "none"
+  );
 });
 
 test("ByteDance AIDP batch controller caches results without writeback when auto-fill is disabled", async function () {

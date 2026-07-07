@@ -380,7 +380,7 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
   }
 });
 
-test("AIDP jinhua ui panel keeps a persistent visibility toggle outside the panel body", function () {
+test("AIDP jinhua ui panel exposes visibility methods without rendering an external toggle button", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -400,21 +400,19 @@ test("AIDP jinhua ui panel keeps a persistent visibility toggle outside the pane
     });
     const panelRoot = findMountedPanelRoot(harness.body);
 
-    assert.ok(toggleButton);
     assert.ok(panelRoot);
-    assert.equal(toggleButton.textContent, "隐藏金华话脚本");
+    assert.equal(toggleButton, null);
     assert.equal(typeof runtime.isPanelHidden, "function");
+    assert.equal(typeof runtime.setPanelHidden, "function");
     assert.equal(runtime.isPanelHidden(), false);
     assert.notEqual(panelRoot.style.display, "none");
 
-    toggleButton.click();
+    runtime.setPanelHidden(true);
     assert.equal(runtime.isPanelHidden(), true);
-    assert.equal(toggleButton.textContent, "显示金华话脚本");
     assert.equal(panelRoot.style.display, "none");
 
-    toggleButton.click();
+    runtime.setPanelHidden(false);
     assert.equal(runtime.isPanelHidden(), false);
-    assert.equal(toggleButton.textContent, "隐藏金华话脚本");
     assert.notEqual(panelRoot.style.display, "none");
   } finally {
     globalThis.document = previousDocument;
