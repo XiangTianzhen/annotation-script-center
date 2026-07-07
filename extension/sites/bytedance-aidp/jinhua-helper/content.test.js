@@ -567,6 +567,33 @@ function createAidpNativeSegmentContainer() {
   });
 }
 
+function createAidpWaveWorkbench() {
+  return new FakeElement({
+    className: "wave-workbench-shell",
+    children: [
+      new FakeElement({
+        className: "neeko-wavesurfer-warper neeko-wavesurfer",
+        children: [
+          new FakeElement({ tagName: "span", text: "播放速度" }),
+          new FakeElement({ tagName: "span", text: "总时长" }),
+        ],
+      }),
+    ],
+  });
+}
+
+function createAidpOuterWrapperWithWaveAndTable() {
+  const innerTableContainer = createAidpNativeSegmentContainer();
+  const outerWrapper = new FakeElement({
+    className: "neeko-container detail-stage-shell",
+    children: [createAidpWaveWorkbench(), innerTableContainer],
+  });
+  return {
+    outerWrapper,
+    innerTableContainer,
+  };
+}
+
 test("ByteDance AIDP content derives hide policy from script settings", function () {
   const contentModule = loadContentModule();
   const policy = contentModule.__testOnly.resolveRuntimePolicy({
@@ -2518,13 +2545,18 @@ test("ByteDance AIDP content hides both panel root and native segment table cont
       "data-asc-bytedance-aidp-jinhua-panel": "true",
     },
   });
-  const nativeContainer = createAidpNativeSegmentContainer();
+  const wrapped = createAidpOuterWrapperWithWaveAndTable();
+  const nativeContainer = wrapped.innerTableContainer;
+  const outerWrapper = wrapped.outerWrapper;
+  const waveWorkbench = outerWrapper.querySelector(".neeko-wavesurfer-warper");
   const root = createFakeDocument([
     new FakeElement({
       className: "page-root",
-      children: [panelRoot, nativeContainer],
+      children: [panelRoot, outerWrapper],
     }),
   ]);
+
+  assert.equal(contentModule.__testOnly.findNativeSegmentTableContainer(root), nativeContainer);
 
   contentModule.__testOnly.setJinhuaAuxiliaryZonesHidden(root, true);
   assert.equal(
@@ -2535,6 +2567,14 @@ test("ByteDance AIDP content hides both panel root and native segment table cont
     nativeContainer.style.getPropertyValue("display") || nativeContainer.style.display,
     "none"
   );
+  assert.notEqual(
+    outerWrapper.style.getPropertyValue("display") || outerWrapper.style.display,
+    "none"
+  );
+  assert.notEqual(
+    waveWorkbench.style.getPropertyValue("display") || waveWorkbench.style.display,
+    "none"
+  );
 
   contentModule.__testOnly.setJinhuaAuxiliaryZonesHidden(root, false);
   assert.notEqual(
@@ -2543,6 +2583,14 @@ test("ByteDance AIDP content hides both panel root and native segment table cont
   );
   assert.notEqual(
     nativeContainer.style.getPropertyValue("display") || nativeContainer.style.display,
+    "none"
+  );
+  assert.notEqual(
+    outerWrapper.style.getPropertyValue("display") || outerWrapper.style.display,
+    "none"
+  );
+  assert.notEqual(
+    waveWorkbench.style.getPropertyValue("display") || waveWorkbench.style.display,
     "none"
   );
 });

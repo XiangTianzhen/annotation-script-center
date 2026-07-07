@@ -2115,54 +2115,95 @@
     return null;
   }
 
+  function findClosestAncestorElement(node, predicate, boundaryRoot) {
+    let current = node || null;
+    let depth = 0;
+    while (current && current !== boundaryRoot && depth < 16) {
+      if (typeof predicate === "function" && predicate(current) === true) {
+        return current;
+      }
+      current = current.parentElement || null;
+      depth += 1;
+    }
+    return null;
+  }
+
+  function hasSegmentTableSignals(node) {
+    if (!node || node.nodeType !== 1) {
+      return false;
+    }
+    const descendants = collectDescendantElements(node);
+    const text = getNodeText(node);
+    const hasTableBody =
+      hasClassToken(node, "arco-table-body") ||
+      descendants.some(function (child) {
+        return hasClassToken(child, "arco-table-body");
+      });
+    if (!hasTableBody) {
+      return false;
+    }
+    const hasTextarea = descendants.some(function (child) {
+      return (
+        String(child?.tagName || "").toUpperCase() === "TEXTAREA" &&
+        hasClassToken(child, "arco-textarea") &&
+        hasClassToken(child, "neeko-input-textarea")
+      );
+    });
+    if (!hasTextarea) {
+      return false;
+    }
+    const requiredHeaders = ["序号", "区间", "转写文本", "音频段", "操作"];
+    const matchedRequiredHeaders = requiredHeaders.filter(function (label) {
+      return text.includes(label);
+    }).length;
+    const hasLanguageHeader = text.includes("语言种类") || text.includes("语音种类");
+    return matchedRequiredHeaders === requiredHeaders.length && hasLanguageHeader;
+  }
+
   function findNativeSegmentTableContainer(root) {
     const searchRoots = getSearchRoots(root);
-    let bestCandidate = null;
-    let bestScore = -1;
+    const waveWorkbench = findWaveWorkbench(root);
     for (let index = 0; index < searchRoots.length; index += 1) {
-      const candidates = [searchRoots[index]].concat(collectDescendantElements(searchRoots[index]));
-      candidates.forEach(function (candidate) {
-        if (!hasClassToken(candidate, "neeko-container")) {
-          return;
-        }
-        const descendants = collectDescendantElements(candidate);
-        const text = getNodeText(candidate);
-        const hasTable = descendants.some(function (node) {
-          return hasClassToken(node, "arco-table");
-        });
-        if (!hasTable) {
-          return;
-        }
-        let headerScore = 0;
-        ["序号", "区间", "转写文本", "音频段", "操作"].forEach(function (label) {
-          if (text.includes(label)) {
-            headerScore += 1;
-          }
-        });
-        if (text.includes("语言种类") || text.includes("语音种类")) {
-          headerScore += 1;
-        }
-        if (headerScore < 5) {
-          return;
-        }
-        const hasTableBody = descendants.some(function (node) {
-          return hasClassToken(node, "arco-table-body");
-        });
-        const hasTextarea = descendants.some(function (node) {
-          return (
-            String(node?.tagName || "").toUpperCase() === "TEXTAREA" &&
-            hasClassToken(node, "arco-textarea") &&
-            hasClassToken(node, "neeko-input-textarea")
-          );
-        });
-        const score = headerScore + (hasTableBody ? 3 : 0) + (hasTextarea ? 5 : 0);
-        if (score > bestScore) {
-          bestScore = score;
-          bestCandidate = candidate;
-        }
+      const searchRoot = searchRoots[index];
+      const tableBodies = collectDescendantElements(searchRoot).filter(function (node) {
+        return hasClassToken(node, "arco-table-body");
       });
+      for (let bodyIndex = 0; bodyIndex < tableBodies.length; bodyIndex += 1) {
+        const tableBody = tableBodies[bodyIndex];
+        const tableRoot =
+          findClosestAncestorElement(
+            tableBody,
+            function (node) {
+              return hasClassToken(node, "arco-table");
+            },
+            searchRoot
+          ) || tableBody;
+        if (!hasSegmentTableSignals(tableRoot)) {
+          continue;
+        }
+        let fallbackCandidate = null;
+        let current = tableRoot;
+        let depth = 0;
+        while (current && current !== searchRoot && depth < 12) {
+          if (hasSegmentTableSignals(current)) {
+            if (!waveWorkbench || !isNodeWithin(current, waveWorkbench)) {
+              if (!fallbackCandidate) {
+                fallbackCandidate = current;
+              }
+              if (hasClassToken(current, "neeko-container")) {
+                return current;
+              }
+            }
+          }
+          current = current.parentElement || null;
+          depth += 1;
+        }
+        if (fallbackCandidate) {
+          return fallbackCandidate;
+        }
+      }
     }
-    return bestCandidate;
+    return null;
   }
 
   function setHideableNodeHidden(node, hidden) {

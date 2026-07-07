@@ -1,8 +1,9 @@
 ## 2026-07-07（收口 ByteDance AIDP 金华话辅助区隐藏入口）
 - 更新 `extension/sites/bytedance-aidp/jinhua-helper/content.js`
   - 在题目头部 `.operation-group-btn-GcvnvK` 新增 `隐藏辅助区 / 显示辅助区`
-  - 联动控制扩展 `金华话脚本` 面板和平台原生分段表格区 `.neeko-container`
+  - 联动控制扩展 `金华话脚本` 面板和平台原生分段表格最小面板
   - 隐藏态只保留当前页 runtime，切题重渲染时继续补回，刷新后恢复默认显示
+  - 修复旧版按 `.neeko-container` 宽选导致误伤音频播放器的问题，改为从 `.arco-table-body` 和行内 textarea 反推最近表格面板，并显式排除包含播放器的祖先容器
 - 更新 `extension/sites/bytedance-aidp/jinhua-helper/ui-panel.js`
   - 删除旧的面板外独立显隐按钮，收口为纯面板渲染与显隐接口
 - 更新测试：
