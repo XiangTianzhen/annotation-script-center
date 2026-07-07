@@ -694,8 +694,15 @@
           <section id="detail-bytedance-aidp-suzhou-panel" class="detail-panel detail-panel-base hidden">
             <div class="detail-section-head">
               <div>
-                <strong>基础设置</strong>
-                <span title="当前支持普通话听写稿 AI、批量识别、分段建议写回；单段识别直填输入框，不自动提交、不自动切题。">当前支持分段建议、波形控件、快捷键和平台 AI 显隐。</span>
+                <strong class="field-title-row">
+                  <span>基础设置</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    data-help-text="当前支持分段建议、波形控件、快捷键和平台 AI 显隐。"
+                    >?</span
+                  >
+                </strong>
               </div>
             </div>
             <div class="detail-grid two">
@@ -709,9 +716,10 @@
                     >?</span
                   >
                 </strong>
-                <span class="field-toggle">
+                <span class="field-toggle switch-field">
                   <input id="bytedance-aidp-platform-ai-enabled" type="checkbox" />
-                  隐藏平台 AI 原生板块
+                  <span class="switch-slider" aria-hidden="true"></span>
+                  <span class="switch-text">开启</span>
                 </span>
               </label>
               <label class="field-card">
@@ -724,14 +732,18 @@
                     >?</span
                   >
                 </strong>
-                <span class="field-toggle">
+                <span class="field-toggle switch-field">
                   <input
                     id="bytedance-aidp-segment-preview-auto-apply-enabled"
                     type="checkbox"
                   />
-                  画段后自动应用建议
+                  <span class="switch-slider" aria-hidden="true"></span>
+                  <span class="switch-text">开启</span>
                 </span>
               </label>
+            </div>
+
+            <div class="detail-grid two">
               <label id="bytedance-aidp-jinhua-ai-enabled-field" class="field-card hidden">
                 <strong class="field-title-row">
                   <span>启用 AI 功能</span>
@@ -742,50 +754,30 @@
                     >?</span
                   >
                 </strong>
-                <span class="field-toggle">
+                <span class="field-toggle switch-field">
                   <input id="bytedance-aidp-jinhua-ai-enabled" type="checkbox" />
-                  启用金华话脚本 AI 识别、批量识别与普通话翻译能力
+                  <span class="switch-slider" aria-hidden="true"></span>
+                  <span class="switch-text">开启</span>
                 </span>
               </label>
-            </div>
-
-            <div class="detail-grid two">
               <label class="field-card">
                 <strong class="field-title-row">
-                  <span>前后静音时长</span>
+                  <span>连续相接自动合并</span>
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    data-help-text="用于画段建议的前后静音补偿。默认 `0.3s`，可配置范围 `0s ~ 0.5s`。截取区间开头和结尾的无人声留白都不能超过 `500ms`。"
+                    data-help-text="默认开启。若相邻建议段首尾实际相接，或只差极小显示误差，会自动并回一整段。"
                     >?</span
                   >
                 </strong>
-                <input
-                  id="bytedance-aidp-segment-context-padding-seconds"
-                  type="number"
-                  min="0"
-                  max="0.5"
-                  step="0.1"
-                />
-              </label>
-
-              <label class="field-card">
-                <strong class="field-title-row">
-                  <span>静音阈值</span>
-                  <span
-                    class="inline-help-dot"
-                    tabindex="0"
-                    data-help-text="仅按 dBFS 数字配置分段静音阈值。默认 `-31 dBFS`，范围 `-80 ~ -5`。"
-                    >?</span
-                  >
-                </strong>
-                <input
-                  id="bytedance-aidp-segment-silence-threshold-dbfs"
-                  type="number"
-                  min="-80"
-                  max="-5"
-                  step="1"
-                />
+                <span class="field-toggle switch-field">
+                  <input
+                    id="bytedance-aidp-merge-contiguous-suggested-segments-enabled"
+                    type="checkbox"
+                  />
+                  <span class="switch-slider" aria-hidden="true"></span>
+                  <span class="switch-text">开启</span>
+                </span>
               </label>
             </div>
 
@@ -838,27 +830,45 @@
                   <option value="10">10</option>
                 </select>
               </label>
-
             </div>
 
-            <div class="detail-grid">
+            <div class="detail-grid two">
               <label class="field-card">
                 <strong class="field-title-row">
-                  <span>连续相接自动合并</span>
+                  <span>前后静音时长</span>
                   <span
                     class="inline-help-dot"
                     tabindex="0"
-                    data-help-text="默认开启。若相邻建议段首尾实际相接，或只差极小显示误差，会自动并回一整段。"
+                    data-help-text="用于画段建议的前后静音补偿。默认 `0.3s`，可配置范围 `0s ~ 0.5s`。截取区间开头和结尾的无人声留白都不能超过 `500ms`。"
                     >?</span
                   >
                 </strong>
-                <span class="field-toggle">
-                  <input
-                    id="bytedance-aidp-merge-contiguous-suggested-segments-enabled"
-                    type="checkbox"
-                  />
-                  开启后相接建议段自动合并；关闭后保持当前标准划分
-                </span>
+                <input
+                  id="bytedance-aidp-segment-context-padding-seconds"
+                  type="number"
+                  min="0"
+                  max="0.5"
+                  step="0.1"
+                />
+              </label>
+
+              <label class="field-card">
+                <strong class="field-title-row">
+                  <span>静音阈值</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    data-help-text="仅按 dBFS 数字配置分段静音阈值。默认 `-31 dBFS`，范围 `-80 ~ -5`。"
+                    >?</span
+                  >
+                </strong>
+                <input
+                  id="bytedance-aidp-segment-silence-threshold-dbfs"
+                  type="number"
+                  min="-80"
+                  max="-5"
+                  step="1"
+                />
               </label>
             </div>
 
@@ -1164,8 +1174,15 @@
           <section id="detail-bytedance-aidp-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
             <div class="detail-section-head">
               <div>
-                <strong>快捷键</strong>
-                <span>默认全部未设置；录制时按 Esc 取消，输入框聚焦时不会触发。</span>
+                <strong class="field-title-row">
+                  <span>快捷键</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    data-help-text="默认全部未设置；录制时按 Esc 取消，输入框聚焦时不会触发。"
+                    >?</span
+                  >
+                </strong>
               </div>
             </div>
             <div id="bytedance-aidp-shortcut-grid" class="shortcut-grid"></div>

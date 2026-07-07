@@ -4957,7 +4957,7 @@
             currentConfig.mergeContiguousSuggestedSegmentsEnabled !== false,
           segmentPreviewAutoApplyEnabled:
             currentConfig.segmentPreviewAutoApplyEnabled !== false,
-          aiRecommendEnabled: enabledValue === true ? true : false,
+          aiRecommendEnabled: currentConfig.aiRecommendEnabled !== false,
           aiRecommendAutoFillEnabled:
             currentConfig.aiRecommendAutoFillEnabled !== false,
           aiRecommendEndpoint: currentConfig.aiRecommendEndpoint,

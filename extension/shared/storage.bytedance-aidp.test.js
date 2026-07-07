@@ -414,9 +414,9 @@ test("ByteDance AIDP setScriptEnabled switches active script to jinhua and disab
     assert.equal(settings.platforms.bytedanceAidp.enabled, true);
     assert.equal(settings.platforms.bytedanceAidp.activeScriptId, "bytedanceAidpJinhuaHelper");
     assert.equal(suzhouScript.enabled, false);
-    assert.equal(suzhouScript.aiRecommendEnabled, false);
+    assert.equal(suzhouScript.aiRecommendEnabled, true);
     assert.equal(jinhuaScript.enabled, true);
-    assert.equal(jinhuaScript.aiRecommendEnabled, true);
+    assert.equal(jinhuaScript.aiRecommendEnabled, false);
     assert.equal(jinhuaScript.segmentContextPaddingMs, 300);
     assert.equal(jinhuaScript.segmentSilenceThresholdDbfs, -31);
     assert.equal(jinhuaScript.shortcuts.togglePlayPause, null);

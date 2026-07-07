@@ -6361,19 +6361,31 @@
 
   function buildAsrVoiceAiHeader(scriptId) {
     const scriptLabel = scriptLibrary[scriptId]?.label || scriptId;
+    const titleMarkup = isBytedanceAidpScript(scriptId)
+      ? '<span>AI 设置</span>' + buildInlineHelpDotMarkup(getBytedanceAidpAiSettingsHelpText(scriptId))
+      : "AI 设置";
     const headerCopy =
       isBytedanceAidpScript(scriptId)
         ? ""
         : '<p class="asr-ai-copy">这些设置仅影响当前脚本的 AI 辅助能力。普通用户无需修改；后端地址仍由首页顶部“后端接口地址”统一控制。</p>';
-    return [
+    const parts = [
       '<div class="asr-ai-head">',
       '<div class="asr-ai-title">',
-      "<strong>AI 设置</strong>",
+      "<strong" + (isBytedanceAidpScript(scriptId) ? ' class="asr-ai-label-row"' : "") + ">" + titleMarkup + "</strong>",
       headerCopy,
       "</div>",
-      '<span class="asr-ai-pill">' + escapeHtml(scriptLabel) + "</span>",
       "</div>",
-    ].join("");
+    ];
+    if (!isBytedanceAidpScript(scriptId)) {
+      parts.splice(parts.length - 1, 0, '<span class="asr-ai-pill">' + escapeHtml(scriptLabel) + "</span>");
+    }
+    return parts.join("");
+  }
+
+  function getBytedanceAidpAiSettingsHelpText(scriptId) {
+    return scriptId === bytedanceAidpJinhuaScriptId
+      ? "已读取后端默认配置。金华话脚本当前固定为两阶段：听音 + 普通话翻译收口。thinking 已全局固定关闭；金华话脚本不允许开启 Omni 思考模式。"
+      : "已读取后端默认配置。苏州话脚本当前固定为两阶段：听音 + 普通话听写收口。thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。";
   }
 
   function buildInlineHelpDotMarkup(text, dotId) {
@@ -6398,6 +6410,16 @@
       "</span>" +
       buildInlineHelpDotMarkup(helpText, dotId) +
       "</span>"
+    );
+  }
+
+  function buildSwitchBooleanMarkup(id, text) {
+    return (
+      '<label class="asr-ai-boolean switch-boolean"><input id="' +
+      escapeHtml(id) +
+      '" type="checkbox" /><span class="switch-slider" aria-hidden="true"></span><span class="switch-text">' +
+      escapeHtml(text || "开启") +
+      "</span></label>"
     );
   }
 
@@ -6556,7 +6578,7 @@
       presence_penalty: "presence_penalty",
       frequency_penalty: "frequency_penalty",
       seed: "seed",
-      stop: "stop sequences（每行一个）",
+      stop: "stop sequences",
     };
     return labelMap[String(definition?.apiKey || "").trim()] || String(definition?.domSuffix || "");
   }
@@ -6629,7 +6651,7 @@
       '<label class="asr-ai-field"><span>seed</span><input id="' +
         prefix +
         '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
-      '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' +
+      '<label class="asr-ai-field"><span>stop sequences</span><textarea id="' +
         prefix +
         '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
     ].join("");
@@ -6659,7 +6681,7 @@
       '<label class="asr-ai-field"><span>seed</span><input id="' +
         prefix +
         '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
-      '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' +
+      '<label class="asr-ai-field"><span>stop sequences</span><textarea id="' +
         prefix +
         '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
     ].join("");
@@ -6820,7 +6842,6 @@
     panel.innerHTML = [
       '<div class="asr-ai-panel">',
       headerHtml,
-      '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
       '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
@@ -6829,17 +6850,23 @@
             : "启用普通话听写识别",
           "关闭后不显示单段识别与批量识别能力。"
         ) +
-        '</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-enabled" type="checkbox" /><span>开启</span></label></label>',
+        "</span>" +
+        buildSwitchBooleanMarkup("bytedance-aidp-ai-recommend-enabled", "开启") +
+        "</label>",
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "识别完成后自动填入",
           "单段识别成功后直接填入对应输入框，不主动走平台暂存请求。"
         ) +
-        '</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-auto-fill-enabled" type="checkbox" /><span>开启</span></label></label>',
+        "</span>" +
+        buildSwitchBooleanMarkup("bytedance-aidp-ai-recommend-auto-fill-enabled", "开启") +
+        "</label>",
       '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="bytedance-aidp-ai-timeout" type="number" min="1000" max="60000" step="1000" /></label>',
       '<label class="asr-ai-field"><span>' +
-        buildAsrAiLabelMarkup("思考开关", "thinking 已全局固定关闭，以避免请求链路拖慢。") +
-        '</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-enable-thinking" type="checkbox" /><span>固定关闭</span></label></label>',
+        buildAsrAiLabelMarkup("思考开关", "thinking 已全局固定关闭；详情见 AI 设置标题旁问号。") +
+        "</span>" +
+        buildSwitchBooleanMarkup("bytedance-aidp-ai-enable-thinking", "固定关闭") +
+        "</label>",
       "</div></div>",
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
       '<label class="asr-ai-field"><span>' +
@@ -6947,7 +6974,7 @@
         '<label class="asr-ai-field"><span>presence_penalty</span><input id="' + prefix + '-presence-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>frequency_penalty</span><input id="' + prefix + '-frequency-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>seed</span><input id="' + prefix + '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
-        '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' + prefix + '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>stop sequences</span><textarea id="' + prefix + '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         "</div></div>",
         "</div>",
       ].join("");
@@ -7095,7 +7122,7 @@
         '<label class="asr-ai-field"><span>presence_penalty</span><input id="' + prefix + '-presence-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>frequency_penalty</span><input id="' + prefix + '-frequency-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>seed</span><input id="' + prefix + '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
-        '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' + prefix + '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>stop sequences</span><textarea id="' + prefix + '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         "</div></div>",
         "</div>",
       ].join("");
@@ -7978,10 +8005,12 @@
       onClear: function (key) {
         bytedanceAidpShortcutsDraft[key] = null;
         if (bytedanceAidpRecordingKey === key) {
-          stopBytedanceAidpShortcutRecording("快捷键录制已取消。");
+          showTopToast("已取消快捷键录制。", "info", 1000);
+          stopBytedanceAidpShortcutRecording("");
           return;
         }
-        setBytedanceAidpRecordingStatus("快捷键已删除，保存后生效。");
+        showTopToast("快捷键已删除，保存后生效。", "success", 1000);
+        setBytedanceAidpRecordingStatus("");
         renderBytedanceAidpShortcutGrid();
       },
     });
@@ -8012,11 +8041,13 @@
       return;
     }
     if (!shortcut) {
-      stopBytedanceAidpShortcutRecording("已取消快捷键录制。");
+      showTopToast("已取消快捷键录制。", "info", 1000);
+      stopBytedanceAidpShortcutRecording("");
       return;
     }
     bytedanceAidpShortcutsDraft[bytedanceAidpRecordingKey] = normalizeNullableShortcut(shortcut);
-    stopBytedanceAidpShortcutRecording("快捷键已录制，保存后生效。");
+    showTopToast("快捷键已录制，保存后生效。", "success", 1000);
+    stopBytedanceAidpShortcutRecording("");
   }
 
   function startBytedanceAidpShortcutRecording(actionKey) {
@@ -12208,12 +12239,7 @@
 
     if (isBytedanceAidpScript(scriptId)) {
       applyBytedanceAidpForm(settings, scriptId);
-      setStatus(
-        "bytedance-aidp-status",
-        scriptId === bytedanceAidpJinhuaScriptId
-          ? "当前支持普通话翻译 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。"
-          : "当前支持普通话听写稿 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。"
-      );
+      setStatus("bytedance-aidp-status", "");
       return;
     }
 

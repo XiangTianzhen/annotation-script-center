@@ -1,3 +1,27 @@
+## 2026-07-07（统一 ByteDance AIDP 金华 / 苏州设置页布局与金华 AI 开关语义）
+- 更新 `extension/options/options.html`
+  - 保留 AIDP 左右双栏结构，重排基础设置卡片顺序为开关、选择器、数值输入
+  - `基础设置`、`快捷键` 标题改为统一 `?` 说明入口，删除金华话旧的可见说明文案
+  - 金华话将 `启用 AI 功能` 与 `连续相接自动合并` 调整到同一排，并统一开关、下拉和输入框高度
+- 更新 `extension/options/options.js`
+  - AIDP `AI 设置` 标题改为 `AI 设置 + ?`，移除蓝色脚本 pill 与默认配置占位说明
+  - 将 AIDP `stop sequences（每行一个）` 统一改为 `stop sequences`
+  - 快捷键删除、录制成功、录制取消统一复用顶部 `1s` toast
+  - 清空 AIDP 详情页顶部旧状态说明，避免继续显示“当前支持普通话翻译 AI ...”文案
+- 更新 `extension/options/options.css`
+  - 为 AIDP 开关补齐滑块样式，并统一选择器皮肤与表单控件高度
+- 更新 `extension/shared/storage.js`
+  - 修复金华话脚本 `启用 / 关闭` 不再联动覆盖已保存的 `aiRecommendEnabled`
+  - `AI 设置` 面板继续只按金华话自己的 `启用 AI 功能` 显隐
+- 更新测试：
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/shared/storage.bytedance-aidp.test.js`
+  - 回归覆盖新的问号结构、快捷键 toast、`stop sequences` 标签与金华 AI 开关独立语义
+- 更新文档：
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+
 ## 2026-07-07（收口 ByteDance AIDP 金华话辅助区隐藏入口）
 - 更新 `extension/sites/bytedance-aidp/jinhua-helper/content.js`
   - 在题目头部 `.operation-group-btn-GcvnvK` 新增 `隐藏辅助区 / 显示辅助区`

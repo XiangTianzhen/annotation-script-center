@@ -37,8 +37,14 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /id="detail-bytedance-aidp-shortcuts-panel"/);
   assert.match(html, /id="bytedance-aidp-shortcut-grid"/);
   assert.match(html, /id="bytedance-aidp-recording-status"/);
-  assert.match(html, /普通话听写稿 AI、批量识别、分段建议写回/);
-  assert.match(html, /单段识别直填输入框/);
+  assert.doesNotMatch(
+    html,
+    /当前支持普通话翻译 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。/
+  );
+  assert.doesNotMatch(
+    html,
+    /当前支持普通话听写稿 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。/
+  );
   assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"/);
   assert.match(html, /<option value="1">1\.00倍速<\/option>/);
   assert.match(html, /<option value="2">2<\/option>/);
@@ -103,6 +109,10 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
     aidpPanelHtml,
     /<strong class="field-title-row">\s*<span>连续相接自动合并<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
   );
+  assert.match(
+    aidpPanelHtml,
+    /id="bytedance-aidp-jinhua-ai-enabled-field"[\s\S]*id="bytedance-aidp-merge-contiguous-suggested-segments-enabled"/
+  );
   assert.doesNotMatch(
     aidpPanelHtml,
     /<label class="field-card">\s*<strong>画段后自动应用建议<\/strong>\s*<span>默认开启/
@@ -114,6 +124,18 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.doesNotMatch(
     aidpPanelHtml,
     /<label class="field-card">\s*<strong>静音阈值<\/strong>\s*<span>仅按 dBFS 数字配置分段静音阈值/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>基础设置<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text="当前支持分段建议、波形控件、快捷键和平台 AI 显隐。"/
+  );
+  assert.doesNotMatch(
+    aidpPanelHtml,
+    /当前支持普通话翻译 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。/
+  );
+  assert.doesNotMatch(
+    aidpPanelHtml,
+    /当前支持普通话听写稿 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。/
   );
   assert.match(combinedSource, /播放\/暂停切换/);
   assert.match(combinedSource, /区间播放/);
@@ -164,6 +186,28 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function shouldShowBytedanceAidpAiSettingsSection\(/);
   assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);
   assert.match(script, /function refreshBytedanceAidpSuzhouStageParamHelpText\(/);
+  assert.match(
+    html,
+    /<section id="detail-bytedance-aidp-shortcuts-panel"[\s\S]*<strong class="field-title-row">\s*<span>快捷键<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
+  );
+  assert.doesNotMatch(
+    html,
+    /<section id="detail-bytedance-aidp-shortcuts-panel"[\s\S]*<strong[^>]*>快捷键<\/strong>\s*<span>默认全部未设置；录制时按 Esc 取消，输入框聚焦时不会触发。<\/span>/
+  );
+  assert.match(
+    script,
+    /<span>AI 设置<\/span>' \+ buildInlineHelpDotMarkup\(getBytedanceAidpAiSettingsHelpText\(scriptId\)\)/
+  );
+  assert.match(script, /class="asr-ai-label-row"/);
+  assert.doesNotMatch(
+    script,
+    /<div class="asr-ai-note" id="asr-ai-defaults-tip"><\/div>/
+  );
+  assert.doesNotMatch(script, /stop sequences（每行一个）/);
+  assert.match(script, /<span>stop sequences<\/span>/);
+  assert.match(script, /showTopToast\("快捷键已删除，保存后生效。", "success", 1000\)/);
+  assert.match(script, /showTopToast\("快捷键已录制，保存后生效。", "success", 1000\)/);
+  assert.match(script, /showTopToast\("已取消快捷键录制。", "info", 1000\)/);
   assert.match(script, /function ensureInlineHelpDots\(/);
   assert.match(script, /function setInlineHelpText\(/);
   assert.match(script, /当前为空，将使用后端默认值：/);
