@@ -17,9 +17,9 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
       : html;
 
   assert.match(html, /id="detail-bytedance-aidp-suzhou-panel"/);
-  assert.match(html, /id="detail-bytedance-aidp-jinhua-panel"/);
-  assert.match(html, /金华话脚本/);
-  assert.match(html, /普通话翻译/);
+  assert.doesNotMatch(html, /id="detail-bytedance-aidp-jinhua-panel"/);
+  assert.match(script, /金华话脚本/);
+  assert.match(script, /普通话翻译/);
   assert.match(script, /function getBytedanceAidpJinhuaConfig\(/);
   assert.match(script, /function applyBytedanceAidpJinhuaForm\(/);
   assert.match(script, /async function saveBytedanceAidpJinhuaSettings\(/);
@@ -129,8 +129,19 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.doesNotMatch(aidpPanelHtml, /这里继续只保留平台 AI 显隐、画段后自动应用建议、波形控件和当前边界说明/);
   assert.doesNotMatch(aidpPanelHtml, /工具栏里的“填充语言种类”按钮/);
   assert.match(script, /function getBytedanceAidpSuzhouConfig\(/);
+  assert.match(script, /function getBytedanceAidpActiveScriptId\(/);
   assert.match(script, /function applyBytedanceAidpForm\(/);
   assert.match(script, /async function saveBytedanceAidpSettings\(/);
+  assert.doesNotMatch(script, /getElement\("detail-bytedance-aidp-jinhua-panel"\)/);
+  assert.match(script, /const activeScriptId = getBytedanceAidpActiveScriptId\(settings\);/);
+  assert.match(
+    script,
+    /settings\?\.platforms\?\.bytedanceAidp\?\.enabled !== false &&\s*config\.enabled !== false &&\s*activeScriptId === scriptId/
+  );
+  assert.match(
+    script,
+    /if \(activeScriptId && activeScriptId !== scriptId\) \{[\s\S]*同平台当前为/
+  );
   assert.match(script, /toggleButton\.textContent = enabled \? "关闭脚本" : "启用脚本"/);
   assert.match(script, /setStatus\("bytedance-aidp-status", "正在保存设置\.\.\."\)/);
   assert.match(script, /function showTopToast\(/);

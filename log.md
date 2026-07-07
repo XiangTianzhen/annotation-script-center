@@ -1,3 +1,20 @@
+## 2026-07-07（修复 ByteDance AIDP 双脚本状态误判并移除金华话设置说明块）
+- 更新 `extension/options/options.js`
+  - 新增 `getBytedanceAidpActiveScriptId`，让 ByteDance AIDP 脚本中心与详情页启停状态统一跟随 `activeScriptId`
+  - 修复苏州话 / 金华话共平台时的状态误判：未激活脚本改为显示同平台当前生效脚本，不再同时显示为“已启用 / 关闭脚本”
+  - 移除金华话详情页专属说明面板切换逻辑，并把 AIDP 详情备注改为同平台互斥提示
+- 更新 `extension/options/options.html`
+  - 删除 `detail-bytedance-aidp-jinhua-panel` 说明块，金华话继续复用 AIDP 共用基础设置、AI 设置与快捷键面板
+- 更新测试：
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - 回归覆盖 AIDP 详情页不再渲染金华话专属说明块，以及状态判断必须使用 `activeScriptId`
+- 修复 ByteDance AIDP 金华话运行时残留读取 `suzhouHelper` 配置键，改为独立读写 `jinhuaHelper`
+- 修复 ByteDance AIDP 苏州话 / 金华话双脚本共页时 `隐藏平台AI功能` 的互相抢恢复问题，为隐藏节点增加脚本 owner 标记并补充回归测试
+- 补充 ByteDance AIDP 金华话配置链与 AI 隐藏 ownership 回归测试，并验证金华话前后端定向测试链路
+- 修复 ByteDance AIDP 金华话 `data-api` 误用脚本专属 observer 常量，恢复监听平台共享 `Receive / SubmitTempItemAnswer` 通用消息契约
+- 修复后金华话 `当前音频信息`、单段识别、批量识别与分段建议重新获取当前音频上下文
+- 清理金华话 `ui-panel` 内部 suzhou 命名残留，避免后续挂载排查混淆
+
 ## 2026-07-06（新增 ByteDance AIDP 金华话脚本并升级双脚本互斥模型）
 - 更新 `extension/shared/constants.js`
   - 新增 `bytedanceAidpJinhuaHelper` 常量、Jinhua AI endpoint 和脚本库定义

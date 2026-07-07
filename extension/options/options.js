@@ -5511,6 +5511,24 @@
     return "";
   }
 
+  function getBytedanceAidpActiveScriptId(settings) {
+    const candidate = String(settings?.platforms?.bytedanceAidp?.activeScriptId || "").trim();
+    if (candidate === bytedanceAidpSuzhouScriptId || candidate === bytedanceAidpJinhuaScriptId) {
+      return candidate;
+    }
+    const suzhouConfig = getBytedanceAidpSuzhouConfig(settings);
+    const jinhuaConfig = getBytedanceAidpJinhuaConfig(settings);
+    const suzhouEnabled = suzhouConfig.enabled !== false;
+    const jinhuaEnabled = jinhuaConfig.enabled !== false;
+    if (suzhouEnabled && !jinhuaEnabled) {
+      return bytedanceAidpSuzhouScriptId;
+    }
+    if (!suzhouEnabled && jinhuaEnabled) {
+      return bytedanceAidpJinhuaScriptId;
+    }
+    return suzhouEnabled ? bytedanceAidpSuzhouScriptId : "";
+  }
+
   function getAishellTechActiveScriptId(settings) {
     const candidate = String(settings?.platforms?.aishellTech?.activeScriptId || "").trim();
     if (
@@ -6976,10 +6994,12 @@
     }
 
     if (isBytedanceAidpScript(scriptId)) {
-      const config = getBytedanceAidpSuzhouConfig(settings);
+      const config = getBytedanceAidpConfig(settings, scriptId);
+      const activeScriptId = getBytedanceAidpActiveScriptId(settings);
       return Boolean(
         settings?.platforms?.bytedanceAidp?.enabled !== false &&
-          config.enabled !== false
+          config.enabled !== false &&
+          activeScriptId === scriptId
       );
     }
 
@@ -7054,8 +7074,18 @@
     }
 
     if (isBytedanceAidpScript(scriptId)) {
-      const config = getBytedanceAidpSuzhouConfig(settings);
+      const config = getBytedanceAidpConfig(settings, scriptId);
+      const activeScriptId = getBytedanceAidpActiveScriptId(settings);
       if (!isScriptEnabled(settings, scriptId)) {
+        if (activeScriptId && activeScriptId !== scriptId) {
+          const activeScript = scriptLibrary[activeScriptId] || {};
+          return {
+            text:
+              "同平台当前为 " +
+              String(activeScript.shortLabel || activeScript.label || activeScriptId),
+            tone: "pending",
+          };
+        }
         return { text: "未启用", tone: "disabled" };
       }
       return config.platformAiEnabled === false
@@ -11584,6 +11614,8 @@
       script.note ||
       (isLabelxScript(scriptId)
         ? "同平台脚本互斥：启用这个脚本后，另一个 LabelX 脚本会自动切换为非生效状态。"
+        : isBytedanceAidpScript(scriptId)
+          ? "同平台脚本互斥：启用这个脚本后，另一个 ByteDance AIDP 脚本会自动切换为非生效状态。"
         : "当前脚本属于独立平台。");
 
     const statusNode = getElement("detail-script-status");
@@ -11796,10 +11828,6 @@
     getElement("detail-bytedance-aidp-suzhou-panel").classList.toggle(
       "hidden",
       !isBytedanceAidpScript(scriptId)
-    );
-    getElement("detail-bytedance-aidp-jinhua-panel").classList.toggle(
-      "hidden",
-      scriptId !== bytedanceAidpJinhuaScriptId
     );
     getElement("detail-aishell-tech-minnan-helper-panel").classList.toggle(
       "hidden",
