@@ -2192,12 +2192,11 @@ body {
   transform: rotate(225deg) translate(-1px, -1px);
 }
 
-.detail-workbench .aidp-select-menu {
-  position: absolute;
-  top: calc(100% + 8px);
+.aidp-select-menu {
+  position: fixed;
   left: 0;
-  right: 0;
-  z-index: 4500;
+  top: 0;
+  z-index: 4600;
   padding: 6px;
   border-radius: 16px;
   border: 1px solid rgba(203, 213, 225, 0.98);
@@ -2207,6 +2206,11 @@ body {
   gap: 4px;
   max-height: 280px;
   overflow: auto;
+}
+
+.detail-workbench .aidp-select-menu {
+  position: fixed;
+  z-index: 4600;
 }
 
 .detail-workbench .aidp-select-option {
@@ -2241,6 +2245,10 @@ body {
   background: rgba(241, 245, 249, 0.96);
 }
 
+.detail-workbench .aidp-select-option.is-selected {
+  background: rgba(241, 245, 249, 0.96);
+}
+
 .detail-workbench .aidp-select-option.is-selected::before {
   border-left-color: #111827;
   border-bottom-color: #111827;
@@ -2253,7 +2261,7 @@ body {
 
 .detail-workbench .aidp-lined-textarea {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) 26px;
   min-height: 50px;
   border-radius: 16px;
   border: 1px solid rgba(203, 213, 225, 0.98);
@@ -2288,6 +2296,66 @@ body {
 
 .detail-workbench .aidp-lined-textarea-shell {
   min-width: 0;
+  position: relative;
+}
+
+.detail-workbench .aidp-lined-textarea-measure {
+  position: absolute;
+  inset: 0 auto auto 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+
+.detail-workbench .aidp-lined-textarea-measure-line {
+  white-space: pre-wrap;
+}
+
+.detail-workbench .aidp-lined-textarea-slider {
+  grid-column: 3;
+  align-self: stretch;
+  justify-self: center;
+  width: 18px;
+  min-width: 18px;
+  margin: 10px 8px 10px 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  appearance: slider-vertical;
+  -webkit-appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  cursor: ns-resize;
+}
+
+.detail-workbench .aidp-lined-textarea-slider::-webkit-slider-runnable-track {
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(203, 213, 225, 0.92);
+}
+
+.detail-workbench .aidp-lined-textarea-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-left: -5px;
+  border-radius: 999px;
+  border: 2px solid #2563eb;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.18);
+}
+
+.detail-workbench .aidp-lined-textarea-slider:focus-visible {
+  outline: none;
+}
+
+.detail-workbench .aidp-lined-textarea-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 4px rgba(96, 165, 250, 0.18),
+    0 2px 6px rgba(37, 99, 235, 0.18);
 }
 
 .detail-workbench .aidp-lined-textarea textarea {
@@ -2299,7 +2367,10 @@ body {
   box-shadow: none;
   resize: vertical;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   line-height: 1.6;
+  overflow-y: auto;
 }
 
 .detail-workbench .aidp-lined-textarea textarea:focus {
@@ -2315,11 +2386,11 @@ body {
 }
 
 .detail-workbench .aidp-lined-textarea-compact {
-  min-height: 52px;
+  min-height: 50px;
 }
 
 .detail-workbench .aidp-lined-textarea-compact textarea {
-  min-height: 52px;
+  min-height: 50px;
 }
 
 .detail-ai-panel .asr-ai-grid.one .asr-ai-field textarea {
@@ -2335,7 +2406,7 @@ body {
 }
 
 .detail-ai-panel .aidp-ai-stage-params .asr-ai-field .aidp-lined-textarea-compact textarea {
-  min-height: 52px;
+  min-height: 50px;
 }
 
 .detail-workbench .field-actions {

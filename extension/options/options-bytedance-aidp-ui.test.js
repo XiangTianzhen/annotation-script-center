@@ -8,7 +8,8 @@ const test = require("node:test");
 test("ByteDance AIDP options source exposes the suzhou helper base panel", function () {
   const script = fs.readFileSync(path.resolve(__dirname, "options.js"), "utf8");
   const html = fs.readFileSync(path.resolve(__dirname, "options.html"), "utf8");
-  const combinedSource = html + "\n" + script;
+  const css = fs.readFileSync(path.resolve(__dirname, "options.css"), "utf8");
+  const combinedSource = html + "\n" + script + "\n" + css;
   const aidpPanelStart = html.indexOf('id="detail-bytedance-aidp-suzhou-panel"');
   const aidpPanelEnd = html.indexOf('<section id="detail-aishell-tech-minnan-helper-panel"', aidpPanelStart);
   const aidpPanelHtml =
@@ -217,6 +218,10 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
     script,
     /<div class="asr-ai-block"><strong>基础设置<\/strong><div class="asr-ai-grid two aidp-ai-controls aidp-ai-controls-two">/
   );
+  assert.match(
+    script,
+    /<div class="asr-ai-block"><strong>基础设置<\/strong><div class="asr-ai-grid two aidp-ai-controls aidp-ai-controls-two">[\s\S]*bytedance-aidp-ai-recommend-auto-fill-enabled[\s\S]*bytedance-aidp-ai-enable-thinking[\s\S]*bytedance-aidp-ai-timeout/
+  );
   assert.doesNotMatch(script, /aidp-ai-controls-three/);
   assert.doesNotMatch(script, /启用普通话翻译识别/);
   assert.doesNotMatch(script, /启用普通话听写识别/);
@@ -251,6 +256,11 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function syncAidpLineNumberTextareas\(/);
   assert.match(script, /function ensureAidpCustomSelect\(/);
   assert.match(script, /function ensureAidpLineNumberTextarea\(/);
+  assert.match(script, /function positionAidpCustomSelectMenu\(/);
+  assert.match(script, /document\.body\.appendChild\(menu\)/);
+  assert.match(script, /menu\.style\.position = "fixed"/);
+  assert.match(css, /\.detail-workbench \.aidp-select-menu \{[\s\S]*position: fixed;/);
+  assert.match(css, /\.detail-workbench \.aidp-select-menu \{[\s\S]*z-index:\s*4600;/);
   assert.match(script, /platformAiEnabled/);
   assert.match(script, /aiRecommendEnabled/);
   assert.match(script, /bytedance-aidp-ai-enabled/);
@@ -284,8 +294,14 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /收口 Prompt/);
   assert.match(script, /data-aidp-lined-textarea="prompt"/);
   assert.match(script, /data-aidp-lined-textarea="compact"/);
+  assert.match(script, /data-aidp-default-rows="10"/);
+  assert.match(script, /data-aidp-default-rows="1"/);
+  assert.match(script, /aidp-lined-textarea-slider/);
+  assert.match(script, /new ResizeObserver/);
   assert.match(script, /aidp-lined-textarea-gutter/);
   assert.match(script, /aidp-lined-textarea-shell/);
+  assert.doesNotMatch(script, /Math\.max\(1,\s*normalized\.split\("\\n"\)\.length\)/);
+  assert.match(script, /if \(value === ""\) \{\s*return 0;\s*\}/);
   assert.match(
     script,
     /listenPromptNode\.value = String\(\s*getAsrVoiceAiEffectiveText\(currentConfig\.aiRecommendListenPrompt,\s*stageDefaults\.listen\.prompt\)\s*\)/

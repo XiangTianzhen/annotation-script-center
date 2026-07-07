@@ -6754,11 +6754,20 @@
     });
   }
 
-  function getAidpCustomSelectItems(wrapper) {
+  function getAidpCustomSelectMenu(wrapper) {
     if (!(wrapper instanceof HTMLElement)) {
+      return null;
+    }
+    const menu = wrapper.__aidpCustomSelectMenu;
+    return menu instanceof HTMLElement ? menu : null;
+  }
+
+  function getAidpCustomSelectItems(wrapper) {
+    const menu = getAidpCustomSelectMenu(wrapper);
+    if (!(menu instanceof HTMLElement)) {
       return [];
     }
-    return Array.from(wrapper.querySelectorAll(".aidp-select-option")).filter(function (node) {
+    return Array.from(menu.querySelectorAll(".aidp-select-option")).filter(function (node) {
       return node instanceof HTMLButtonElement;
     });
   }
@@ -6769,12 +6778,13 @@
     }
     wrapper.setAttribute("data-open", "");
     const trigger = wrapper.querySelector(".aidp-select-trigger");
-    const menu = wrapper.querySelector(".aidp-select-menu");
+    const menu = getAidpCustomSelectMenu(wrapper);
     if (trigger instanceof HTMLButtonElement) {
       trigger.setAttribute("aria-expanded", "false");
     }
     if (menu instanceof HTMLElement) {
       menu.hidden = true;
+      menu.setAttribute("data-open", "");
     }
     if (activeAidpCustomSelectNode === wrapper) {
       activeAidpCustomSelectNode = null;
@@ -6810,6 +6820,48 @@
         item.scrollIntoView({ block: "nearest" });
       }
     });
+  }
+
+  function positionAidpCustomSelectMenu(wrapper) {
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    const menu = getAidpCustomSelectMenu(wrapper);
+    const trigger = wrapper.querySelector(".aidp-select-trigger");
+    if (!(menu instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement)) {
+      return;
+    }
+    const triggerRect = trigger.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 8;
+    const menuMaxHeight = 280;
+    const measuredWidth = Math.max(Math.round(triggerRect.width), 180);
+    menu.style.position = "fixed";
+    menu.style.width = measuredWidth + "px";
+    menu.style.minWidth = measuredWidth + "px";
+    menu.style.left = "0px";
+    menu.style.top = "0px";
+    menu.style.maxHeight = menuMaxHeight + "px";
+    menu.hidden = false;
+    menu.style.visibility = "hidden";
+    const menuHeight = Math.min(menu.scrollHeight || menu.offsetHeight || 0, menuMaxHeight);
+    const spaceBelow = window.innerHeight - triggerRect.bottom - gap - viewportPadding;
+    const spaceAbove = triggerRect.top - gap - viewportPadding;
+    const shouldFlipUp = spaceBelow < Math.min(menuHeight || menuMaxHeight, 180) && spaceAbove > spaceBelow;
+    const availableHeight = shouldFlipUp ? spaceAbove : spaceBelow;
+    const safeMaxHeight = Math.max(96, Math.min(menuMaxHeight, availableHeight > 0 ? availableHeight : menuMaxHeight));
+    const maxLeft = Math.max(viewportPadding, window.innerWidth - viewportPadding - measuredWidth);
+    const left = Math.min(Math.max(viewportPadding, triggerRect.left), maxLeft);
+    let top = shouldFlipUp
+      ? triggerRect.top - gap - Math.min(menuHeight || safeMaxHeight, safeMaxHeight)
+      : triggerRect.bottom + gap;
+    top = Math.max(viewportPadding, Math.min(top, window.innerHeight - viewportPadding - safeMaxHeight));
+    menu.style.left = Math.round(left) + "px";
+    menu.style.top = Math.round(top) + "px";
+    menu.style.maxHeight = Math.round(safeMaxHeight) + "px";
+    menu.style.visibility = "";
+    menu.setAttribute("data-placement", shouldFlipUp ? "top" : "bottom");
+    menu.setAttribute("data-open", "true");
   }
 
   function syncAidpCustomSelectState(selectNode) {
@@ -6850,7 +6902,7 @@
     if (!(wrapper instanceof HTMLElement)) {
       return;
     }
-    const menu = wrapper.querySelector(".aidp-select-menu");
+    const menu = getAidpCustomSelectMenu(wrapper);
     const trigger = wrapper.querySelector(".aidp-select-trigger");
     if (!(menu instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || trigger.disabled) {
       return;
@@ -6859,6 +6911,7 @@
     wrapper.setAttribute("data-open", "true");
     menu.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
+    positionAidpCustomSelectMenu(wrapper);
     const selectNode = wrapper.querySelector("select[data-aidp-custom-select='true']");
     if (selectNode instanceof HTMLSelectElement) {
       const selectedIndex = Math.max(0, selectNode.selectedIndex);
@@ -6937,9 +6990,11 @@
       menu.className = "aidp-select-menu";
       menu.setAttribute("role", "listbox");
       menu.hidden = true;
+      menu.setAttribute("data-open", "");
 
       wrapper.appendChild(trigger);
-      wrapper.appendChild(menu);
+      wrapper.__aidpCustomSelectMenu = menu;
+      document.body.appendChild(menu);
 
       trigger.addEventListener("click", function () {
         const isOpen = wrapper.getAttribute("data-open") === "true";
@@ -6996,9 +7051,17 @@
       selectNode.addEventListener("change", function () {
         syncAidpCustomSelectState(selectNode);
       });
+    } else if (!(getAidpCustomSelectMenu(wrapper) instanceof HTMLElement)) {
+      const menu = document.createElement("div");
+      menu.className = "aidp-select-menu";
+      menu.setAttribute("role", "listbox");
+      menu.hidden = true;
+      menu.setAttribute("data-open", "");
+      wrapper.__aidpCustomSelectMenu = menu;
+      document.body.appendChild(menu);
     }
 
-    const menu = wrapper.querySelector(".aidp-select-menu");
+    const menu = getAidpCustomSelectMenu(wrapper);
     if (menu instanceof HTMLElement) {
       menu.innerHTML = "";
       Array.from(selectNode.options).forEach(function (option, index) {
@@ -7029,8 +7092,11 @@
 
     if (!aidpCustomSelectListenersBound) {
       document.addEventListener("click", function (event) {
-        const target = event.target instanceof Element ? event.target.closest(".aidp-custom-select") : null;
-        if (target instanceof HTMLElement) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (
+          target instanceof Element &&
+          (target.closest(".aidp-custom-select") || target.closest(".aidp-select-menu"))
+        ) {
           return;
         }
         closeAllAidpCustomSelects(null);
@@ -7062,12 +7128,144 @@
     });
   }
 
-  function buildAidpLineNumberText(value) {
-    const normalized = String(value || "").replace(/\r\n?/g, "\n");
-    const totalLines = Math.max(1, normalized.split("\n").length);
-    return Array.from({ length: totalLines }, function (_, index) {
-      return String(index + 1);
-    }).join("\n");
+  function getAidpLineMeasureSeedCount(value) {
+    if (value === "") {
+      return 0;
+    }
+    return String(value || "")
+      .replace(/\r\n?/g, "\n")
+      .split("\n").length;
+  }
+
+  function getAidpLineNumberTextareaDefaultRows(textarea) {
+    const rawValue = Number(textarea?.getAttribute("data-aidp-default-rows") || 0);
+    return Math.max(1, Math.round(rawValue || 1));
+  }
+
+  function getAidpLineNumberTextareaMaxRows(textarea) {
+    const mode = normalizeText(textarea?.getAttribute("data-aidp-lined-textarea")) || "prompt";
+    return mode === "compact" ? 12 : 24;
+  }
+
+  function syncAidpLineNumberMeasure(textarea, measure) {
+    if (!(textarea instanceof HTMLTextAreaElement) || !(measure instanceof HTMLElement)) {
+      return;
+    }
+    const computedStyle = window.getComputedStyle(textarea);
+    measure.style.width = textarea.clientWidth + "px";
+    measure.style.paddingTop = computedStyle.paddingTop;
+    measure.style.paddingRight = computedStyle.paddingRight;
+    measure.style.paddingBottom = computedStyle.paddingBottom;
+    measure.style.paddingLeft = computedStyle.paddingLeft;
+    measure.style.font = computedStyle.font;
+    measure.style.fontFamily = computedStyle.fontFamily;
+    measure.style.fontSize = computedStyle.fontSize;
+    measure.style.fontWeight = computedStyle.fontWeight;
+    measure.style.fontStyle = computedStyle.fontStyle;
+    measure.style.letterSpacing = computedStyle.letterSpacing;
+    measure.style.lineHeight = computedStyle.lineHeight;
+    measure.style.tabSize = computedStyle.tabSize;
+  }
+
+  function buildAidpVisibleLineNumberEntries(textarea) {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      return [];
+    }
+    const wrapper = textarea.closest(".aidp-lined-textarea");
+    const measure =
+      wrapper instanceof HTMLElement
+        ? wrapper.querySelector(".aidp-lined-textarea-measure")
+        : null;
+    if (!(measure instanceof HTMLElement)) {
+      return [];
+    }
+    const value = String(textarea.value || "").replace(/\r\n?/g, "\n");
+    if (getAidpLineMeasureSeedCount(value) === 0) {
+      measure.innerHTML = "";
+      return [];
+    }
+    syncAidpLineNumberMeasure(textarea, measure);
+    measure.innerHTML = "";
+    const logicalLines = value.split("\n");
+    logicalLines.forEach(function (lineText, index) {
+      const lineNode = document.createElement("span");
+      lineNode.className = "aidp-lined-textarea-measure-line";
+      lineNode.setAttribute("data-blank", lineText === "" ? "true" : "false");
+      lineNode.textContent = lineText === "" ? "\u200b" : lineText;
+      measure.appendChild(lineNode);
+      if (index < logicalLines.length - 1) {
+        measure.appendChild(document.createElement("br"));
+      }
+    });
+    let visibleLineNumber = 0;
+    return Array.from(measure.querySelectorAll(".aidp-lined-textarea-measure-line")).reduce(function (
+      entries,
+      lineNode
+    ) {
+      const rectCount = Math.max(1, lineNode.getClientRects().length || 1);
+      const isBlank = lineNode.getAttribute("data-blank") === "true";
+      for (let index = 0; index < rectCount; index += 1) {
+        if (isBlank) {
+          entries.push("");
+        } else {
+          visibleLineNumber += 1;
+          entries.push(String(visibleLineNumber));
+        }
+      }
+      return entries;
+    },
+    []);
+  }
+
+  function syncAidpLineNumberSliderValue(textarea) {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      return;
+    }
+    const wrapper = textarea.closest(".aidp-lined-textarea");
+    const slider =
+      wrapper instanceof HTMLElement
+        ? wrapper.querySelector(".aidp-lined-textarea-slider")
+        : null;
+    if (!(slider instanceof HTMLInputElement)) {
+      return;
+    }
+    const computedStyle = window.getComputedStyle(textarea);
+    const lineHeight = parseFloat(computedStyle.lineHeight) || 22.4;
+    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+    const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+    const height = textarea.clientHeight - paddingTop - paddingBottom;
+    const rows = Math.max(1, Math.round(height / Math.max(lineHeight, 1)));
+    slider.value = String(Math.min(getAidpLineNumberTextareaMaxRows(textarea), rows));
+  }
+
+  function applyAidpLineNumberTextareaRows(textarea, nextRows) {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      return;
+    }
+    const wrapper = textarea.closest(".aidp-lined-textarea");
+    const slider =
+      wrapper instanceof HTMLElement
+        ? wrapper.querySelector(".aidp-lined-textarea-slider")
+        : null;
+    const maxRows = getAidpLineNumberTextareaMaxRows(textarea);
+    const defaultRows = getAidpLineNumberTextareaDefaultRows(textarea);
+    const rows = Math.max(1, Math.min(maxRows, Math.round(Number(nextRows) || defaultRows)));
+    const computedStyle = window.getComputedStyle(textarea);
+    const lineHeight = parseFloat(computedStyle.lineHeight) || 22.4;
+    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+    const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+    const nextHeight = Math.ceil(lineHeight * rows + paddingTop + paddingBottom);
+    textarea.rows = rows;
+    textarea.setAttribute("data-aidp-visible-rows", String(rows));
+    textarea.style.height = nextHeight + "px";
+    textarea.style.minHeight = nextHeight + "px";
+    if (wrapper instanceof HTMLElement) {
+      wrapper.style.minHeight = nextHeight + "px";
+      wrapper.setAttribute("data-visible-rows", String(rows));
+    }
+    if (slider instanceof HTMLInputElement) {
+      slider.value = String(rows);
+    }
   }
 
   function syncAidpLineNumberTextarea(textarea) {
@@ -7080,9 +7278,12 @@
     }
     const gutter = wrapper.querySelector(".aidp-lined-textarea-gutter");
     if (gutter instanceof HTMLElement) {
-      gutter.textContent = buildAidpLineNumberText(textarea.value);
+      const visibleEntries = buildAidpVisibleLineNumberEntries(textarea);
+      gutter.textContent = visibleEntries.join("\n");
       gutter.scrollTop = textarea.scrollTop;
+      wrapper.setAttribute("data-has-line-numbers", visibleEntries.length > 0 ? "true" : "false");
     }
+    syncAidpLineNumberSliderValue(textarea);
   }
 
   function ensureAidpLineNumberTextarea(textarea) {
@@ -7106,22 +7307,60 @@
       const shell = document.createElement("div");
       shell.className = "aidp-lined-textarea-shell";
 
+      const measure = document.createElement("div");
+      measure.className = "aidp-lined-textarea-measure";
+      measure.setAttribute("aria-hidden", "true");
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.className = "aidp-lined-textarea-slider";
+      slider.min = "1";
+      slider.max = String(getAidpLineNumberTextareaMaxRows(textarea));
+      slider.step = "1";
+      slider.setAttribute("aria-label", "调整显示行数");
+
       parent.insertBefore(wrapper, textarea);
       wrapper.appendChild(gutter);
       wrapper.appendChild(shell);
+      wrapper.appendChild(slider);
       shell.appendChild(textarea);
+      shell.appendChild(measure);
     } else {
       wrapper.className = "aidp-lined-textarea aidp-lined-textarea-" + mode;
     }
 
     if (textarea.getAttribute("data-aidp-line-numbers-bound") !== "true") {
       textarea.setAttribute("data-aidp-line-numbers-bound", "true");
+      applyAidpLineNumberTextareaRows(textarea, getAidpLineNumberTextareaDefaultRows(textarea));
       textarea.addEventListener("input", function () {
         syncAidpLineNumberTextarea(textarea);
       });
       textarea.addEventListener("scroll", function () {
         syncAidpLineNumberTextarea(textarea);
       });
+      const slider = wrapper.querySelector(".aidp-lined-textarea-slider");
+      if (slider instanceof HTMLInputElement) {
+        slider.addEventListener("input", function () {
+          applyAidpLineNumberTextareaRows(textarea, slider.value);
+          syncAidpLineNumberTextarea(textarea);
+        });
+      }
+      if (typeof ResizeObserver === "function") {
+        const resizeObserver = new ResizeObserver(function () {
+          syncAidpLineNumberTextarea(textarea);
+        });
+        resizeObserver.observe(textarea);
+        const shell = wrapper.querySelector(".aidp-lined-textarea-shell");
+        if (shell instanceof HTMLElement) {
+          resizeObserver.observe(shell);
+        }
+        textarea.__aidpLineNumberResizeObserver = resizeObserver;
+      }
+    } else {
+      applyAidpLineNumberTextareaRows(
+        textarea,
+        textarea.getAttribute("data-aidp-visible-rows") || getAidpLineNumberTextareaDefaultRows(textarea)
+      );
     }
 
     syncAidpLineNumberTextarea(textarea);
@@ -7186,7 +7425,7 @@
           definition.type === "stop"
             ? '<textarea id="' +
               fieldId +
-              '" maxlength="960" data-aidp-lined-textarea="compact"></textarea>'
+              '" maxlength="960" data-aidp-lined-textarea="compact" data-aidp-default-rows="1"></textarea>'
             : '<input id="' +
               fieldId +
               '" type="number" min="' +
@@ -7444,9 +7683,6 @@
         }) +
         "</label>",
       '<label class="asr-ai-field"><span>' +
-        buildAsrAiLabelMarkup("请求超时时间（秒）", "最小精度 0.001 秒，即 1ms。留空时使用后端默认值。") +
-        '</span><input id="bytedance-aidp-ai-timeout" type="number" min="0.001" max="60" step="0.001" /></label>',
-      '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "思考开关",
           activeScriptId === bytedanceAidpJinhuaScriptId
@@ -7460,6 +7696,9 @@
           preserveText: true,
         }) +
         "</label>",
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup("请求超时时间（秒）", "最小精度 0.001 秒，即 1ms。留空时使用后端默认值。") +
+        '</span><input id="bytedance-aidp-ai-timeout" type="number" min="0.001" max="60" step="0.001" /></label>',
       "</div></div>",
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
@@ -7476,7 +7715,7 @@
           "听音 Prompt",
           "普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取。"
         ) +
-        '</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000" data-aidp-lined-textarea="prompt"></textarea></label>',
+        '</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000" data-aidp-lined-textarea="prompt" data-aidp-default-rows="10"></textarea></label>',
       '</div><div class="asr-ai-grid two aidp-ai-stage-params">' +
         buildBytedanceAidpSuzhouStageParamFieldsMarkup("listen") +
         "</div></div>",
@@ -7492,7 +7731,7 @@
           "收口 Prompt",
           "限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字。"
         ) +
-        '</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000" data-aidp-lined-textarea="prompt"></textarea></label>',
+        '</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000" data-aidp-lined-textarea="prompt" data-aidp-default-rows="10"></textarea></label>',
       '</div><div class="asr-ai-grid two aidp-ai-stage-params">' +
         buildBytedanceAidpSuzhouStageParamFieldsMarkup("refine") +
         "</div></div>",
