@@ -297,7 +297,8 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /data-aidp-default-rows="10"/);
   assert.match(script, /data-aidp-default-rows="1"/);
   assert.match(script, /aidp-lined-textarea-slider/);
-  assert.match(script, /new ResizeObserver/);
+  assert.match(script, /window\.addEventListener\("resize", function \(\) \{\s*syncAidpLineNumberTextareas\(document\);/);
+  assert.match(script, /textarea\.addEventListener\("mouseup", function \(\) \{\s*syncAidpLineNumberTextarea\(textarea\);/);
   assert.match(script, /aidp-lined-textarea-gutter/);
   assert.match(script, /aidp-lined-textarea-shell/);
   assert.doesNotMatch(script, /Math\.max\(1,\s*normalized\.split\("\\n"\)\.length\)/);

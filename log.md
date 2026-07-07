@@ -1342,6 +1342,8 @@
 - 初始化上传项目
 
 ## 2026-07-07
+- 修复(ByteDance AIDP): 移除设置页多行输入框里的循环 `ResizeObserver`，改为窗口 resize 与文本框交互后重算可见行号，避免扩展 options 页持续报 `ResizeObserver loop completed with undelivered notifications`
+- 修复(ByteDance AIDP): 将竖向行数滑块改回标准 `range + writing-mode` 方案，移除 `slider-vertical` 非标准 `appearance` 警告
 - 修复(ByteDance AIDP): 将设置页自定义下拉改为页面顶层浮层，避免展开菜单被卡片或右栏裁切，并按可用空间自动上下翻转
 - 修复(ByteDance AIDP): 调整 `AI 设置 -> 基础设置` 顺序为“识别完成后自动填入 / 思考开关 / 请求超时时间（秒）”
 - 修复(ByteDance AIDP): Prompt 与 `stop sequences` 改为按实际可见行计算行号，空值不再默认显示第 `1` 行，并新增仅当前页面会话生效的竖向行数滑块

@@ -2324,8 +2324,8 @@ body {
   padding: 0;
   border: none;
   background: transparent;
-  appearance: slider-vertical;
-  -webkit-appearance: slider-vertical;
+  appearance: none;
+  -webkit-appearance: none;
   writing-mode: vertical-lr;
   direction: rtl;
   cursor: ns-resize;
@@ -2333,6 +2333,7 @@ body {
 
 .detail-workbench .aidp-lined-textarea-slider::-webkit-slider-runnable-track {
   width: 4px;
+  min-height: 100%;
   border-radius: 999px;
   background: rgba(203, 213, 225, 0.92);
 }

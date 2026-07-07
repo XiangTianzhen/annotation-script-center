@@ -91,6 +91,7 @@
   let inlineHelpListenersBound = false;
   let activeAidpCustomSelectNode = null;
   let aidpCustomSelectListenersBound = false;
+  let aidpLineNumberWindowListenerBound = false;
   const betaFeaturesVisibleByDefault = constants.BETA_FEATURES_VISIBLE_BY_DEFAULT === true;
   const getBackendModeFromSettings =
     typeof constants.getBackendEndpointModeFromSettings === "function"
@@ -7338,6 +7339,12 @@
       textarea.addEventListener("scroll", function () {
         syncAidpLineNumberTextarea(textarea);
       });
+      textarea.addEventListener("mouseup", function () {
+        syncAidpLineNumberTextarea(textarea);
+      });
+      textarea.addEventListener("keyup", function () {
+        syncAidpLineNumberTextarea(textarea);
+      });
       const slider = wrapper.querySelector(".aidp-lined-textarea-slider");
       if (slider instanceof HTMLInputElement) {
         slider.addEventListener("input", function () {
@@ -7345,22 +7352,18 @@
           syncAidpLineNumberTextarea(textarea);
         });
       }
-      if (typeof ResizeObserver === "function") {
-        const resizeObserver = new ResizeObserver(function () {
-          syncAidpLineNumberTextarea(textarea);
-        });
-        resizeObserver.observe(textarea);
-        const shell = wrapper.querySelector(".aidp-lined-textarea-shell");
-        if (shell instanceof HTMLElement) {
-          resizeObserver.observe(shell);
-        }
-        textarea.__aidpLineNumberResizeObserver = resizeObserver;
-      }
     } else {
       applyAidpLineNumberTextareaRows(
         textarea,
         textarea.getAttribute("data-aidp-visible-rows") || getAidpLineNumberTextareaDefaultRows(textarea)
       );
+    }
+
+    if (!aidpLineNumberWindowListenerBound) {
+      window.addEventListener("resize", function () {
+        syncAidpLineNumberTextareas(document);
+      });
+      aidpLineNumberWindowListenerBound = true;
     }
 
     syncAidpLineNumberTextarea(textarea);
