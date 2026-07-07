@@ -1441,41 +1441,42 @@ test("ByteDance AIDP content only auto-syncs playback rate once per page scope",
   assert.equal(contentModule.__testOnly.getPlaybackComboboxLabel(playbackSelect), "1.50倍速");
 });
 
-test("ByteDance AIDP content detects active wave playback from the toolbar pause action", function () {
+test("ByteDance AIDP content parses wave elapsed time from the workbench text", function () {
   const contentModule = loadContentModule();
-  const root = createFakeDocument([
-    new FakeElement({
-      className: "neeko-wavesurfer-warper neeko-wavesurfer",
-      children: [
-        new FakeElement({
-          className: "btns-play",
-          children: [
-            new FakeElement({ tagName: "button", text: "播放" }),
-            new FakeElement({ tagName: "button", text: "暂停" }),
-          ],
-        }),
-      ],
-    }),
-  ]);
-
-  assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), true);
+  assert.equal(
+    contentModule.__testOnly.parseWaveElapsedTimeMs("1:00.400播放速度1.00倍速总时长1:18.738"),
+    60400
+  );
+  assert.equal(contentModule.__testOnly.parseWaveElapsedTimeMs("0:07.47"), 7470);
+  assert.equal(contentModule.__testOnly.parseWaveElapsedTimeMs(""), null);
 });
 
-test("ByteDance AIDP content treats the wave toolbar as idle when no pause action is present", function () {
+test("ByteDance AIDP content detects active wave playback from advancing elapsed time", function () {
   const contentModule = loadContentModule();
+  const originalDateNow = Date.now;
+  let fakeNow = 1000;
+  Date.now = function () {
+    return fakeNow;
+  };
   const root = createFakeDocument([
     new FakeElement({
       className: "neeko-wavesurfer-warper neeko-wavesurfer",
-      children: [
-        new FakeElement({
-          className: "btns-play",
-          children: [new FakeElement({ tagName: "button", text: "播放" })],
-        }),
-      ],
+      text: "0:00.000播放速度1.00倍速总时长1:18.738",
     }),
   ]);
 
-  assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), false);
+  try {
+    assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), false);
+    fakeNow = 2200;
+    root._ownText = "0:01.200播放速度1.00倍速总时长1:18.738";
+    assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), true);
+    fakeNow = 4300;
+    assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), true);
+    fakeNow = 5000;
+    assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), false);
+  } finally {
+    Date.now = originalDateNow;
+  }
 });
 
 test("ByteDance AIDP content injects clear-segments button into the detail header action group", function () {

@@ -80,6 +80,11 @@
     target: null,
     status: "idle",
   };
+  let wavePlaybackActivityState = {
+    lastElapsedMs: null,
+    lastObservedAt: 0,
+    activeUntil: 0,
+  };
   let storageListenerBound = false;
   let helperRuntime = null;
   let managementUiActive = false;
@@ -1899,21 +1904,49 @@
     return safeQuerySelectorAll(workbench, ".btns-play")[0] || null;
   }
 
-  function isWavePlaybackActive(root) {
-    const toolbar = findPlayToolbarRoot(root);
-    if (!toolbar) {
-      return false;
+  function parseWaveElapsedTimeMs(text) {
+    const source = normalizeText(text);
+    if (!source) {
+      return null;
     }
-    const nodes = [toolbar].concat(collectDescendantElements(toolbar));
-    return nodes.some(function (node) {
-      const text = normalizeText(
-        getNodeText(node) ||
-          node?.getAttribute?.("aria-label") ||
-          node?.getAttribute?.("title") ||
-          node?.getAttribute?.("data-title")
-      );
-      return text.includes("暂停");
-    });
+    const match = source.match(/(\d+):(\d{2})(?:\.(\d{1,3}))?/);
+    if (!match) {
+      return null;
+    }
+    const minutes = Math.max(0, Number(match[1]) || 0);
+    const seconds = Math.max(0, Number(match[2]) || 0);
+    const fractionText = String(match[3] || "");
+    const fractionMs = fractionText
+      ? Math.max(0, Number(fractionText.padEnd(3, "0").slice(0, 3)) || 0)
+      : 0;
+    return minutes * 60000 + seconds * 1000 + fractionMs;
+  }
+
+  function getWaveElapsedTimeMs(root) {
+    const workbench = findWaveWorkbench(root);
+    if (!workbench) {
+      return null;
+    }
+    return parseWaveElapsedTimeMs(getNodeText(workbench));
+  }
+
+  function isWavePlaybackActive(root) {
+    const now =
+      typeof Date.now === "function" ? Date.now() : new Date().getTime();
+    const elapsedMs = getWaveElapsedTimeMs(root);
+    if (elapsedMs === null) {
+      return wavePlaybackActivityState.activeUntil > now;
+    }
+    if (
+      wavePlaybackActivityState.lastElapsedMs !== null &&
+      now - wavePlaybackActivityState.lastObservedAt <= 4000 &&
+      elapsedMs !== wavePlaybackActivityState.lastElapsedMs
+    ) {
+      wavePlaybackActivityState.activeUntil = now + 2500;
+    }
+    wavePlaybackActivityState.lastElapsedMs = elapsedMs;
+    wavePlaybackActivityState.lastObservedAt = now;
+    return wavePlaybackActivityState.activeUntil > now;
   }
 
   function findDetailHeaderActionGroup(root) {
@@ -3401,6 +3434,11 @@
       target: null,
       status: "idle",
     };
+    wavePlaybackActivityState = {
+      lastElapsedMs: null,
+      lastObservedAt: 0,
+      activeUntil: 0,
+    };
     if (helperRuntime?.ui?.destroy) {
       helperRuntime.ui.destroy();
     }
@@ -4379,6 +4417,7 @@
       syncPlaybackRateControl: syncPlaybackRateControl,
       syncWaveZoomControl: syncWaveZoomControl,
       getPlaybackComboboxLabel: getPlaybackComboboxLabel,
+      parseWaveElapsedTimeMs: parseWaveElapsedTimeMs,
       isWavePlaybackActive: isWavePlaybackActive,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
