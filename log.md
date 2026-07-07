@@ -31,6 +31,8 @@
 - 修复 ByteDance AIDP 金华话 `data-api` 误用脚本专属 observer 常量，恢复监听平台共享 `Receive / SubmitTempItemAnswer` 通用消息契约
 - 修复后金华话 `当前音频信息`、单段识别、批量识别与分段建议重新获取当前音频上下文
 - 清理金华话 `ui-panel` 内部 suzhou 命名残留，避免后续挂载排查混淆
+- 修复 ByteDance AIDP `mark-v3` 详情页播放时持续滚动到底部：移除默认倍速自动同步里的抢焦点确认兜底，保留默认倍速与固定缩放的一次性无焦点尝试
+- 修复 ByteDance AIDP `隐藏平台AI功能` 误伤题目头部原生操作区：保留 `最近暂存时间 / 暂存 / 重置` 区块，不再把它识别成右下角平台 AI 浮动入口
 
 ## 2026-07-06（新增 ByteDance AIDP 金华话脚本并升级双脚本互斥模型）
 - 更新 `extension/shared/constants.js`

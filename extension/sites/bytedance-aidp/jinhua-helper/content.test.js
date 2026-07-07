@@ -723,6 +723,50 @@ test("ByteDance AIDP content finds a class-less bottom-right floating assistant 
   assert.deepEqual(targets, [floatingAvatar]);
 });
 
+test("ByteDance AIDP content does not treat task extra info toolbar as floating AI", function () {
+  const contentModule = loadContentModule();
+  const operationToolbar = new FakeElement({
+    className: "operation-time-container-r2k2ZW",
+    style: {
+      position: "fixed",
+      top: "24px",
+      right: "24px",
+      width: "180px",
+      height: "48px",
+    },
+    rect: {
+      top: 24,
+      left: 1640,
+      right: 1820,
+      bottom: 72,
+      width: 180,
+      height: 48,
+    },
+    children: [
+      new FakeElement({
+        className: "task-extra-info-JjjRoP",
+        children: [
+          new FakeElement({ tagName: "span", text: "最近暂存时间：" }),
+          new FakeElement({ tagName: "span", text: "07-07 14:40:19" }),
+          new FakeElement({ tagName: "button", text: "暂存" }),
+          new FakeElement({ tagName: "svg" }),
+          new FakeElement({ tagName: "span", text: "重置" }),
+        ],
+      }),
+    ],
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "page-root",
+      children: [operationToolbar],
+    }),
+  ]);
+
+  const targets = contentModule.__testOnly.findPlatformAiTargets(root);
+
+  assert.deepEqual(targets, []);
+});
+
 test("ByteDance AIDP content also finds targets inside same-origin iframes", function () {
   const contentModule = loadContentModule();
   const insightCard = new FakeElement({
@@ -1064,7 +1108,7 @@ test("ByteDance AIDP content resolves Jinhua AI config with normalized stage par
   assert.equal(config.aiUsageOperatorName, "张三");
 });
 
-test("ByteDance AIDP content confirms playback rate through enter fallback when option click alone does not update the label", async function () {
+test("ByteDance AIDP content stops playback rate sync without focus fallback when option click alone does not update the label", async function () {
   const contentModule = loadContentModule();
   let optionClickCount = 0;
   let enterConfirmCount = 0;
@@ -1135,10 +1179,12 @@ test("ByteDance AIDP content confirms playback rate through enter fallback when 
   });
 
   assert.equal(result.changed, true);
-  assert.equal(result.confirmed, true);
+  assert.equal(result.confirmed, false);
   assert.equal(optionClickCount, 1);
-  assert.equal(enterConfirmCount, 1);
-  assert.equal(contentModule.__testOnly.getPlaybackComboboxLabel(playbackSelect), "1.50倍速");
+  assert.equal(enterConfirmCount, 0);
+  assert.equal(playbackSelect._focused, undefined);
+  assert.equal(contentModule.__testOnly.getPlaybackComboboxLabel(playbackSelect), "1.00倍速");
+  assert.equal(result.reason, "confirmation-missed");
 });
 
 test("ByteDance AIDP content applies fixed zoom by clicking platform zoom-in button until target is reached", async function () {

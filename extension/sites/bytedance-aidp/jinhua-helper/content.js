@@ -884,8 +884,25 @@
     });
   }
 
+  function isTaskExtraInfoToolbar(node) {
+    if (!isHideableNode(node)) {
+      return false;
+    }
+    const className = getClassName(node);
+    const text = getNodeText(node);
+    return (
+      className.includes("operation-time-container") ||
+      className.includes("task-extra-info") ||
+      hasAnchorText(text, "最近暂存时间") ||
+      (hasAnchorText(text, "暂存") && hasAnchorText(text, "重置"))
+    );
+  }
+
   function getFloatingAssistantScore(node) {
     if (!isHideableNode(node)) {
+      return -1;
+    }
+    if (isTaskExtraInfoToolbar(node)) {
       return -1;
     }
     const position = normalizeText(getStylePropertyValue(node, "position")).toLowerCase();
@@ -1643,17 +1660,6 @@
     );
   }
 
-  function getPlaybackRateConfirmTarget(node) {
-    if (!node) {
-      return null;
-    }
-    return (
-      (typeof node.querySelector === "function"
-        ? node.querySelector(".arco-select-view-input")
-        : null) || node
-    );
-  }
-
   async function syncPlaybackRateControl(root, targetPlaybackRate, options) {
     const source = options && typeof options === "object" ? options : {};
     const stepDelayMs = Number.isFinite(Number(source.stepDelayMs))
@@ -1750,30 +1756,11 @@
       }
     }
 
-    const confirmTarget = getPlaybackRateConfirmTarget(playbackNode) || playbackNode;
-    focusControl(playbackNode);
-    if (confirmTarget !== playbackNode) {
-      focusControl(confirmTarget);
-    }
-    dispatchKeyboardEvent(confirmTarget, "keydown", "Enter");
-    dispatchKeyboardEvent(confirmTarget, "keypress", "Enter");
-    dispatchKeyboardEvent(confirmTarget, "keyup", "Enter");
-    if (confirmTarget !== playbackNode) {
-      dispatchKeyboardEvent(playbackNode, "keydown", "Enter");
-      dispatchKeyboardEvent(playbackNode, "keypress", "Enter");
-      dispatchKeyboardEvent(playbackNode, "keyup", "Enter");
-    }
-    dispatchControlEvent(confirmTarget, "change");
-    dispatchControlEvent(playbackNode, "change");
-    dispatchControlEvent(confirmTarget, "blur");
-    await waitFor(stepDelayMs);
     return {
       changed: changed,
-      confirmed: getPlaybackComboboxLabel(playbackNode) === targetLabel,
+      confirmed: false,
       attempts: attempts,
-      reason: getPlaybackComboboxLabel(playbackNode) === targetLabel
-        ? "enter-confirmed"
-        : "confirmation-missed",
+      reason: "confirmation-missed",
     };
   }
 
