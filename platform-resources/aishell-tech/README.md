@@ -100,7 +100,7 @@
 - Aishell 保持独立路由、独立脚本 ID；当前平台侧已从“单脚本硬编码”扩成“同平台三脚本互斥”，由 `platforms.aishellTech.activeScriptId` 控制生效脚本。
 - 闽南语助手继续保留自己的三阶段链路与词表资料目录。
 - 越南语助手固定为“单阶段 Omni 直接转写”，不接词表、不做转换/比较双阶段。
-- 泰语助手固定为“单阶段 Omni 输出 `text + speed` 双字段”，不接词表、不做转换/比较双阶段。
+- 泰语助手固定为“单阶段 Omni 输出 `text + speed` 双字段，其中 `speed` 正式值为 `slow / normal / fast`”，不接词表、不做转换/比较双阶段。
 - Aishell 的 Omni 音频调用继续复用各脚本各自的 `dashscope-omni-client.js`，统一固定 `enable_thinking=false`。
 - 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。
 - 闽南语助手当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。

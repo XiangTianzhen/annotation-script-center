@@ -65,7 +65,7 @@ test("Aishell Thai save payload keeps text and speed fields", function () {
       payload.mark,
       JSON.stringify({
         text: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
-        speed: "正常",
+        speed: "normal",
       })
     );
     assert.equal(payload.taskItemId, "2065236136409829381");

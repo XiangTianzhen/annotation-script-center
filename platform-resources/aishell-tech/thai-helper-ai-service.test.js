@@ -17,7 +17,7 @@ test("Aishell Thai success body includes recommendedSpeed", function () {
     taskItemId: "task-1",
     referenceText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
     recommendedText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
-    recommendedSpeed: "正常",
+    recommendedSpeed: "normal",
     meta: {
       requestId: "req-1",
     },
@@ -26,7 +26,7 @@ test("Aishell Thai success body includes recommendedSpeed", function () {
   assert.equal(body.success, true);
   assert.equal(body.data.taskItemId, "task-1");
   assert.equal(body.data.recommendedText, "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย");
-  assert.equal(body.data.recommendedSpeed, "正常");
+  assert.equal(body.data.recommendedSpeed, "normal");
   assert.equal(body.data.referenceText, "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย");
 });
 
@@ -40,5 +40,5 @@ test("Aishell Thai request normalization keeps single-stage text plus speed mode
   assert.equal(request.pipelineMode, "omni_single");
   assert.equal(request.modelMode, "omni_single");
   assert.equal(request.recognitionStrategy, "thai_transcription_speed");
-  assert.match(request.singlePrompt, /语速/);
+  assert.match(request.singlePrompt, /slow\|normal\|fast/);
 });

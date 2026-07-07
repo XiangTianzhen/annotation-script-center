@@ -32,8 +32,8 @@ test("Aishell Thai result stays actionable when text matches but speed differs",
       helper({
         referenceText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
         recommendedText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
-        currentSpeed: "慢",
-        recommendedSpeed: "正常",
+        currentSpeed: "slow",
+        recommendedSpeed: "normal",
       }),
       true
     );
@@ -41,8 +41,8 @@ test("Aishell Thai result stays actionable when text matches but speed differs",
       helper({
         referenceText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
         recommendedText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
-        currentSpeed: "正常",
-        recommendedSpeed: "正常",
+        currentSpeed: "normal",
+        recommendedSpeed: "normal",
       }),
       false
     );
@@ -62,14 +62,14 @@ test("Aishell Thai result rows include current and recommended speed", function 
       helper({
         referenceText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
         recommendedText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
-        currentSpeed: "慢",
-        recommendedSpeed: "正常",
+        currentSpeed: "slow",
+        recommendedSpeed: "normal",
       }),
       [
         ["原始文本", "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย"],
         ["识别文本", "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย"],
-        ["当前语速", "慢"],
-        ["语速建议", "正常"],
+        ["当前语速", "slow"],
+        ["语速建议", "normal"],
       ]
     );
   } finally {

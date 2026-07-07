@@ -1,3 +1,27 @@
+## 2026-07-07（收口希尔贝壳泰语助手语速为英文三档）
+- 更新 `platform-resources/aishell-tech/thai-helper/backend/pipeline.js`
+  - 将 Thai 语速归一化正式口径切换为 `slow / normal / fast`
+  - 兼容解析旧中文值 `慢 / 正常 / 快`，但后端正式输出不再返回中文
+  - 默认识别 Prompt 改为固定要求 `{"text":"...","speed":"slow|normal|fast"}`
+- 更新 `platform-resources/aishell-tech/thai-helper/backend/ai-service.js`
+  - Thai `/defaults` 单阶段默认 Prompt 改为英文三档 JSON 示例
+- 更新 `extension/options/options.js`
+  - Thai options 本地 fallback Prompt 同步改成英文三档，保持后端不可用时口径一致
+- 更新 `extension/sites/aishell-tech/thai-helper/data-api.js`
+  - 保存 payload、页面当前值和平台历史值统一归一到 `slow / normal / fast`
+  - 兼容读取旧中文值，避免“值已一致但仍显示可填入”
+- 更新测试：
+  - `platform-resources/aishell-tech/thai-helper-pipeline.test.js`
+  - `platform-resources/aishell-tech/thai-helper-ai-service.test.js`
+  - `extension/sites/aishell-tech/thai-helper-data-api.test.js`
+  - `extension/sites/aishell-tech/thai-helper-ui-panel.test.js`
+  - `extension/options/options-aishell-tech-ui.test.js`
+- 更新文档：
+  - `extension/sites/aishell-tech/thai-helper/README.md`
+  - `platform-resources/aishell-tech/thai-helper/README.md`
+  - `platform-resources/aishell-tech/thai-helper/backend/README.md`
+  - `platform-resources/aishell-tech/README.md`
+
 ## 2026-07-07（收口金华话 AI 总开关并按状态隐藏 AI 设置面板）
 - 更新 `extension/options/options.html`
   - 在 ByteDance AIDP 共用基础设置面板新增金华话专属 `启用 AI 功能` 开关，并保留可点击 `?` 说明

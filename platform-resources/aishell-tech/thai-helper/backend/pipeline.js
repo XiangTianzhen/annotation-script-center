@@ -106,18 +106,19 @@ function parseModelJsonText(rawText, requestId) {
 function normalizeThaiRecommendedSpeed(value) {
   const text = normalizeText(value)
     .replace(/^语速[:：]?\s*/i, "")
-    .replace(/^speed[:：]?\s*/i, "");
+    .replace(/^speed[:：]?\s*/i, "")
+    .toLowerCase();
   if (!text) {
     throw createStageResultError(502, "missing-recommended-speed", "模型未返回有效语速。");
   }
-  if (text === "慢" || text === "慢速") {
-    return "慢";
+  if (text === "slow" || text === "慢" || text === "慢速") {
+    return "slow";
   }
-  if (text === "正常" || text === "中速" || text === "适中") {
-    return "正常";
+  if (text === "normal" || text === "正常" || text === "中速" || text === "适中") {
+    return "normal";
   }
-  if (text === "快" || text === "快速") {
-    return "快";
+  if (text === "fast" || text === "快" || text === "快速") {
+    return "fast";
   }
   throw createStageResultError(502, "invalid-recommended-speed", "模型返回的语速值无效: " + text);
 }
@@ -173,8 +174,8 @@ function buildRecognizePrompt(request) {
     "你正在处理泰语音频转写。",
     "你必须同时返回最终泰语文本和语速建议。",
     "只输出 JSON，不要输出 Markdown、解释、前缀或引号。",
-    'JSON 固定字段：{"text":"...","speed":"慢|正常|快"}。',
-    'speed 只能填写 "慢"、"正常"、"快" 三个值之一。',
+    'JSON 固定字段：{"text":"...","speed":"slow|normal|fast"}。',
+    'speed 只能填写 "slow"、"normal"、"fast" 三个值之一。',
     "text 保留泰语字符，不翻译成中文，不改写成其他语言。",
     "按当前项目泰语规则收口标点与空格，统一使用半角英文标点。",
     "不要翻译成中文，不要改写成其他语言，不要补充词表写法。",

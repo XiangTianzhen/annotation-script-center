@@ -16,7 +16,7 @@
 - 结果固定要求双字段：
   - `text`
   - `speed`
-- `speed` 最终只允许 `慢 / 正常 / 快` 三个值。
+- `speed` 最终只允许 `slow / normal / fast` 三个值。
 - 平台通用 Network 与 DOM 资料继续以：
   - `platform-resources/aishell-tech/network/`
   - `platform-resources/aishell-tech/page-structure/`
@@ -30,7 +30,7 @@
   - `data.recommendedSpeed`
   - `data.referenceText`
   - `meta`
-- 前端保存请求固定走平台真实 `POST /api/mark/SaveShortMark`，其中 `mark` 为 `{"text":"...","speed":"..."}`。
+- 前端保存请求固定走平台真实 `POST /api/mark/SaveShortMark`，其中 `mark.speed` 正式值为 `slow / normal / fast`。
 - AI 日志数据集 ID：`aishell-tech-thai-helper-ai`
 - 运行时日志目录：`platform-resources/aishell-tech/thai-helper/data/runtime/`
 - 当前后端 `/defaults` 读取失败时，options 会回退到本地完整单阶段默认值，不再把泰语页渲染成“只有空字段”的半残状态。

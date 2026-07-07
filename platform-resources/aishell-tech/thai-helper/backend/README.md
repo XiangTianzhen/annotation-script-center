@@ -16,9 +16,9 @@
 - 默认模型：`qwen3.5-omni-flash`。
 - 默认 Prompt 约束：
   - 同时输出最终泰语转写文本与语速建议
-  - 返回严格 JSON：`{"text":"...","speed":"慢|正常|快"}`
+  - 返回严格 JSON：`{"text":"...","speed":"slow|normal|fast"}`
   - `text` 保留泰语字符与正常空格，不翻译成中文
-  - `speed` 只能是 `慢 / 正常 / 快`
+  - `speed` 只能是 `slow / normal / fast`
 - 不再存在：
   - 词表读取
   - `convert / listen / compare` 三阶段
@@ -45,6 +45,7 @@
   - `error.code / error.message / error.stage / error.retryable`
   - `meta`
 - 若模型返回非法语速值，会显式返回 `invalid-recommended-speed` 一类错误，不做静默猜测。
+- 旧中文值 `慢 / 正常 / 快` 当前只作为兼容输入解析；后端正式输出统一收口为 `slow / normal / fast`。
 - `stage error` 当前会保留 plain object 里的 `message / code / statusCode`，不再把结构化错误折叠成 `[object Object]`。
 
 ## 队列与日志

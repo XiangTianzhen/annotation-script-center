@@ -22,20 +22,23 @@
   }
 
   function normalizeThaiSpeedValue(value) {
-    const text = normalizeText(value);
+    const text = normalizeText(value)
+      .replace(/^语速[:：]?\s*/i, "")
+      .replace(/^speed[:：]?\s*/i, "");
     if (!text) {
       return "";
     }
-    if (text === "慢" || text === "慢速") {
-      return "慢";
+    const lowered = text.toLowerCase();
+    if (lowered === "slow" || text === "慢" || text === "慢速") {
+      return "slow";
     }
-    if (text === "正常" || text === "中速" || text === "适中") {
-      return "正常";
+    if (lowered === "normal" || text === "正常" || text === "中速" || text === "适中") {
+      return "normal";
     }
-    if (text === "快" || text === "快速") {
-      return "快";
+    if (lowered === "fast" || text === "快" || text === "快速") {
+      return "fast";
     }
-    return text;
+    return lowered === text ? text : lowered;
   }
 
   function normalizeMarkCompareText(text) {
