@@ -6,6 +6,8 @@
     return;
   }
 
+  const CONSTANTS = globalThis.ASREdgeConstants || {};
+  const STORAGE = globalThis.ASREdgeStorage || null;
   const STYLE_ID = "asc-haitian-utrans-audio-download-style";
   const ROOT_ATTR = "data-asc-haitian-utrans-audio-download";
   const BUTTON_ATTR = "data-asc-haitian-utrans-audio-download-button";
@@ -17,6 +19,8 @@
   const INSTALL_FLAG = "__ASREdgeHaitianUtransAudioDownloadHelperInstalled";
   const GLOBAL_KEY = "ASREdgeHaitianUtransAudioDownloadHelper";
   const ROUTE_CHECK_INTERVAL_MS = 1500;
+  const SCRIPT_ID =
+    CONSTANTS.HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID || "haitianUtransAudioDownloadHelper";
 
   let rootNode = null;
   let buttonNode = null;
@@ -24,6 +28,8 @@
   let statusNode = null;
   let routeTimer = null;
   let activeRequestId = "";
+  let runtimeEnabled = true;
+  let storageListenerBound = false;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -110,6 +116,14 @@
     url.searchParams.set("batchid", batch);
     url.searchParams.set("audioid", audio);
     return String(url);
+  }
+
+  function isFeatureEnabledFromSettings(settings) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    return Boolean(
+      source?.platforms?.haitianUtrans?.enabled !== false &&
+        source?.platforms?.haitianUtrans?.scripts?.audioDownloadHelper?.enabled !== false
+    );
   }
 
   function readFirstValue(map, keys) {
@@ -394,7 +408,7 @@
   }
 
   function syncPanel() {
-    if (!isTargetPageUrl(globalThis.location?.href || "")) {
+    if (runtimeEnabled !== true || !isTargetPageUrl(globalThis.location?.href || "")) {
       destroyPanel();
       return false;
     }
@@ -437,6 +451,10 @@
   }
 
   async function handleDownloadClick() {
+    if (runtimeEnabled !== true) {
+      setStatus("当前已关闭悬浮窗下载功能。", "error");
+      return;
+    }
     const context = resolveAudioRequestContext({
       href: globalThis.location?.href || "",
       hiddenFields: collectHiddenFields(document),
@@ -485,9 +503,46 @@
     }, ROUTE_CHECK_INTERVAL_MS);
   }
 
+  async function refreshRuntimeEnabled() {
+    if (STORAGE && typeof STORAGE.getSettings === "function") {
+      try {
+        runtimeEnabled = isFeatureEnabledFromSettings(await STORAGE.getSettings());
+      } catch (_error) {
+        runtimeEnabled = true;
+      }
+    } else {
+      runtimeEnabled = true;
+    }
+    syncPanel();
+    return runtimeEnabled;
+  }
+
+  function handleStorageChanged(_changes, areaName) {
+    if (areaName && areaName !== "local") {
+      return;
+    }
+    void refreshRuntimeEnabled();
+  }
+
+  function bindStorageListener() {
+    if (storageListenerBound) {
+      return;
+    }
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.onChanged &&
+      typeof chrome.storage.onChanged.addListener === "function"
+    ) {
+      chrome.storage.onChanged.addListener(handleStorageChanged);
+      storageListenerBound = true;
+    }
+  }
+
   const api = {
     __testOnly: {
       isTargetPageUrl: isTargetPageUrl,
+      isFeatureEnabledFromSettings: isFeatureEnabledFromSettings,
       resolveAudioRequestContext: resolveAudioRequestContext,
       extractVisibleFileName: extractVisibleFileName,
       ensureWavFileName: ensureWavFileName,
@@ -508,7 +563,8 @@
     globalThis[INSTALL_FLAG] !== true
   ) {
     globalThis[INSTALL_FLAG] = true;
-    syncPanel();
+    bindStorageListener();
+    void refreshRuntimeEnabled();
     startRouteWatcher();
   }
 })();

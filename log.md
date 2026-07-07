@@ -1308,3 +1308,4 @@
 - 调整(ByteDance AIDP): 分段表格行内识别入口改为结构签名驱动，并在 `#conbination-wrap` / `.arco-table-body` 补写前后恢复滚动位置
 - 新增(haitian-utrans): 接入任务详情页音频下载悬浮按钮最小 MVP
 - 文档(haitian-utrans): 补充平台入口、脚本 README 与平台索引
+- 新增(haitian-utrans): 在平台设置中接入音频下载助手，并增加“是否开启悬浮窗下载功能”单开关

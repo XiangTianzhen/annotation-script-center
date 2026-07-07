@@ -244,6 +244,15 @@
               },
             },
           },
+          haitianUtrans: {
+            enabled: true,
+            scripts: {
+              audioDownloadHelper: {
+                id: "haitianUtransAudioDownloadHelper",
+                enabled: true,
+              },
+            },
+          },
         },
         asr: {},
         debug: {
@@ -272,6 +281,7 @@
       DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS: {},
       DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: {},
       DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: {},
+      DEFAULT_HAITIAN_UTRANS_PLATFORM_SETTINGS: {},
       SCRIPT_PROJECTS: {},
       SCRIPT_LIBRARY: {},
       TRANSCRIPTION_PROJECT_ID: "transcription",
@@ -286,6 +296,8 @@
       AISHELL_TECH_MINNAN_SCRIPT_ID: "aishellTechMinnanAssistant",
       ABAKA_AI_PLATFORM_ID: "abakaAi",
       ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: "abakaAiTaskPageCapture",
+      HAITIAN_UTRANS_PLATFORM_ID: "haitianUtrans",
+      HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID: "haitianUtransAudioDownloadHelper",
       DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT:
         "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
       DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT:
@@ -4022,6 +4034,58 @@
     return settings.platforms.abakaAi;
   }
 
+  function ensureHaitianUtransRoot(settings) {
+    const constants = getConstants();
+    const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const defaultPlatform =
+      defaults?.platforms?.haitianUtrans || constants.DEFAULT_HAITIAN_UTRANS_PLATFORM_SETTINGS || {
+        enabled: true,
+        scripts: {
+          audioDownloadHelper: {
+            id:
+              constants.HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID ||
+              "haitianUtransAudioDownloadHelper",
+            enabled: true,
+          },
+        },
+      };
+
+    if (!isPlainObject(settings.platforms)) {
+      settings.platforms = {};
+    }
+
+    settings.platforms.haitianUtrans = deepMerge(
+      defaultPlatform,
+      settings.platforms.haitianUtrans || {}
+    );
+    if (!isPlainObject(settings.platforms.haitianUtrans.scripts)) {
+      settings.platforms.haitianUtrans.scripts = {};
+    }
+
+    const defaultScript = isPlainObject(defaultPlatform.scripts?.audioDownloadHelper)
+      ? defaultPlatform.scripts.audioDownloadHelper
+      : {};
+    const currentScript = isPlainObject(settings.platforms.haitianUtrans.scripts.audioDownloadHelper)
+      ? settings.platforms.haitianUtrans.scripts.audioDownloadHelper
+      : {};
+
+    settings.platforms.haitianUtrans.enabled =
+      settings.platforms.haitianUtrans.enabled !== false;
+    settings.platforms.haitianUtrans.scripts.audioDownloadHelper = Object.assign(
+      {},
+      defaultScript,
+      currentScript,
+      {
+        id:
+          constants.HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID ||
+          "haitianUtransAudioDownloadHelper",
+        enabled: currentScript.enabled !== false,
+      }
+    );
+
+    return settings.platforms.haitianUtrans;
+  }
+
   function getProjectDefinitions(constants) {
     return isPlainObject(constants?.SCRIPT_PROJECTS) ? constants.SCRIPT_PROJECTS : {};
   }
@@ -4516,6 +4580,7 @@
     ensureAishellTechRoot(settings, input || {});
     ensureMagicDataRoot(settings);
     ensureAbakaAiRoot(settings);
+    ensureHaitianUtransRoot(settings);
     ensureGlobalBackendEndpointMode(settings, input || {}, defaults);
     ensureGlobalBackendBaseUrls(settings, input || {}, defaults);
 
@@ -5105,6 +5170,24 @@
                   "abakaAiTaskPageCapture",
                 enabled: nextEnabled,
                 stage: "task21-inline-ai-analysis-debug",
+              },
+            },
+          },
+        },
+      });
+    }
+
+    if (scriptId === constants.HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID) {
+      return patchSettings({
+        platforms: {
+          haitianUtrans: {
+            enabled: nextEnabled,
+            scripts: {
+              audioDownloadHelper: {
+                id:
+                  constants.HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID ||
+                  "haitianUtransAudioDownloadHelper",
+                enabled: nextEnabled,
               },
             },
           },

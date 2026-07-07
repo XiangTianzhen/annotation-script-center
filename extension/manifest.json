@@ -375,6 +375,8 @@
         "http://*/*"
       ],
       "js": [
+        "shared/constants.js",
+        "shared/storage.js",
         "sites/haitian-utrans/audio-download-helper/content.js"
       ],
       "all_frames": false,

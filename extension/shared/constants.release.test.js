@@ -90,6 +90,14 @@ test("beta build keeps beta platform hidden until unlock", function () {
           },
         },
       },
+      haitianUtrans: {
+        enabled: true,
+        scripts: {
+          audioDownloadHelper: {
+            enabled: true,
+          },
+        },
+      },
     },
   };
 
@@ -118,6 +126,11 @@ test("beta build keeps beta platform hidden until unlock", function () {
   assert.equal(constants.isPlatformVisible("bytedanceAidp", unlockedSettings), true);
   assert.equal(
     constants.isScriptVisible("bytedanceAidpSuzhouHelper", unlockedSettings),
+    true
+  );
+  assert.equal(constants.isPlatformVisible("haitianUtrans", unlockedSettings), true);
+  assert.equal(
+    constants.isScriptVisible("haitianUtransAudioDownloadHelper", unlockedSettings),
     true
   );
   assert.equal(constants.getBackendEndpointModeFromSettings(unlockedSettings), "beta");
@@ -169,6 +182,14 @@ test("beta build hides disabled beta script from effective runtime access", func
           },
         },
       },
+      haitianUtrans: {
+        enabled: false,
+        scripts: {
+          audioDownloadHelper: {
+            enabled: false,
+          },
+        },
+      },
     },
   };
 
@@ -185,6 +206,15 @@ test("beta build hides disabled beta script from effective runtime access", func
   assert.equal(constants.isScriptVisible("bytedanceAidpSuzhouHelper", settings), true);
   assert.equal(
     constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", settings),
+    false
+  );
+  assert.equal(constants.isPlatformVisible("haitianUtrans", settings), true);
+  assert.equal(
+    constants.isScriptVisible("haitianUtransAudioDownloadHelper", settings),
+    true
+  );
+  assert.equal(
+    constants.isScriptRuntimeAccessible("haitianUtransAudioDownloadHelper", settings),
     false
   );
 });

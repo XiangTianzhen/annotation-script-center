@@ -53,6 +53,7 @@
   const BYTEDANCE_AIDP_PLATFORM_ID = "bytedanceAidp";
   const MAGIC_DATA_PLATFORM_ID = "magicData";
   const ABAKA_AI_PLATFORM_ID = "abakaAi";
+  const HAITIAN_UTRANS_PLATFORM_ID = "haitianUtrans";
   const AISHELL_TECH_PLATFORM_ID = "aishellTech";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
   const JUDGEMENT_PROJECT_ID = "judgement";
@@ -64,6 +65,7 @@
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
+  const HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID = "haitianUtransAudioDownloadHelper";
   const AISHELL_TECH_MINNAN_SCRIPT_ID = "aishellTechMinnanAssistant";
   const AISHELL_TECH_VIETNAMESE_SCRIPT_ID = "aishellTechVietnameseAssistant";
   const AISHELL_TECH_THAI_SCRIPT_ID = "aishellTechThaiAssistant";
@@ -835,6 +837,15 @@
     matches: ["http://abao.fortidyndns.com:30473/*"],
   };
 
+  const HAITIAN_UTRANS_PLATFORM = {
+    id: "haitian-utrans",
+    label: "Haitian uTrans",
+    host: "123.56.253.145:10070",
+    displayHost: "uTrans /index.php?d=worker&c=work",
+    entryUrl: "http://123.56.253.145:10070/index.php?d=worker&c=work",
+    matches: ["http://*/*"],
+  };
+
   const AISHELL_TECH_PLATFORM = {
     id: "aishell-tech",
     label: "希尔贝壳",
@@ -1322,6 +1333,16 @@
       runtimeBridge: "abaka-ai-task-page-capture",
       description: "Abaka AI 任务页结构与 Network 只读采集平台。",
     },
+    haitianUtrans: {
+      id: HAITIAN_UTRANS_PLATFORM_ID,
+      label: "Haitian uTrans",
+      host: HAITIAN_UTRANS_PLATFORM.host,
+      displayHost: HAITIAN_UTRANS_PLATFORM.displayHost,
+      entryUrl: HAITIAN_UTRANS_PLATFORM.entryUrl,
+      matches: clone(HAITIAN_UTRANS_PLATFORM.matches),
+      runtimeBridge: "haitian-utrans-audio-download-helper",
+      description: "uTrans 任务详情页悬浮音频下载助手平台。",
+    },
     aishellTech: {
       id: AISHELL_TECH_PLATFORM_ID,
       label: "希尔贝壳",
@@ -1478,6 +1499,21 @@
       detailView: "abaka-ai-task-page-capture",
       host: ABAKA_AI_PLATFORM.host,
       matchUrl: "http://abao.fortidyndns.com:30473/login",
+    },
+    haitianUtransAudioDownloadHelper: {
+      id: HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID,
+      platformId: HAITIAN_UTRANS_PLATFORM_ID,
+      label: "音频下载助手",
+      shortLabel: "音频下载助手",
+      description: "uTrans 任务详情页悬浮窗音频下载助手。",
+      note:
+        "当前只提供“下载当前音频”悬浮按钮；不做预览、不做批量、不做自动下载，也不改动平台提交链路。",
+      capabilityScope: "current-audio-download",
+      statusLabel: "音频下载助手",
+      detailView: "haitian-utrans-audio-download-helper",
+      host: HAITIAN_UTRANS_PLATFORM.host,
+      matchUrl:
+        "http://123.56.253.145:10070/index.php?d=worker&c=work&uid=...&project_id=...&process_id=...&task_id=...",
     },
     aishellTechMinnanAssistant: {
       id: AISHELL_TECH_MINNAN_SCRIPT_ID,
@@ -1912,6 +1948,18 @@
     };
   }
 
+  function createDefaultHaitianUtransPlatformSettings() {
+    return {
+      enabled: true,
+      scripts: {
+        audioDownloadHelper: {
+          id: HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID,
+          enabled: true,
+        },
+      },
+    };
+  }
+
   function createDefaultAishellTechPlatformSettings() {
     const minnanShortcuts = createEmptyShortcutMap(AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS);
     const vietnameseShortcuts = createEmptyShortcutMap(AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS);
@@ -2252,6 +2300,7 @@
         },
       },
       abakaAi: createDefaultAbakaAiPlatformSettings(),
+      haitianUtrans: createDefaultHaitianUtransPlatformSettings(),
       aishellTech: createDefaultAishellTechPlatformSettings(),
     },
     asr: clone(DEFAULT_ASR_CONFIG),
@@ -2386,6 +2435,13 @@
       );
     }
 
+    if (script.platformId === HAITIAN_UTRANS_PLATFORM_ID) {
+      return Boolean(
+        settings?.platforms?.haitianUtrans?.enabled !== false &&
+          settings?.platforms?.haitianUtrans?.scripts?.audioDownloadHelper?.enabled !== false
+      );
+    }
+
     if (script.platformId === MAGIC_DATA_PLATFORM_ID) {
       const activeScriptId = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
       const scriptKey =
@@ -2450,6 +2506,7 @@
     BYTEDANCE_AIDP_PLATFORM_ID: BYTEDANCE_AIDP_PLATFORM_ID,
     MAGIC_DATA_PLATFORM_ID: MAGIC_DATA_PLATFORM_ID,
     ABAKA_AI_PLATFORM_ID: ABAKA_AI_PLATFORM_ID,
+    HAITIAN_UTRANS_PLATFORM_ID: HAITIAN_UTRANS_PLATFORM_ID,
     AISHELL_TECH_PLATFORM_ID: AISHELL_TECH_PLATFORM_ID,
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID:
@@ -2459,6 +2516,8 @@
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
     MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
+    HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID:
+      HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID,
     AISHELL_TECH_MINNAN_SCRIPT_ID: AISHELL_TECH_MINNAN_SCRIPT_ID,
     AISHELL_TECH_VIETNAMESE_SCRIPT_ID: AISHELL_TECH_VIETNAMESE_SCRIPT_ID,
     AISHELL_TECH_THAI_SCRIPT_ID: AISHELL_TECH_THAI_SCRIPT_ID,
@@ -2599,6 +2658,7 @@
     DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS: createDefaultDataBakerCvpcPlatformSettings(),
     DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS: createDefaultBytedanceAidpPlatformSettings(),
     DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: createDefaultAbakaAiPlatformSettings(),
+    DEFAULT_HAITIAN_UTRANS_PLATFORM_SETTINGS: createDefaultHaitianUtransPlatformSettings(),
     DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: createDefaultAishellTechPlatformSettings(),
     DEFAULT_SETTINGS: clone(DEFAULT_SETTINGS),
     LEGACY_ROOT_DEBUG_KEY: LEGACY_ROOT_DEBUG_KEY,

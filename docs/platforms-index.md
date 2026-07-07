@@ -103,6 +103,7 @@
 - 运行时代码：`extension/sites/haitian-utrans/audio-download-helper/`
 - 运行时 README：`extension/sites/haitian-utrans/audio-download-helper/README.md`
 - 脚本资料：`platform-resources/haitian-utrans/audio-download-helper/README.md`
+- 设置面板：脚本详情页仅提供“是否开启悬浮窗下载功能”单开关
 
 ## 额外说明
 

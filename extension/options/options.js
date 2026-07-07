@@ -30,6 +30,8 @@
     constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
   const abakaAiTaskPageCaptureScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
+  const haitianUtransAudioDownloadHelperScriptId =
+    constants.HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID || "haitianUtransAudioDownloadHelper";
   const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const backendModeLocal = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const backendModeBeta = constants.BACKEND_ENDPOINT_MODE_BETA || "beta";
@@ -4304,6 +4306,10 @@
     return scriptId === abakaAiTaskPageCaptureScriptId;
   }
 
+  function isHaitianUtransScript(scriptId) {
+    return scriptId === haitianUtransAudioDownloadHelperScriptId;
+  }
+
   function isAishellTechScript(scriptId) {
     return (
       scriptId === aishellTechMinnanScriptId ||
@@ -6279,6 +6285,27 @@
     return merged;
   }
 
+  function getHaitianUtransAudioDownloadHelperConfig(settings) {
+    const defaults =
+      constants.DEFAULT_SETTINGS?.platforms?.haitianUtrans?.scripts?.audioDownloadHelper || {};
+    const current =
+      settings?.platforms?.haitianUtrans?.scripts?.audioDownloadHelper || {};
+    const currentEnabled =
+      settings?.platforms?.haitianUtrans?.scripts?.audioDownloadHelper?.enabled !== false;
+    const merged = Object.assign(
+      {
+        id: haitianUtransAudioDownloadHelperScriptId,
+        enabled: true,
+      },
+      clone(defaults),
+      clone(current)
+    );
+
+    merged.id = haitianUtransAudioDownloadHelperScriptId;
+    merged.enabled = currentEnabled && merged.enabled !== false;
+    return merged;
+  }
+
   function getTranscriptionAiConfig(settings) {
     const projectState =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[transcriptionProjectId] || {};
@@ -7199,6 +7226,14 @@
       );
     }
 
+    if (isHaitianUtransScript(scriptId)) {
+      const config = getHaitianUtransAudioDownloadHelperConfig(settings);
+      return Boolean(
+        settings?.platforms?.haitianUtrans?.enabled !== false &&
+          config.enabled !== false
+      );
+    }
+
     if (isLabelxScript(scriptId)) {
       return Boolean(
         settings?.platforms?.alibabaLabelx?.enabled &&
@@ -7306,6 +7341,12 @@
     if (isAbakaAiScript(scriptId)) {
       return isScriptEnabled(settings, scriptId)
         ? { text: "已启用（Task21 快捷键）", tone: "enabled" }
+        : { text: "未启用", tone: "disabled" };
+    }
+
+    if (isHaitianUtransScript(scriptId)) {
+      return isScriptEnabled(settings, scriptId)
+        ? { text: "已启用", tone: "enabled" }
         : { text: "未启用", tone: "disabled" };
     }
 
@@ -9036,6 +9077,14 @@
     renderAbakaAiShortcutGrid();
   }
 
+  function applyHaitianUtransAudioDownloadHelperForm(settings) {
+    const config = getHaitianUtransAudioDownloadHelperConfig(settings);
+    const enabledNode = getElement("haitian-utrans-audio-download-enabled");
+    if (enabledNode instanceof HTMLInputElement) {
+      enabledNode.checked = config.enabled !== false;
+    }
+  }
+
   async function saveAbakaAiTaskPageSettings() {
     if (!storage || typeof storage.patchSettings !== "function") {
       setStatus("abaka-status", "当前扩展版本不支持保存 Task21助手设置。");
@@ -9140,6 +9189,46 @@
     } catch (error) {
       setStatus(
         "abaka-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
+  async function saveHaitianUtransAudioDownloadHelperSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("haitian-utrans-status", "当前扩展版本不支持保存 uTrans 音频下载设置。");
+      return false;
+    }
+
+    const currentConfig = getHaitianUtransAudioDownloadHelperConfig(currentSettings || {});
+    const enabledNode = getElement("haitian-utrans-audio-download-enabled");
+    const enabled =
+      enabledNode instanceof HTMLInputElement
+        ? enabledNode.checked === true
+        : currentConfig.enabled !== false;
+
+    setStatus("haitian-utrans-status", "正在保存 uTrans 音频下载设置...");
+    try {
+      currentSettings = await storage.patchSettings({
+        platforms: {
+          haitianUtrans: {
+            enabled: enabled,
+            scripts: {
+              audioDownloadHelper: {
+                id: haitianUtransAudioDownloadHelperScriptId,
+                enabled: enabled,
+              },
+            },
+          },
+        },
+      });
+      applyHaitianUtransAudioDownloadHelperForm(currentSettings);
+      setStatus("haitian-utrans-status", "uTrans 音频下载设置已保存。");
+      return true;
+    } catch (error) {
+      setStatus(
+        "haitian-utrans-status",
         "保存失败：" + (error && error.message ? error.message : String(error))
       );
       return false;
@@ -12032,6 +12121,10 @@
       "hidden",
       scriptId !== abakaAiTaskPageCaptureScriptId
     );
+    getElement("detail-haitian-utrans-audio-download-panel").classList.toggle(
+      "hidden",
+      scriptId !== haitianUtransAudioDownloadHelperScriptId
+    );
   }
 
   function renderDetail(settings, scriptId) {
@@ -12062,6 +12155,8 @@
           applyAishellTechForm(currentSettings || settings || {}, scriptId);
         } else if (isMagicDataScript(scriptId)) {
           applyMagicDataSettingsForm(currentSettings || settings || {}, scriptId);
+        } else if (isHaitianUtransScript(scriptId)) {
+          applyHaitianUtransAudioDownloadHelperForm(currentSettings || settings || {});
         }
         ensureInlineHelpDots(getElement("detail-view"));
       });
@@ -12151,6 +12246,16 @@
         "Task21助手仅用于快捷键与 AI 辅助建议；不会自动保存、提交、领取或流转。"
       );
       setStatus("abaka-status", "");
+      return;
+    }
+
+    if (isHaitianUtransScript(scriptId)) {
+      applyHaitianUtransAudioDownloadHelperForm(settings);
+      setStatus(
+        "detail-status",
+        "uTrans 音频下载助手只控制详情页悬浮下载按钮；不会预览音频、不会批量下载，也不会改动平台写操作。"
+      );
+      setStatus("haitian-utrans-status", "");
       return;
     }
   }
@@ -14375,6 +14480,13 @@
     if (saveAbakaSettingsButton) {
       saveAbakaSettingsButton.addEventListener("click", function () {
         void saveAbakaAiTaskPageSettings();
+      });
+    }
+
+    const saveHaitianUtransSettingsButton = getElement("save-haitian-utrans-settings");
+    if (saveHaitianUtransSettingsButton) {
+      saveHaitianUtransSettingsButton.addEventListener("click", function () {
+        void saveHaitianUtransAudioDownloadHelperSettings();
       });
     }
 

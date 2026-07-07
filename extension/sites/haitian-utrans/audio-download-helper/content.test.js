@@ -74,3 +74,38 @@ test("uTrans helper falls back to audio-id based wav filename", function () {
   assert.equal(context.ok, true);
   assert.equal(context.fileName, "audio-a-3009.wav");
 });
+
+test("uTrans helper reads runtime enabled flag from settings", function () {
+  const helperModule = loadModule();
+
+  assert.equal(
+    helperModule.__testOnly.isFeatureEnabledFromSettings({
+      platforms: {
+        haitianUtrans: {
+          enabled: true,
+          scripts: {
+            audioDownloadHelper: {
+              enabled: true,
+            },
+          },
+        },
+      },
+    }),
+    true
+  );
+  assert.equal(
+    helperModule.__testOnly.isFeatureEnabledFromSettings({
+      platforms: {
+        haitianUtrans: {
+          enabled: true,
+          scripts: {
+            audioDownloadHelper: {
+              enabled: false,
+            },
+          },
+        },
+      },
+    }),
+    false
+  );
+});
