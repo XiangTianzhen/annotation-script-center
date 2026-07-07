@@ -9,8 +9,9 @@
   - `https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}`
 - 当前阶段：已接入运行时
 - 当前状态：已接入运行时、分段建议、单段识别直填输入框、批量识别、AI 调用记录与平台暂存写回
-  - 设置页可控制 `画段后自动应用建议` 与 `识别完成后立即填入`
+  - 设置页可控制 `启用 AI 功能`、`画段后自动应用建议` 与 `识别完成后立即填入`
   - 设置页基础设置区已统一把详细说明收进可点击 `?`，并移除单独占位的说明卡
+  - 当 `启用 AI 功能` 关闭并保存后，右侧 `AI 设置` 面板直接隐藏；重新开启后继续沿用原有 AI 参数
   - 管理区 `/management/*` 已补 header 账号区 `切换账号` 按钮，会先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 站点储存，再补清 AIDP / SSO / 第三方登录 Cookie 后刷新页面
   - 关闭自动填入时，行内识别会先缓存结果，再由同一行 `填入` 按钮直填 textarea
   - 运行时现已独立读写 `jinhuaHelper` 配置，并与苏州话共享页面时保持脚本互斥下的 AI 隐藏 owner 隔离

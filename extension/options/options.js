@@ -6725,6 +6725,13 @@
     panel.classList.remove("hidden");
   }
 
+  function shouldShowBytedanceAidpAiSettingsSection(settings, scriptId) {
+    if (scriptId !== bytedanceAidpJinhuaScriptId) {
+      return true;
+    }
+    return getBytedanceAidpJinhuaConfig(settings).aiRecommendEnabled !== false;
+  }
+
   function renderAsrVoiceAiSettingsSection(settings, scriptId) {
     const panel = getElement("detail-shared-asr-ai-panel");
     if (!panel) {
@@ -6790,6 +6797,11 @@
     }
 
     if (isBytedanceAidpScript(scriptId)) {
+      if (scriptId === bytedanceAidpJinhuaScriptId && !shouldShowBytedanceAidpAiSettingsSection(settings, scriptId)) {
+        panel.classList.add("hidden");
+        panel.innerHTML = "";
+        return;
+      }
       renderBytedanceAidpSuzhouAiSettingsSection(panel, headerHtml, defaultsTipId, scriptId);
       return;
     }
@@ -12148,6 +12160,8 @@
     const defaultPlaybackRateNode = getElement("bytedance-aidp-default-playback-rate");
     const fixedWaveZoomNode = getElement("bytedance-aidp-fixed-wave-zoom");
     const contractNode = getElement("bytedance-aidp-contract-mode");
+    const aiEnabledField = getElement("bytedance-aidp-jinhua-ai-enabled-field");
+    const aiEnabledNode = getElement("bytedance-aidp-jinhua-ai-enabled");
     const aiRecommendAutoFillNode = getElement("bytedance-aidp-ai-recommend-auto-fill-enabled");
     const aiRecommendNode = getElement("bytedance-aidp-ai-recommend-enabled");
     const timeoutNode = getElement("bytedance-aidp-ai-timeout");
@@ -12200,6 +12214,12 @@
         config.contractMode === "dom-guarded"
           ? "仅允许 DOM 显隐、波形控件回填、快捷键触发页面真实按钮和显式分段建议写回；不触发提交或下一题。"
           : String(config.contractMode || "dom-guarded");
+    }
+    if (aiEnabledField instanceof HTMLElement) {
+      aiEnabledField.classList.toggle("hidden", activeScriptId !== bytedanceAidpJinhuaScriptId);
+    }
+    if (aiEnabledNode instanceof HTMLInputElement) {
+      aiEnabledNode.checked = config.aiRecommendEnabled !== false;
     }
     if (aiRecommendAutoFillNode instanceof HTMLInputElement) {
       aiRecommendAutoFillNode.checked = config.aiRecommendAutoFillEnabled !== false;
@@ -12764,12 +12784,18 @@
       getElement("bytedance-aidp-fixed-wave-zoom")?.value,
       currentConfig.fixedWaveZoom
     );
+    const aiEnabledNode = getElement("bytedance-aidp-jinhua-ai-enabled");
+    const aiRecommendEnabled =
+      activeScriptId === bytedanceAidpJinhuaScriptId
+        ? aiEnabledNode instanceof HTMLInputElement
+          ? aiEnabledNode.checked !== false
+          : currentConfig.aiRecommendEnabled !== false
+        : hasAiSettingsPanel
+          ? getElement("bytedance-aidp-ai-recommend-enabled")?.checked !== false
+          : currentConfig.aiRecommendEnabled !== false;
     const aiRecommendAutoFillEnabled = hasAiSettingsPanel
       ? getElement("bytedance-aidp-ai-recommend-auto-fill-enabled")?.checked !== false
       : currentConfig.aiRecommendAutoFillEnabled !== false;
-    const aiRecommendEnabled = hasAiSettingsPanel
-      ? getElement("bytedance-aidp-ai-recommend-enabled")?.checked !== false
-      : currentConfig.aiRecommendEnabled !== false;
     const timeoutInput = hasAiSettingsPanel
       ? getElement("bytedance-aidp-ai-timeout")?.value
       : String(currentConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS);
@@ -12915,7 +12941,9 @@
           },
         },
       });
+      renderAsrVoiceAiSettingsSection(currentSettings, activeScriptId);
       applyBytedanceAidpForm(currentSettings, activeScriptId);
+      updateDetailLayout(activeScriptId);
       setStatus("bytedance-aidp-status", "");
       showTopToast(
         "设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。",

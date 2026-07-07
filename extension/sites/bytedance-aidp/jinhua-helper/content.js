@@ -3546,7 +3546,7 @@
       return;
     }
     if (helperRuntime.config?.aiRecommendEnabled === false) {
-      helperRuntime.ui?.setStatus?.("当前已关闭金华话 AI 识别功能。", "error");
+      helperRuntime.ui?.setStatus?.("当前已关闭金华话 AI 功能。", "error");
       return;
     }
     if (helperRuntime.rowRecommendInFlight === true) {
@@ -4003,7 +4003,7 @@
       },
       onRecommend: function () {
         if (helperConfig.aiRecommendEnabled === false) {
-          ui.setStatus("当前已关闭金华话 AI 识别功能。", "error");
+          ui.setStatus("当前已关闭金华话 AI 功能。", "error");
           return;
         }
         void handleRecommendAction();
@@ -4013,7 +4013,7 @@
       },
       onBatchRecommend: function (selectedNumbers) {
         if (helperConfig.aiRecommendEnabled === false) {
-          ui.setStatus("当前已关闭金华话 AI 识别功能。", "error");
+          ui.setStatus("当前已关闭金华话 AI 功能。", "error");
           return;
         }
         void handleBatchRecommendAction(selectedNumbers);

@@ -1,3 +1,20 @@
+## 2026-07-07（收口金华话 AI 总开关并按状态隐藏 AI 设置面板）
+- 更新 `extension/options/options.html`
+  - 在 ByteDance AIDP 共用基础设置面板新增金华话专属 `启用 AI 功能` 开关，并保留可点击 `?` 说明
+- 更新 `extension/options/options.js`
+  - 为金华话详情页新增 `shouldShowBytedanceAidpAiSettingsSection`
+  - 改为由基础设置里的 `启用 AI 功能` 控制 `aiRecommendEnabled`
+  - 当金华话 AI 功能关闭时，右侧共享 `AI 设置` 面板直接隐藏；重新开启后继续沿用已保存的 AI 参数
+  - 保存金华话设置后会立即重绘详情页布局，避免必须手动切页才能看到 AI 面板显隐变化
+- 更新 `extension/options/options-bytedance-aidp-ui.test.js`
+  - 回归覆盖金华话基础设置新增 AI 总开关，以及脚本源码包含按开关隐藏 `AI 设置` 面板的条件
+- 更新 `extension/sites/bytedance-aidp/jinhua-helper/content.js`
+  - 金华话运行时提示文案从“AI 识别功能”收口为“AI 功能”，与设置页语义保持一致
+- 更新文档：
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - 同步金华话 `启用 AI 功能` 开关与 `AI 设置` 面板隐藏规则
+
 ## 2026-07-07（修复 ByteDance AIDP 双脚本状态误判并移除金华话设置说明块）
 - 更新 `extension/options/options.js`
   - 新增 `getBytedanceAidpActiveScriptId`，让 ByteDance AIDP 脚本中心与详情页启停状态统一跟随 `activeScriptId`

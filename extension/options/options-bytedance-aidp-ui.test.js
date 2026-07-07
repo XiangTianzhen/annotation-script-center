@@ -31,6 +31,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
     /id="bytedance-aidp-merge-contiguous-suggested-segments-enabled"/
   );
   assert.match(html, /id="bytedance-aidp-segment-preview-auto-apply-enabled"/);
+  assert.match(html, /id="bytedance-aidp-jinhua-ai-enabled"/);
   assert.match(html, /id="bytedance-aidp-default-playback-rate"/);
   assert.match(html, /id="bytedance-aidp-fixed-wave-zoom"/);
   assert.match(html, /id="detail-bytedance-aidp-shortcuts-panel"/);
@@ -77,6 +78,10 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(
     aidpPanelHtml,
     /<strong class="field-title-row">\s*<span>画段后自动应用建议<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>启用 AI 功能<\/span>\s*<span\s+class="inline-help-dot"[^>]*data-help-text=/
   );
   assert.match(
     aidpPanelHtml,
@@ -148,6 +153,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /top-toast/);
   assert.match(script, /设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。/);
   assert.match(script, /function renderBytedanceAidpSuzhouAiSettingsSection\(/);
+  assert.match(script, /function shouldShowBytedanceAidpAiSettingsSection\(/);
   assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);
   assert.match(script, /function refreshBytedanceAidpSuzhouStageParamHelpText\(/);
   assert.match(script, /function ensureInlineHelpDots\(/);
@@ -161,6 +167,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function renderBytedanceAidpShortcutGrid\(/);
   assert.match(script, /platformAiEnabled/);
   assert.match(script, /aiRecommendEnabled/);
+  assert.match(script, /bytedance-aidp-jinhua-ai-enabled/);
   assert.match(script, /aiRecommendAutoFillEnabled/);
   assert.match(script, /aiRecommendRequestTimeoutMs/);
   assert.match(script, /aiRecommendListenModel/);
@@ -207,6 +214,14 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(
     script,
     /aiRecommendEnabled:\s*aiRecommendEnabled/
+  );
+  assert.match(
+    script,
+    /const aiEnabledNode = getElement\("bytedance-aidp-jinhua-ai-enabled"\);/
+  );
+  assert.match(
+    script,
+    /if \(scriptId === bytedanceAidpJinhuaScriptId && !shouldShowBytedanceAidpAiSettingsSection\(settings, scriptId\)\) \{[\s\S]*panel\.innerHTML = ""/
   );
   assert.match(
     script,
