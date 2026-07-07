@@ -353,13 +353,27 @@
   }
 
   function getCurrentInputValue() {
-    const input = getTextInput();
-    return isInputElement(input) ? normalizeText(input.value) : "";
+    return readDisplayedMarkFieldValues(document).text;
   }
 
   function getCurrentSpeedValue() {
-    const input = getSpeedInput();
-    return isInputElement(input) ? normalizeThaiSpeedValue(input.value) : "";
+    return normalizeThaiSpeedValue(readDisplayedMarkFieldValues(document).speed);
+  }
+
+  function getCurrentInputDisplayValue() {
+    return readDisplayedMarkFieldValues(document).text;
+  }
+
+  function getCurrentSpeedDisplayValue() {
+    return readDisplayedMarkFieldValues(document).speed;
+  }
+
+  function readDisplayedMarkFieldValues(documentLike) {
+    const inputs = findMarkFieldInputs(documentLike);
+    return {
+      text: isInputElement(inputs.text) ? normalizeText(inputs.text.value) : "",
+      speed: isInputElement(inputs.speed) ? normalizeText(inputs.speed.value) : "",
+    };
   }
 
   function getTextInput() {
@@ -1107,6 +1121,10 @@
       source.includeCurrentInput === true ? getCurrentInputValue() : "";
     const existingMarkSpeed =
       source.includeCurrentInput === true ? getCurrentSpeedValue() : "";
+    const existingDisplayText =
+      source.includeCurrentInput === true ? getCurrentInputDisplayValue() : "";
+    const existingDisplaySpeed =
+      source.includeCurrentInput === true ? getCurrentSpeedDisplayValue() : "";
     const referenceText = normalizeText(record.text) || getReferenceTextFromDom();
     const audioUrl = buildAudioUrl(taskDetail.dataRoot, record.url);
     const userMeta = getPlatformUserMetaFromPage();
@@ -1120,6 +1138,8 @@
         referenceText: referenceText,
         existingMarkText: existingMarkText,
         existingMarkSpeed: existingMarkSpeed,
+        existingDisplayText: existingDisplayText,
+        existingDisplaySpeed: existingDisplaySpeed,
         duration: null,
         spendTime: Number(record.spendTime || 0) || 0,
         dataStatus: Number(record.dataStatus || 0) || 0,
@@ -1496,7 +1516,9 @@
       getBatchTasksForPackage,
       getCurrentItem,
       getCurrentInputValue,
+      getCurrentInputDisplayValue,
       getCurrentSpeedValue,
+      getCurrentSpeedDisplayValue,
       getItemByIndex,
       getItemByTask,
       getRecordDisplayName,
@@ -1527,6 +1549,7 @@
     extractSavedMarkSpeed,
     extractAuthTokenFromUnknown,
     findMarkFieldInputs,
+    readDisplayedMarkFieldValues,
     findPlatformAccountNameFromDocument,
     findAuthTokenInEntries,
     isSaveCompletionState,

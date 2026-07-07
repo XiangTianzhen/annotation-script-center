@@ -1,3 +1,20 @@
+## 2026-07-07（修复希尔贝壳泰语助手一致态误判并保持始终可填入）
+- 更新 `extension/sites/aishell-tech/thai-helper/data-api.js`
+  - 增加页面当前显示值读取，保留中文 `语速` 原值供结果卡判断
+  - 保存与保存后比对继续使用英文 `slow / normal / fast` 规范值
+- 更新 `extension/sites/aishell-tech/thai-helper/ui-panel.js`
+  - `填入并保存` 改为只要当前 AI 返回文本或语速建议就始终可点
+  - 一致态从“禁用并提示无需处理”改成非阻塞提示：`当前与页面一致，仍可重新填入保存。`
+  - 结果卡一致判断改为按页面当前显示值比较，修复 `正常` vs `normal` 被误判为一致
+- 更新 `extension/sites/aishell-tech/thai-helper/content.js`
+  - 单条识别完成后统一提示 `当前条识别完成。`
+  - 单条与批量结果卡都改为传入页面当前显示值，而不是只传内部归一化后的速度值
+- 更新测试：
+  - `extension/sites/aishell-tech/thai-helper-ui-panel.test.js`
+  - `extension/sites/aishell-tech/thai-helper-data-api.test.js`
+- 更新文档：
+  - `extension/sites/aishell-tech/thai-helper/README.md`
+
 ## 2026-07-07（收口希尔贝壳泰语助手语速为英文三档）
 - 更新 `platform-resources/aishell-tech/thai-helper/backend/pipeline.js`
   - 将 Thai 语速归一化正式口径切换为 `slow / normal / fast`

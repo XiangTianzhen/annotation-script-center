@@ -171,18 +171,39 @@
     return Boolean(normalizeSpeedText(result?.recommendedSpeed));
   }
 
+  function hasFillableRecommendation(result) {
+    return hasRecommendedText(result) || hasRecommendedSpeed(result);
+  }
+
   function isSameAsCurrentText(result) {
     const source = result && typeof result === "object" ? result : {};
     const recommendedText = normalizeCompareText(source.recommendedText);
-    const currentText = normalizeCompareText(source.currentText || source.referenceText);
+    const currentText = normalizeCompareText(
+      source.currentDisplayText || source.currentText || source.referenceText
+    );
     return Boolean(recommendedText) && Boolean(currentText) && recommendedText === currentText;
   }
 
   function isSameAsCurrentSpeed(result) {
     const source = result && typeof result === "object" ? result : {};
     const recommendedSpeed = normalizeSpeedText(source.recommendedSpeed);
-    const currentSpeed = normalizeSpeedText(source.currentSpeed);
+    const currentSpeed = normalizeSpeedText(source.currentDisplaySpeed || source.currentSpeed);
     return Boolean(recommendedSpeed) && Boolean(currentSpeed) && recommendedSpeed === currentSpeed;
+  }
+
+  function isSameAsDisplayedCurrent(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const textComparable = hasRecommendedText(source) && Boolean(
+      normalizeCompareText(source.currentDisplayText || source.currentText || source.referenceText)
+    );
+    const speedComparable = hasRecommendedSpeed(source) && Boolean(
+      normalizeSpeedText(source.currentDisplaySpeed || source.currentSpeed)
+    );
+    if (!textComparable && !speedComparable) {
+      return false;
+    }
+    return (!textComparable || isSameAsCurrentText(source)) &&
+      (!speedComparable || isSameAsCurrentSpeed(source));
   }
 
   function buildResultRows(result) {
@@ -196,10 +217,7 @@
   }
 
   function canFillCurrentResult(result) {
-    const source = result && typeof result === "object" ? result : {};
-    const textNeedsApply = hasRecommendedText(source) && !isSameAsCurrentText(source);
-    const speedNeedsApply = hasRecommendedSpeed(source) && !isSameAsCurrentSpeed(source);
-    return textNeedsApply || speedNeedsApply;
+    return hasFillableRecommendation(result);
   }
 
   function sanitizeButtonClassName(className, fallback) {
@@ -333,9 +351,6 @@
 
     function fillCurrentRecommendedText() {
       const result = requireCurrentResult();
-      if (!canFillCurrentResult(result)) {
-        return Promise.reject(new Error("当前文本与语速都已一致，无需填入。"));
-      }
       if (typeof deps.fillAndSaveCurrent !== "function") {
         return Promise.reject(new Error("当前运行时没有填入并保存能力。"));
       }
@@ -428,7 +443,7 @@
       resultHintNode.className = "asc-result-label";
       resultHintNode.style.display = "none";
       resultHintNode.style.color = "#047857";
-      resultHintNode.textContent = "当前文本与语速都已一致，无需处理。";
+      resultHintNode.textContent = "当前与页面一致，仍可重新填入保存。";
       recommendContent.appendChild(resultHintNode);
 
       recommendRow.appendChild(recommendContent);
@@ -782,7 +797,7 @@
       const recommendedText = String(source.recommendedText || "");
       const recommendedSpeed = String(source.recommendedSpeed || "");
       const referenceText = String(source.referenceText || "");
-      const noChangesNeeded = !canFillCurrentResult(source);
+      const sameAsDisplayedCurrent = isSameAsDisplayedCurrent(source);
       if (recommendTextDisplay) {
         recommendTextDisplay.textContent = recommendedText || "暂无识别结果";
         recommendTextDisplay.style.backgroundColor = "#f0fdf4";
@@ -803,7 +818,7 @@
         fillRecommendBtn.disabled = !canFillCurrentResult(source);
       }
       if (resultHintNode) {
-        resultHintNode.style.display = noChangesNeeded ? "" : "none";
+        resultHintNode.style.display = sameAsDisplayedCurrent ? "" : "none";
       }
 
       resultNode = document.createElement("div");
@@ -824,7 +839,8 @@
 
       advancedSectionNode.appendChild(resultNode);
       return {
-        canApply: !noChangesNeeded,
+        canApply: canFillCurrentResult(source),
+        sameAsDisplayedCurrent: sameAsDisplayedCurrent,
       };
     }
 
@@ -982,6 +998,8 @@
     buildBatchRows,
     buildResultRows,
     canFillCurrentResult,
+    hasFillableRecommendation,
+    isSameAsDisplayedCurrent,
   };
 
   globalThis.__ASREdgeAishellTechThaiUiPanel = api;

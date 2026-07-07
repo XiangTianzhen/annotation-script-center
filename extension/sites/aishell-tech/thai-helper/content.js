@@ -332,16 +332,11 @@
         const result = await aiClient.recommend(item);
         const renderMeta = panel.renderResult(
           Object.assign({}, result, {
-            currentText: item.existingMarkText,
-            currentSpeed: item.existingMarkSpeed,
+            currentText: item.existingDisplayText || item.existingMarkText,
+            currentSpeed: item.existingDisplaySpeed || item.existingMarkSpeed,
           })
         ) || {};
-        panel.setStatus(
-          renderMeta.canApply === false
-            ? "当前条识别完成，文本与语速都已一致，无需处理。"
-            : "当前条识别完成。",
-          "success"
-        );
+        panel.setStatus("当前条识别完成。", "success");
       } catch (error) {
         panel.setStatus(error?.message || String(error), "error", error?.rawResponse || null);
       } finally {
@@ -530,8 +525,10 @@
               }
               panel.renderResult(
                 Object.assign({}, entry.value, {
-                  currentText: dataApi.getCurrentInputValue?.() || "",
-                  currentSpeed: dataApi.getCurrentSpeedValue?.() || "",
+                  currentText:
+                    dataApi.getCurrentInputDisplayValue?.() || dataApi.getCurrentInputValue?.() || "",
+                  currentSpeed:
+                    dataApi.getCurrentSpeedDisplayValue?.() || dataApi.getCurrentSpeedValue?.() || "",
                 })
               );
               failureStage = "save_current";

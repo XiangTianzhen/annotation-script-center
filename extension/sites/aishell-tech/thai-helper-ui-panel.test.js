@@ -44,7 +44,37 @@ test("Aishell Thai result stays actionable when text matches but speed differs",
         currentSpeed: "normal",
         recommendedSpeed: "normal",
       }),
+      true
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell Thai result compares same-state hint against displayed values", function () {
+  const harness = loadModule();
+
+  try {
+    const helper = harness.api.__test__?.isSameAsDisplayedCurrent;
+    assert.equal(typeof helper, "function");
+
+    assert.equal(
+      helper({
+        referenceText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
+        recommendedText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
+        currentSpeed: "正常",
+        recommendedSpeed: "normal",
+      }),
       false
+    );
+    assert.equal(
+      helper({
+        referenceText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
+        recommendedText: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย",
+        currentSpeed: "normal",
+        recommendedSpeed: "normal",
+      }),
+      true
     );
   } finally {
     harness.cleanup();

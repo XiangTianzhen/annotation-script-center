@@ -101,3 +101,37 @@ test("Aishell Thai field lookup resolves text and speed inputs by for attribute"
     harness.cleanup();
   }
 });
+
+test("Aishell Thai displayed field reader keeps raw speed text for UI hint checks", function () {
+  const harness = loadApi();
+
+  try {
+    const textInput = {
+      value: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย.",
+      tagName: "INPUT",
+    };
+    const speedInput = {
+      value: "正常",
+      tagName: "INPUT",
+    };
+    const documentLike = {
+      querySelectorAll: function (selector) {
+        assert.equal(selector, ".mark-area .el-form-item");
+        return [
+          createRow("text", "文本", textInput),
+          createRow("speed", "语速", speedInput),
+        ];
+      },
+    };
+
+    const fields = harness.api.readDisplayedMarkFieldValues(documentLike);
+
+    assert.deepEqual(fields, {
+      text: "ตั้งนาฬิกาปลุกเวลาหนึ่งโมงบ่าย.",
+      speed: "正常",
+    });
+    assert.equal(harness.api.normalizeThaiSpeedValue(fields.speed), "normal");
+  } finally {
+    harness.cleanup();
+  }
+});
