@@ -280,6 +280,14 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /bytedance-aidp-ai-refine-model-select/);
   assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"[\s\S]*data-aidp-custom-select="true"/);
   assert.match(html, /<select\s+id="bytedance-aidp-fixed-wave-zoom"[\s\S]*data-aidp-custom-select="true"/);
+  assert.match(html, /id="aidp-dropdown-demo"/);
+  assert.match(html, /id="aidp-dropdown-demo-trigger"/);
+  assert.match(html, /id="aidp-dropdown-demo-menu"/);
+  assert.match(html, /Select framework/);
+  assert.match(script, /function ensureAidpDropdownDemo\(/);
+  assert.match(script, /function syncAidpDropdownDemoSelection\(/);
+  assert.match(css, /\.aidp-dropdown-demo \{/);
+  assert.match(css, /\.aidp-dropdown-demo-menu \{/);
   assert.match(script, /<select id="bytedance-aidp-ai-listen-model-select" data-aidp-custom-select="true"><\/select>/);
   assert.match(script, /<select id="bytedance-aidp-ai-refine-model-select" data-aidp-custom-select="true"><\/select>/);
   assert.match(script, /aidp-custom-select/);

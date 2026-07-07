@@ -12749,6 +12749,75 @@
     }
   }
 
+  function syncAidpDropdownDemoSelection(value, label) {
+    const valueNode = getElement("aidp-dropdown-demo-value");
+    if (!(valueNode instanceof HTMLElement)) {
+      return;
+    }
+    const normalizedValue = normalizeText(value);
+    const normalizedLabel = normalizeText(label);
+    valueNode.textContent = normalizedLabel || "Select framework";
+    valueNode.classList.toggle("is-placeholder", !normalizedValue);
+    Array.from(document.querySelectorAll(".aidp-dropdown-demo-option")).forEach(function (node) {
+      if (!(node instanceof HTMLButtonElement)) {
+        return;
+      }
+      const selected = normalizeText(node.getAttribute("data-value")) === normalizedValue;
+      node.classList.toggle("is-selected", selected);
+      node.setAttribute("aria-selected", selected ? "true" : "false");
+    });
+  }
+
+  function setAidpDropdownDemoOpen(open) {
+    const root = getElement("aidp-dropdown-demo");
+    const trigger = getElement("aidp-dropdown-demo-trigger");
+    const menu = getElement("aidp-dropdown-demo-menu");
+    if (!(root instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) {
+      return;
+    }
+    const shouldOpen = open === true;
+    root.setAttribute("data-open", shouldOpen ? "true" : "false");
+    trigger.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    menu.hidden = !shouldOpen;
+  }
+
+  function ensureAidpDropdownDemo() {
+    const root = getElement("aidp-dropdown-demo");
+    const trigger = getElement("aidp-dropdown-demo-trigger");
+    const menu = getElement("aidp-dropdown-demo-menu");
+    if (!(root instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) {
+      return;
+    }
+    if (root.getAttribute("data-demo-bound") === "true") {
+      return;
+    }
+    root.setAttribute("data-demo-bound", "true");
+    syncAidpDropdownDemoSelection("", "");
+    trigger.addEventListener("click", function () {
+      const isOpen = root.getAttribute("data-open") === "true";
+      setAidpDropdownDemoOpen(!isOpen);
+    });
+    Array.from(root.querySelectorAll(".aidp-dropdown-demo-option")).forEach(function (node) {
+      if (!(node instanceof HTMLButtonElement)) {
+        return;
+      }
+      node.addEventListener("click", function () {
+        syncAidpDropdownDemoSelection(
+          node.getAttribute("data-value") || "",
+          node.getAttribute("data-label") || node.textContent || ""
+        );
+        setAidpDropdownDemoOpen(false);
+      });
+    });
+    document.addEventListener("click", function (event) {
+      const target = event.target instanceof Element ? event.target.closest("#aidp-dropdown-demo") : null;
+      if (target instanceof HTMLElement) {
+        return;
+      }
+      setAidpDropdownDemoOpen(false);
+    });
+  }
+
   function renderDetailHeader(settings, scriptId) {
     const script = scriptLibrary[scriptId] || {};
     const platform = platformLibrary[script.platformId] || {};
@@ -12775,6 +12844,7 @@
     const disableButton = getElement("detail-disable-button");
     const toggleButton = getElement("detail-toggle-button");
     const saveButton = getElement("save-bytedance-aidp-settings");
+    const dropdownDemo = getElement("aidp-dropdown-demo");
     const enabled = isScriptEnabled(settings, scriptId);
     const isBytedanceAidpDetail = isBytedanceAidpScript(scriptId);
 
@@ -12798,6 +12868,14 @@
     }
     if (saveButton instanceof HTMLButtonElement) {
       saveButton.classList.toggle("hidden", !isBytedanceAidpDetail);
+    }
+    if (dropdownDemo instanceof HTMLElement) {
+      dropdownDemo.classList.toggle("hidden", !isBytedanceAidpDetail);
+      if (isBytedanceAidpDetail) {
+        ensureAidpDropdownDemo();
+      } else {
+        setAidpDropdownDemoOpen(false);
+      }
     }
   }
 
