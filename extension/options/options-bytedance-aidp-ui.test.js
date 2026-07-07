@@ -213,6 +213,11 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
     script,
     /<div class="asr-ai-note" id="asr-ai-defaults-tip"><\/div>/
   );
+  assert.match(
+    script,
+    /<div class="asr-ai-block"><strong>基础设置<\/strong><div class="asr-ai-grid two aidp-ai-controls aidp-ai-controls-two">/
+  );
+  assert.doesNotMatch(script, /aidp-ai-controls-three/);
   assert.doesNotMatch(script, /启用普通话翻译识别/);
   assert.doesNotMatch(script, /启用普通话听写识别/);
   assert.doesNotMatch(script, /bytedance-aidp-ai-recommend-enabled/);
@@ -237,9 +242,15 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /buildAsrAiLabelMarkup\(\s*"思考开关"/);
   assert.match(script, /金华话脚本不允许开启 Omni 思考模式/);
   assert.match(script, /苏州话脚本不允许开启 Omni 思考模式/);
+  assert.match(script, /data-preserve-switch-text="true"/);
+  assert.match(script, /if \(!preserveSwitchText && labelTextNode\)/);
   assert.match(script, /function getBytedanceAidpSuzhouSettingsDraftConfig\(/);
   assert.match(script, /function ensureBytedanceAidpShortcutDraft\(/);
   assert.match(script, /function renderBytedanceAidpShortcutGrid\(/);
+  assert.match(script, /function syncAidpCustomSelects\(/);
+  assert.match(script, /function syncAidpLineNumberTextareas\(/);
+  assert.match(script, /function ensureAidpCustomSelect\(/);
+  assert.match(script, /function ensureAidpLineNumberTextarea\(/);
   assert.match(script, /platformAiEnabled/);
   assert.match(script, /aiRecommendEnabled/);
   assert.match(script, /bytedance-aidp-ai-enabled/);
@@ -257,10 +268,37 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /bytedance-aidp-ai-timeout/);
   assert.match(script, /bytedance-aidp-ai-listen-model-select/);
   assert.match(script, /bytedance-aidp-ai-refine-model-select/);
+  assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"[\s\S]*data-aidp-custom-select="true"/);
+  assert.match(html, /<select\s+id="bytedance-aidp-fixed-wave-zoom"[\s\S]*data-aidp-custom-select="true"/);
+  assert.match(script, /<select id="bytedance-aidp-ai-listen-model-select" data-aidp-custom-select="true"><\/select>/);
+  assert.match(script, /<select id="bytedance-aidp-ai-refine-model-select" data-aidp-custom-select="true"><\/select>/);
+  assert.match(script, /aidp-custom-select/);
+  assert.match(script, /aidp-select-trigger/);
+  assert.match(script, /aidp-select-menu/);
+  assert.match(script, /aidp-select-option/);
   assert.match(script, /单段识别成功后直接填入对应输入框，不主动走平台暂存请求/);
   assert.match(script, /普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取/);
   assert.match(script, /限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字/);
   assert.doesNotMatch(script, /bytedance-aidp-ai-listen-prompt" maxlength="8000"><\/textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt/);
+  assert.match(script, /听音 Prompt/);
+  assert.match(script, /收口 Prompt/);
+  assert.match(script, /data-aidp-lined-textarea="prompt"/);
+  assert.match(script, /data-aidp-lined-textarea="compact"/);
+  assert.match(script, /aidp-lined-textarea-gutter/);
+  assert.match(script, /aidp-lined-textarea-shell/);
+  assert.match(
+    script,
+    /listenPromptNode\.value = String\(\s*getAsrVoiceAiEffectiveText\(currentConfig\.aiRecommendListenPrompt,\s*stageDefaults\.listen\.prompt\)\s*\)/
+  );
+  assert.match(
+    script,
+    /refinePromptNode\.value = String\(\s*getAsrVoiceAiEffectiveText\(currentConfig\.aiRecommendRefinePrompt,\s*stageDefaults\.refine\.prompt\)\s*\)/
+  );
+  assert.match(
+    script,
+    /node\.value = String\(\s*getAsrVoiceAiEffectiveText\(rawValue,\s*stageDefaults\?\.\[definition\.apiKey\]\)\s*\)/
+  );
+  assert.match(script, /<div class="asr-ai-grid two aidp-ai-stage-params">/);
   assert.match(script, /普通话听写收口/);
   assert.match(script, /detail-bytedance-aidp-shortcuts-panel/);
   assert.match(script, /bytedance-aidp-shortcut-grid/);

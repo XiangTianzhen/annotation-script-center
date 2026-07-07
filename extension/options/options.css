@@ -661,8 +661,8 @@ p {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.aidp-ai-controls.aidp-ai-controls-three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.aidp-ai-controls.aidp-ai-controls-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .asr-ai-note {
@@ -1248,7 +1248,7 @@ p {
   .detail-grid.two,
   .asr-ai-grid.two,
   .asr-ai-grid.three,
-  .aidp-ai-controls.aidp-ai-controls-three,
+  .aidp-ai-controls.aidp-ai-controls-two,
   .color-grid {
     grid-template-columns: 1fr;
   }
@@ -2089,12 +2089,253 @@ body {
   background: #ffffff;
 }
 
+.detail-ai-panel .aidp-ai-controls.aidp-ai-controls-two .asr-ai-field {
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  background: rgba(248, 250, 255, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 6px 18px rgba(148, 163, 184, 0.08);
+}
+
+.detail-ai-panel .aidp-ai-stage-params .asr-ai-field {
+  align-content: start;
+}
+
+.detail-ai-panel .aidp-ai-stage-params .asr-ai-field textarea {
+  min-height: 52px;
+}
+
+.detail-workbench .aidp-custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.detail-workbench .aidp-select-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.detail-workbench .aidp-select-trigger {
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(203, 213, 225, 0.98);
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 3px 10px rgba(148, 163, 184, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.detail-workbench .aidp-select-trigger:focus-visible,
+.detail-workbench .aidp-custom-select[data-open="true"] .aidp-select-trigger {
+  border-color: rgba(96, 165, 250, 0.98);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 0 0 4px rgba(96, 165, 250, 0.12),
+    0 8px 16px rgba(148, 163, 184, 0.1);
+  outline: none;
+}
+
+.detail-workbench .aidp-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.detail-workbench .aidp-select-trigger-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.detail-workbench .aidp-select-trigger-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.detail-workbench .aidp-select-trigger-icon::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-right: 1.8px solid #6b7d99;
+  border-bottom: 1.8px solid #6b7d99;
+  transform: rotate(45deg);
+  transition: transform 140ms ease;
+}
+
+.detail-workbench .aidp-custom-select[data-open="true"] .aidp-select-trigger-icon::before {
+  transform: rotate(225deg) translate(-1px, -1px);
+}
+
+.detail-workbench .aidp-select-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 4500;
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(203, 213, 225, 0.98);
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+  display: grid;
+  gap: 4px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.detail-workbench .aidp-select-option {
+  position: relative;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px 0 32px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.detail-workbench .aidp-select-option::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 8px;
+  height: 4px;
+  border-left: 1.8px solid transparent;
+  border-bottom: 1.8px solid transparent;
+  transform: rotate(-45deg);
+}
+
+.detail-workbench .aidp-select-option:hover,
+.detail-workbench .aidp-select-option.is-highlighted {
+  background: rgba(241, 245, 249, 0.96);
+}
+
+.detail-workbench .aidp-select-option.is-selected::before {
+  border-left-color: #111827;
+  border-bottom-color: #111827;
+}
+
+.detail-workbench .aidp-select-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.detail-workbench .aidp-lined-textarea {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 50px;
+  border-radius: 16px;
+  border: 1px solid rgba(203, 213, 225, 0.98);
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 3px 10px rgba(148, 163, 184, 0.08);
+  overflow: hidden;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.detail-workbench .aidp-lined-textarea:focus-within {
+  border-color: rgba(96, 165, 250, 0.98);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 0 0 4px rgba(96, 165, 250, 0.12),
+    0 8px 16px rgba(148, 163, 184, 0.1);
+}
+
+.detail-workbench .aidp-lined-textarea-gutter {
+  padding: 12px 10px 12px 14px;
+  border-right: 1px solid rgba(226, 232, 240, 0.96);
+  background: rgba(248, 250, 255, 0.96);
+  color: #7b8aa3;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+  overflow: hidden;
+}
+
+.detail-workbench .aidp-lined-textarea-shell {
+  min-width: 0;
+}
+
+.detail-workbench .aidp-lined-textarea textarea {
+  min-height: 50px;
+  padding: 12px 14px 12px 12px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  resize: vertical;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.detail-workbench .aidp-lined-textarea textarea:focus {
+  box-shadow: none;
+}
+
+.detail-workbench .aidp-lined-textarea-prompt {
+  min-height: 164px;
+}
+
+.detail-workbench .aidp-lined-textarea-prompt textarea {
+  min-height: 164px;
+}
+
+.detail-workbench .aidp-lined-textarea-compact {
+  min-height: 52px;
+}
+
+.detail-workbench .aidp-lined-textarea-compact textarea {
+  min-height: 52px;
+}
+
 .detail-ai-panel .asr-ai-grid.one .asr-ai-field textarea {
   min-height: 144px;
 }
 
 .detail-ai-panel .asr-ai-grid.three .asr-ai-field textarea {
   min-height: 104px;
+}
+
+.detail-ai-panel .asr-ai-grid.one .asr-ai-field .aidp-lined-textarea-prompt textarea {
+  min-height: 164px;
+}
+
+.detail-ai-panel .aidp-ai-stage-params .asr-ai-field .aidp-lined-textarea-compact textarea {
+  min-height: 52px;
 }
 
 .detail-workbench .field-actions {

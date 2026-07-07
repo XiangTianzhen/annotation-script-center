@@ -89,6 +89,8 @@
   let hoveredInlineHelpAnchor = null;
   let inlineHelpPopoverNode = null;
   let inlineHelpListenersBound = false;
+  let activeAidpCustomSelectNode = null;
+  let aidpCustomSelectListenersBound = false;
   const betaFeaturesVisibleByDefault = constants.BETA_FEATURES_VISIBLE_BY_DEFAULT === true;
   const getBackendModeFromSettings =
     typeof constants.getBackendEndpointModeFromSettings === "function"
@@ -1297,9 +1299,12 @@
     input.disabled = true;
     input.title = normalizedMessage;
     input.setAttribute("aria-disabled", "true");
+    const preserveSwitchText = input.getAttribute("data-preserve-switch-text") === "true";
 
-    const labelTextNode = input.parentElement?.querySelector("span");
-    if (labelTextNode) {
+    const labelTextNode =
+      input.parentElement?.querySelector(".switch-text") ||
+      input.parentElement?.querySelector("span");
+    if (!preserveSwitchText && labelTextNode) {
       labelTextNode.textContent = normalizedMessage;
     }
   }
@@ -3547,11 +3552,10 @@
         return;
       }
       const rawValue = config?.[configPrefix + definition.suffix];
-      node.value = rawValue === undefined || rawValue === null ? "" : String(rawValue);
-      node.placeholder = formatBytedanceAidpSuzhouStageParamDefaultText(
-        definition,
-        stageDefaults?.[definition.apiKey]
+      node.value = String(
+        getAsrVoiceAiEffectiveText(rawValue, stageDefaults?.[definition.apiKey])
       );
+      node.placeholder = "";
     });
     refreshBytedanceAidpSuzhouStageParamHelpTexts(stagePrefix, stageDefaults);
   }
@@ -3608,8 +3612,10 @@
     );
     const listenPromptNode = getElement("bytedance-aidp-ai-listen-prompt");
     if (listenPromptNode instanceof HTMLTextAreaElement) {
-      listenPromptNode.value = String(currentConfig.aiRecommendListenPrompt || "");
-      listenPromptNode.placeholder = String(stageDefaults.listen.prompt || "");
+      listenPromptNode.value = String(
+        getAsrVoiceAiEffectiveText(currentConfig.aiRecommendListenPrompt, stageDefaults.listen.prompt)
+      );
+      listenPromptNode.placeholder = "";
     }
     applyBytedanceAidpSuzhouStageParamValues(
       "listen",
@@ -3628,8 +3634,10 @@
     );
     const refinePromptNode = getElement("bytedance-aidp-ai-refine-prompt");
     if (refinePromptNode instanceof HTMLTextAreaElement) {
-      refinePromptNode.value = String(currentConfig.aiRecommendRefinePrompt || "");
-      refinePromptNode.placeholder = String(stageDefaults.refine.prompt || "");
+      refinePromptNode.value = String(
+        getAsrVoiceAiEffectiveText(currentConfig.aiRecommendRefinePrompt, stageDefaults.refine.prompt)
+      );
+      refinePromptNode.placeholder = "";
     }
     applyBytedanceAidpSuzhouStageParamValues(
       "refine",
@@ -6443,6 +6451,11 @@
       typeof options === "object" && options
         ? normalizeText(options.offText || "") || "关闭"
         : "关闭";
+    const preserveSwitchText =
+      typeof options === "object" && options && options.preserveText === true;
+    const preserveSwitchTextAttr = preserveSwitchText
+      ? ' data-preserve-switch-text="true"'
+      : "";
     return (
       '<label class="asr-ai-boolean switch-boolean"><input id="' +
       escapeHtml(id) +
@@ -6450,7 +6463,9 @@
       escapeHtml(onText) +
       '" data-off-text="' +
       escapeHtml(offText) +
-      '" /><span class="switch-slider" aria-hidden="true"></span><span class="switch-text">' +
+      '"' +
+      preserveSwitchTextAttr +
+      ' /><span class="switch-slider" aria-hidden="true"></span><span class="switch-text">' +
       escapeHtml(onText) +
       "</span></label>"
     );
@@ -6739,6 +6754,392 @@
     });
   }
 
+  function getAidpCustomSelectItems(wrapper) {
+    if (!(wrapper instanceof HTMLElement)) {
+      return [];
+    }
+    return Array.from(wrapper.querySelectorAll(".aidp-select-option")).filter(function (node) {
+      return node instanceof HTMLButtonElement;
+    });
+  }
+
+  function closeAidpCustomSelect(wrapper) {
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    wrapper.setAttribute("data-open", "");
+    const trigger = wrapper.querySelector(".aidp-select-trigger");
+    const menu = wrapper.querySelector(".aidp-select-menu");
+    if (trigger instanceof HTMLButtonElement) {
+      trigger.setAttribute("aria-expanded", "false");
+    }
+    if (menu instanceof HTMLElement) {
+      menu.hidden = true;
+    }
+    if (activeAidpCustomSelectNode === wrapper) {
+      activeAidpCustomSelectNode = null;
+    }
+  }
+
+  function closeAllAidpCustomSelects(exceptWrapper) {
+    Array.from(document.querySelectorAll(".aidp-custom-select[data-open='true']")).forEach(function (
+      node
+    ) {
+      if (!(node instanceof HTMLElement) || node === exceptWrapper) {
+        return;
+      }
+      closeAidpCustomSelect(node);
+    });
+  }
+
+  function setAidpCustomSelectHighlight(wrapper, nextIndex) {
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    const items = getAidpCustomSelectItems(wrapper);
+    if (!items.length) {
+      wrapper.setAttribute("data-highlight-index", "");
+      return;
+    }
+    const safeIndex = Math.max(0, Math.min(Number(nextIndex) || 0, items.length - 1));
+    wrapper.setAttribute("data-highlight-index", String(safeIndex));
+    items.forEach(function (item, index) {
+      const active = index === safeIndex;
+      item.classList.toggle("is-highlighted", active);
+      if (active) {
+        item.scrollIntoView({ block: "nearest" });
+      }
+    });
+  }
+
+  function syncAidpCustomSelectState(selectNode) {
+    if (!(selectNode instanceof HTMLSelectElement)) {
+      return;
+    }
+    const wrapper = selectNode.closest(".aidp-custom-select");
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    const trigger = wrapper.querySelector(".aidp-select-trigger");
+    const label = wrapper.querySelector(".aidp-select-trigger-label");
+    const selectedOption =
+      selectNode.options[selectNode.selectedIndex >= 0 ? selectNode.selectedIndex : 0] || null;
+    if (trigger instanceof HTMLButtonElement) {
+      trigger.disabled = selectNode.disabled;
+    }
+    if (label instanceof HTMLElement) {
+      label.textContent = normalizeText(selectedOption?.textContent || "") || "请选择";
+    }
+    const items = getAidpCustomSelectItems(wrapper);
+    let selectedIndex = 0;
+    items.forEach(function (item, index) {
+      const value = item.getAttribute("data-value");
+      const selected = value === selectNode.value;
+      item.classList.toggle("is-selected", selected);
+      item.setAttribute("aria-selected", selected ? "true" : "false");
+      if (selected) {
+        selectedIndex = index;
+      }
+    });
+    if (!wrapper.getAttribute("data-highlight-index")) {
+      setAidpCustomSelectHighlight(wrapper, selectedIndex);
+    }
+  }
+
+  function openAidpCustomSelect(wrapper) {
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    const menu = wrapper.querySelector(".aidp-select-menu");
+    const trigger = wrapper.querySelector(".aidp-select-trigger");
+    if (!(menu instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || trigger.disabled) {
+      return;
+    }
+    closeAllAidpCustomSelects(wrapper);
+    wrapper.setAttribute("data-open", "true");
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    const selectNode = wrapper.querySelector("select[data-aidp-custom-select='true']");
+    if (selectNode instanceof HTMLSelectElement) {
+      const selectedIndex = Math.max(0, selectNode.selectedIndex);
+      setAidpCustomSelectHighlight(wrapper, selectedIndex);
+    }
+    activeAidpCustomSelectNode = wrapper;
+  }
+
+  function chooseAidpCustomSelectValue(selectNode, value) {
+    if (!(selectNode instanceof HTMLSelectElement)) {
+      return;
+    }
+    if (selectNode.value === value) {
+      syncAidpCustomSelectState(selectNode);
+      const existingWrapper = selectNode.closest(".aidp-custom-select");
+      if (existingWrapper instanceof HTMLElement) {
+        closeAidpCustomSelect(existingWrapper);
+      }
+      return;
+    }
+    selectNode.value = value;
+    syncAidpCustomSelectState(selectNode);
+    selectNode.dispatchEvent(new Event("change", { bubbles: true }));
+    const wrapper = selectNode.closest(".aidp-custom-select");
+    if (wrapper instanceof HTMLElement) {
+      closeAidpCustomSelect(wrapper);
+      const trigger = wrapper.querySelector(".aidp-select-trigger");
+      if (trigger instanceof HTMLButtonElement) {
+        trigger.focus();
+      }
+    }
+  }
+
+  function moveAidpCustomSelectHighlight(wrapper, direction) {
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    const items = getAidpCustomSelectItems(wrapper);
+    if (!items.length) {
+      return;
+    }
+    const currentIndex = Math.max(0, Number(wrapper.getAttribute("data-highlight-index") || 0));
+    const nextIndex = currentIndex + (direction < 0 ? -1 : 1);
+    const normalizedIndex =
+      nextIndex < 0 ? items.length - 1 : nextIndex >= items.length ? 0 : nextIndex;
+    setAidpCustomSelectHighlight(wrapper, normalizedIndex);
+  }
+
+  function ensureAidpCustomSelect(selectNode) {
+    if (!(selectNode instanceof HTMLSelectElement)) {
+      return;
+    }
+    let wrapper = selectNode.closest(".aidp-custom-select");
+    if (!(wrapper instanceof HTMLElement)) {
+      const parent = selectNode.parentElement;
+      if (!(parent instanceof HTMLElement)) {
+        return;
+      }
+      wrapper = document.createElement("div");
+      wrapper.className = "aidp-custom-select";
+      wrapper.setAttribute("data-open", "");
+      wrapper.setAttribute("data-highlight-index", "");
+      parent.insertBefore(wrapper, selectNode);
+      wrapper.appendChild(selectNode);
+      selectNode.classList.add("aidp-select-native");
+
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "aidp-select-trigger";
+      trigger.setAttribute("aria-haspopup", "listbox");
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.innerHTML =
+        '<span class="aidp-select-trigger-label"></span><span class="aidp-select-trigger-icon" aria-hidden="true"></span>';
+
+      const menu = document.createElement("div");
+      menu.className = "aidp-select-menu";
+      menu.setAttribute("role", "listbox");
+      menu.hidden = true;
+
+      wrapper.appendChild(trigger);
+      wrapper.appendChild(menu);
+
+      trigger.addEventListener("click", function () {
+        const isOpen = wrapper.getAttribute("data-open") === "true";
+        if (isOpen) {
+          closeAidpCustomSelect(wrapper);
+          return;
+        }
+        openAidpCustomSelect(wrapper);
+      });
+
+      trigger.addEventListener("keydown", function (event) {
+        const key = normalizeText(event?.key);
+        if (key === "ArrowDown" || key === "Down") {
+          event.preventDefault();
+          if (wrapper.getAttribute("data-open") !== "true") {
+            openAidpCustomSelect(wrapper);
+            return;
+          }
+          moveAidpCustomSelectHighlight(wrapper, 1);
+          return;
+        }
+        if (key === "ArrowUp" || key === "Up") {
+          event.preventDefault();
+          if (wrapper.getAttribute("data-open") !== "true") {
+            openAidpCustomSelect(wrapper);
+            return;
+          }
+          moveAidpCustomSelectHighlight(wrapper, -1);
+          return;
+        }
+        if (key === "Enter" || key === " ") {
+          event.preventDefault();
+          if (wrapper.getAttribute("data-open") !== "true") {
+            openAidpCustomSelect(wrapper);
+            return;
+          }
+          const items = getAidpCustomSelectItems(wrapper);
+          const highlightIndex = Math.max(
+            0,
+            Number(wrapper.getAttribute("data-highlight-index") || 0)
+          );
+          const targetItem = items[highlightIndex];
+          if (targetItem instanceof HTMLButtonElement && !targetItem.disabled) {
+            chooseAidpCustomSelectValue(selectNode, targetItem.getAttribute("data-value") || "");
+          }
+          return;
+        }
+        if (key === "Escape" || key === "Esc") {
+          event.preventDefault();
+          closeAidpCustomSelect(wrapper);
+        }
+      });
+
+      selectNode.addEventListener("change", function () {
+        syncAidpCustomSelectState(selectNode);
+      });
+    }
+
+    const menu = wrapper.querySelector(".aidp-select-menu");
+    if (menu instanceof HTMLElement) {
+      menu.innerHTML = "";
+      Array.from(selectNode.options).forEach(function (option, index) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "aidp-select-option";
+        item.setAttribute("role", "option");
+        item.setAttribute("data-value", option.value);
+        item.setAttribute("data-index", String(index));
+        item.textContent = normalizeText(option.textContent || "");
+        if (option.disabled) {
+          item.disabled = true;
+        }
+        item.addEventListener("mouseenter", function () {
+          setAidpCustomSelectHighlight(wrapper, index);
+        });
+        item.addEventListener("click", function () {
+          if (item.disabled) {
+            return;
+          }
+          chooseAidpCustomSelectValue(selectNode, option.value);
+        });
+        menu.appendChild(item);
+      });
+    }
+
+    syncAidpCustomSelectState(selectNode);
+
+    if (!aidpCustomSelectListenersBound) {
+      document.addEventListener("click", function (event) {
+        const target = event.target instanceof Element ? event.target.closest(".aidp-custom-select") : null;
+        if (target instanceof HTMLElement) {
+          return;
+        }
+        closeAllAidpCustomSelects(null);
+      });
+      window.addEventListener("resize", function () {
+        closeAllAidpCustomSelects(null);
+      });
+      window.addEventListener(
+        "scroll",
+        function () {
+          closeAllAidpCustomSelects(null);
+        },
+        true
+      );
+      aidpCustomSelectListenersBound = true;
+    }
+  }
+
+  function syncAidpCustomSelects(scope) {
+    const root =
+      scope instanceof HTMLElement ||
+      (typeof Document === "function" && scope instanceof Document)
+        ? scope
+        : document;
+    Array.from(root.querySelectorAll("select[data-aidp-custom-select='true']")).forEach(function (
+      selectNode
+    ) {
+      ensureAidpCustomSelect(selectNode);
+    });
+  }
+
+  function buildAidpLineNumberText(value) {
+    const normalized = String(value || "").replace(/\r\n?/g, "\n");
+    const totalLines = Math.max(1, normalized.split("\n").length);
+    return Array.from({ length: totalLines }, function (_, index) {
+      return String(index + 1);
+    }).join("\n");
+  }
+
+  function syncAidpLineNumberTextarea(textarea) {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      return;
+    }
+    const wrapper = textarea.closest(".aidp-lined-textarea");
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    const gutter = wrapper.querySelector(".aidp-lined-textarea-gutter");
+    if (gutter instanceof HTMLElement) {
+      gutter.textContent = buildAidpLineNumberText(textarea.value);
+      gutter.scrollTop = textarea.scrollTop;
+    }
+  }
+
+  function ensureAidpLineNumberTextarea(textarea) {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      return;
+    }
+    const mode = normalizeText(textarea.getAttribute("data-aidp-lined-textarea")) || "prompt";
+    let wrapper = textarea.closest(".aidp-lined-textarea");
+    if (!(wrapper instanceof HTMLElement)) {
+      const parent = textarea.parentElement;
+      if (!(parent instanceof HTMLElement)) {
+        return;
+      }
+      wrapper = document.createElement("div");
+      wrapper.className = "aidp-lined-textarea aidp-lined-textarea-" + mode;
+
+      const gutter = document.createElement("div");
+      gutter.className = "aidp-lined-textarea-gutter";
+      gutter.setAttribute("aria-hidden", "true");
+
+      const shell = document.createElement("div");
+      shell.className = "aidp-lined-textarea-shell";
+
+      parent.insertBefore(wrapper, textarea);
+      wrapper.appendChild(gutter);
+      wrapper.appendChild(shell);
+      shell.appendChild(textarea);
+    } else {
+      wrapper.className = "aidp-lined-textarea aidp-lined-textarea-" + mode;
+    }
+
+    if (textarea.getAttribute("data-aidp-line-numbers-bound") !== "true") {
+      textarea.setAttribute("data-aidp-line-numbers-bound", "true");
+      textarea.addEventListener("input", function () {
+        syncAidpLineNumberTextarea(textarea);
+      });
+      textarea.addEventListener("scroll", function () {
+        syncAidpLineNumberTextarea(textarea);
+      });
+    }
+
+    syncAidpLineNumberTextarea(textarea);
+  }
+
+  function syncAidpLineNumberTextareas(scope) {
+    const root =
+      scope instanceof HTMLElement ||
+      (typeof Document === "function" && scope instanceof Document)
+        ? scope
+        : document;
+    Array.from(root.querySelectorAll("textarea[data-aidp-lined-textarea]")).forEach(function (
+      textarea
+    ) {
+      ensureAidpLineNumberTextarea(textarea);
+    });
+  }
+
   function getBytedanceAidpSuzhouStageParamHelpElementId(stagePrefix, definition) {
     return getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition) + "-help";
   }
@@ -6785,7 +7186,7 @@
           definition.type === "stop"
             ? '<textarea id="' +
               fieldId +
-              '" maxlength="960"></textarea>'
+              '" maxlength="960" data-aidp-lined-textarea="compact"></textarea>'
             : '<input id="' +
               fieldId +
               '" type="number" min="' +
@@ -7030,7 +7431,7 @@
     panel.innerHTML = [
       '<div class="asr-ai-panel">',
       headerHtml,
-      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid aidp-ai-controls aidp-ai-controls-three">',
+      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two aidp-ai-controls aidp-ai-controls-two">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "识别完成后自动填入",
@@ -7056,6 +7457,7 @@
         buildSwitchBooleanMarkup("bytedance-aidp-ai-enable-thinking", {
           onText: "固定关闭",
           offText: "固定关闭",
+          preserveText: true,
         }) +
         "</label>",
       "</div></div>",
@@ -7067,15 +7469,15 @@
             resultLabel +
             "收口。"
         ) +
-        '</span><select id="bytedance-aidp-ai-listen-model-select"></select></label>',
+        '</span><select id="bytedance-aidp-ai-listen-model-select" data-aidp-custom-select="true"></select></label>',
       '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
-          "听音 Prompt（可选）",
-          "普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取；留空时沿用后端默认 Prompt。"
+          "听音 Prompt",
+          "普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取。"
         ) +
-        '</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000"></textarea></label>',
-      '</div><div class="asr-ai-grid three">' +
+        '</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000" data-aidp-lined-textarea="prompt"></textarea></label>',
+      '</div><div class="asr-ai-grid two aidp-ai-stage-params">' +
         buildBytedanceAidpSuzhouStageParamFieldsMarkup("listen") +
         "</div></div>",
       '<div class="asr-ai-block"><strong>' +
@@ -7083,15 +7485,15 @@
         '收口</strong><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup("收口模型", resultHelpText) +
-        '</span><select id="bytedance-aidp-ai-refine-model-select"></select></label>',
+        '</span><select id="bytedance-aidp-ai-refine-model-select" data-aidp-custom-select="true"></select></label>',
       '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
-          "收口 Prompt（可选）",
-          "限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字；留空时沿用后端默认 Prompt。"
+          "收口 Prompt",
+          "限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字。"
         ) +
-        '</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000"></textarea></label>',
-      '</div><div class="asr-ai-grid three">' +
+        '</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000" data-aidp-lined-textarea="prompt"></textarea></label>',
+      '</div><div class="asr-ai-grid two aidp-ai-stage-params">' +
         buildBytedanceAidpSuzhouStageParamFieldsMarkup("refine") +
         "</div></div>",
       "</div>",
@@ -7115,6 +7517,8 @@
       });
     }
 
+    syncAidpCustomSelects(panel);
+    syncAidpLineNumberTextareas(panel);
     bindSwitchFieldText(panel);
     panel.classList.remove("hidden");
   }
@@ -12664,6 +13068,8 @@
           : "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
       );
     }
+    syncAidpCustomSelects(getElement("detail-shared-asr-ai-panel"));
+    syncAidpLineNumberTextareas(getElement("detail-shared-asr-ai-panel"));
     bindSwitchFieldText(getElement("detail-shared-asr-ai-panel"));
   }
 
@@ -12790,6 +13196,7 @@
         String(config.fixedWaveZoom)
       );
     }
+    syncAidpCustomSelects(getElement("detail-bytedance-aidp-suzhou-panel"));
     if (contractNode) {
       contractNode.textContent =
         config.contractMode === "dom-guarded"

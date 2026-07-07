@@ -1,4 +1,21 @@
 ## 2026-07-07（统一 ByteDance AIDP 金华 / 苏州设置页布局与金华 AI 开关语义）
+- 更新 `extension/options/options.js`
+  - AIDP `AI 设置 -> 基础设置` 改为两列网格，`思考开关` 只保留 `固定关闭`，完整限制说明继续留在问号浮层中
+  - AIDP 局部 select 改为自定义下拉，覆盖左侧基础设置 select 与右侧阶段模型 select，并保持原生 select 存储读值路径
+  - 听音 / 收口 Prompt 与 `stop sequences` 新增左侧行号 gutter；阶段 Prompt / 参数改为直接显示当前生效值，保存时继续按默认值归一化避免误写 override
+- 更新 `extension/options/options.css`
+  - 收口 AIDP AI 基础卡片、两列参数网格、自定义下拉弹层和行号 textarea 样式
+- 更新 `extension/options/options.html`
+  - 为 AIDP 左侧基础设置 select 标记局部自定义下拉作用域
+- 更新测试：
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - 回归覆盖 AIDP AI 区两列布局、自定义下拉、行号 gutter 与当前生效值回显
+- 更新文档：
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
 - 更新 `extension/options/options.html`
   - 保留 AIDP 左右双栏结构，重排基础设置卡片顺序为开关、选择器、数值输入
   - `基础设置`、`快捷键` 标题改为统一 `?` 说明入口，删除金华话旧的可见说明文案
