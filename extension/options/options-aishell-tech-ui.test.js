@@ -30,3 +30,28 @@ test("Aishell Vietnamese fallback defaults keep wrapped single-stage config", fu
   assert.match(block, /prompt: aishellTechVietnameseDefaultSinglePrompt/);
   assert.match(block, /return \{\s*defaults: baseDefaults,\s*supportedParams: supportedParams,\s*loadedFromBackend: false,\s*error: "",\s*\}/s);
 });
+
+test("Aishell Thai fallback defaults keep wrapped single-stage config", function () {
+  const script = fs.readFileSync(path.resolve(__dirname, "options.js"), "utf8");
+  const start = script.indexOf("if (scriptId === aishellTechThaiScriptId) {");
+  const end = script.indexOf("    if (isAishellTechScript(scriptId)) {", start);
+  const block = start >= 0 && end > start ? script.slice(start, end) : "";
+
+  assert.ok(block);
+  assert.match(block, /baseDefaults\.pipelineMode = "omni_single"/);
+  assert.match(block, /baseDefaults\.singlePrompt = aishellTechThaiDefaultSinglePrompt/);
+  assert.match(block, /recognize:/);
+  assert.match(block, /prompt: aishellTechThaiDefaultSinglePrompt/);
+  assert.match(
+    block,
+    /return \{\s*defaults: baseDefaults,\s*supportedParams: supportedParams,\s*loadedFromBackend: false,\s*error: "",\s*\}/s
+  );
+});
+
+test("Aishell Thai detail panel exists in options html", function () {
+  const html = fs.readFileSync(path.resolve(__dirname, "options.html"), "utf8");
+
+  assert.match(html, /detail-aishell-tech-thai-helper-panel/);
+  assert.match(html, /希尔贝壳泰语助手/);
+  assert.match(html, /save-aishell-tech-thai-settings/);
+});

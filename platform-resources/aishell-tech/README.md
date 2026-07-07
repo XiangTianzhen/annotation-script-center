@@ -43,8 +43,10 @@
 
 - `extension/sites/aishell-tech/minnan-helper/` 闽南语助手运行时代码。
 - `extension/sites/aishell-tech/vietnamese-helper/` 越南语助手运行时代码。
+- `extension/sites/aishell-tech/thai-helper/` 泰语助手运行时代码。
 - `platform-resources/aishell-tech/minnan-helper/backend/` 闽南语助手独立 AI recommend 路由。
 - `platform-resources/aishell-tech/vietnamese-helper/backend/` 越南语助手独立 AI recommend 路由。
+- `platform-resources/aishell-tech/thai-helper/backend/` 泰语助手独立 AI recommend 路由。
 - `/mytask/index`、`/mytask/detail/:taskId`、`/mytask/mark` 的路由覆盖与资料复用。
 
 当前业务能力只在 `/mytask/mark` 生效；`我的团队` 页面仍只有 network 与 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
@@ -69,7 +71,7 @@
 
 ### 当前专属后端
 
-当前已接入两套独立后端接口：
+当前已接入三套独立后端接口：
 
 - 闽南语助手：
   - `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
@@ -85,16 +87,25 @@
   - `POST /api/aishell-tech/vietnamese-helper/ai/recommend/jobs`
   - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/jobs/:jobId`
   - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/jobs/:jobId/debug`
+- 泰语助手：
+  - `GET /api/aishell-tech/thai-helper/ai/recommend/health`
+  - `GET /api/aishell-tech/thai-helper/ai/recommend/defaults`
+  - `POST /api/aishell-tech/thai-helper/ai/recommend`
+  - `POST /api/aishell-tech/thai-helper/ai/recommend/jobs`
+  - `GET /api/aishell-tech/thai-helper/ai/recommend/jobs/:jobId`
+  - `GET /api/aishell-tech/thai-helper/ai/recommend/jobs/:jobId/debug`
 
 实现边界：
 
-- Aishell 保持独立路由、独立脚本 ID；当前平台侧已从“单脚本硬编码”扩成“同平台双脚本互斥”，由 `platforms.aishellTech.activeScriptId` 控制生效脚本。
+- Aishell 保持独立路由、独立脚本 ID；当前平台侧已从“单脚本硬编码”扩成“同平台三脚本互斥”，由 `platforms.aishellTech.activeScriptId` 控制生效脚本。
 - 闽南语助手继续保留自己的三阶段链路与词表资料目录。
 - 越南语助手固定为“单阶段 Omni 直接转写”，不接词表、不做转换/比较双阶段。
+- 泰语助手固定为“单阶段 Omni 输出 `text + speed` 双字段”，不接词表、不做转换/比较双阶段。
 - Aishell 的 Omni 音频调用继续复用各脚本各自的 `dashscope-omni-client.js`，统一固定 `enable_thinking=false`。
 - 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。
 - 闽南语助手当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 越南语助手当前只使用 `aishell_qwen_omni`。
+- 泰语助手当前只使用 `aishell_qwen_omni`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
 - 当前默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`；同步 `POST /recommend` 只保留兼容 / 调试用途，不引入 SSE 或 WebSocket；当前同步总超时统一为 `60000ms`。
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 不再开放 thinking 作为有效配置项。
@@ -105,7 +116,9 @@
 - 仅在 `https://mark.aishelltech.com/mytask/mark?...` 注入业务面板。
 - 闽南语助手当前 AI 配置固定为独立的 `转换 / 听音 / 比较` 三板块。
 - 越南语助手当前 AI 配置固定为单阶段 Omni；结果区只展示 `原始文本` 与 `识别文本`。
+- 泰语助手当前 AI 配置固定为单阶段 Omni；结果区展示 `识别文本` 与 `语速建议`，保存时回填 `text + speed`。
 - 当前条支持 AI 识别、复制识别文本、填入当前条；越南语助手不再暴露听音文本复制与差异高亮。
+- 泰语助手当前条支持 AI 识别、填入文本与语速并触发真实保存；当文本已一致但语速仍缺失时，仍允许直接应用语速建议。
 - 批量模式保留 `全部AI批量识别` 与 `未完成的AI批量识别` 两种入口。
 - AI 请求按前端并发预取；页面填入与保存严格串行，每条都点击页面真实“保存”按钮并等待选中项切换后再继续。
 
@@ -124,7 +137,7 @@
 
 ### 标注保存
 
-SaveShortMark 的 `mark` 字段不是纯文本，而是 JSON 字符串 `{"text":"..."}`，由模板 `templateItems[0].fieldName` 决定结构。`scene` 为 `"mark"`。
+SaveShortMark 的 `mark` 字段不是纯文本，而是 JSON 字符串。当前越南语沿用 `{"text":"..."}`；泰语固定写入 `{"text":"...","speed":"..."}`。`scene` 为 `"mark"`。
 
 ### 文件列表
 

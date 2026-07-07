@@ -162,6 +162,7 @@
 - 脚本：
   - `minnan-helper/`
   - `vietnamese-helper/`
+  - `thai-helper/`
 
 ## 统一后端边界
 

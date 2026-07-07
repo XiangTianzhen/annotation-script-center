@@ -80,6 +80,7 @@ sites/
   aishell-tech/
     minnan-helper/
     vietnamese-helper/
+    thai-helper/
 ```
 
 - `alibaba-labelx/asr-judgement/`
@@ -104,6 +105,8 @@ sites/
   - Aishell Tech 闽南语助手
 - `aishell-tech/vietnamese-helper/`
   - Aishell Tech 越南语助手
+- `aishell-tech/thai-helper/`
+  - Aishell Tech 泰语助手
 
 ## 版本与发布
 

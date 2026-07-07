@@ -29,6 +29,8 @@
     constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
   const aishellTechVietnameseScriptId =
     constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
+  const aishellTechThaiScriptId =
+    constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
   const abakaAiHost = (constants.ABAKA_AI_PLATFORM || {}).host || "abao.fortidyndns.com";
   const abakaAiScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
@@ -125,6 +127,11 @@
         return (
           settings?.platforms?.aishellTech?.enabled !== false &&
           settings?.platforms?.aishellTech?.scripts?.vietnameseHelper?.enabled !== false
+        );
+      case aishellTechThaiScriptId:
+        return (
+          settings?.platforms?.aishellTech?.enabled !== false &&
+          settings?.platforms?.aishellTech?.scripts?.thaiHelper?.enabled !== false
         );
       case abakaAiScriptId:
         return (
@@ -774,22 +781,33 @@
     const activeScriptId = String(settings?.platforms?.aishellTech?.activeScriptId || "").trim();
     const minnanConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
     const vietnameseConfig = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
+    const thaiConfig = settings?.platforms?.aishellTech?.scripts?.thaiHelper || {};
     const minnanEnabled =
       minnanConfig.enabled !== false && minnanConfig.aiRecommendEnabled !== false;
     const vietnameseEnabled =
       vietnameseConfig.enabled !== false && vietnameseConfig.aiRecommendEnabled !== false;
+    const thaiEnabled =
+      thaiConfig.enabled !== false && thaiConfig.aiRecommendEnabled !== false;
     const resolvedScriptId =
       activeScriptId === aishellTechMinnanScriptId && minnanEnabled
         ? aishellTechMinnanScriptId
         : activeScriptId === aishellTechVietnameseScriptId && vietnameseEnabled
           ? aishellTechVietnameseScriptId
-          : minnanEnabled && !vietnameseEnabled
+          : activeScriptId === aishellTechThaiScriptId && thaiEnabled
+            ? aishellTechThaiScriptId
+            : minnanEnabled && !vietnameseEnabled && !thaiEnabled
             ? aishellTechMinnanScriptId
-            : vietnameseEnabled && !minnanEnabled
+            : vietnameseEnabled && !minnanEnabled && !thaiEnabled
               ? aishellTechVietnameseScriptId
-              : minnanEnabled
-                ? aishellTechMinnanScriptId
-                : "";
+              : thaiEnabled && !minnanEnabled && !vietnameseEnabled
+                ? aishellTechThaiScriptId
+                : minnanEnabled
+                  ? aishellTechMinnanScriptId
+                  : vietnameseEnabled
+                    ? aishellTechVietnameseScriptId
+                    : thaiEnabled
+                      ? aishellTechThaiScriptId
+                      : "";
     const activeScript = resolvedScriptId ? scriptLibrary[resolvedScriptId] || {} : {};
     return {
       platformEnabled: platformEnabled,
@@ -801,7 +819,11 @@
       aiReady:
         platformEnabled &&
         Boolean(resolvedScriptId) &&
-        (resolvedScriptId === aishellTechVietnameseScriptId ? vietnameseEnabled : minnanEnabled),
+        (resolvedScriptId === aishellTechVietnameseScriptId
+          ? vietnameseEnabled
+          : resolvedScriptId === aishellTechThaiScriptId
+            ? thaiEnabled
+            : minnanEnabled),
     };
   }
 

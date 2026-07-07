@@ -22,6 +22,9 @@ const { registerRoutes: registerAishellTechMinnanRoutes } = require("../aishell-
 const {
   registerRoutes: registerAishellTechVietnameseRoutes,
 } = require("../aishell-tech/vietnamese-helper/backend");
+const {
+  registerRoutes: registerAishellTechThaiRoutes,
+} = require("../aishell-tech/thai-helper/backend");
 const { registerRoutes: registerAdminSessionRoutes } = require("./admin-session");
 const { registerRoutes: registerAdminDashboardRoutes } = require("./admin-dashboard");
 const { registerRoutes: registerAdminDownloadCenterRoutes } = require("./admin-download-center");
@@ -73,6 +76,7 @@ function registerProjectRoutes(router, options) {
   registerAbakaTask21AiRoutes(router, config.abakaTask21Ai || {});
   registerAishellTechMinnanRoutes(router, config.aishellTechMinnanHelper || {});
   registerAishellTechVietnameseRoutes(router, config.aishellTechVietnameseHelper || {});
+  registerAishellTechThaiRoutes(router, config.aishellTechThaiHelper || {});
   registerAdminSessionRoutes(router, config.adminSession || {});
   registerAdminDashboardRoutes(router, {
     projectDataDownload: config.projectDataDownload || {},

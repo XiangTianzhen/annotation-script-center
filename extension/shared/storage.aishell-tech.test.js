@@ -339,6 +339,27 @@ test("Aishell storage defaults expose active script and Vietnamese helper config
   }
 });
 
+test("Aishell storage defaults expose Thai helper config", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const thaiScript = settings.platforms.aishellTech.scripts.thaiHelper;
+
+    assert.equal(thaiScript.id, "aishellTechThaiAssistant");
+    assert.equal(thaiScript.enabled, false);
+    assert.equal(thaiScript.aiRecommendEnabled, false);
+    assert.equal(thaiScript.aiRecommendSingleModel, "qwen3.5-omni-flash");
+    assert.equal(thaiScript.aiRecommendSinglePrompt, "");
+    assert.equal(
+      thaiScript.aiRecommendEndpoint,
+      "https://script.xiangtianzhen.store/api/aishell-tech/thai-helper/ai/recommend"
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("Aishell storage enables Vietnamese helper as the active mutually exclusive script", async function () {
   const harness = loadStorageApi({});
 
@@ -356,6 +377,24 @@ test("Aishell storage enables Vietnamese helper as the active mutually exclusive
     assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.aiRecommendEnabled, true);
     assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.enabled, false);
     assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage enables Thai helper as the active mutually exclusive script", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const settings = await harness.storage.setScriptEnabled("aishellTechThaiAssistant", true);
+
+    assert.equal(settings.platforms.aishellTech.activeScriptId, "aishellTechThaiAssistant");
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.aiRecommendEnabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.thaiHelper.enabled, true);
+    assert.equal(settings.platforms.aishellTech.scripts.thaiHelper.aiRecommendEnabled, true);
   } finally {
     harness.cleanup();
   }

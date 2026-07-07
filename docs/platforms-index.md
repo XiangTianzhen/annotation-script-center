@@ -89,8 +89,10 @@
 - 平台资料总览：`platform-resources/aishell-tech/README.md`
 - 闽南语助手运行时 README：`extension/sites/aishell-tech/minnan-helper/README.md`
 - 越南语助手运行时 README：`extension/sites/aishell-tech/vietnamese-helper/README.md`
+- 泰语助手运行时 README：`extension/sites/aishell-tech/thai-helper/README.md`
 - 闽南语助手资料：`platform-resources/aishell-tech/minnan-helper/README.md`
 - 越南语助手资料：`platform-resources/aishell-tech/vietnamese-helper/README.md`
+- 泰语助手资料：`platform-resources/aishell-tech/thai-helper/README.md`
 - 平台共用资料：
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`

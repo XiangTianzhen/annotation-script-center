@@ -126,6 +126,7 @@ pm2 restart annotation-script-center --update-env
   - 总览：[`../aishell-tech/README.md`](../aishell-tech/README.md)
   - 闽南语助手：[`../aishell-tech/minnan-helper/README.md`](../aishell-tech/minnan-helper/README.md)
   - 越南语助手：[`../aishell-tech/vietnamese-helper/README.md`](../aishell-tech/vietnamese-helper/README.md)
+  - 泰语助手：[`../aishell-tech/thai-helper/README.md`](../aishell-tech/thai-helper/README.md)
 - Abaka AI
   - 总览：[`../abaka-ai/README.md`](../abaka-ai/README.md)
   - Task21：[`../abaka-ai/task21/README.md`](../abaka-ai/task21/README.md)
