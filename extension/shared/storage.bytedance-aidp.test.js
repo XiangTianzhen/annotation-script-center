@@ -365,6 +365,7 @@ test("ByteDance AIDP setScriptEnabled keeps platform AI preference while togglin
     assert.equal(script.segmentSilenceThresholdDbfs, -31);
     assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
+    assert.equal(script.aiRecommendEnabled, true);
     assert.equal(script.shortcuts.togglePlayPause, null);
 
     settings = await harness.storage.setScriptEnabled("bytedanceAidpSuzhouHelper", true);
@@ -378,6 +379,7 @@ test("ByteDance AIDP setScriptEnabled keeps platform AI preference while togglin
     assert.equal(script.segmentSilenceThresholdDbfs, -31);
     assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
+    assert.equal(script.aiRecommendEnabled, true);
     assert.equal(script.shortcuts.togglePlayPause, null);
   } finally {
     harness.cleanup();

@@ -481,27 +481,27 @@ p {
   outline: none;
 }
 
-.inline-help-anchor[data-hover="true"] .inline-help-popover,
-.inline-help-anchor[data-open="true"] .inline-help-popover {
-  display: block;
-}
-
 .inline-help-popover {
-  display: none;
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 2400;
+  position: fixed;
+  z-index: 4400;
   min-width: 220px;
-  max-width: 320px;
-  padding: 10px 12px;
-  border: 1px solid #d6e4ff;
-  border-radius: 10px;
-  background: #fff;
+  padding: 12px 14px;
+  border: 1px solid rgba(214, 228, 255, 0.98);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.99);
   color: #4f5d78;
-  box-shadow: 0 12px 24px rgba(38, 65, 139, 0.14);
+  box-shadow: 0 18px 36px rgba(38, 65, 139, 0.18);
   white-space: normal;
   line-height: 1.6;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.inline-help-popover.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .field-card span,
@@ -561,6 +561,8 @@ p {
 .switch-field,
 .switch-boolean {
   position: relative;
+  display: inline-flex;
+  align-items: center;
   gap: 12px;
 }
 
@@ -574,21 +576,23 @@ p {
 .switch-slider {
   position: relative;
   flex: 0 0 auto;
-  width: 42px;
-  height: 24px;
+  width: 48px;
+  height: 28px;
   border-radius: 999px;
-  background: #d4dbe6;
-  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.12);
+  background: #d5dce8;
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.08),
+    inset 0 0 0 1px rgba(191, 201, 218, 0.84);
   transition: background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .switch-slider::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
@@ -608,7 +612,7 @@ p {
 
 .switch-field input[type="checkbox"]:checked + .switch-slider::after,
 .switch-boolean input[type="checkbox"]:checked + .switch-slider::after {
-  transform: translateX(18px);
+  transform: translateX(20px);
 }
 
 .switch-field input[type="checkbox"]:focus-visible + .switch-slider,
@@ -650,6 +654,14 @@ p {
 }
 
 .asr-ai-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.asr-ai-grid.one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.aidp-ai-controls.aidp-ai-controls-three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -1236,6 +1248,7 @@ p {
   .detail-grid.two,
   .asr-ai-grid.two,
   .asr-ai-grid.three,
+  .aidp-ai-controls.aidp-ai-controls-three,
   .color-grid {
     grid-template-columns: 1fr;
   }
@@ -2013,16 +2026,75 @@ body {
 .detail-workbench .asr-ai-field select,
 .detail-workbench .asr-ai-field textarea {
   max-width: 100%;
-  min-height: 44px;
-  padding: 11px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(203, 213, 225, 0.96);
-  background: rgba(255, 255, 255, 0.98);
+  min-height: 50px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(203, 213, 225, 0.98);
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 3px 10px rgba(148, 163, 184, 0.08);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 .detail-workbench .field-card textarea,
 .detail-workbench .asr-ai-field textarea {
-  min-height: 120px;
+  min-height: 126px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  resize: vertical;
+}
+
+.detail-workbench .field-card input::placeholder,
+.detail-workbench .field-card textarea::placeholder,
+.detail-workbench .asr-ai-field input::placeholder,
+.detail-workbench .asr-ai-field textarea::placeholder {
+  color: #9aa7bc;
+}
+
+.detail-workbench .field-card input:focus,
+.detail-workbench .field-card select:focus,
+.detail-workbench .field-card textarea:focus,
+.detail-workbench .asr-ai-field input:focus,
+.detail-workbench .asr-ai-field select:focus,
+.detail-workbench .asr-ai-field textarea:focus {
+  border-color: rgba(96, 165, 250, 0.98);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 0 0 4px rgba(96, 165, 250, 0.12),
+    0 8px 16px rgba(148, 163, 184, 0.1);
+  outline: none;
+}
+
+.detail-workbench .field-card select,
+.detail-workbench .asr-ai-field select {
+  appearance: none;
+  padding-right: 46px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #6b7d99 50%),
+    linear-gradient(135deg, #6b7d99 50%, transparent 50%);
+  background-position:
+    calc(100% - 22px) calc(50% - 2px),
+    calc(100% - 16px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.detail-workbench .field-card select option,
+.detail-workbench .asr-ai-field select option {
+  color: var(--text-primary);
+  background: #ffffff;
+}
+
+.detail-ai-panel .asr-ai-grid.one .asr-ai-field textarea {
+  min-height: 144px;
+}
+
+.detail-ai-panel .asr-ai-grid.three .asr-ai-field textarea {
+  min-height: 104px;
 }
 
 .detail-workbench .field-actions {
@@ -2314,7 +2386,7 @@ body {
   top: 18px;
   left: 50%;
   transform: translateX(-50%) translateY(-8px);
-  z-index: 2400;
+  z-index: 4300;
   min-width: 260px;
   max-width: min(680px, calc(100vw - 32px));
   padding: 12px 18px;

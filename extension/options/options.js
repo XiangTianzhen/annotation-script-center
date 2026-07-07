@@ -86,6 +86,8 @@
     .trim()
     .toLowerCase();
   let activeInlineHelpAnchor = null;
+  let hoveredInlineHelpAnchor = null;
+  let inlineHelpPopoverNode = null;
   let inlineHelpListenersBound = false;
   const betaFeaturesVisibleByDefault = constants.BETA_FEATURES_VISIBLE_BY_DEFAULT === true;
   const getBackendModeFromSettings =
@@ -3546,6 +3548,10 @@
       }
       const rawValue = config?.[configPrefix + definition.suffix];
       node.value = rawValue === undefined || rawValue === null ? "" : String(rawValue);
+      node.placeholder = formatBytedanceAidpSuzhouStageParamDefaultText(
+        definition,
+        stageDefaults?.[definition.apiKey]
+      );
     });
     refreshBytedanceAidpSuzhouStageParamHelpTexts(stagePrefix, stageDefaults);
   }
@@ -3602,12 +3608,8 @@
     );
     const listenPromptNode = getElement("bytedance-aidp-ai-listen-prompt");
     if (listenPromptNode instanceof HTMLTextAreaElement) {
-      listenPromptNode.value = String(
-        getAsrVoiceAiEffectiveText(
-          currentConfig.aiRecommendListenPrompt,
-          stageDefaults.listen.prompt
-        )
-      );
+      listenPromptNode.value = String(currentConfig.aiRecommendListenPrompt || "");
+      listenPromptNode.placeholder = String(stageDefaults.listen.prompt || "");
     }
     applyBytedanceAidpSuzhouStageParamValues(
       "listen",
@@ -3626,12 +3628,8 @@
     );
     const refinePromptNode = getElement("bytedance-aidp-ai-refine-prompt");
     if (refinePromptNode instanceof HTMLTextAreaElement) {
-      refinePromptNode.value = String(
-        getAsrVoiceAiEffectiveText(
-          currentConfig.aiRecommendRefinePrompt,
-          stageDefaults.refine.prompt
-        )
-      );
+      refinePromptNode.value = String(currentConfig.aiRecommendRefinePrompt || "");
+      refinePromptNode.placeholder = String(stageDefaults.refine.prompt || "");
     }
     applyBytedanceAidpSuzhouStageParamValues(
       "refine",
@@ -5209,6 +5207,29 @@
     return Math.min(300, Math.max(1, Math.round(seconds))) * 1000;
   }
 
+  function formatBytedanceAidpTimeoutSecondsValue(value) {
+    const timeoutMs = Math.min(
+      DEFAULT_AI_REQUEST_TIMEOUT_MS,
+      normalizeDataBakerTimeoutMs(value, DEFAULT_AI_REQUEST_TIMEOUT_MS)
+    );
+    return String(Number((timeoutMs / 1000).toFixed(3)));
+  }
+
+  function normalizeBytedanceAidpTimeoutSecondsToMs(value) {
+    const timeoutInput = String(value || "").trim();
+    if (!timeoutInput) {
+      return DEFAULT_AI_REQUEST_TIMEOUT_MS;
+    }
+    const seconds = Number(timeoutInput);
+    if (!Number.isFinite(seconds)) {
+      return DEFAULT_AI_REQUEST_TIMEOUT_MS;
+    }
+    return Math.min(
+      DEFAULT_AI_REQUEST_TIMEOUT_MS,
+      Math.max(1, Math.round(Number(timeoutInput || "0") * 1000))
+    );
+  }
+
   function normalizeDataBakerPageSize(value, fallback) {
     const text = String(value || "").replace(/\s+/g, "");
     const fallbackText = String(fallback || "50条/页").replace(/\s+/g, "");
@@ -6413,14 +6434,67 @@
     );
   }
 
-  function buildSwitchBooleanMarkup(id, text) {
+  function buildSwitchBooleanMarkup(id, options) {
+    const onText =
+      typeof options === "object" && options
+        ? normalizeText(options.onText || "") || "开启"
+        : normalizeText(options) || "开启";
+    const offText =
+      typeof options === "object" && options
+        ? normalizeText(options.offText || "") || "关闭"
+        : "关闭";
     return (
       '<label class="asr-ai-boolean switch-boolean"><input id="' +
       escapeHtml(id) +
-      '" type="checkbox" /><span class="switch-slider" aria-hidden="true"></span><span class="switch-text">' +
-      escapeHtml(text || "开启") +
+      '" type="checkbox" data-on-text="' +
+      escapeHtml(onText) +
+      '" data-off-text="' +
+      escapeHtml(offText) +
+      '" /><span class="switch-slider" aria-hidden="true"></span><span class="switch-text">' +
+      escapeHtml(onText) +
       "</span></label>"
     );
+  }
+
+  function syncSwitchFieldText(inputNode) {
+    if (!(inputNode instanceof HTMLInputElement) || inputNode.type !== "checkbox") {
+      return;
+    }
+    const wrapper =
+      typeof inputNode.closest === "function"
+        ? inputNode.closest(".switch-field, .switch-boolean")
+        : null;
+    if (!(wrapper instanceof HTMLElement)) {
+      return;
+    }
+    const textNode = wrapper.querySelector(".switch-text");
+    if (!(textNode instanceof HTMLElement)) {
+      return;
+    }
+    const onText = normalizeText(inputNode.getAttribute("data-on-text")) || "开启";
+    const offText = normalizeText(inputNode.getAttribute("data-off-text")) || "关闭";
+    textNode.textContent = inputNode.checked ? onText : offText;
+  }
+
+  function bindSwitchFieldText(scope) {
+    const root =
+      scope instanceof HTMLElement ||
+      (typeof Document === "function" && scope instanceof Document)
+        ? scope
+        : document;
+    Array.from(root.querySelectorAll('.switch-field input[type="checkbox"], .switch-boolean input[type="checkbox"]')).forEach(function (inputNode) {
+      if (!(inputNode instanceof HTMLInputElement)) {
+        return;
+      }
+      syncSwitchFieldText(inputNode);
+      if (inputNode.getAttribute("data-switch-text-bound") === "true") {
+        return;
+      }
+      inputNode.setAttribute("data-switch-text-bound", "true");
+      inputNode.addEventListener("change", function () {
+        syncSwitchFieldText(inputNode);
+      });
+    });
   }
 
   function getInlineHelpText(node) {
@@ -6438,6 +6512,70 @@
     if (activeInlineHelpAnchor === anchor) {
       activeInlineHelpAnchor = null;
     }
+    if (hoveredInlineHelpAnchor === anchor) {
+      hoveredInlineHelpAnchor = null;
+    }
+    if (!(activeInlineHelpAnchor instanceof HTMLElement)) {
+      hideInlineHelpPopover();
+    }
+  }
+
+  function ensureGlobalInlineHelpPopover() {
+    if (inlineHelpPopoverNode instanceof HTMLElement && inlineHelpPopoverNode.isConnected) {
+      return inlineHelpPopoverNode;
+    }
+    if (typeof document === "undefined" || !document.body) {
+      return null;
+    }
+    inlineHelpPopoverNode = document.createElement("div");
+    inlineHelpPopoverNode.id = "global-inline-help-popover";
+    inlineHelpPopoverNode.className = "inline-help-popover global-inline-help-popover";
+    document.body.appendChild(inlineHelpPopoverNode);
+    return inlineHelpPopoverNode;
+  }
+
+  function positionInlineHelpPopover(anchor) {
+    if (!(anchor instanceof HTMLElement)) {
+      return;
+    }
+    const popover = ensureGlobalInlineHelpPopover();
+    if (!(popover instanceof HTMLElement)) {
+      return;
+    }
+    const target = anchor.querySelector(".inline-help-dot") || anchor;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const maxWidth = Math.min(360, Math.max(220, viewportWidth - 24));
+    popover.style.maxWidth = String(maxWidth) + "px";
+    popover.style.left = "12px";
+    popover.style.top = Math.round(rect.bottom + 10) + "px";
+    const measuredWidth = popover.offsetWidth || Math.min(maxWidth, 320);
+    const left = Math.max(
+      12,
+      Math.min(rect.left + rect.width / 2 - measuredWidth / 2, viewportWidth - measuredWidth - 12)
+    );
+    popover.style.left = Math.round(left) + "px";
+  }
+
+  function showInlineHelpPopover(anchor, text) {
+    const popover = ensureGlobalInlineHelpPopover();
+    if (!(popover instanceof HTMLElement)) {
+      return;
+    }
+    popover.textContent = normalizeText(text);
+    popover.classList.add("visible");
+    positionInlineHelpPopover(anchor);
+  }
+
+  function hideInlineHelpPopover() {
+    const popover = ensureGlobalInlineHelpPopover();
+    if (!(popover instanceof HTMLElement)) {
+      return;
+    }
+    popover.classList.remove("visible");
   }
 
   function setInlineHelpText(node, text) {
@@ -6449,11 +6587,19 @@
     if (node.hasAttribute("title")) {
       node.removeAttribute("title");
     }
-    const anchor = node.parentElement;
-    const popover =
-      anchor instanceof HTMLElement ? anchor.querySelector(".inline-help-popover") : null;
-    if (popover instanceof HTMLElement) {
-      popover.textContent = normalized;
+    const anchor =
+      node.parentElement instanceof HTMLElement &&
+      node.parentElement.classList.contains("inline-help-anchor")
+        ? node.parentElement
+        : null;
+    if (anchor instanceof HTMLElement) {
+      anchor.setAttribute("data-help-text", normalized);
+      if (
+        activeInlineHelpAnchor === anchor ||
+        (hoveredInlineHelpAnchor === anchor && !(activeInlineHelpAnchor instanceof HTMLElement))
+      ) {
+        showInlineHelpPopover(anchor, normalized);
+      }
     }
     node.classList.toggle("hidden", !normalized);
   }
@@ -6478,6 +6624,40 @@
         }
         closeInlineHelpAnchor(activeInlineHelpAnchor);
       });
+      window.addEventListener(
+        "resize",
+        function () {
+          const targetAnchor =
+            activeInlineHelpAnchor instanceof HTMLElement
+              ? activeInlineHelpAnchor
+              : hoveredInlineHelpAnchor instanceof HTMLElement
+                ? hoveredInlineHelpAnchor
+                : null;
+          if (!(targetAnchor instanceof HTMLElement)) {
+            hideInlineHelpPopover();
+            return;
+          }
+          positionInlineHelpPopover(targetAnchor);
+        },
+        true
+      );
+      window.addEventListener(
+        "scroll",
+        function () {
+          const targetAnchor =
+            activeInlineHelpAnchor instanceof HTMLElement
+              ? activeInlineHelpAnchor
+              : hoveredInlineHelpAnchor instanceof HTMLElement
+                ? hoveredInlineHelpAnchor
+                : null;
+          if (!(targetAnchor instanceof HTMLElement)) {
+            hideInlineHelpPopover();
+            return;
+          }
+          positionInlineHelpPopover(targetAnchor);
+        },
+        true
+      );
       inlineHelpListenersBound = true;
     }
     dots.forEach(function (dot) {
@@ -6508,17 +6688,24 @@
       anchor.className = "inline-help-anchor";
       anchor.setAttribute("data-hover", "");
       anchor.setAttribute("data-open", "");
-      const popover = document.createElement("div");
-      popover.className = "inline-help-popover";
-      popover.textContent = helpText;
+      anchor.setAttribute("data-help-text", helpText);
       parent.insertBefore(anchor, dot);
       anchor.appendChild(dot);
-      anchor.appendChild(popover);
       anchor.addEventListener("mouseenter", function () {
+        hoveredInlineHelpAnchor = anchor;
         anchor.setAttribute("data-hover", "true");
+        if (!(activeInlineHelpAnchor instanceof HTMLElement) || activeInlineHelpAnchor === anchor) {
+          showInlineHelpPopover(anchor, getInlineHelpText(dot));
+        }
       });
       anchor.addEventListener("mouseleave", function () {
+        if (hoveredInlineHelpAnchor === anchor) {
+          hoveredInlineHelpAnchor = null;
+        }
         anchor.setAttribute("data-hover", "");
+        if (activeInlineHelpAnchor !== anchor) {
+          hideInlineHelpPopover();
+        }
       });
       dot.addEventListener("click", function (event) {
         if (event && typeof event.preventDefault === "function") {
@@ -6537,6 +6724,7 @@
         }
         anchor.setAttribute("data-open", "true");
         activeInlineHelpAnchor = anchor;
+        showInlineHelpPopover(anchor, getInlineHelpText(dot));
       });
       dot.addEventListener("keydown", function (event) {
         const key = normalizeText(event?.key);
@@ -6842,33 +7030,36 @@
     panel.innerHTML = [
       '<div class="asr-ai-panel">',
       headerHtml,
-      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>' +
-        buildAsrAiLabelMarkup(
-          activeScriptId === bytedanceAidpJinhuaScriptId
-            ? "启用普通话翻译识别"
-            : "启用普通话听写识别",
-          "关闭后不显示单段识别与批量识别能力。"
-        ) +
-        "</span>" +
-        buildSwitchBooleanMarkup("bytedance-aidp-ai-recommend-enabled", "开启") +
-        "</label>",
+      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid aidp-ai-controls aidp-ai-controls-three">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "识别完成后自动填入",
           "单段识别成功后直接填入对应输入框，不主动走平台暂存请求。"
         ) +
         "</span>" +
-        buildSwitchBooleanMarkup("bytedance-aidp-ai-recommend-auto-fill-enabled", "开启") +
+        buildSwitchBooleanMarkup("bytedance-aidp-ai-recommend-auto-fill-enabled", {
+          onText: "开启",
+          offText: "关闭",
+        }) +
         "</label>",
-      '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="bytedance-aidp-ai-timeout" type="number" min="1000" max="60000" step="1000" /></label>',
       '<label class="asr-ai-field"><span>' +
-        buildAsrAiLabelMarkup("思考开关", "thinking 已全局固定关闭；详情见 AI 设置标题旁问号。") +
+        buildAsrAiLabelMarkup("请求超时时间（秒）", "最小精度 0.001 秒，即 1ms。留空时使用后端默认值。") +
+        '</span><input id="bytedance-aidp-ai-timeout" type="number" min="0.001" max="60" step="0.001" /></label>',
+      '<label class="asr-ai-field"><span>' +
+        buildAsrAiLabelMarkup(
+          "思考开关",
+          activeScriptId === bytedanceAidpJinhuaScriptId
+            ? "thinking 已全局固定关闭；金华话脚本不允许开启 Omni 思考模式。"
+            : "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
+        ) +
         "</span>" +
-        buildSwitchBooleanMarkup("bytedance-aidp-ai-enable-thinking", "固定关闭") +
+        buildSwitchBooleanMarkup("bytedance-aidp-ai-enable-thinking", {
+          onText: "固定关闭",
+          offText: "固定关闭",
+        }) +
         "</label>",
       "</div></div>",
-      '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
+      '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "听音模型",
@@ -6877,6 +7068,7 @@
             "收口。"
         ) +
         '</span><select id="bytedance-aidp-ai-listen-model-select"></select></label>',
+      '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "听音 Prompt（可选）",
@@ -6888,10 +7080,11 @@
         "</div></div>",
       '<div class="asr-ai-block"><strong>' +
         resultLabel +
-        '收口</strong><div class="asr-ai-grid two">',
+        '收口</strong><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup("收口模型", resultHelpText) +
         '</span><select id="bytedance-aidp-ai-refine-model-select"></select></label>',
+      '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "收口 Prompt（可选）",
@@ -6922,14 +7115,12 @@
       });
     }
 
+    bindSwitchFieldText(panel);
     panel.classList.remove("hidden");
   }
 
   function shouldShowBytedanceAidpAiSettingsSection(settings, scriptId) {
-    if (scriptId !== bytedanceAidpJinhuaScriptId) {
-      return true;
-    }
-    return getBytedanceAidpJinhuaConfig(settings).aiRecommendEnabled !== false;
+    return getBytedanceAidpConfig(settings, scriptId).aiRecommendEnabled !== false;
   }
 
   function renderAsrVoiceAiSettingsSection(settings, scriptId) {
@@ -6999,7 +7190,7 @@
     }
 
     if (isBytedanceAidpScript(scriptId)) {
-      if (scriptId === bytedanceAidpJinhuaScriptId && !shouldShowBytedanceAidpAiSettingsSection(settings, scriptId)) {
+      if (!shouldShowBytedanceAidpAiSettingsSection(settings, scriptId)) {
         panel.classList.add("hidden");
         panel.innerHTML = "";
         return;
@@ -8061,9 +8252,12 @@
     const action = bytedanceAidpShortcutActions.find(function (item) {
       return item.key === actionKey;
     });
-    setBytedanceAidpRecordingStatus(
-      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合，Esc 取消。"
+    showTopToast(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合，Esc 取消。",
+      "info",
+      0
     );
+    setBytedanceAidpRecordingStatus("");
 
     const keydownListener = function (event) {
       event.preventDefault();
@@ -12057,14 +12251,12 @@
     const hasSharedAiPanel = supportsAsrVoiceAiSettings(scriptId);
     const hasAbakaAiPanel = isAbakaAiScript(scriptId);
 
-    if (sharedAiPanel instanceof HTMLElement) {
-      sharedAiPanel.classList.toggle("hidden", !hasSharedAiPanel);
-      if (!hasSharedAiPanel) {
-        sharedAiPanel.innerHTML = "";
-      }
+    if (sharedAiPanel instanceof HTMLElement && !hasSharedAiPanel) {
+      sharedAiPanel.classList.add("hidden");
+      sharedAiPanel.innerHTML = "";
     }
-    if (abakaAiPanel instanceof HTMLElement) {
-      abakaAiPanel.classList.toggle("hidden", !hasAbakaAiPanel);
+    if (abakaAiPanel instanceof HTMLElement && !hasAbakaAiPanel) {
+      abakaAiPanel.classList.add("hidden");
     }
 
     showDetailShortcutPanel(scriptId);
@@ -12445,6 +12637,87 @@
     renderDataBakerCvpcShortcutGrid();
   }
 
+  function applyBytedanceAidpRenderedAiFields(config, aiDefaults, activeScriptId) {
+    const aiRecommendAutoFillNode = getElement("bytedance-aidp-ai-recommend-auto-fill-enabled");
+    const timeoutNode = getElement("bytedance-aidp-ai-timeout");
+
+    if (aiRecommendAutoFillNode instanceof HTMLInputElement) {
+      aiRecommendAutoFillNode.checked = config.aiRecommendAutoFillEnabled !== false;
+    }
+    if (timeoutNode instanceof HTMLInputElement) {
+      const defaultTimeoutMs = Number(aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS);
+      const currentTimeoutMs = Number(
+        config.aiRecommendRequestTimeoutMs || defaultTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
+      );
+      timeoutNode.value =
+        currentTimeoutMs === defaultTimeoutMs
+          ? ""
+          : formatBytedanceAidpTimeoutSecondsValue(currentTimeoutMs);
+      timeoutNode.placeholder = formatBytedanceAidpTimeoutSecondsValue(defaultTimeoutMs);
+    }
+    if (getElement("bytedance-aidp-ai-listen-model-select")) {
+      applyBytedanceAidpSuzhouStageFields(config, aiDefaults);
+      applyForcedThinkingToggle(
+        "bytedance-aidp-ai-enable-thinking",
+        activeScriptId === bytedanceAidpJinhuaScriptId
+          ? "thinking 已全局固定关闭；金华话脚本不允许开启 Omni 思考模式。"
+          : "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
+      );
+    }
+    bindSwitchFieldText(getElement("detail-shared-asr-ai-panel"));
+  }
+
+  function ensureBytedanceAidpAiPanelReady(scriptId) {
+    const panel = getElement("detail-shared-asr-ai-panel");
+    if (!(panel instanceof HTMLElement)) {
+      return;
+    }
+    if (panel.innerHTML.trim()) {
+      return;
+    }
+    const activeScriptId =
+      scriptId === bytedanceAidpJinhuaScriptId
+        ? bytedanceAidpJinhuaScriptId
+        : bytedanceAidpSuzhouScriptId;
+    const renderSettings = clone(currentSettings || {}) || {};
+    renderSettings.platforms = renderSettings.platforms || {};
+    renderSettings.platforms.bytedanceAidp = renderSettings.platforms.bytedanceAidp || {};
+    renderSettings.platforms.bytedanceAidp.scripts =
+      renderSettings.platforms.bytedanceAidp.scripts || {};
+    const meta = getBytedanceAidpConfigMeta(activeScriptId);
+    const currentConfig = getBytedanceAidpConfig(currentSettings || {}, activeScriptId);
+    renderSettings.platforms.bytedanceAidp.scripts[meta.scriptKey] = Object.assign(
+      {},
+      currentConfig,
+      { aiRecommendEnabled: true }
+    );
+    renderAsrVoiceAiSettingsSection(renderSettings, activeScriptId);
+    const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
+    applyBytedanceAidpRenderedAiFields(currentConfig, aiDefaults, activeScriptId);
+  }
+
+  function refreshBytedanceAidpDetailAiVisibility(scriptId) {
+    if (!isBytedanceAidpScript(scriptId)) {
+      return;
+    }
+    const aiEnabledNode = getElement("bytedance-aidp-ai-enabled");
+    const panel = getElement("detail-shared-asr-ai-panel");
+    const enabled =
+      aiEnabledNode instanceof HTMLInputElement
+        ? aiEnabledNode.checked !== false
+        : shouldShowBytedanceAidpAiSettingsSection(currentSettings || {}, scriptId);
+    if (enabled) {
+      ensureBytedanceAidpAiPanelReady(scriptId);
+    }
+    if (panel instanceof HTMLElement) {
+      panel.classList.toggle("hidden", !enabled);
+      if (!enabled) {
+        panel.innerHTML = "";
+      }
+    }
+    updateDetailLayout(scriptId);
+  }
+
   function applyBytedanceAidpForm(settings, scriptId) {
     const activeScriptId =
       scriptId === bytedanceAidpJinhuaScriptId
@@ -12471,11 +12744,8 @@
     const defaultPlaybackRateNode = getElement("bytedance-aidp-default-playback-rate");
     const fixedWaveZoomNode = getElement("bytedance-aidp-fixed-wave-zoom");
     const contractNode = getElement("bytedance-aidp-contract-mode");
-    const aiEnabledField = getElement("bytedance-aidp-jinhua-ai-enabled-field");
-    const aiEnabledNode = getElement("bytedance-aidp-jinhua-ai-enabled");
-    const aiRecommendAutoFillNode = getElement("bytedance-aidp-ai-recommend-auto-fill-enabled");
-    const aiRecommendNode = getElement("bytedance-aidp-ai-recommend-enabled");
-    const timeoutNode = getElement("bytedance-aidp-ai-timeout");
+    const aiEnabledField = getElement("bytedance-aidp-ai-enabled-field");
+    const aiEnabledNode = getElement("bytedance-aidp-ai-enabled");
 
     if (platformAiNode) {
       platformAiNode.checked = config.platformAiEnabled === false;
@@ -12527,33 +12797,22 @@
           : String(config.contractMode || "dom-guarded");
     }
     if (aiEnabledField instanceof HTMLElement) {
-      aiEnabledField.classList.toggle("hidden", activeScriptId !== bytedanceAidpJinhuaScriptId);
+      aiEnabledField.classList.remove("hidden");
     }
     if (aiEnabledNode instanceof HTMLInputElement) {
       aiEnabledNode.checked = config.aiRecommendEnabled !== false;
+      syncSwitchFieldText(aiEnabledNode);
     }
-    if (aiRecommendAutoFillNode instanceof HTMLInputElement) {
-      aiRecommendAutoFillNode.checked = config.aiRecommendAutoFillEnabled !== false;
+    if (
+      getElement("bytedance-aidp-ai-recommend-auto-fill-enabled") ||
+      getElement("bytedance-aidp-ai-timeout")
+    ) {
+      applyBytedanceAidpRenderedAiFields(config, aiDefaults, activeScriptId);
     }
-    if (aiRecommendNode instanceof HTMLInputElement) {
-      aiRecommendNode.checked = config.aiRecommendEnabled !== false;
-    }
-    if (timeoutNode instanceof HTMLInputElement) {
-      timeoutNode.value = String(
-        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
-      );
-    }
-    if (getElement("bytedance-aidp-ai-listen-model-select")) {
-      applyBytedanceAidpSuzhouStageFields(config, aiDefaults);
-      applyForcedThinkingToggle(
-        "bytedance-aidp-ai-enable-thinking",
-        activeScriptId === bytedanceAidpJinhuaScriptId
-          ? "thinking 已全局固定关闭；金华话脚本不允许开启 Omni 思考模式。"
-          : "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
-      );
-    }
+    showTopToast("", "info", 0);
     stopBytedanceAidpShortcutRecording("");
     renderBytedanceAidpShortcutGrid();
+    bindSwitchFieldText(getElement("detail-bytedance-aidp-suzhou-panel"));
   }
 
   function applyBytedanceAidpJinhuaForm(settings) {
@@ -13150,25 +13409,23 @@
       getElement("bytedance-aidp-fixed-wave-zoom")?.value,
       currentConfig.fixedWaveZoom
     );
-    const aiEnabledNode = getElement("bytedance-aidp-jinhua-ai-enabled");
+    const aiEnabledNode = getElement("bytedance-aidp-ai-enabled");
     const aiRecommendEnabled =
-      activeScriptId === bytedanceAidpJinhuaScriptId
-        ? aiEnabledNode instanceof HTMLInputElement
-          ? aiEnabledNode.checked !== false
-          : currentConfig.aiRecommendEnabled !== false
-        : hasAiSettingsPanel
-          ? getElement("bytedance-aidp-ai-recommend-enabled")?.checked !== false
-          : currentConfig.aiRecommendEnabled !== false;
+      aiEnabledNode instanceof HTMLInputElement
+        ? aiEnabledNode.checked !== false
+        : currentConfig.aiRecommendEnabled !== false;
     const aiRecommendAutoFillEnabled = hasAiSettingsPanel
       ? getElement("bytedance-aidp-ai-recommend-auto-fill-enabled")?.checked !== false
       : currentConfig.aiRecommendAutoFillEnabled !== false;
     const timeoutInput = hasAiSettingsPanel
       ? getElement("bytedance-aidp-ai-timeout")?.value
       : String(currentConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS);
-    const timeoutMs = Math.min(
-      DEFAULT_AI_REQUEST_TIMEOUT_MS,
-      normalizeDataBakerTimeoutMs(timeoutInput)
-    );
+    const timeoutMs = hasAiSettingsPanel
+      ? normalizeBytedanceAidpTimeoutSecondsToMs(timeoutInput)
+      : Math.min(
+          DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          normalizeDataBakerTimeoutMs(timeoutInput)
+        );
     const draftConfig = hasAiSettingsPanel
       ? getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults)
       : {
@@ -13263,7 +13520,10 @@
         aiRecommendEnabled: aiRecommendEnabled,
         aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),
         aiRecommendRequestTimeoutMs: timeoutMs,
-        aiRecommendListenModel: draftConfig.aiRecommendListenModel,
+        aiRecommendListenModel:
+          draftConfig.aiRecommendListenModel !== stageDefaults.listen.model
+            ? draftConfig.aiRecommendListenModel
+            : "",
         aiRecommendListenPrompt: normalizeOverridePrompt(
           draftConfig.aiRecommendListenPrompt,
           stageDefaults.listen.prompt
@@ -13279,7 +13539,10 @@
           listenOverrides.aiRecommendListenFrequencyPenalty,
         aiRecommendListenSeed: listenOverrides.aiRecommendListenSeed,
         aiRecommendListenStopSequences: listenOverrides.aiRecommendListenStopSequences,
-        aiRecommendRefineModel: draftConfig.aiRecommendRefineModel,
+        aiRecommendRefineModel:
+          draftConfig.aiRecommendRefineModel !== stageDefaults.refine.model
+            ? draftConfig.aiRecommendRefineModel
+            : "",
         aiRecommendRefinePrompt: normalizeOverridePrompt(
           draftConfig.aiRecommendRefinePrompt,
           stageDefaults.refine.prompt
@@ -14440,6 +14703,18 @@
           return;
         }
         void saveBytedanceAidpSettings();
+      });
+    }
+    const bytedanceAidpAiEnabledNode = getElement("bytedance-aidp-ai-enabled");
+    if (bytedanceAidpAiEnabledNode instanceof HTMLInputElement) {
+      bindSwitchFieldText(document);
+      bytedanceAidpAiEnabledNode.addEventListener("change", function () {
+        const currentScriptId = getCurrentDetailScriptId();
+        if (!isBytedanceAidpScript(currentScriptId)) {
+          return;
+        }
+        syncSwitchFieldText(bytedanceAidpAiEnabledNode);
+        refreshBytedanceAidpDetailAiVisibility(currentScriptId);
       });
     }
     const dataBakerCvpcSegmentThresholdUnitNode = getElement(
