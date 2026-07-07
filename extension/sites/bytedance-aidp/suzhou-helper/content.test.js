@@ -553,6 +553,21 @@ test("ByteDance AIDP content re-hides nodes when platform rewrites display on a 
   assert.equal(insightNode.hasAttribute("data-asc-platform-ai-hidden"), true);
 });
 
+test("ByteDance AIDP content only restores AI nodes hidden by the same runtime", function () {
+  const contentModule = loadContentModule();
+  const insightNode = createFakeNode("none", "important");
+
+  insightNode.setAttribute("data-asc-platform-ai-hidden", "true");
+  insightNode.setAttribute("data-asc-platform-ai-hidden-by", "bytedanceAidpJinhuaHelper");
+
+  contentModule.__testOnly.applyPlatformAiVisibility([insightNode], false);
+
+  assert.equal(insightNode.style.getPropertyValue("display"), "none");
+  assert.equal(insightNode.style.getPropertyPriority("display"), "important");
+  assert.equal(insightNode.getAttribute("data-asc-platform-ai-hidden"), "true");
+  assert.equal(insightNode.getAttribute("data-asc-platform-ai-hidden-by"), "bytedanceAidpJinhuaHelper");
+});
+
 test("ByteDance AIDP content falls back to semantic AI insight anchors", function () {
   const contentModule = loadContentModule();
   const insightCard = new FakeElement({

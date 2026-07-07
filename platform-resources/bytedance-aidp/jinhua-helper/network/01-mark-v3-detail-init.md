@@ -2,7 +2,7 @@
 
 ## 请求标识 / 目的
 
-- `routeKey`: `suzhou-mark-v3-detail`
+- `routeKey`: `jinhua-mark-v3-detail`
 - `riskLevel`: `readonly`
 
 ## 页面入口 / 触发动作

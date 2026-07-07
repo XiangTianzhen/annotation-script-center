@@ -263,7 +263,7 @@ function findNode(root, predicate) {
   return collectDescendants(root).find(predicate) || null;
 }
 
-test("AIDP suzhou ui panel keeps current-audio and AI sections collapsed by default and supports shared toggles", function () {
+test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by default and supports shared toggles", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -374,7 +374,7 @@ test("AIDP suzhou ui panel keeps current-audio and AI sections collapsed by defa
   }
 });
 
-test("AIDP suzhou ui panel switches preview buttons from settings-only auto-apply state", function () {
+test("AIDP jinhua ui panel switches preview buttons from settings-only auto-apply state", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -447,7 +447,7 @@ test("AIDP suzhou ui panel switches preview buttons from settings-only auto-appl
   }
 });
 
-test("AIDP suzhou ui panel renders Mandarin transcript wording and AI return copy action", async function () {
+test("AIDP jinhua ui panel renders Mandarin transcript wording and AI return copy action", async function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -546,7 +546,7 @@ test("AIDP suzhou ui panel renders Mandarin transcript wording and AI return cop
   }
 });
 
-test("AIDP suzhou ui panel removes current-segment section and keeps preview-batch above audio-meta", function () {
+test("AIDP jinhua ui panel removes current-segment section and keeps preview-batch above audio-meta", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -588,7 +588,7 @@ test("AIDP suzhou ui panel removes current-segment section and keeps preview-bat
   }
 });
 
-test("AIDP suzhou ui panel toggles batch selection with a normal click without reverting on the trailing click event", function () {
+test("AIDP jinhua ui panel toggles batch selection with a normal click without reverting on the trailing click event", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -628,7 +628,7 @@ test("AIDP suzhou ui panel toggles batch selection with a normal click without r
   }
 });
 
-test("AIDP suzhou ui panel uses a single batch primary button that follows auto-fill and running states", function () {
+test("AIDP jinhua ui panel uses a single batch primary button that follows auto-fill and running states", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -708,7 +708,7 @@ test("AIDP suzhou ui panel uses a single batch primary button that follows auto-
   }
 });
 
-test("AIDP suzhou ui panel renders batch AI tabs and switches the active segment by click", function () {
+test("AIDP jinhua ui panel renders batch AI tabs and switches the active segment by click", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;

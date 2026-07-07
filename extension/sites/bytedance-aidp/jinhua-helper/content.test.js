@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
@@ -503,18 +504,18 @@ test("ByteDance AIDP content derives hide policy from script settings", function
       bytedanceAidp: {
         enabled: true,
         scripts: {
-          suzhouHelper: {
-            enabled: true,
-            platformAiEnabled: false,
+          jinhuaHelper: {
+            enabled: false,
+            platformAiEnabled: true,
           },
         },
       },
     },
   });
 
-  assert.equal(policy.runtimeAccessible, true);
-  assert.equal(policy.platformAiEnabled, false);
-  assert.equal(policy.shouldHidePlatformAi, true);
+  assert.equal(policy.runtimeAccessible, false);
+  assert.equal(policy.platformAiEnabled, true);
+  assert.equal(policy.shouldHidePlatformAi, false);
 });
 
 test("ByteDance AIDP content hides and restores marked platform AI nodes", function () {
@@ -551,6 +552,29 @@ test("ByteDance AIDP content re-hides nodes when platform rewrites display on a 
   assert.equal(insightNode.style.getPropertyValue("display"), "none");
   assert.equal(insightNode.style.getPropertyPriority("display"), "important");
   assert.equal(insightNode.hasAttribute("data-asc-platform-ai-hidden"), true);
+});
+
+test("ByteDance AIDP jinhua content only restores AI nodes hidden by the same runtime", function () {
+  const contentModule = loadContentModule();
+  const insightNode = createFakeNode("none", "important");
+  insightNode.setAttribute("data-asc-platform-ai-hidden", "true");
+  insightNode.setAttribute("data-asc-platform-ai-hidden-by", "bytedanceAidpSuzhouHelper");
+
+  contentModule.__testOnly.applyPlatformAiVisibility([insightNode], false);
+
+  assert.equal(insightNode.style.getPropertyValue("display"), "none");
+  assert.equal(insightNode.style.getPropertyPriority("display"), "important");
+  assert.equal(insightNode.getAttribute("data-asc-platform-ai-hidden"), "true");
+  assert.equal(
+    insightNode.getAttribute("data-asc-platform-ai-hidden-by"),
+    "bytedanceAidpSuzhouHelper"
+  );
+});
+
+test("ByteDance AIDP jinhua content source does not retain suzhou script config keys", function () {
+  const source = fs.readFileSync(contentModulePath, "utf8");
+
+  assert.doesNotMatch(source, /suzhouHelper/);
 });
 
 test("ByteDance AIDP content falls back to semantic AI insight anchors", function () {
@@ -983,7 +1007,7 @@ test("ByteDance AIDP content resolves helper config with custom padding playback
     platforms: {
       bytedanceAidp: {
         scripts: {
-          suzhouHelper: {
+          jinhuaHelper: {
             segmentContextPaddingMs: 400,
             defaultPlaybackRate: 1.25,
             fixedWaveZoom: 2.5,
@@ -998,7 +1022,7 @@ test("ByteDance AIDP content resolves helper config with custom padding playback
   assert.equal(config.fixedWaveZoom, 2);
 });
 
-test("ByteDance AIDP content resolves Suzhou AI config with normalized stage params", function () {
+test("ByteDance AIDP content resolves Jinhua AI config with normalized stage params", function () {
   const contentModule = loadContentModule();
   const config = contentModule.__testOnly.resolveHelperConfig({
     meta: {
@@ -1007,7 +1031,7 @@ test("ByteDance AIDP content resolves Suzhou AI config with normalized stage par
     platforms: {
       bytedanceAidp: {
         scripts: {
-          suzhouHelper: {
+          jinhuaHelper: {
             aiRecommendEnabled: true,
             aiRecommendAutoFillEnabled: false,
             aiRecommendEndpoint: "http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend",

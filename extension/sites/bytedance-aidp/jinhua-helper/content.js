@@ -38,6 +38,7 @@
   const SEGMENT_RECOGNIZE_BUTTON_ATTR = "data-asc-segment-recognize-button";
   const SEGMENT_RECOGNIZE_ACTION_ATTR = "data-asc-segment-recognize-action";
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
+  const HIDDEN_OWNER_ATTR = "data-asc-platform-ai-hidden-by";
   const EXACT_PLATFORM_AI_SELECTORS = {
     insight: ".insight-container-Hn0Gna",
     trigger: ".trigger-wrapper-RlG7Dx",
@@ -327,7 +328,7 @@
 
   function getDefaultScriptConfig() {
     return (
-      CONSTANTS.DEFAULT_SETTINGS?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {
+      CONSTANTS.DEFAULT_SETTINGS?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || {
         id: SCRIPT_ID,
         enabled: true,
         platformAiEnabled: false,
@@ -357,7 +358,7 @@
   function resolveHelperConfig(settings) {
     const source = settings && typeof settings === "object" ? settings : {};
     const defaults = getDefaultScriptConfig();
-    const current = source?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+    const current = source?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || {};
     const endpointBuilder =
       typeof CONSTANTS.buildBackendUrl === "function"
         ? CONSTANTS.buildBackendUrl
@@ -435,7 +436,7 @@
   function resolveRuntimePolicy(settings) {
     const source = settings && typeof settings === "object" ? settings : {};
     const defaults = getDefaultScriptConfig();
-    const current = source?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+    const current = source?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || {};
     const platformEnabled = source?.platforms?.bytedanceAidp?.enabled !== false;
     const enabled = current.enabled !== false;
     const platformAiEnabled =
@@ -464,6 +465,7 @@
     }
 
     const alreadyHidden = node.getAttribute(HIDDEN_ATTR) === "true";
+    const previousOwner = normalizeText(node.getAttribute(HIDDEN_OWNER_ATTR));
     if (!alreadyHidden) {
       node.__ascPrevDisplayValue =
         typeof node.style.getPropertyValue === "function"
@@ -473,8 +475,9 @@
         typeof node.style.getPropertyPriority === "function"
           ? String(node.style.getPropertyPriority("display") || "")
           : "";
-      node.setAttribute(HIDDEN_ATTR, "true");
     }
+    node.setAttribute(HIDDEN_ATTR, "true");
+    node.setAttribute(HIDDEN_OWNER_ATTR, SCRIPT_ID);
 
     const currentDisplayValue =
       typeof node.style.getPropertyValue === "function"
@@ -487,6 +490,7 @@
     node.style.setProperty("display", "none", "important");
     return (
       alreadyHidden !== true ||
+      previousOwner !== SCRIPT_ID ||
       currentDisplayValue !== "none" ||
       currentDisplayPriority !== "important"
     );
@@ -494,6 +498,10 @@
 
   function restorePlatformAiNode(node) {
     if (!isHideableNode(node) || node.getAttribute(HIDDEN_ATTR) !== "true") {
+      return false;
+    }
+    const hiddenBy = normalizeText(node.getAttribute(HIDDEN_OWNER_ATTR));
+    if (hiddenBy && hiddenBy !== SCRIPT_ID) {
       return false;
     }
 
@@ -509,6 +517,7 @@
     delete node.__ascPrevDisplayValue;
     delete node.__ascPrevDisplayPriority;
     node.removeAttribute(HIDDEN_ATTR);
+    node.removeAttribute(HIDDEN_OWNER_ATTR);
     return true;
   }
 
@@ -3435,7 +3444,7 @@
         platforms: {
           bytedanceAidp: {
             scripts: {
-              suzhouHelper: {
+              jinhuaHelper: {
                 id: SCRIPT_ID,
                 segmentPreviewAutoApplyEnabled: nextEnabled !== false,
               },
@@ -3473,7 +3482,7 @@
         platforms: {
           bytedanceAidp: {
             scripts: {
-              suzhouHelper: {
+              jinhuaHelper: {
                 id: SCRIPT_ID,
                 aiRecommendAutoFillEnabled: nextEnabled !== false,
               },

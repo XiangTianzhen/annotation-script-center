@@ -13,6 +13,7 @@
   - 设置页基础设置区已统一把详细说明收进可点击 `?`，并移除单独占位的说明卡
   - 管理区 `/management/*` 已补 header 账号区 `切换账号` 按钮，会先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 站点储存，再补清 AIDP / SSO / 第三方登录 Cookie 后刷新页面
   - 关闭自动填入时，行内识别会先缓存结果，再由同一行 `填入` 按钮直填 textarea
+  - 运行时现已独立读写 `jinhuaHelper` 配置，并与苏州话共享页面时保持脚本互斥下的 AI 隐藏 owner 隔离
 
 ## 当前资料覆盖
 

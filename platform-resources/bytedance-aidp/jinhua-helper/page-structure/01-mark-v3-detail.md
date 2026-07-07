@@ -2,7 +2,7 @@
 
 ## 页面标识 / 路由 / 前置条件
 
-- `routeKey`: `suzhou-mark-v3-detail`
+- `routeKey`: `jinhua-mark-v3-detail`
 - `riskLevel`: `readonly`
 
 - 路径：`/management/task-v2/{taskId}/mark-v3/{index}`
