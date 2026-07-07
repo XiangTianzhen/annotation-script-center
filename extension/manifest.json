@@ -369,6 +369,17 @@
       "all_frames": false,
       "run_at": "document_start",
       "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "http://*/*"
+      ],
+      "js": [
+        "sites/haitian-utrans/audio-download-helper/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_idle",
+      "world": "ISOLATED"
     }
   ],
   "web_accessible_resources": [

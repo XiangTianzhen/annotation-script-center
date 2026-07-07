@@ -97,6 +97,13 @@
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`
 
+## Haitian uTrans
+
+- 平台资料总览：`platform-resources/haitian-utrans/README.md`
+- 运行时代码：`extension/sites/haitian-utrans/audio-download-helper/`
+- 运行时 README：`extension/sites/haitian-utrans/audio-download-helper/README.md`
+- 脚本资料：`platform-resources/haitian-utrans/audio-download-helper/README.md`
+
 ## 额外说明
 
 - 本索引只负责入口，不重复抄业务细节。

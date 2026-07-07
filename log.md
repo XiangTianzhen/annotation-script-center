@@ -1302,3 +1302,5 @@
 - 文档(aishell-tech): 同步泰语助手目录与平台索引
 - 修复(ByteDance AIDP): 播放期详情页双滚动层锁定，播放时冻结 helper 面板重挂、上下文刷新与分段表格补挂
 - 调整(ByteDance AIDP): 分段表格行内识别入口改为结构签名驱动，并在 `#conbination-wrap` / `.arco-table-body` 补写前后恢复滚动位置
+- 新增(haitian-utrans): 接入任务详情页音频下载悬浮按钮最小 MVP
+- 文档(haitian-utrans): 补充平台入口、脚本 README 与平台索引
