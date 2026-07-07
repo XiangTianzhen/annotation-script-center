@@ -1,6 +1,7 @@
 (function () {
   const ROOT_ATTR = "data-asc-bytedance-aidp-jinhua-panel";
   const STYLE_ID = "asc-bytedance-aidp-jinhua-panel-style";
+  const TOGGLE_ATTR = "data-jinhua-panel-visibility-toggle";
   let activeTooltipAnchor = null;
   let tooltipListenersBound = false;
 
@@ -198,6 +199,21 @@
       "[" + ROOT_ATTR + "] .debug-title { font-weight: 600; color: #26418b; }",
       "[" + ROOT_ATTR + "] .debug-copy-button { min-height: 28px; padding: 0 12px; font-size: 12px; }",
       "[" + ROOT_ATTR + "] .debug-card { margin: 0; padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 10px; background: #f8fbff; color: #334155; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }",
+      "[" + TOGGLE_ATTR + "='true'] {",
+      "  margin-top: 12px;",
+      "  min-height: 32px;",
+      "  padding: 8px 14px;",
+      "  border: 1px solid #c9d8ff;",
+      "  border-radius: 999px;",
+      "  background: #fff;",
+      "  color: #2f57c5;",
+      "  font-size: 12px;",
+      "  font-weight: 600;",
+      "  cursor: pointer;",
+      "  white-space: nowrap;",
+      "  box-shadow: 0 6px 18px rgba(47, 87, 197, 0.08);",
+      "}",
+      "[" + TOGGLE_ATTR + "='true']:hover { background: #edf3ff; }",
       "@media (max-width: 1120px) {",
       "  [" + ROOT_ATTR + "] .panel-grid { grid-template-columns: minmax(0, 1fr); }",
       "  [" + ROOT_ATTR + "] .section[data-span='full'] { grid-column: auto; }",
@@ -429,6 +445,7 @@
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     let rootNode = null;
+    let toggleButtonNode = null;
     let statusNode = null;
     let summaryNode = null;
     let summaryCollapseButtonNode = null;
@@ -443,6 +460,7 @@
     let batchActionMode = deps.aiRecommendAutoFillEnabled === false ? "recognize" : "recognizeAndFill";
     let aiRecommendAutoFillEnabled = deps.aiRecommendAutoFillEnabled !== false;
     let segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
+    let panelHidden = false;
     let currentAudioCollapsed = true;
     let previewCollapsed = true;
     let aiMetaCollapsed = true;
@@ -486,6 +504,40 @@
       if (aiMetaCollapseButtonNode) {
         setCollapseToggleText(aiMetaCollapseButtonNode, "AI信息", aiMetaCollapsed);
       }
+    }
+
+    function syncPanelVisibility() {
+      if (rootNode) {
+        rootNode.style.display = panelHidden ? "none" : "";
+      }
+      if (toggleButtonNode) {
+        toggleButtonNode.textContent = panelHidden ? "显示金华话脚本" : "隐藏金华话脚本";
+      }
+    }
+
+    function setPanelHidden(hidden) {
+      panelHidden = hidden === true;
+      syncPanelVisibility();
+    }
+
+    function togglePanelHidden() {
+      setPanelHidden(!panelHidden);
+    }
+
+    function isPanelHidden() {
+      return panelHidden === true;
+    }
+
+    function ensureToggleButton() {
+      if (toggleButtonNode) {
+        return toggleButtonNode;
+      }
+      toggleButtonNode = createButton("隐藏金华话脚本", false, function () {
+        togglePanelHidden();
+      });
+      toggleButtonNode.setAttribute(TOGGLE_ATTR, "true");
+      syncPanelVisibility();
+      return toggleButtonNode;
     }
 
     function renderPreviewActionButtons() {
@@ -793,6 +845,7 @@
       syncAiMetaSectionState();
 
       rootNode.appendChild(grid);
+      syncPanelVisibility();
 
       const windowLike = globalThis.window || null;
       if (windowLike && typeof windowLike.addEventListener === "function") {
@@ -809,13 +862,22 @@
       if (!(anchor instanceof HTMLElement) || !(anchor.parentNode instanceof HTMLElement)) {
         return false;
       }
+      const parentNode = anchor.parentNode;
+      const toggleButton = ensureToggleButton();
       const root = ensureRoot();
-      if (root.parentNode !== anchor.parentNode) {
-        root.parentNode?.removeChild(root);
-        insertAfter(anchor.parentNode, anchor, root);
-      } else if (root.previousSibling !== anchor) {
-        insertAfter(anchor.parentNode, anchor, root);
+      if (toggleButton.parentNode !== parentNode) {
+        toggleButton.parentNode?.removeChild(toggleButton);
+        insertAfter(parentNode, anchor, toggleButton);
+      } else if (anchor.nextSibling !== toggleButton) {
+        insertAfter(parentNode, anchor, toggleButton);
       }
+      if (root.parentNode !== parentNode) {
+        root.parentNode?.removeChild(root);
+        insertAfter(parentNode, toggleButton, root);
+      } else if (toggleButton.nextSibling !== root) {
+        insertAfter(parentNode, toggleButton, root);
+      }
+      syncPanelVisibility();
       return true;
     }
 
@@ -1196,10 +1258,14 @@
     }
 
     function destroy() {
+      if (toggleButtonNode && toggleButtonNode.parentNode) {
+        toggleButtonNode.parentNode.removeChild(toggleButtonNode);
+      }
       if (rootNode && rootNode.parentNode) {
         rootNode.parentNode.removeChild(rootNode);
       }
       rootNode = null;
+      toggleButtonNode = null;
       statusNode = null;
       summaryNode = null;
       summaryCollapseButtonNode = null;
@@ -1225,6 +1291,7 @@
       segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
       aiRecommendAutoFillEnabled = deps.aiRecommendAutoFillEnabled !== false;
       batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
+      panelHidden = false;
       previewCollapsed = true;
       aiMetaCollapsed = true;
     }
@@ -1244,6 +1311,9 @@
       setSegmentPreviewAutoApplyEnabled,
       setAiRecommendAutoFillEnabled,
       setBatchActionState,
+      setPanelHidden,
+      togglePanelHidden,
+      isPanelHidden,
     };
   }
 

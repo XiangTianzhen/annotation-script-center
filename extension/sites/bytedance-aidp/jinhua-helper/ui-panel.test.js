@@ -263,6 +263,12 @@ function findNode(root, predicate) {
   return collectDescendants(root).find(predicate) || null;
 }
 
+function findMountedPanelRoot(root) {
+  return findNode(root, function (node) {
+    return Object.prototype.hasOwnProperty.call(node.attributes || {}, "data-asc-bytedance-aidp-jinhua-panel");
+  });
+}
+
 test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by default and supports shared toggles", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -275,7 +281,7 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
     const runtime = module.createRuntime({});
     assert.equal(runtime.mount(), true);
 
-    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelRoot = findMountedPanelRoot(harness.body);
     assert.ok(panelRoot);
 
     const collapseButton = findNode(panelRoot, function (node) {
@@ -374,6 +380,48 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
   }
 });
 
+test("AIDP jinhua ui panel keeps a persistent visibility toggle outside the panel body", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+
+    const toggleButton = findNode(harness.body, function (node) {
+      return (
+        node.tagName === "BUTTON" &&
+        node.getAttribute("data-jinhua-panel-visibility-toggle") === "true"
+      );
+    });
+    const panelRoot = findMountedPanelRoot(harness.body);
+
+    assert.ok(toggleButton);
+    assert.ok(panelRoot);
+    assert.equal(toggleButton.textContent, "隐藏金华话脚本");
+    assert.equal(typeof runtime.isPanelHidden, "function");
+    assert.equal(runtime.isPanelHidden(), false);
+    assert.notEqual(panelRoot.style.display, "none");
+
+    toggleButton.click();
+    assert.equal(runtime.isPanelHidden(), true);
+    assert.equal(toggleButton.textContent, "显示金华话脚本");
+    assert.equal(panelRoot.style.display, "none");
+
+    toggleButton.click();
+    assert.equal(runtime.isPanelHidden(), false);
+    assert.equal(toggleButton.textContent, "隐藏金华话脚本");
+    assert.notEqual(panelRoot.style.display, "none");
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP jinhua ui panel switches preview buttons from settings-only auto-apply state", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -388,7 +436,7 @@ test("AIDP jinhua ui panel switches preview buttons from settings-only auto-appl
     });
     assert.equal(runtime.mount(), true);
 
-    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelRoot = findMountedPanelRoot(harness.body);
     const allButtons = collectDescendants(panelRoot).filter(function (node) {
       return node.tagName === "BUTTON";
     });
@@ -472,7 +520,7 @@ test("AIDP jinhua ui panel renders Mandarin transcript wording and AI return cop
     const runtime = module.createRuntime({});
     assert.equal(runtime.mount(), true);
 
-    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelRoot = findMountedPanelRoot(harness.body);
     runtime.renderCurrentRecommendation({
       segmentNumber: 2,
       listenText: "阿拉等会去吃饭。",
@@ -558,7 +606,7 @@ test("AIDP jinhua ui panel removes current-segment section and keeps preview-bat
     const runtime = module.createRuntime({});
     assert.equal(runtime.mount(), true);
 
-    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelRoot = findMountedPanelRoot(harness.body);
     const panelText = panelRoot.textContent;
     const buttons = collectDescendants(panelRoot).filter(function (node) {
       return node.tagName === "BUTTON";
@@ -600,7 +648,7 @@ test("AIDP jinhua ui panel toggles batch selection with a normal click without r
     const runtime = module.createRuntime({});
     assert.equal(runtime.mount(), true);
 
-    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelRoot = findMountedPanelRoot(harness.body);
     runtime.renderBatchSelection({
       totalSegments: 3,
       resetSelection: true,
@@ -642,7 +690,7 @@ test("AIDP jinhua ui panel uses a single batch primary button that follows auto-
     });
     assert.equal(runtime.mount(), true);
 
-    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelRoot = findMountedPanelRoot(harness.body);
     runtime.renderBatchSelection({
       totalSegments: 4,
       resetSelection: true,
@@ -720,7 +768,7 @@ test("AIDP jinhua ui panel renders batch AI tabs and switches the active segment
     const runtime = module.createRuntime({});
     assert.equal(runtime.mount(), true);
 
-    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelRoot = findMountedPanelRoot(harness.body);
     const selections = [];
     runtime.renderBatchResultTabs({
       items: [

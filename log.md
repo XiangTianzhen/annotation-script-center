@@ -1,3 +1,14 @@
+## 2026-07-07（为 ByteDance AIDP 金华话脚本增加常驻面板显隐开关）
+- 更新 `extension/sites/bytedance-aidp/jinhua-helper/ui-panel.js`
+  - 新增常驻 `隐藏金华话脚本 / 显示金华话脚本` 按钮
+  - 面板隐藏时按钮继续保留，支持再次显示
+  - 显隐只作用于扩展辅助面板，不影响平台原生区域
+- 更新测试：
+  - `extension/sites/bytedance-aidp/jinhua-helper/ui-panel.test.js`
+  - 新增常驻显隐按钮回归
+- 更新文档：
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+
 ## 2026-07-07（继续收口 ByteDance AIDP 播放期自动滚动，只在真实播放中拦自动跟随）
 - 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
   - 新增播放期专用滚动守卫 watchdog，改为由波形时间推进直接驱动进入与退出，不再等待通用 DOM 同步链路触发
