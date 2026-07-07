@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
@@ -108,4 +109,35 @@ test("uTrans helper reads runtime enabled flag from settings", function () {
     }),
     false
   );
+});
+
+test("uTrans helper can recover batchid and audioid from audio_path candidates", function () {
+  const helperModule = loadModule();
+
+  const context = helperModule.__testOnly.resolveAudioRequestContext({
+    href: "http://123.56.253.145:10070/index.php?d=worker&c=work&uid=49844&project_id=127&process_id=507&task_id=696596",
+    hiddenFields: {},
+    audioCandidates: [
+      "http://123.56.253.145:10070/index.php?d=worker&c=audio&m=audio_path&projectid=127&batchid=2033&audioid=45021",
+    ],
+    visibleTexts: ["当前任务详情"],
+  });
+
+  assert.deepEqual(context, {
+    ok: true,
+    projectId: "127",
+    batchId: "2033",
+    audioId: "45021",
+    fileName: "audio-45021.wav",
+    downloadUrl:
+      "http://123.56.253.145:10070/index.php?d=worker&c=audio&m=audio_path&projectid=127&batchid=2033&audioid=45021",
+  });
+});
+
+test("uTrans helper uses external bridge script instead of inline bridge text", function () {
+  const script = fs.readFileSync(modulePath, "utf8");
+
+  assert.match(script, /BRIDGE_SCRIPT_PATH = "sites\/haitian-utrans\/audio-download-helper\/bridge\.js"/);
+  assert.match(script, /chrome\.runtime\.getURL\(BRIDGE_SCRIPT_PATH\)/);
+  assert.doesNotMatch(script, /script\.textContent\s*=/);
 });

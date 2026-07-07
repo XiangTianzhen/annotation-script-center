@@ -1309,3 +1309,4 @@
 - 新增(haitian-utrans): 接入任务详情页音频下载悬浮按钮最小 MVP
 - 文档(haitian-utrans): 补充平台入口、脚本 README 与平台索引
 - 新增(haitian-utrans): 在平台设置中接入音频下载助手，并增加“是否开启悬浮窗下载功能”单开关
+- 修复(haitian-utrans): 将下载桥接改为扩展脚本注入，避免 uTrans 页面 CSP 拦截内联脚本

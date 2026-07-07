@@ -14,6 +14,8 @@
   const TITLE_ATTR = "data-asc-haitian-utrans-audio-download-title";
   const STATUS_ATTR = "data-asc-haitian-utrans-audio-download-status";
   const BRIDGE_SCRIPT_ID = "asc-haitian-utrans-audio-download-bridge";
+  const BRIDGE_SCRIPT_PATH = "sites/haitian-utrans/audio-download-helper/bridge.js";
+  const BRIDGE_READY_ATTR = "data-asc-haitian-utrans-download-bridge-ready";
   const REQUEST_EVENT = "asc-haitian-utrans-download-request";
   const RESPONSE_EVENT = "asc-haitian-utrans-download-response";
   const INSTALL_FLAG = "__ASREdgeHaitianUtransAudioDownloadHelperInstalled";
@@ -30,6 +32,7 @@
   let activeRequestId = "";
   let runtimeEnabled = true;
   let storageListenerBound = false;
+  let bridgeReadyPromise = null;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -319,47 +322,69 @@
     buttonNode.textContent = isDownloading === true ? "正在下载..." : "下载当前音频";
   }
 
+  function getBridgeScriptUrl() {
+    if (
+      typeof chrome === "undefined" ||
+      !chrome.runtime ||
+      typeof chrome.runtime.getURL !== "function"
+    ) {
+      return "";
+    }
+    return chrome.runtime.getURL(BRIDGE_SCRIPT_PATH);
+  }
+
+  function isBridgeReady() {
+    return (
+      typeof document !== "undefined" &&
+      document.documentElement &&
+      document.documentElement.getAttribute(BRIDGE_READY_ATTR) === "true"
+    );
+  }
+
   function ensureBridge() {
     if (typeof document === "undefined") {
-      return false;
+      return Promise.resolve(false);
     }
-    if (document.getElementById(BRIDGE_SCRIPT_ID)) {
-      return true;
+    if (isBridgeReady()) {
+      return Promise.resolve(true);
     }
-    const script = document.createElement("script");
-    script.id = BRIDGE_SCRIPT_ID;
-    script.textContent = [
-      "(function(){",
-      "if(window.__ascHaitianUtransDownloadBridgeInstalled){return;}",
-      "window.__ascHaitianUtransDownloadBridgeInstalled=true;",
-      "document.addEventListener(" + JSON.stringify(REQUEST_EVENT) + ",async function(event){",
-      "var detail=event&&event.detail&&typeof event.detail==='object'?event.detail:{};",
-      "var requestId=String(detail.requestId||'');",
-      "var downloadUrl=String(detail.downloadUrl||'');",
-      "var fileName=String(detail.fileName||'audio.wav');",
-      "function emit(payload){document.dispatchEvent(new CustomEvent(" + JSON.stringify(RESPONSE_EVENT) + ",{detail:Object.assign({requestId:requestId},payload||{})}));}",
-      "if(!requestId||!downloadUrl){emit({ok:false,message:'页内下载参数缺失。'});return;}",
-      "try{",
-      "var response=await fetch(downloadUrl,{credentials:'include',cache:'no-store'});",
-      "if(!response||!response.ok){emit({ok:false,message:'下载请求失败，状态 '+String(response&&response.status||'unknown')+'。'});return;}",
-      "var buffer=await response.arrayBuffer();",
-      "if(!buffer||buffer.byteLength<=0){emit({ok:false,message:'音频响应为空，可能是登录态失效或参数不完整。'});return;}",
-      "var blob=new Blob([buffer],{type:'audio/wav'});",
-      "var objectUrl=URL.createObjectURL(blob);",
-      "var link=document.createElement('a');",
-      "link.href=objectUrl;",
-      "link.download=fileName;",
-      "link.style.display='none';",
-      "(document.body||document.documentElement).appendChild(link);",
-      "link.click();",
-      "setTimeout(function(){if(link.parentNode){link.parentNode.removeChild(link);}URL.revokeObjectURL(objectUrl);},0);",
-      "emit({ok:true,message:'已开始下载 '+fileName+'。'});",
-      "}catch(error){emit({ok:false,message:'下载失败：'+String(error&&error.message||error||'unknown')});}",
-      "});",
-      "})();",
-    ].join("");
-    (document.documentElement || document.head || document.body).appendChild(script);
-    return true;
+    if (bridgeReadyPromise) {
+      return bridgeReadyPromise;
+    }
+
+    const existingScript = document.getElementById(BRIDGE_SCRIPT_ID);
+    if (existingScript instanceof HTMLScriptElement) {
+      bridgeReadyPromise = new Promise(function (resolve) {
+        window.setTimeout(function () {
+          resolve(isBridgeReady());
+        }, 0);
+      });
+      return bridgeReadyPromise;
+    }
+
+    const bridgeUrl = getBridgeScriptUrl();
+    if (!bridgeUrl) {
+      return Promise.resolve(false);
+    }
+
+    bridgeReadyPromise = new Promise(function (resolve) {
+      const script = document.createElement("script");
+      script.id = BRIDGE_SCRIPT_ID;
+      script.src = bridgeUrl;
+      script.async = false;
+      script.onload = function () {
+        resolve(isBridgeReady());
+      };
+      script.onerror = function () {
+        bridgeReadyPromise = null;
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+        resolve(false);
+      };
+      (document.documentElement || document.head || document.body).appendChild(script);
+    });
+    return bridgeReadyPromise;
   }
 
   function createPanel() {
@@ -465,7 +490,7 @@
       setStatus(context.message, "error");
       return;
     }
-    if (!ensureBridge()) {
+    if (!(await ensureBridge())) {
       setStatus("页内下载桥接初始化失败。", "error");
       return;
     }
@@ -547,6 +572,7 @@
       extractVisibleFileName: extractVisibleFileName,
       ensureWavFileName: ensureWavFileName,
       buildDownloadUrl: buildDownloadUrl,
+      getBridgeScriptUrl: getBridgeScriptUrl,
     },
   };
 
