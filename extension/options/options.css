@@ -2108,6 +2108,19 @@ body {
   min-height: 52px;
 }
 
+#aidp-ui-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 4590;
+  pointer-events: none;
+}
+
+.aidp-ui-layer-menu {
+  position: absolute;
+  z-index: 4600;
+  pointer-events: auto;
+}
+
 .detail-workbench .aidp-custom-select {
   position: relative;
   width: 100%;
@@ -2200,10 +2213,9 @@ body {
 }
 
 .aidp-select-menu {
-  position: fixed;
+  position: absolute;
   left: 0;
   top: 0;
-  z-index: 4600;
   padding: 2px 0;
   border-radius: 12px;
   border: 1px solid #d5d9e2;
@@ -2213,11 +2225,6 @@ body {
   gap: 0;
   max-height: 280px;
   overflow: auto;
-}
-
-.detail-workbench .aidp-select-menu {
-  position: fixed;
-  z-index: 4600;
 }
 
 .detail-workbench .aidp-select-option {

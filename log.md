@@ -1,5 +1,20 @@
 ## 2026-07-07（统一 ByteDance AIDP 金华 / 苏州设置页布局与金华 AI 开关语义）
 - 更新 `extension/options/options.js`
+  - 重构 AIDP 自定义下拉控制器，改为复用脚本详情页内的 `aidp-ui-layer` 局部门户层，不再把菜单节点散挂到 `body`
+  - 重构 AIDP 多行文本框控制器，继续保留行号 gutter 与竖向行数滑块，但改为按 textarea 实例缓存和同步，避免在旧补丁链上继续叠状态
+- 更新 `extension/options/options.css`
+  - 新增 `aidp-ui-layer` 与局部门户菜单样式，收口 AIDP 选择器弹层定位
+- 更新 `extension/options/options.html`
+  - 在脚本详情页内新增 `aidp-ui-layer`，供 AIDP 下拉组件统一复用
+- 更新测试：
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - 回归固定 AIDP 选择器必须走局部门户层，且旧的 `body` 级菜单挂载实现不再存在
+- 更新文档：
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+- 更新 `extension/options/options.js`
   - AIDP `AI 设置 -> 基础设置` 改为两列网格，`思考开关` 只保留 `固定关闭`，完整限制说明继续留在问号浮层中
   - AIDP 局部 select 改为自定义下拉，覆盖左侧基础设置 select 与右侧阶段模型 select，并保持原生 select 存储读值路径
   - 听音 / 收口 Prompt 与 `stop sequences` 新增左侧行号 gutter；阶段 Prompt / 参数改为直接显示当前生效值，保存时继续按默认值归一化避免误写 override

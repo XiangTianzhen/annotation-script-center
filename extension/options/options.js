@@ -90,8 +90,12 @@
   let inlineHelpPopoverNode = null;
   let inlineHelpListenersBound = false;
   let activeAidpCustomSelectNode = null;
+  let aidpUiLayerNode = null;
+  let aidpUiLayerSelectMenuNode = null;
   let aidpCustomSelectListenersBound = false;
   let aidpLineNumberWindowListenerBound = false;
+  const aidpCustomSelectControllers = new WeakMap();
+  const aidpLineNumberTextareaControllers = new WeakMap();
   const betaFeaturesVisibleByDefault = constants.BETA_FEATURES_VISIBLE_BY_DEFAULT === true;
   const getBackendModeFromSettings =
     typeof constants.getBackendEndpointModeFromSettings === "function"
@@ -6761,12 +6765,43 @@
     });
   }
 
-  function getAidpCustomSelectMenu(wrapper) {
-    if (!(wrapper instanceof HTMLElement)) {
+  function ensureAidpUiLayer() {
+    const layer = getElement("aidp-ui-layer");
+    if (!(layer instanceof HTMLElement)) {
       return null;
     }
-    const menu = wrapper.__aidpCustomSelectMenu;
-    return menu instanceof HTMLElement ? menu : null;
+    aidpUiLayerNode = layer;
+    if (
+      !(aidpUiLayerSelectMenuNode instanceof HTMLElement) ||
+      !aidpUiLayerNode.contains(aidpUiLayerSelectMenuNode)
+    ) {
+      const menu = document.createElement("div");
+      menu.id = "aidp-ui-layer-select-menu";
+      menu.className = "aidp-select-menu aidp-ui-layer-menu";
+      menu.setAttribute("role", "listbox");
+      menu.hidden = true;
+      menu.setAttribute("data-open", "");
+      aidpUiLayerNode.appendChild(menu);
+      aidpUiLayerSelectMenuNode = menu;
+    }
+    const hasVisibleMenu =
+      aidpUiLayerSelectMenuNode instanceof HTMLElement && !aidpUiLayerSelectMenuNode.hidden;
+    aidpUiLayerNode.classList.toggle("hidden", !hasVisibleMenu);
+    aidpUiLayerNode.setAttribute("aria-hidden", hasVisibleMenu ? "false" : "true");
+    return aidpUiLayerNode;
+  }
+
+  function getAidpCustomSelectController(target) {
+    if (target instanceof HTMLSelectElement) {
+      return aidpCustomSelectControllers.get(target) || null;
+    }
+    if (!(target instanceof HTMLElement)) {
+      return null;
+    }
+    const selectNode = target.querySelector("select[data-aidp-custom-select='true']");
+    return selectNode instanceof HTMLSelectElement
+      ? aidpCustomSelectControllers.get(selectNode) || null
+      : null;
   }
 
   function getAidpCustomSelectPlaceholder(selectNode) {
@@ -6776,32 +6811,38 @@
     return normalizeText(selectNode.getAttribute("data-aidp-placeholder"));
   }
 
-  function getAidpCustomSelectItems(wrapper) {
-    const menu = getAidpCustomSelectMenu(wrapper);
-    if (!(menu instanceof HTMLElement)) {
+  function getAidpCustomSelectItems() {
+    if (!(aidpUiLayerSelectMenuNode instanceof HTMLElement)) {
       return [];
     }
-    return Array.from(menu.querySelectorAll(".aidp-select-option")).filter(function (node) {
-      return node instanceof HTMLButtonElement;
-    });
+    return Array.from(aidpUiLayerSelectMenuNode.querySelectorAll(".aidp-select-option")).filter(
+      function (node) {
+        return node instanceof HTMLButtonElement;
+      }
+    );
   }
 
   function closeAidpCustomSelect(wrapper) {
-    if (!(wrapper instanceof HTMLElement)) {
+    const controller = getAidpCustomSelectController(wrapper);
+    if (!controller) {
+      if (wrapper instanceof HTMLElement) {
+        wrapper.setAttribute("data-open", "");
+        wrapper.setAttribute("data-highlight-index", "");
+      }
       return;
     }
-    wrapper.setAttribute("data-open", "");
-    const trigger = wrapper.querySelector(".aidp-select-trigger");
-    const menu = getAidpCustomSelectMenu(wrapper);
-    if (trigger instanceof HTMLButtonElement) {
-      trigger.setAttribute("aria-expanded", "false");
-    }
-    if (menu instanceof HTMLElement) {
-      menu.hidden = true;
-      menu.setAttribute("data-open", "");
-    }
-    if (activeAidpCustomSelectNode === wrapper) {
+    controller.wrapper.setAttribute("data-open", "");
+    controller.wrapper.setAttribute("data-highlight-index", "");
+    controller.trigger.setAttribute("aria-expanded", "false");
+    if (activeAidpCustomSelectNode === controller.wrapper) {
       activeAidpCustomSelectNode = null;
+      if (aidpUiLayerSelectMenuNode instanceof HTMLElement) {
+        aidpUiLayerSelectMenuNode.hidden = true;
+        aidpUiLayerSelectMenuNode.innerHTML = "";
+        aidpUiLayerSelectMenuNode.setAttribute("data-open", "");
+        aidpUiLayerSelectMenuNode.setAttribute("data-placement", "");
+      }
+      ensureAidpUiLayer();
     }
   }
 
@@ -6817,16 +6858,17 @@
   }
 
   function setAidpCustomSelectHighlight(wrapper, nextIndex) {
-    if (!(wrapper instanceof HTMLElement)) {
+    const controller = getAidpCustomSelectController(wrapper);
+    if (!controller) {
       return;
     }
-    const items = getAidpCustomSelectItems(wrapper);
+    const items = getAidpCustomSelectItems();
     if (!items.length) {
-      wrapper.setAttribute("data-highlight-index", "");
+      controller.wrapper.setAttribute("data-highlight-index", "");
       return;
     }
     const safeIndex = Math.max(0, Math.min(Number(nextIndex) || 0, items.length - 1));
-    wrapper.setAttribute("data-highlight-index", String(safeIndex));
+    controller.wrapper.setAttribute("data-highlight-index", String(safeIndex));
     items.forEach(function (item, index) {
       const active = index === safeIndex;
       item.classList.toggle("is-highlighted", active);
@@ -6836,21 +6878,61 @@
     });
   }
 
+  function renderAidpCustomSelectMenu(controller) {
+    if (!controller) {
+      return;
+    }
+    const layer = ensureAidpUiLayer();
+    const menu = aidpUiLayerSelectMenuNode;
+    if (!(layer instanceof HTMLElement) || !(menu instanceof HTMLElement)) {
+      return;
+    }
+    menu.innerHTML = "";
+    let selectedIndex = Math.max(0, controller.selectNode.selectedIndex);
+    Array.from(controller.selectNode.options).forEach(function (option, index) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "aidp-select-option";
+      item.setAttribute("role", "option");
+      item.setAttribute("data-value", option.value);
+      item.setAttribute("data-index", String(index));
+      item.textContent = normalizeText(option.textContent || "");
+      if (option.disabled) {
+        item.disabled = true;
+      }
+      const selected = option.value === controller.selectNode.value;
+      item.classList.toggle("is-selected", selected);
+      item.setAttribute("aria-selected", selected ? "true" : "false");
+      if (selected) {
+        selectedIndex = index;
+      }
+      item.addEventListener("mouseenter", function () {
+        setAidpCustomSelectHighlight(controller.wrapper, index);
+      });
+      item.addEventListener("click", function () {
+        if (item.disabled) {
+          return;
+        }
+        chooseAidpCustomSelectValue(controller.selectNode, option.value);
+      });
+      menu.appendChild(item);
+    });
+    setAidpCustomSelectHighlight(controller.wrapper, selectedIndex);
+  }
+
   function positionAidpCustomSelectMenu(wrapper) {
-    if (!(wrapper instanceof HTMLElement)) {
+    const controller = getAidpCustomSelectController(wrapper);
+    const layer = ensureAidpUiLayer();
+    const menu = aidpUiLayerSelectMenuNode;
+    if (!controller || !(layer instanceof HTMLElement) || !(menu instanceof HTMLElement)) {
       return;
     }
-    const menu = getAidpCustomSelectMenu(wrapper);
-    const trigger = wrapper.querySelector(".aidp-select-trigger");
-    if (!(menu instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement)) {
-      return;
-    }
-    const triggerRect = trigger.getBoundingClientRect();
+    const triggerRect = controller.trigger.getBoundingClientRect();
     const viewportPadding = 12;
     const gap = 8;
     const menuMaxHeight = 280;
     const measuredWidth = Math.max(Math.round(triggerRect.width), 180);
-    menu.style.position = "fixed";
+    menu.style.position = "absolute";
     menu.style.width = measuredWidth + "px";
     menu.style.minWidth = measuredWidth + "px";
     menu.style.left = "0px";
@@ -6861,15 +6943,22 @@
     const menuHeight = Math.min(menu.scrollHeight || menu.offsetHeight || 0, menuMaxHeight);
     const spaceBelow = window.innerHeight - triggerRect.bottom - gap - viewportPadding;
     const spaceAbove = triggerRect.top - gap - viewportPadding;
-    const shouldFlipUp = spaceBelow < Math.min(menuHeight || menuMaxHeight, 180) && spaceAbove > spaceBelow;
+    const shouldFlipUp =
+      spaceBelow < Math.min(menuHeight || menuMaxHeight, 180) && spaceAbove > spaceBelow;
     const availableHeight = shouldFlipUp ? spaceAbove : spaceBelow;
-    const safeMaxHeight = Math.max(96, Math.min(menuMaxHeight, availableHeight > 0 ? availableHeight : menuMaxHeight));
+    const safeMaxHeight = Math.max(
+      96,
+      Math.min(menuMaxHeight, availableHeight > 0 ? availableHeight : menuMaxHeight)
+    );
     const maxLeft = Math.max(viewportPadding, window.innerWidth - viewportPadding - measuredWidth);
     const left = Math.min(Math.max(viewportPadding, triggerRect.left), maxLeft);
     let top = shouldFlipUp
       ? triggerRect.top - gap - Math.min(menuHeight || safeMaxHeight, safeMaxHeight)
       : triggerRect.bottom + gap;
-    top = Math.max(viewportPadding, Math.min(top, window.innerHeight - viewportPadding - safeMaxHeight));
+    top = Math.max(
+      viewportPadding,
+      Math.min(top, window.innerHeight - viewportPadding - safeMaxHeight)
+    );
     menu.style.left = Math.round(left) + "px";
     menu.style.top = Math.round(top) + "px";
     menu.style.maxHeight = Math.round(safeMaxHeight) + "px";
@@ -6882,38 +6971,23 @@
     if (!(selectNode instanceof HTMLSelectElement)) {
       return;
     }
-    const wrapper = selectNode.closest(".aidp-custom-select");
-    if (!(wrapper instanceof HTMLElement)) {
+    const controller = getAidpCustomSelectController(selectNode);
+    if (!controller) {
       return;
     }
-    const trigger = wrapper.querySelector(".aidp-select-trigger");
-    const label = wrapper.querySelector(".aidp-select-trigger-label");
     const placeholderText = getAidpCustomSelectPlaceholder(selectNode);
     const selectedOption =
       selectNode.options[selectNode.selectedIndex >= 0 ? selectNode.selectedIndex : 0] || null;
     const selectedValue = normalizeText(selectNode.value);
     const usePlaceholder = Boolean(placeholderText) && !selectedValue;
-    if (trigger instanceof HTMLButtonElement) {
-      trigger.disabled = selectNode.disabled;
-    }
-    if (label instanceof HTMLElement) {
-      label.textContent =
-        (usePlaceholder ? placeholderText : normalizeText(selectedOption?.textContent || "")) || "请选择";
-      label.classList.toggle("is-placeholder", usePlaceholder);
-    }
-    const items = getAidpCustomSelectItems(wrapper);
-    let selectedIndex = 0;
-    items.forEach(function (item, index) {
-      const value = item.getAttribute("data-value");
-      const selected = value === selectNode.value;
-      item.classList.toggle("is-selected", selected);
-      item.setAttribute("aria-selected", selected ? "true" : "false");
-      if (selected) {
-        selectedIndex = index;
-      }
-    });
-    if (!wrapper.getAttribute("data-highlight-index")) {
-      setAidpCustomSelectHighlight(wrapper, selectedIndex);
+    controller.trigger.disabled = selectNode.disabled;
+    controller.label.textContent =
+      (usePlaceholder ? placeholderText : normalizeText(selectedOption?.textContent || "")) ||
+      "请选择";
+    controller.label.classList.toggle("is-placeholder", usePlaceholder);
+    if (activeAidpCustomSelectNode === controller.wrapper) {
+      renderAidpCustomSelectMenu(controller);
+      positionAidpCustomSelectMenu(controller.wrapper);
     }
   }
 
@@ -6933,103 +7007,112 @@
   }
 
   function openAidpCustomSelect(wrapper) {
-    if (!(wrapper instanceof HTMLElement)) {
+    const controller = getAidpCustomSelectController(wrapper);
+    if (!controller || controller.trigger.disabled) {
       return;
     }
-    const menu = getAidpCustomSelectMenu(wrapper);
-    const trigger = wrapper.querySelector(".aidp-select-trigger");
-    if (!(menu instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || trigger.disabled) {
-      return;
-    }
-    closeAllAidpCustomSelects(wrapper);
-    wrapper.setAttribute("data-open", "true");
-    menu.hidden = false;
-    trigger.setAttribute("aria-expanded", "true");
-    positionAidpCustomSelectMenu(wrapper);
-    const selectNode = wrapper.querySelector("select[data-aidp-custom-select='true']");
-    if (selectNode instanceof HTMLSelectElement) {
-      const selectedIndex = Math.max(0, selectNode.selectedIndex);
-      setAidpCustomSelectHighlight(wrapper, selectedIndex);
-    }
-    activeAidpCustomSelectNode = wrapper;
+    closeAllAidpCustomSelects(controller.wrapper);
+    controller.wrapper.setAttribute("data-open", "true");
+    controller.trigger.setAttribute("aria-expanded", "true");
+    activeAidpCustomSelectNode = controller.wrapper;
+    renderAidpCustomSelectMenu(controller);
+    positionAidpCustomSelectMenu(controller.wrapper);
+    ensureAidpUiLayer();
   }
 
   function chooseAidpCustomSelectValue(selectNode, value) {
     if (!(selectNode instanceof HTMLSelectElement)) {
       return;
     }
+    const controller = getAidpCustomSelectController(selectNode);
     if (selectNode.value === value) {
       syncAidpCustomSelectState(selectNode);
-      const existingWrapper = selectNode.closest(".aidp-custom-select");
-      if (existingWrapper instanceof HTMLElement) {
-        closeAidpCustomSelect(existingWrapper);
+      if (controller) {
+        closeAidpCustomSelect(controller.wrapper);
       }
       return;
     }
     selectNode.value = value;
     syncAidpCustomSelectState(selectNode);
     selectNode.dispatchEvent(new Event("change", { bubbles: true }));
-    const wrapper = selectNode.closest(".aidp-custom-select");
-    if (wrapper instanceof HTMLElement) {
-      closeAidpCustomSelect(wrapper);
-      const trigger = wrapper.querySelector(".aidp-select-trigger");
-      if (trigger instanceof HTMLButtonElement) {
-        trigger.focus();
-      }
+    if (controller) {
+      closeAidpCustomSelect(controller.wrapper);
+      controller.trigger.focus();
     }
   }
 
   function moveAidpCustomSelectHighlight(wrapper, direction) {
-    if (!(wrapper instanceof HTMLElement)) {
+    const controller = getAidpCustomSelectController(wrapper);
+    if (!controller) {
       return;
     }
-    const items = getAidpCustomSelectItems(wrapper);
+    const items = getAidpCustomSelectItems();
     if (!items.length) {
       return;
     }
-    const currentIndex = Math.max(0, Number(wrapper.getAttribute("data-highlight-index") || 0));
+    const currentIndex = Math.max(
+      0,
+      Number(controller.wrapper.getAttribute("data-highlight-index") || 0)
+    );
     const nextIndex = currentIndex + (direction < 0 ? -1 : 1);
     const normalizedIndex =
       nextIndex < 0 ? items.length - 1 : nextIndex >= items.length ? 0 : nextIndex;
-    setAidpCustomSelectHighlight(wrapper, normalizedIndex);
+    setAidpCustomSelectHighlight(controller.wrapper, normalizedIndex);
   }
 
   function ensureAidpCustomSelect(selectNode) {
     if (!(selectNode instanceof HTMLSelectElement)) {
       return;
     }
-    let wrapper = selectNode.closest(".aidp-custom-select");
-    if (!(wrapper instanceof HTMLElement)) {
-      const parent = selectNode.parentElement;
-      if (!(parent instanceof HTMLElement)) {
+    let controller = aidpCustomSelectControllers.get(selectNode) || null;
+    if (
+      controller &&
+      (!(controller.wrapper instanceof HTMLElement) ||
+        !(controller.trigger instanceof HTMLButtonElement) ||
+        !(controller.label instanceof HTMLElement) ||
+        !controller.wrapper.isConnected ||
+        !controller.wrapper.contains(selectNode))
+    ) {
+      controller = null;
+      aidpCustomSelectControllers.delete(selectNode);
+    }
+    if (!controller) {
+      let wrapper = selectNode.closest(".aidp-custom-select");
+      if (!(wrapper instanceof HTMLElement)) {
+        const parent = selectNode.parentElement;
+        if (!(parent instanceof HTMLElement)) {
+          return;
+        }
+        wrapper = document.createElement("div");
+        wrapper.className = "aidp-custom-select";
+        wrapper.setAttribute("data-open", "");
+        wrapper.setAttribute("data-highlight-index", "");
+        parent.insertBefore(wrapper, selectNode);
+        wrapper.appendChild(selectNode);
+      }
+      selectNode.classList.add("aidp-select-native");
+      let trigger = wrapper.querySelector(".aidp-select-trigger");
+      if (!(trigger instanceof HTMLButtonElement)) {
+        trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.className = "aidp-select-trigger";
+        trigger.setAttribute("aria-haspopup", "listbox");
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.innerHTML =
+          '<span class="aidp-select-trigger-label"></span><span class="aidp-select-trigger-icon" aria-hidden="true"></span>';
+        wrapper.appendChild(trigger);
+      }
+      const label = trigger.querySelector(".aidp-select-trigger-label");
+      if (!(label instanceof HTMLElement)) {
         return;
       }
-      wrapper = document.createElement("div");
-      wrapper.className = "aidp-custom-select";
-      wrapper.setAttribute("data-open", "");
-      wrapper.setAttribute("data-highlight-index", "");
-      parent.insertBefore(wrapper, selectNode);
-      wrapper.appendChild(selectNode);
-      selectNode.classList.add("aidp-select-native");
-
-      const trigger = document.createElement("button");
-      trigger.type = "button";
-      trigger.className = "aidp-select-trigger";
-      trigger.setAttribute("aria-haspopup", "listbox");
-      trigger.setAttribute("aria-expanded", "false");
-      trigger.innerHTML =
-        '<span class="aidp-select-trigger-label"></span><span class="aidp-select-trigger-icon" aria-hidden="true"></span>';
-
-      const menu = document.createElement("div");
-      menu.className = "aidp-select-menu";
-      menu.setAttribute("role", "listbox");
-      menu.hidden = true;
-      menu.setAttribute("data-open", "");
-
-      wrapper.appendChild(trigger);
-      wrapper.__aidpCustomSelectMenu = menu;
-      document.body.appendChild(menu);
-
+      controller = {
+        selectNode,
+        wrapper,
+        trigger,
+        label,
+      };
+      aidpCustomSelectControllers.set(selectNode, controller);
       trigger.addEventListener("click", function () {
         const isOpen = wrapper.getAttribute("data-open") === "true";
         if (isOpen) {
@@ -7038,7 +7121,6 @@
         }
         openAidpCustomSelect(wrapper);
       });
-
       trigger.addEventListener("keydown", function (event) {
         const key = normalizeText(event?.key);
         if (key === "ArrowDown" || key === "Down") {
@@ -7065,7 +7147,7 @@
             openAidpCustomSelect(wrapper);
             return;
           }
-          const items = getAidpCustomSelectItems(wrapper);
+          const items = getAidpCustomSelectItems();
           const highlightIndex = Math.max(
             0,
             Number(wrapper.getAttribute("data-highlight-index") || 0)
@@ -7081,44 +7163,8 @@
           closeAidpCustomSelect(wrapper);
         }
       });
-
       selectNode.addEventListener("change", function () {
         syncAidpCustomSelectState(selectNode);
-      });
-    } else if (!(getAidpCustomSelectMenu(wrapper) instanceof HTMLElement)) {
-      const menu = document.createElement("div");
-      menu.className = "aidp-select-menu";
-      menu.setAttribute("role", "listbox");
-      menu.hidden = true;
-      menu.setAttribute("data-open", "");
-      wrapper.__aidpCustomSelectMenu = menu;
-      document.body.appendChild(menu);
-    }
-
-    const menu = getAidpCustomSelectMenu(wrapper);
-    if (menu instanceof HTMLElement) {
-      menu.innerHTML = "";
-      Array.from(selectNode.options).forEach(function (option, index) {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "aidp-select-option";
-        item.setAttribute("role", "option");
-        item.setAttribute("data-value", option.value);
-        item.setAttribute("data-index", String(index));
-        item.textContent = normalizeText(option.textContent || "");
-        if (option.disabled) {
-          item.disabled = true;
-        }
-        item.addEventListener("mouseenter", function () {
-          setAidpCustomSelectHighlight(wrapper, index);
-        });
-        item.addEventListener("click", function () {
-          if (item.disabled) {
-            return;
-          }
-          chooseAidpCustomSelectValue(selectNode, option.value);
-        });
-        menu.appendChild(item);
       });
     }
 
@@ -7129,7 +7175,7 @@
         const target = event.target instanceof Element ? event.target : null;
         if (
           target instanceof Element &&
-          (target.closest(".aidp-custom-select") || target.closest(".aidp-select-menu"))
+          (target.closest(".aidp-custom-select") || target.closest(".aidp-ui-layer-menu"))
         ) {
           return;
         }
@@ -7181,61 +7227,59 @@
     return mode === "compact" ? 12 : 24;
   }
 
-  function syncAidpLineNumberMeasure(textarea, measure) {
-    if (!(textarea instanceof HTMLTextAreaElement) || !(measure instanceof HTMLElement)) {
+  function getAidpLineNumberTextareaController(textarea) {
+    return textarea instanceof HTMLTextAreaElement
+      ? aidpLineNumberTextareaControllers.get(textarea) || null
+      : null;
+  }
+
+  function syncAidpLineNumberMeasure(controller) {
+    if (!controller) {
       return;
     }
-    const computedStyle = window.getComputedStyle(textarea);
-    measure.style.width = textarea.clientWidth + "px";
-    measure.style.paddingTop = computedStyle.paddingTop;
-    measure.style.paddingRight = computedStyle.paddingRight;
-    measure.style.paddingBottom = computedStyle.paddingBottom;
-    measure.style.paddingLeft = computedStyle.paddingLeft;
-    measure.style.font = computedStyle.font;
-    measure.style.fontFamily = computedStyle.fontFamily;
-    measure.style.fontSize = computedStyle.fontSize;
-    measure.style.fontWeight = computedStyle.fontWeight;
-    measure.style.fontStyle = computedStyle.fontStyle;
-    measure.style.letterSpacing = computedStyle.letterSpacing;
-    measure.style.lineHeight = computedStyle.lineHeight;
-    measure.style.tabSize = computedStyle.tabSize;
+    const computedStyle = window.getComputedStyle(controller.textarea);
+    controller.measure.style.width = controller.textarea.clientWidth + "px";
+    controller.measure.style.paddingTop = computedStyle.paddingTop;
+    controller.measure.style.paddingRight = computedStyle.paddingRight;
+    controller.measure.style.paddingBottom = computedStyle.paddingBottom;
+    controller.measure.style.paddingLeft = computedStyle.paddingLeft;
+    controller.measure.style.font = computedStyle.font;
+    controller.measure.style.fontFamily = computedStyle.fontFamily;
+    controller.measure.style.fontSize = computedStyle.fontSize;
+    controller.measure.style.fontWeight = computedStyle.fontWeight;
+    controller.measure.style.fontStyle = computedStyle.fontStyle;
+    controller.measure.style.letterSpacing = computedStyle.letterSpacing;
+    controller.measure.style.lineHeight = computedStyle.lineHeight;
+    controller.measure.style.tabSize = computedStyle.tabSize;
   }
 
   function buildAidpVisibleLineNumberEntries(textarea) {
-    if (!(textarea instanceof HTMLTextAreaElement)) {
+    const controller = getAidpLineNumberTextareaController(textarea);
+    if (!controller) {
       return [];
     }
-    const wrapper = textarea.closest(".aidp-lined-textarea");
-    const measure =
-      wrapper instanceof HTMLElement
-        ? wrapper.querySelector(".aidp-lined-textarea-measure")
-        : null;
-    if (!(measure instanceof HTMLElement)) {
-      return [];
-    }
-    const value = String(textarea.value || "").replace(/\r\n?/g, "\n");
+    const value = String(controller.textarea.value || "").replace(/\r\n?/g, "\n");
     if (getAidpLineMeasureSeedCount(value) === 0) {
-      measure.innerHTML = "";
+      controller.measure.innerHTML = "";
       return [];
     }
-    syncAidpLineNumberMeasure(textarea, measure);
-    measure.innerHTML = "";
+    syncAidpLineNumberMeasure(controller);
+    controller.measure.innerHTML = "";
     const logicalLines = value.split("\n");
     logicalLines.forEach(function (lineText, index) {
       const lineNode = document.createElement("span");
       lineNode.className = "aidp-lined-textarea-measure-line";
       lineNode.setAttribute("data-blank", lineText === "" ? "true" : "false");
       lineNode.textContent = lineText === "" ? "\u200b" : lineText;
-      measure.appendChild(lineNode);
+      controller.measure.appendChild(lineNode);
       if (index < logicalLines.length - 1) {
-        measure.appendChild(document.createElement("br"));
+        controller.measure.appendChild(document.createElement("br"));
       }
     });
     let visibleLineNumber = 0;
-    return Array.from(measure.querySelectorAll(".aidp-lined-textarea-measure-line")).reduce(function (
-      entries,
-      lineNode
-    ) {
+    return Array.from(
+      controller.measure.querySelectorAll(".aidp-lined-textarea-measure-line")
+    ).reduce(function (entries, lineNode) {
       const rectCount = Math.max(1, lineNode.getClientRects().length || 1);
       const isBlank = lineNode.getAttribute("data-blank") === "true";
       for (let index = 0; index < rectCount; index += 1) {
@@ -7247,121 +7291,131 @@
         }
       }
       return entries;
-    },
-    []);
+    }, []);
   }
 
   function syncAidpLineNumberSliderValue(textarea) {
-    if (!(textarea instanceof HTMLTextAreaElement)) {
+    const controller = getAidpLineNumberTextareaController(textarea);
+    if (!controller) {
       return;
     }
-    const wrapper = textarea.closest(".aidp-lined-textarea");
-    const slider =
-      wrapper instanceof HTMLElement
-        ? wrapper.querySelector(".aidp-lined-textarea-slider")
-        : null;
-    if (!(slider instanceof HTMLInputElement)) {
-      return;
-    }
-    const computedStyle = window.getComputedStyle(textarea);
+    const computedStyle = window.getComputedStyle(controller.textarea);
     const lineHeight = parseFloat(computedStyle.lineHeight) || 22.4;
     const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
     const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-    const height = textarea.clientHeight - paddingTop - paddingBottom;
+    const height = controller.textarea.clientHeight - paddingTop - paddingBottom;
     const rows = Math.max(1, Math.round(height / Math.max(lineHeight, 1)));
-    slider.value = String(Math.min(getAidpLineNumberTextareaMaxRows(textarea), rows));
+    controller.slider.value = String(
+      Math.min(getAidpLineNumberTextareaMaxRows(controller.textarea), rows)
+    );
   }
 
   function applyAidpLineNumberTextareaRows(textarea, nextRows) {
-    if (!(textarea instanceof HTMLTextAreaElement)) {
+    const controller = getAidpLineNumberTextareaController(textarea);
+    if (!controller) {
       return;
     }
-    const wrapper = textarea.closest(".aidp-lined-textarea");
-    const slider =
-      wrapper instanceof HTMLElement
-        ? wrapper.querySelector(".aidp-lined-textarea-slider")
-        : null;
-    const maxRows = getAidpLineNumberTextareaMaxRows(textarea);
-    const defaultRows = getAidpLineNumberTextareaDefaultRows(textarea);
+    const maxRows = getAidpLineNumberTextareaMaxRows(controller.textarea);
+    const defaultRows = getAidpLineNumberTextareaDefaultRows(controller.textarea);
     const rows = Math.max(1, Math.min(maxRows, Math.round(Number(nextRows) || defaultRows)));
-    const computedStyle = window.getComputedStyle(textarea);
+    const computedStyle = window.getComputedStyle(controller.textarea);
     const lineHeight = parseFloat(computedStyle.lineHeight) || 22.4;
     const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
     const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
     const nextHeight = Math.ceil(lineHeight * rows + paddingTop + paddingBottom);
-    textarea.rows = rows;
-    textarea.setAttribute("data-aidp-visible-rows", String(rows));
-    textarea.style.height = nextHeight + "px";
-    textarea.style.minHeight = nextHeight + "px";
-    if (wrapper instanceof HTMLElement) {
-      wrapper.style.minHeight = nextHeight + "px";
-      wrapper.setAttribute("data-visible-rows", String(rows));
-    }
-    if (slider instanceof HTMLInputElement) {
-      slider.value = String(rows);
-    }
+    controller.textarea.rows = rows;
+    controller.textarea.setAttribute("data-aidp-visible-rows", String(rows));
+    controller.textarea.style.height = nextHeight + "px";
+    controller.textarea.style.minHeight = nextHeight + "px";
+    controller.wrapper.style.minHeight = nextHeight + "px";
+    controller.wrapper.setAttribute("data-visible-rows", String(rows));
+    controller.slider.value = String(rows);
   }
 
   function syncAidpLineNumberTextarea(textarea) {
-    if (!(textarea instanceof HTMLTextAreaElement)) {
+    const controller = getAidpLineNumberTextareaController(textarea);
+    if (!controller) {
       return;
     }
-    const wrapper = textarea.closest(".aidp-lined-textarea");
-    if (!(wrapper instanceof HTMLElement)) {
-      return;
-    }
-    const gutter = wrapper.querySelector(".aidp-lined-textarea-gutter");
-    if (gutter instanceof HTMLElement) {
-      const visibleEntries = buildAidpVisibleLineNumberEntries(textarea);
-      gutter.textContent = visibleEntries.join("\n");
-      gutter.scrollTop = textarea.scrollTop;
-      wrapper.setAttribute("data-has-line-numbers", visibleEntries.length > 0 ? "true" : "false");
-    }
-    syncAidpLineNumberSliderValue(textarea);
+    const visibleEntries = buildAidpVisibleLineNumberEntries(controller.textarea);
+    controller.gutter.textContent = visibleEntries.join("\n");
+    controller.gutter.scrollTop = controller.textarea.scrollTop;
+    controller.wrapper.setAttribute(
+      "data-has-line-numbers",
+      visibleEntries.length > 0 ? "true" : "false"
+    );
+    syncAidpLineNumberSliderValue(controller.textarea);
   }
 
   function ensureAidpLineNumberTextarea(textarea) {
     if (!(textarea instanceof HTMLTextAreaElement)) {
       return;
     }
-    const mode = normalizeText(textarea.getAttribute("data-aidp-lined-textarea")) || "prompt";
-    let wrapper = textarea.closest(".aidp-lined-textarea");
-    if (!(wrapper instanceof HTMLElement)) {
-      const parent = textarea.parentElement;
-      if (!(parent instanceof HTMLElement)) {
-        return;
-      }
-      wrapper = document.createElement("div");
-      wrapper.className = "aidp-lined-textarea aidp-lined-textarea-" + mode;
-
-      const gutter = document.createElement("div");
-      gutter.className = "aidp-lined-textarea-gutter";
-      gutter.setAttribute("aria-hidden", "true");
-
-      const shell = document.createElement("div");
-      shell.className = "aidp-lined-textarea-shell";
-
-      const measure = document.createElement("div");
-      measure.className = "aidp-lined-textarea-measure";
-      measure.setAttribute("aria-hidden", "true");
-
-      const slider = document.createElement("input");
-      slider.type = "range";
-      slider.className = "aidp-lined-textarea-slider";
-      slider.min = "1";
-      slider.max = String(getAidpLineNumberTextareaMaxRows(textarea));
-      slider.step = "1";
-      slider.setAttribute("aria-label", "调整显示行数");
-
-      parent.insertBefore(wrapper, textarea);
-      wrapper.appendChild(gutter);
-      wrapper.appendChild(shell);
-      wrapper.appendChild(slider);
-      shell.appendChild(textarea);
-      shell.appendChild(measure);
-    } else {
-      wrapper.className = "aidp-lined-textarea aidp-lined-textarea-" + mode;
+    let controller = getAidpLineNumberTextareaController(textarea);
+    if (
+      controller &&
+      (!controller.wrapper.isConnected || !controller.wrapper.contains(textarea))
+    ) {
+      controller = null;
+      aidpLineNumberTextareaControllers.delete(textarea);
     }
+    const mode = normalizeText(textarea.getAttribute("data-aidp-lined-textarea")) || "prompt";
+    if (!controller) {
+      let wrapper = textarea.closest(".aidp-lined-textarea");
+      let gutter = wrapper instanceof HTMLElement ? wrapper.querySelector(".aidp-lined-textarea-gutter") : null;
+      let shell = wrapper instanceof HTMLElement ? wrapper.querySelector(".aidp-lined-textarea-shell") : null;
+      let measure =
+        wrapper instanceof HTMLElement ? wrapper.querySelector(".aidp-lined-textarea-measure") : null;
+      let slider =
+        wrapper instanceof HTMLElement ? wrapper.querySelector(".aidp-lined-textarea-slider") : null;
+      if (
+        !(wrapper instanceof HTMLElement) ||
+        !(gutter instanceof HTMLElement) ||
+        !(shell instanceof HTMLElement) ||
+        !(measure instanceof HTMLElement) ||
+        !(slider instanceof HTMLInputElement)
+      ) {
+        const parent = textarea.parentElement;
+        if (!(parent instanceof HTMLElement)) {
+          return;
+        }
+        wrapper = document.createElement("div");
+        wrapper.className = "aidp-lined-textarea aidp-lined-textarea-" + mode;
+        gutter = document.createElement("div");
+        gutter.className = "aidp-lined-textarea-gutter";
+        gutter.setAttribute("aria-hidden", "true");
+        shell = document.createElement("div");
+        shell.className = "aidp-lined-textarea-shell";
+        measure = document.createElement("div");
+        measure.className = "aidp-lined-textarea-measure";
+        measure.setAttribute("aria-hidden", "true");
+        slider = document.createElement("input");
+        slider.type = "range";
+        slider.className = "aidp-lined-textarea-slider";
+        slider.min = "1";
+        slider.max = String(getAidpLineNumberTextareaMaxRows(textarea));
+        slider.step = "1";
+        slider.setAttribute("aria-label", "调整显示行数");
+        parent.insertBefore(wrapper, textarea);
+        wrapper.appendChild(gutter);
+        wrapper.appendChild(shell);
+        wrapper.appendChild(slider);
+        shell.appendChild(textarea);
+        shell.appendChild(measure);
+      }
+      controller = {
+        textarea,
+        wrapper,
+        gutter,
+        shell,
+        measure,
+        slider,
+      };
+      aidpLineNumberTextareaControllers.set(textarea, controller);
+    }
+
+    controller.wrapper.className = "aidp-lined-textarea aidp-lined-textarea-" + mode;
+    controller.slider.max = String(getAidpLineNumberTextareaMaxRows(textarea));
 
     if (textarea.getAttribute("data-aidp-line-numbers-bound") !== "true") {
       textarea.setAttribute("data-aidp-line-numbers-bound", "true");
@@ -7378,17 +7432,15 @@
       textarea.addEventListener("keyup", function () {
         syncAidpLineNumberTextarea(textarea);
       });
-      const slider = wrapper.querySelector(".aidp-lined-textarea-slider");
-      if (slider instanceof HTMLInputElement) {
-        slider.addEventListener("input", function () {
-          applyAidpLineNumberTextareaRows(textarea, slider.value);
-          syncAidpLineNumberTextarea(textarea);
-        });
-      }
+      controller.slider.addEventListener("input", function () {
+        applyAidpLineNumberTextareaRows(textarea, controller.slider.value);
+        syncAidpLineNumberTextarea(textarea);
+      });
     } else {
       applyAidpLineNumberTextareaRows(
         textarea,
-        textarea.getAttribute("data-aidp-visible-rows") || getAidpLineNumberTextareaDefaultRows(textarea)
+        textarea.getAttribute("data-aidp-visible-rows") ||
+          getAidpLineNumberTextareaDefaultRows(textarea)
       );
     }
 
@@ -7693,6 +7745,7 @@
     defaultsTipId,
     scriptId
   ) {
+    closeAllAidpCustomSelects(null);
     const activeScriptId =
       scriptId === bytedanceAidpJinhuaScriptId
         ? bytedanceAidpJinhuaScriptId
@@ -13393,6 +13446,7 @@
     if (panel instanceof HTMLElement) {
       panel.classList.toggle("hidden", !enabled);
       if (!enabled) {
+        closeAllAidpCustomSelects(null);
         panel.innerHTML = "";
       }
     }

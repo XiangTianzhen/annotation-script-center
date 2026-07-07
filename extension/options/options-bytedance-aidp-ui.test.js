@@ -259,10 +259,14 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function renderAidpCustomSelectOptions\(/);
   assert.match(script, /function getAidpCustomSelectPlaceholder\(/);
   assert.match(script, /function positionAidpCustomSelectMenu\(/);
-  assert.match(script, /document\.body\.appendChild\(menu\)/);
-  assert.match(script, /menu\.style\.position = "fixed"/);
-  assert.match(css, /\.detail-workbench \.aidp-select-menu \{[\s\S]*position: fixed;/);
-  assert.match(css, /\.detail-workbench \.aidp-select-menu \{[\s\S]*z-index:\s*4600;/);
+  assert.match(html, /id="aidp-ui-layer"/);
+  assert.match(script, /function ensureAidpUiLayer\(/);
+  assert.match(script, /aidp-ui-layer-select-menu/);
+  assert.doesNotMatch(script, /document\.body\.appendChild\(menu\)/);
+  assert.doesNotMatch(script, /__aidpCustomSelectMenu/);
+  assert.match(script, /menu\.style\.position = "absolute"/);
+  assert.match(css, /#aidp-ui-layer \{[\s\S]*position:\s*fixed;/);
+  assert.match(css, /\.aidp-ui-layer-menu \{[\s\S]*z-index:\s*4600;/);
   assert.match(script, /platformAiEnabled/);
   assert.match(script, /aiRecommendEnabled/);
   assert.match(script, /bytedance-aidp-ai-enabled/);
