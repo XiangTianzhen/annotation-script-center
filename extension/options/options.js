@@ -3597,10 +3597,13 @@
       listenModel,
       stageDefaults.listen.model
     );
-    renderFixedModelOptions(
+    renderAidpCustomSelectOptions(
       "bytedance-aidp-ai-listen-model-select",
       stageDefaults.listen.modelOptions,
-      currentListenModel
+      currentListenModel,
+      {
+        placeholder: "请选择听音模型",
+      }
     );
   }
 
@@ -3625,13 +3628,16 @@
       stageDefaults.listen
     );
 
-    renderFixedModelOptions(
+    renderAidpCustomSelectOptions(
       "bytedance-aidp-ai-refine-model-select",
       stageDefaults.refine.modelOptions,
       normalizeDataBakerCompareModel(
         currentConfig.aiRecommendRefineModel,
         stageDefaults.refine.model
-      )
+      ),
+      {
+        placeholder: "请选择收口模型",
+      }
     );
     const refinePromptNode = getElement("bytedance-aidp-ai-refine-prompt");
     if (refinePromptNode instanceof HTMLTextAreaElement) {
@@ -6763,6 +6769,13 @@
     return menu instanceof HTMLElement ? menu : null;
   }
 
+  function getAidpCustomSelectPlaceholder(selectNode) {
+    if (!(selectNode instanceof HTMLSelectElement)) {
+      return "";
+    }
+    return normalizeText(selectNode.getAttribute("data-aidp-placeholder"));
+  }
+
   function getAidpCustomSelectItems(wrapper) {
     const menu = getAidpCustomSelectMenu(wrapper);
     if (!(menu instanceof HTMLElement)) {
@@ -6875,13 +6888,18 @@
     }
     const trigger = wrapper.querySelector(".aidp-select-trigger");
     const label = wrapper.querySelector(".aidp-select-trigger-label");
+    const placeholderText = getAidpCustomSelectPlaceholder(selectNode);
     const selectedOption =
       selectNode.options[selectNode.selectedIndex >= 0 ? selectNode.selectedIndex : 0] || null;
+    const selectedValue = normalizeText(selectNode.value);
+    const usePlaceholder = Boolean(placeholderText) && !selectedValue;
     if (trigger instanceof HTMLButtonElement) {
       trigger.disabled = selectNode.disabled;
     }
     if (label instanceof HTMLElement) {
-      label.textContent = normalizeText(selectedOption?.textContent || "") || "请选择";
+      label.textContent =
+        (usePlaceholder ? placeholderText : normalizeText(selectedOption?.textContent || "")) || "请选择";
+      label.classList.toggle("is-placeholder", usePlaceholder);
     }
     const items = getAidpCustomSelectItems(wrapper);
     let selectedIndex = 0;
@@ -6897,6 +6915,21 @@
     if (!wrapper.getAttribute("data-highlight-index")) {
       setAidpCustomSelectHighlight(wrapper, selectedIndex);
     }
+  }
+
+  function renderAidpCustomSelectOptions(selectId, options, selectedValue, config) {
+    const selectNode = getElement(selectId);
+    if (!(selectNode instanceof HTMLSelectElement)) {
+      return;
+    }
+    const placeholderText = normalizeText(config?.placeholder);
+    if (placeholderText) {
+      selectNode.setAttribute("data-aidp-placeholder", placeholderText);
+    } else {
+      selectNode.removeAttribute("data-aidp-placeholder");
+    }
+    renderFixedModelOptions(selectId, options, selectedValue);
+    ensureAidpCustomSelect(selectNode);
   }
 
   function openAidpCustomSelect(wrapper) {
@@ -12749,75 +12782,6 @@
     }
   }
 
-  function syncAidpDropdownDemoSelection(value, label) {
-    const valueNode = getElement("aidp-dropdown-demo-value");
-    if (!(valueNode instanceof HTMLElement)) {
-      return;
-    }
-    const normalizedValue = normalizeText(value);
-    const normalizedLabel = normalizeText(label);
-    valueNode.textContent = normalizedLabel || "Select framework";
-    valueNode.classList.toggle("is-placeholder", !normalizedValue);
-    Array.from(document.querySelectorAll(".aidp-dropdown-demo-option")).forEach(function (node) {
-      if (!(node instanceof HTMLButtonElement)) {
-        return;
-      }
-      const selected = normalizeText(node.getAttribute("data-value")) === normalizedValue;
-      node.classList.toggle("is-selected", selected);
-      node.setAttribute("aria-selected", selected ? "true" : "false");
-    });
-  }
-
-  function setAidpDropdownDemoOpen(open) {
-    const root = getElement("aidp-dropdown-demo");
-    const trigger = getElement("aidp-dropdown-demo-trigger");
-    const menu = getElement("aidp-dropdown-demo-menu");
-    if (!(root instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) {
-      return;
-    }
-    const shouldOpen = open === true;
-    root.setAttribute("data-open", shouldOpen ? "true" : "false");
-    trigger.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-    menu.hidden = !shouldOpen;
-  }
-
-  function ensureAidpDropdownDemo() {
-    const root = getElement("aidp-dropdown-demo");
-    const trigger = getElement("aidp-dropdown-demo-trigger");
-    const menu = getElement("aidp-dropdown-demo-menu");
-    if (!(root instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) {
-      return;
-    }
-    if (root.getAttribute("data-demo-bound") === "true") {
-      return;
-    }
-    root.setAttribute("data-demo-bound", "true");
-    syncAidpDropdownDemoSelection("", "");
-    trigger.addEventListener("click", function () {
-      const isOpen = root.getAttribute("data-open") === "true";
-      setAidpDropdownDemoOpen(!isOpen);
-    });
-    Array.from(root.querySelectorAll(".aidp-dropdown-demo-option")).forEach(function (node) {
-      if (!(node instanceof HTMLButtonElement)) {
-        return;
-      }
-      node.addEventListener("click", function () {
-        syncAidpDropdownDemoSelection(
-          node.getAttribute("data-value") || "",
-          node.getAttribute("data-label") || node.textContent || ""
-        );
-        setAidpDropdownDemoOpen(false);
-      });
-    });
-    document.addEventListener("click", function (event) {
-      const target = event.target instanceof Element ? event.target.closest("#aidp-dropdown-demo") : null;
-      if (target instanceof HTMLElement) {
-        return;
-      }
-      setAidpDropdownDemoOpen(false);
-    });
-  }
-
   function renderDetailHeader(settings, scriptId) {
     const script = scriptLibrary[scriptId] || {};
     const platform = platformLibrary[script.platformId] || {};
@@ -12844,7 +12808,6 @@
     const disableButton = getElement("detail-disable-button");
     const toggleButton = getElement("detail-toggle-button");
     const saveButton = getElement("save-bytedance-aidp-settings");
-    const dropdownDemo = getElement("aidp-dropdown-demo");
     const enabled = isScriptEnabled(settings, scriptId);
     const isBytedanceAidpDetail = isBytedanceAidpScript(scriptId);
 
@@ -12868,14 +12831,6 @@
     }
     if (saveButton instanceof HTMLButtonElement) {
       saveButton.classList.toggle("hidden", !isBytedanceAidpDetail);
-    }
-    if (dropdownDemo instanceof HTMLElement) {
-      dropdownDemo.classList.toggle("hidden", !isBytedanceAidpDetail);
-      if (isBytedanceAidpDetail) {
-        ensureAidpDropdownDemo();
-      } else {
-        setAidpDropdownDemoOpen(false);
-      }
     }
   }
 
@@ -13492,7 +13447,7 @@
         config.mergeContiguousSuggestedSegmentsEnabled !== false;
     }
     if (defaultPlaybackRateNode instanceof HTMLSelectElement) {
-      renderFixedModelOptions(
+      renderAidpCustomSelectOptions(
         "bytedance-aidp-default-playback-rate",
         bytedanceAidpPlaybackRatePresets.map(function (value) {
           const label = Number(value).toFixed(2) + "倍速";
@@ -13501,11 +13456,14 @@
             label: label,
           };
         }),
-        String(config.defaultPlaybackRate)
+        String(config.defaultPlaybackRate),
+        {
+          placeholder: "请选择默认播放倍数",
+        }
       );
     }
     if (fixedWaveZoomNode instanceof HTMLSelectElement) {
-      renderFixedModelOptions(
+      renderAidpCustomSelectOptions(
         "bytedance-aidp-fixed-wave-zoom",
         bytedanceAidpFixedWaveZoomPresets.map(function (value) {
           return {
@@ -13513,7 +13471,10 @@
             label: String(value),
           };
         }),
-        String(config.fixedWaveZoom)
+        String(config.fixedWaveZoom),
+        {
+          placeholder: "请选择固定缩放倍数",
+        }
       );
     }
     syncAidpCustomSelects(getElement("detail-bytedance-aidp-suzhou-panel"));

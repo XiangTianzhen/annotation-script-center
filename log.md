@@ -1342,6 +1342,7 @@
 - 初始化上传项目
 
 ## 2026-07-07
+- 重构(ByteDance AIDP): 将脚本详情页 AIDP 下拉统一收口为可传 `options / placeholder` 的自定义组件，并删除顶部试验性 demo
 - 试验(ByteDance AIDP): 在脚本详情页顶部操作条补一个独立的 placeholder 下拉框 demo，用于对照新的下拉视觉方向
 - 修复(ByteDance AIDP): 移除设置页多行输入框里的循环 `ResizeObserver`，改为窗口 resize 与文本框交互后重算可见行号，避免扩展 options 页持续报 `ResizeObserver loop completed with undelivered notifications`
 - 修复(ByteDance AIDP): 将竖向行数滑块改回标准 `range + writing-mode` 方案，移除 `slider-vertical` 非标准 `appearance` 警告

@@ -256,6 +256,8 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function syncAidpLineNumberTextareas\(/);
   assert.match(script, /function ensureAidpCustomSelect\(/);
   assert.match(script, /function ensureAidpLineNumberTextarea\(/);
+  assert.match(script, /function renderAidpCustomSelectOptions\(/);
+  assert.match(script, /function getAidpCustomSelectPlaceholder\(/);
   assert.match(script, /function positionAidpCustomSelectMenu\(/);
   assert.match(script, /document\.body\.appendChild\(menu\)/);
   assert.match(script, /menu\.style\.position = "fixed"/);
@@ -280,20 +282,21 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /bytedance-aidp-ai-refine-model-select/);
   assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"[\s\S]*data-aidp-custom-select="true"/);
   assert.match(html, /<select\s+id="bytedance-aidp-fixed-wave-zoom"[\s\S]*data-aidp-custom-select="true"/);
-  assert.match(html, /id="aidp-dropdown-demo"/);
-  assert.match(html, /id="aidp-dropdown-demo-trigger"/);
-  assert.match(html, /id="aidp-dropdown-demo-menu"/);
-  assert.match(html, /Select framework/);
-  assert.match(script, /function ensureAidpDropdownDemo\(/);
-  assert.match(script, /function syncAidpDropdownDemoSelection\(/);
-  assert.match(css, /\.aidp-dropdown-demo \{/);
-  assert.match(css, /\.aidp-dropdown-demo-menu \{/);
+  assert.doesNotMatch(html, /id="aidp-dropdown-demo"/);
+  assert.doesNotMatch(script, /function ensureAidpDropdownDemo\(/);
+  assert.doesNotMatch(css, /\.aidp-dropdown-demo \{/);
+  assert.match(script, /placeholder:\s*"请选择默认播放倍数"/);
+  assert.match(script, /placeholder:\s*"请选择固定缩放倍数"/);
+  assert.match(script, /placeholder:\s*"请选择听音模型"/);
+  assert.match(script, /placeholder:\s*"请选择收口模型"/);
   assert.match(script, /<select id="bytedance-aidp-ai-listen-model-select" data-aidp-custom-select="true"><\/select>/);
   assert.match(script, /<select id="bytedance-aidp-ai-refine-model-select" data-aidp-custom-select="true"><\/select>/);
   assert.match(script, /aidp-custom-select/);
   assert.match(script, /aidp-select-trigger/);
   assert.match(script, /aidp-select-menu/);
   assert.match(script, /aidp-select-option/);
+  assert.match(css, /\.detail-workbench \.aidp-select-trigger \{[\s\S]*border:\s*1px solid #d5d9e2;/);
+  assert.match(css, /\.detail-workbench \.aidp-select-option:hover,[\s\S]*background:\s*#f3f4f6;/);
   assert.match(script, /单段识别成功后直接填入对应输入框，不主动走平台暂存请求/);
   assert.match(script, /普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取/);
   assert.match(script, /限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字/);
@@ -329,11 +332,11 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /bytedance-aidp-shortcut-grid/);
   assert.match(
     script,
-    /renderFixedModelOptions\(\s*"bytedance-aidp-default-playback-rate"/
+    /renderAidpCustomSelectOptions\(\s*"bytedance-aidp-default-playback-rate"/
   );
   assert.match(
     script,
-    /renderFixedModelOptions\(\s*"bytedance-aidp-fixed-wave-zoom"/
+    /renderAidpCustomSelectOptions\(\s*"bytedance-aidp-fixed-wave-zoom"/
   );
   assert.match(script, /platformAiNode\.checked = config\.platformAiEnabled === false;/);
   assert.match(
