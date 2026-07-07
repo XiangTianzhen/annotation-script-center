@@ -1899,6 +1899,23 @@
     return safeQuerySelectorAll(workbench, ".btns-play")[0] || null;
   }
 
+  function isWavePlaybackActive(root) {
+    const toolbar = findPlayToolbarRoot(root);
+    if (!toolbar) {
+      return false;
+    }
+    const nodes = [toolbar].concat(collectDescendantElements(toolbar));
+    return nodes.some(function (node) {
+      const text = normalizeText(
+        getNodeText(node) ||
+          node?.getAttribute?.("aria-label") ||
+          node?.getAttribute?.("title") ||
+          node?.getAttribute?.("data-title")
+      );
+      return text.includes("暂停");
+    });
+  }
+
   function findDetailHeaderActionGroup(root) {
     const searchRoots = getSearchRoots(root);
     for (let index = 0; index < searchRoots.length; index += 1) {
@@ -2635,6 +2652,50 @@
     return ensureSegmentRecognizeButtons(document, buildSegmentRecognizeButtonOptions());
   }
 
+  function syncPlaybackSensitiveDecorations(root, config) {
+    if (!root || runtimePolicy.runtimeAccessible !== true) {
+      return {
+        changed: false,
+        deferred: false,
+      };
+    }
+    if (isWavePlaybackActive(root)) {
+      return {
+        changed: false,
+        deferred: true,
+      };
+    }
+    const resolvedConfig =
+      config && typeof config === "object"
+        ? config
+        : helperRuntime?.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS || {});
+    const playbackScopeKey =
+      normalizeText(resolvedConfig.playbackScopeKey) ||
+      helperRuntime?.playbackScopeKey ||
+      getCurrentPlaybackScopeKey();
+    let changed = false;
+    changed =
+      applyWaveToolSettings(
+        root,
+        Object.assign({}, resolvedConfig, {
+          playbackScopeKey: playbackScopeKey,
+        })
+      ) || changed;
+    changed =
+      ensureClearSegmentsButton(root, function () {
+        void handleClearSegmentsAction();
+      }) || changed;
+    changed =
+      ensureFillLanguageKindsButton(root, function () {
+        void handleFillLanguageKindsAction();
+      }) || changed;
+    changed = syncRowRecognizeButtons() || changed;
+    return {
+      changed: changed,
+      deferred: false,
+    };
+  }
+
   function createConcurrentTaskRunner(tasks, concurrency, runTask, onSettled, shouldStop) {
     const queue = Array.isArray(tasks) ? tasks.slice() : [];
     const limit = Math.max(1, Math.round(Number(concurrency || 1)) || 1);
@@ -3366,23 +3427,15 @@
       }
       try {
         helperRuntime.ui.mount();
-        applyWaveToolSettings(
+        const initialSyncResult = syncPlaybackSensitiveDecorations(
           document,
-          Object.assign(
-            {},
-            helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS),
-            {
-              playbackScopeKey: helperRuntime.playbackScopeKey,
-            }
-          )
+          Object.assign({}, helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS), {
+            playbackScopeKey: helperRuntime.playbackScopeKey,
+          })
         );
-        ensureClearSegmentsButton(document, function () {
-          void handleClearSegmentsAction();
-        });
-        ensureFillLanguageKindsButton(document, function () {
-          void handleFillLanguageKindsAction();
-        });
-        syncRowRecognizeButtons();
+        if (initialSyncResult.deferred) {
+          return;
+        }
         const context = await helperRuntime.dataApi.getCurrentContext();
         syncRowRecommendCacheContext(helperRuntime, context);
         helperRuntime.batchController?.syncContext?.(context);
@@ -3390,12 +3443,15 @@
           normalizeText(context?.selectionKey) ||
           helperRuntime.playbackScopeKey ||
           getCurrentPlaybackScopeKey();
-        applyWaveToolSettings(
+        const contextSyncResult = syncPlaybackSensitiveDecorations(
           document,
           Object.assign({}, helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS), {
             playbackScopeKey: helperRuntime.playbackScopeKey,
           })
         );
+        if (contextSyncResult.deferred) {
+          return;
+        }
         helperRuntime.ui.renderAudioContext(context);
         helperRuntime.ui.renderBatchSelection?.({
           totalSegments: Array.isArray(context?.currentSegments) ? context.currentSegments.length : 0,
@@ -3403,7 +3459,6 @@
             normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
         });
         helperRuntime.batchSelectionKey = normalizeText(context?.selectionKey);
-        syncRowRecognizeButtons();
         if (!normalizeText(context?.audioUrl)) {
           helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
         }
@@ -4118,21 +4173,12 @@
     runtimePolicy = resolveRuntimePolicy(settings);
     if (typeof document !== "undefined") {
       syncPlatformAiVisibility(document, runtimePolicy.shouldHidePlatformAi);
-      if (runtimePolicy.runtimeAccessible) {
-        applyWaveToolSettings(
-          document,
-          Object.assign({}, resolveHelperConfig(settings), {
-            playbackScopeKey: helperRuntime?.playbackScopeKey || getCurrentPlaybackScopeKey(),
-          })
-        );
-        ensureClearSegmentsButton(document, function () {
-          void handleClearSegmentsAction();
-        });
-        ensureFillLanguageKindsButton(document, function () {
-          void handleFillLanguageKindsAction();
-        });
-        syncRowRecognizeButtons();
-      }
+      syncPlaybackSensitiveDecorations(
+        document,
+        Object.assign({}, resolveHelperConfig(settings), {
+          playbackScopeKey: helperRuntime?.playbackScopeKey || getCurrentPlaybackScopeKey(),
+        })
+      );
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
       } else {
@@ -4153,25 +4199,16 @@
         return;
       }
       syncPlatformAiVisibility(document, runtimePolicy.shouldHidePlatformAi);
-      if (runtimePolicy.runtimeAccessible) {
-        applyWaveToolSettings(
-          document,
-          Object.assign(
-            {},
-            helperRuntime?.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS || {}),
-            {
-              playbackScopeKey: helperRuntime?.playbackScopeKey || getCurrentPlaybackScopeKey(),
-            }
-          )
-        );
-        ensureClearSegmentsButton(document, function () {
-          void handleClearSegmentsAction();
-        });
-        ensureFillLanguageKindsButton(document, function () {
-          void handleFillLanguageKindsAction();
-        });
-        syncRowRecognizeButtons();
-      }
+      syncPlaybackSensitiveDecorations(
+        document,
+        Object.assign(
+          {},
+          helperRuntime?.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS || {}),
+          {
+            playbackScopeKey: helperRuntime?.playbackScopeKey || getCurrentPlaybackScopeKey(),
+          }
+        )
+      );
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
       }
@@ -4303,7 +4340,9 @@
         scheduleDomSync();
         if (helperRuntime) {
           helperRuntime.ui.mount();
-          scheduleHelperContextRefresh(0);
+          if (!isWavePlaybackActive(document)) {
+            scheduleHelperContextRefresh(0);
+          }
         } else if (runtimePolicy.runtimeAccessible && dataApiFactory && segmentFactory && uiFactory) {
           void refreshRuntimePolicy();
         }
@@ -4340,6 +4379,7 @@
       syncPlaybackRateControl: syncPlaybackRateControl,
       syncWaveZoomControl: syncWaveZoomControl,
       getPlaybackComboboxLabel: getPlaybackComboboxLabel,
+      isWavePlaybackActive: isWavePlaybackActive,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,

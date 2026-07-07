@@ -1441,6 +1441,43 @@ test("ByteDance AIDP content only auto-syncs playback rate once per page scope",
   assert.equal(contentModule.__testOnly.getPlaybackComboboxLabel(playbackSelect), "1.50倍速");
 });
 
+test("ByteDance AIDP content detects active wave playback from the toolbar pause action", function () {
+  const contentModule = loadContentModule();
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "btns-play",
+          children: [
+            new FakeElement({ tagName: "button", text: "播放" }),
+            new FakeElement({ tagName: "button", text: "暂停" }),
+          ],
+        }),
+      ],
+    }),
+  ]);
+
+  assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), true);
+});
+
+test("ByteDance AIDP content treats the wave toolbar as idle when no pause action is present", function () {
+  const contentModule = loadContentModule();
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "btns-play",
+          children: [new FakeElement({ tagName: "button", text: "播放" })],
+        }),
+      ],
+    }),
+  ]);
+
+  assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), false);
+});
+
 test("ByteDance AIDP content injects clear-segments button into the detail header action group", function () {
   const contentModule = loadContentModule();
   let clicked = 0;
