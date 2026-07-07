@@ -1,3 +1,18 @@
+## 2026-07-07（继续收口 ByteDance AIDP 播放期自动滚动，只在真实播放中拦自动跟随）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 新增播放期专用滚动守卫 watchdog，改为由波形时间推进直接驱动进入与退出，不再等待通用 DOM 同步链路触发
+  - 守卫只保护 `#conbination-wrap` 与 `.arco-table-body` 两层容器；无用户输入证据时恢复滚动基线，检测到滚轮 / 拖拽 / 翻页键等手动滚动时更新基线并保留用户新位置
+  - 详情页切走、脚本停用和 runtime 销毁时会同步清理播放守卫与监听器
+- 更新 `extension/sites/bytedance-aidp/jinhua-helper/content.js`
+  - 同步落地与苏州话一致的播放期滚动守卫、watchdog 和清理链路，保持双脚本行为一致
+- 更新测试：
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+  - `extension/sites/bytedance-aidp/jinhua-helper/content.test.js`
+  - 新增回归覆盖播放期非用户滚动恢复、用户滚动更新基线，以及暂停后立即释放守卫
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+
 ## 2026-07-07（修复希尔贝壳泰语助手一致态误判并保持始终可填入）
 - 更新 `extension/sites/aishell-tech/thai-helper/data-api.js`
   - 增加页面当前显示值读取，保留中文 `语速` 原值供结果卡判断

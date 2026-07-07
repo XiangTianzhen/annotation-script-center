@@ -158,6 +158,10 @@ class FakeElement {
     this._listeners.set(String(type || ""), listener);
   }
 
+  removeEventListener(type) {
+    this._listeners.delete(String(type || ""));
+  }
+
   focus() {
     this._focused = true;
     if (this.ownerDocument) {
@@ -1519,6 +1523,143 @@ test("ByteDance AIDP content defers playback-sensitive decorations while wave ti
   } finally {
     Date.now = originalDateNow;
   }
+});
+
+test("ByteDance AIDP content playback scroll guard restores non-user table and detail scrolling", function () {
+  const contentModule = loadContentModule();
+  const originalDateNow = Date.now;
+  let fakeNow = 1000;
+  Date.now = function () {
+    return fakeNow;
+  };
+  const virtualTable = createAidpVirtualSegmentTable([
+    createAidpVirtualSegmentTableRow(1),
+    createAidpVirtualSegmentTableRow(2),
+  ]);
+  const tableBody = virtualTable.querySelector(".arco-table-body");
+  tableBody.scrollTop = 340;
+  const detailWrap = new FakeElement({
+    attributes: {
+      id: "conbination-wrap",
+    },
+    scrollTop: 120,
+    children: [virtualTable],
+  });
+  const root = createFakeDocument([detailWrap]);
+
+  try {
+    const result = contentModule.__testOnly.syncPlaybackScrollGuard(root, {
+      playing: true,
+    });
+    assert.equal(result.active, true);
+
+    tableBody.scrollTop = 390;
+    tableBody.dispatchEvent({
+      type: "scroll",
+      target: tableBody,
+    });
+    detailWrap.scrollTop = 180;
+    detailWrap.dispatchEvent({
+      type: "scroll",
+      target: detailWrap,
+    });
+
+    assert.equal(tableBody.scrollTop, 340);
+    assert.equal(detailWrap.scrollTop, 120);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test("ByteDance AIDP content playback scroll guard keeps user wheel scrolling and updates the baseline", function () {
+  const contentModule = loadContentModule();
+  const originalDateNow = Date.now;
+  let fakeNow = 1000;
+  Date.now = function () {
+    return fakeNow;
+  };
+  const virtualTable = createAidpVirtualSegmentTable([
+    createAidpVirtualSegmentTableRow(1),
+    createAidpVirtualSegmentTableRow(2),
+  ]);
+  const tableBody = virtualTable.querySelector(".arco-table-body");
+  tableBody.scrollTop = 340;
+  const detailWrap = new FakeElement({
+    attributes: {
+      id: "conbination-wrap",
+    },
+    scrollTop: 120,
+    children: [virtualTable],
+  });
+  const root = createFakeDocument([detailWrap]);
+
+  try {
+    contentModule.__testOnly.syncPlaybackScrollGuard(root, {
+      playing: true,
+    });
+
+    fakeNow = 1200;
+    tableBody.dispatchEvent({
+      type: "wheel",
+      target: tableBody,
+    });
+    tableBody.scrollTop = 390;
+    tableBody.dispatchEvent({
+      type: "scroll",
+      target: tableBody,
+    });
+    assert.equal(tableBody.scrollTop, 390);
+
+    fakeNow = 2600;
+    tableBody.scrollTop = 450;
+    tableBody.dispatchEvent({
+      type: "scroll",
+      target: tableBody,
+    });
+    assert.equal(tableBody.scrollTop, 390);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test("ByteDance AIDP content playback scroll guard releases control after playback stops", function () {
+  const contentModule = loadContentModule();
+  const virtualTable = createAidpVirtualSegmentTable([
+    createAidpVirtualSegmentTableRow(1),
+    createAidpVirtualSegmentTableRow(2),
+  ]);
+  const tableBody = virtualTable.querySelector(".arco-table-body");
+  tableBody.scrollTop = 340;
+  const detailWrap = new FakeElement({
+    attributes: {
+      id: "conbination-wrap",
+    },
+    scrollTop: 120,
+    children: [virtualTable],
+  });
+  const root = createFakeDocument([detailWrap]);
+
+  contentModule.__testOnly.syncPlaybackScrollGuard(root, {
+    playing: true,
+  });
+  contentModule.__testOnly.syncPlaybackScrollGuard(root, {
+    playing: false,
+  });
+  assert.equal(contentModule.__testOnly.getPlaybackScrollGuardState().active, false);
+
+  tableBody.scrollTop = 410;
+  tableBody.dispatchEvent({
+    type: "scroll",
+    target: tableBody,
+  });
+  detailWrap.scrollTop = 170;
+  detailWrap.dispatchEvent({
+    type: "scroll",
+    target: detailWrap,
+  });
+
+  assert.equal(tableBody.scrollTop, 410);
+  assert.equal(detailWrap.scrollTop, 170);
 });
 
 test("ByteDance AIDP content injects clear-segments button into the detail header action group", function () {

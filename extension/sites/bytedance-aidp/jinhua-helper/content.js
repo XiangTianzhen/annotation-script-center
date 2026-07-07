@@ -85,9 +85,39 @@
     lastObservedAt: 0,
     activeUntil: 0,
   };
+  const PLAYBACK_SCROLL_GUARD_USER_WINDOW_MS = 900;
+  const PLAYBACK_SCROLL_GUARD_IGNORE_WINDOW_MS = 80;
+  const PLAYBACK_SCROLL_GUARD_WATCHDOG_INTERVAL_MS = 120;
+  let playbackScrollGuardWatchdogTimer = null;
   let storageListenerBound = false;
   let helperRuntime = null;
   let managementUiActive = false;
+
+  function createPlaybackScrollGuardTargetState(name) {
+    return {
+      name: name,
+      node: null,
+      baselineTop: 0,
+      baselineLeft: 0,
+      lastUserIntentAt: 0,
+      pointerActive: false,
+      ignoreScrollUntil: 0,
+      cleanup: [],
+      styleRestore: null,
+    };
+  }
+
+  function createPlaybackScrollGuardState() {
+    return {
+      active: false,
+      root: null,
+      globalCleanup: [],
+      detail: createPlaybackScrollGuardTargetState("detail"),
+      table: createPlaybackScrollGuardTargetState("table"),
+    };
+  }
+
+  let playbackScrollGuardState = createPlaybackScrollGuardState();
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -2213,6 +2243,405 @@
     return result;
   }
 
+  function getPlaybackScrollGuardNow() {
+    return typeof Date.now === "function" ? Date.now() : new Date().getTime();
+  }
+
+  function isNodeWithin(ancestor, node) {
+    let current = node;
+    while (current) {
+      if (current === ancestor) {
+        return true;
+      }
+      current = current.parentNode || current.parentElement || null;
+    }
+    return false;
+  }
+
+  function addDisposableEventListener(node, type, listener, options) {
+    if (!node || typeof node.addEventListener !== "function") {
+      return function () {};
+    }
+    node.addEventListener(type, listener, options);
+    return function () {
+      if (typeof node.removeEventListener === "function") {
+        node.removeEventListener(type, listener, options);
+      }
+    };
+  }
+
+  function getPlaybackScrollGuardTargetStates() {
+    return [playbackScrollGuardState.detail, playbackScrollGuardState.table];
+  }
+
+  function clearPlaybackScrollGuardPointerState() {
+    getPlaybackScrollGuardTargetStates().forEach(function (target) {
+      target.pointerActive = false;
+    });
+  }
+
+  function capturePlaybackScrollGuardBaseline(target) {
+    if (!target?.node) {
+      return;
+    }
+    target.baselineTop =
+      typeof target.node.scrollTop === "number" ? Number(target.node.scrollTop) || 0 : 0;
+    target.baselineLeft =
+      typeof target.node.scrollLeft === "number" ? Number(target.node.scrollLeft) || 0 : 0;
+  }
+
+  function rememberPlaybackScrollGuardUserIntent(target) {
+    if (!target) {
+      return;
+    }
+    target.lastUserIntentAt = getPlaybackScrollGuardNow();
+  }
+
+  function hasRecentPlaybackScrollGuardUserIntent(target, now) {
+    if (!target) {
+      return false;
+    }
+    return (
+      target.pointerActive === true ||
+      now - Number(target.lastUserIntentAt || 0) <= PLAYBACK_SCROLL_GUARD_USER_WINDOW_MS
+    );
+  }
+
+  function suppressPlaybackScrollGuardAnchor(target) {
+    if (!target?.node?.style || typeof target.node.style.setProperty !== "function") {
+      return;
+    }
+    if (!target.styleRestore) {
+      target.styleRestore = {
+        value:
+          typeof target.node.style.getPropertyValue === "function"
+            ? target.node.style.getPropertyValue("overflow-anchor")
+            : "",
+        priority:
+          typeof target.node.style.getPropertyPriority === "function"
+            ? target.node.style.getPropertyPriority("overflow-anchor")
+            : "",
+      };
+    }
+    target.node.style.setProperty("overflow-anchor", "none", "important");
+  }
+
+  function restorePlaybackScrollGuardAnchor(target) {
+    if (!target?.node?.style || !target.styleRestore) {
+      return;
+    }
+    if (target.styleRestore.value) {
+      target.node.style.setProperty(
+        "overflow-anchor",
+        target.styleRestore.value,
+        target.styleRestore.priority || ""
+      );
+    } else if (typeof target.node.style.removeProperty === "function") {
+      target.node.style.removeProperty("overflow-anchor");
+    } else {
+      target.node.style.setProperty("overflow-anchor", "", "");
+    }
+    target.styleRestore = null;
+  }
+
+  function restorePlaybackScrollGuardTarget(target) {
+    if (!playbackScrollGuardState.active || !target?.node) {
+      return false;
+    }
+    const currentTop =
+      typeof target.node.scrollTop === "number" ? Number(target.node.scrollTop) || 0 : 0;
+    const currentLeft =
+      typeof target.node.scrollLeft === "number" ? Number(target.node.scrollLeft) || 0 : 0;
+    if (currentTop === target.baselineTop && currentLeft === target.baselineLeft) {
+      return false;
+    }
+    target.ignoreScrollUntil = getPlaybackScrollGuardNow() + PLAYBACK_SCROLL_GUARD_IGNORE_WINDOW_MS;
+    if (typeof target.node.scrollTop === "number") {
+      target.node.scrollTop = target.baselineTop;
+    }
+    if (typeof target.node.scrollLeft === "number") {
+      target.node.scrollLeft = target.baselineLeft;
+    }
+    return true;
+  }
+
+  function verifyPlaybackScrollGuardTarget(target) {
+    if (!playbackScrollGuardState.active || !target?.node) {
+      return false;
+    }
+    const now = getPlaybackScrollGuardNow();
+    if (Number(target.ignoreScrollUntil || 0) > now) {
+      return false;
+    }
+    const currentTop =
+      typeof target.node.scrollTop === "number" ? Number(target.node.scrollTop) || 0 : 0;
+    const currentLeft =
+      typeof target.node.scrollLeft === "number" ? Number(target.node.scrollLeft) || 0 : 0;
+    if (currentTop === target.baselineTop && currentLeft === target.baselineLeft) {
+      return false;
+    }
+    if (hasRecentPlaybackScrollGuardUserIntent(target, now)) {
+      capturePlaybackScrollGuardBaseline(target);
+      return false;
+    }
+    return restorePlaybackScrollGuardTarget(target);
+  }
+
+  function resolvePlaybackScrollGuardTargetFromNode(node) {
+    if (!node) {
+      return null;
+    }
+    if (playbackScrollGuardState.table?.node && isNodeWithin(playbackScrollGuardState.table.node, node)) {
+      return playbackScrollGuardState.table;
+    }
+    if (playbackScrollGuardState.detail?.node && isNodeWithin(playbackScrollGuardState.detail.node, node)) {
+      return playbackScrollGuardState.detail;
+    }
+    return null;
+  }
+
+  function releasePlaybackScrollGuardTarget(target) {
+    if (!target) {
+      return;
+    }
+    restorePlaybackScrollGuardAnchor(target);
+    (Array.isArray(target.cleanup) ? target.cleanup : []).forEach(function (dispose) {
+      try {
+        if (typeof dispose === "function") {
+          dispose();
+        }
+      } catch (_error) {
+        // Ignore cleanup failures for detached nodes.
+      }
+    });
+    target.cleanup = [];
+    target.node = null;
+    target.pointerActive = false;
+    target.ignoreScrollUntil = 0;
+    target.lastUserIntentAt = 0;
+    target.baselineTop = 0;
+    target.baselineLeft = 0;
+  }
+
+  function bindPlaybackScrollGuardTarget(target, node) {
+    if (!target) {
+      return false;
+    }
+    if (target.node === node) {
+      if (playbackScrollGuardState.active) {
+        suppressPlaybackScrollGuardAnchor(target);
+      }
+      return false;
+    }
+    releasePlaybackScrollGuardTarget(target);
+    if (!node || typeof node.scrollTop !== "number") {
+      return true;
+    }
+    target.node = node;
+    capturePlaybackScrollGuardBaseline(target);
+    if (playbackScrollGuardState.active) {
+      suppressPlaybackScrollGuardAnchor(target);
+    }
+    target.cleanup = [
+      addDisposableEventListener(node, "scroll", function () {
+        verifyPlaybackScrollGuardTarget(target);
+      }),
+      addDisposableEventListener(node, "wheel", function () {
+        rememberPlaybackScrollGuardUserIntent(target);
+      }),
+      addDisposableEventListener(node, "touchmove", function () {
+        rememberPlaybackScrollGuardUserIntent(target);
+      }),
+      addDisposableEventListener(node, "pointerdown", function () {
+        target.pointerActive = true;
+        rememberPlaybackScrollGuardUserIntent(target);
+      }),
+      addDisposableEventListener(node, "mousedown", function () {
+        target.pointerActive = true;
+        rememberPlaybackScrollGuardUserIntent(target);
+      }),
+      addDisposableEventListener(node, "touchstart", function () {
+        target.pointerActive = true;
+        rememberPlaybackScrollGuardUserIntent(target);
+      }),
+    ];
+    return true;
+  }
+
+  function isPlaybackScrollGuardNavigationEvent(event) {
+    const key = normalizeText(event?.key || event?.code);
+    return [
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "PageUp",
+      "PageDown",
+      "Home",
+      "End",
+      "Space",
+    ].indexOf(key) >= 0;
+  }
+
+  function bindPlaybackScrollGuardGlobalListeners(root) {
+    if (playbackScrollGuardState.globalCleanup.length > 0) {
+      return;
+    }
+    const documentLike = root?.ownerDocument || root || globalThis.document || null;
+    const eventTargets = [];
+    if (documentLike && typeof documentLike.addEventListener === "function") {
+      eventTargets.push(documentLike);
+    }
+    if (
+      globalThis.window &&
+      typeof globalThis.window.addEventListener === "function" &&
+      eventTargets.indexOf(globalThis.window) < 0
+    ) {
+      eventTargets.push(globalThis.window);
+    }
+    playbackScrollGuardState.globalCleanup = eventTargets
+      .map(function (node) {
+        return [
+          addDisposableEventListener(node, "pointerup", clearPlaybackScrollGuardPointerState),
+          addDisposableEventListener(node, "mouseup", clearPlaybackScrollGuardPointerState),
+          addDisposableEventListener(node, "touchend", clearPlaybackScrollGuardPointerState),
+          addDisposableEventListener(node, "touchcancel", clearPlaybackScrollGuardPointerState),
+          addDisposableEventListener(node, "keydown", function (event) {
+            if (!isPlaybackScrollGuardNavigationEvent(event)) {
+              return;
+            }
+            const eventTarget =
+              resolvePlaybackScrollGuardTargetFromNode(
+                event?.target || documentLike?.activeElement || null
+              );
+            if (eventTarget) {
+              rememberPlaybackScrollGuardUserIntent(eventTarget);
+              return;
+            }
+            getPlaybackScrollGuardTargetStates().forEach(function (target) {
+              rememberPlaybackScrollGuardUserIntent(target);
+            });
+          }),
+        ];
+      })
+      .flat();
+  }
+
+  function releasePlaybackScrollGuardGlobalListeners() {
+    (Array.isArray(playbackScrollGuardState.globalCleanup)
+      ? playbackScrollGuardState.globalCleanup
+      : []
+    ).forEach(function (dispose) {
+      try {
+        if (typeof dispose === "function") {
+          dispose();
+        }
+      } catch (_error) {
+        // Ignore cleanup failures for detached nodes.
+      }
+    });
+    playbackScrollGuardState.globalCleanup = [];
+    clearPlaybackScrollGuardPointerState();
+  }
+
+  function deactivatePlaybackScrollGuard() {
+    releasePlaybackScrollGuardGlobalListeners();
+    releasePlaybackScrollGuardTarget(playbackScrollGuardState.detail);
+    releasePlaybackScrollGuardTarget(playbackScrollGuardState.table);
+    playbackScrollGuardState = createPlaybackScrollGuardState();
+    return {
+      active: false,
+    };
+  }
+
+  function syncPlaybackScrollGuard(root, options) {
+    const source = options && typeof options === "object" ? options : {};
+    const resolvedRoot = root || playbackScrollGuardState.root || globalThis.document || null;
+    const playing =
+      typeof source.playing === "boolean"
+        ? source.playing
+        : resolvedRoot
+          ? isWavePlaybackActive(resolvedRoot)
+          : false;
+    if (!playing || !resolvedRoot) {
+      return deactivatePlaybackScrollGuard();
+    }
+    if (!playbackScrollGuardState.active) {
+      playbackScrollGuardState.active = true;
+      bindPlaybackScrollGuardGlobalListeners(resolvedRoot);
+    }
+    playbackScrollGuardState.root = resolvedRoot;
+    bindPlaybackScrollGuardTarget(
+      playbackScrollGuardState.detail,
+      findDetailScrollContainer(resolvedRoot)
+    );
+    bindPlaybackScrollGuardTarget(
+      playbackScrollGuardState.table,
+      findSegmentTableScrollContainer(resolvedRoot)
+    );
+    verifyPlaybackScrollGuardTarget(playbackScrollGuardState.detail);
+    verifyPlaybackScrollGuardTarget(playbackScrollGuardState.table);
+    return {
+      active: true,
+      detailBaselineTop: playbackScrollGuardState.detail.baselineTop,
+      tableBaselineTop: playbackScrollGuardState.table.baselineTop,
+    };
+  }
+
+  function getPlaybackScrollGuardState() {
+    return {
+      active: playbackScrollGuardState.active === true,
+      detailBaselineTop: playbackScrollGuardState.detail.baselineTop,
+      tableBaselineTop: playbackScrollGuardState.table.baselineTop,
+      detailNodeBound: Boolean(playbackScrollGuardState.detail.node),
+      tableNodeBound: Boolean(playbackScrollGuardState.table.node),
+    };
+  }
+
+  function clearPlaybackScrollGuardWatchdog() {
+    if (playbackScrollGuardWatchdogTimer && typeof clearInterval === "function") {
+      clearInterval(playbackScrollGuardWatchdogTimer);
+    }
+    playbackScrollGuardWatchdogTimer = null;
+  }
+
+  function runPlaybackScrollGuardWatchdog(root) {
+    const resolvedRoot =
+      root ||
+      (typeof document !== "undefined" ? document : null) ||
+      playbackScrollGuardState.root ||
+      null;
+    const shouldGuard =
+      Boolean(resolvedRoot) &&
+      runtimeActive === true &&
+      runtimePolicy?.runtimeAccessible === true &&
+      isDetailPage();
+    if (!shouldGuard) {
+      syncPlaybackScrollGuard(resolvedRoot, {
+        playing: false,
+      });
+      return false;
+    }
+    syncPlaybackScrollGuard(resolvedRoot);
+    return true;
+  }
+
+  function ensurePlaybackScrollGuardWatchdog(root) {
+    if (!runPlaybackScrollGuardWatchdog(root)) {
+      clearPlaybackScrollGuardWatchdog();
+      return false;
+    }
+    if (playbackScrollGuardWatchdogTimer || typeof setInterval !== "function") {
+      return true;
+    }
+    playbackScrollGuardWatchdogTimer = setInterval(function () {
+      if (!runPlaybackScrollGuardWatchdog()) {
+        clearPlaybackScrollGuardWatchdog();
+      }
+    }, PLAYBACK_SCROLL_GUARD_WATCHDOG_INTERVAL_MS);
+    return true;
+  }
+
   function getSegmentNumberFromRow(rowNode, fallbackNumber) {
     const cells = getSegmentRowCells(rowNode, "body");
     const firstCellText = normalizeText(cells[0]?.textContent || cells[0]?.innerText || "");
@@ -3568,6 +3997,8 @@
 
   function destroyHelperRuntime() {
     clearHelperSyncTimer();
+    clearPlaybackScrollGuardWatchdog();
+    deactivatePlaybackScrollGuard();
     playbackRateSyncToken = 0;
     playbackRateAutoSyncState = {
       target: null,
@@ -4177,6 +4608,9 @@
     }
     const endpoint = resolveSegmentPreviewEndpoint(settings);
     const helperConfig = resolveHelperConfig(settings);
+    if (typeof document !== "undefined") {
+      ensurePlaybackScrollGuardWatchdog(document);
+    }
     const configSignature = JSON.stringify({
       endpoint: endpoint,
       helperConfig: helperConfig,
@@ -4476,6 +4910,8 @@
   function destroyRuntime() {
     runtimeActive = false;
     disconnectMutationObserver();
+    clearPlaybackScrollGuardWatchdog();
+    deactivatePlaybackScrollGuard();
     destroyHelperRuntime();
     if (!managementUiActive) {
       unbindStorageListener();
@@ -4520,6 +4956,7 @@
           void installRuntime();
           return;
         }
+        ensurePlaybackScrollGuardWatchdog(document);
         scheduleDomSync();
         if (helperRuntime) {
           if (!isWavePlaybackActive(document)) {
@@ -4576,6 +5013,8 @@
       buildSegmentRequestContext: buildSegmentRequestContext,
       buildSegmentRecognizeLayoutSignature: buildSegmentRecognizeLayoutSignature,
       syncPlaybackSensitiveDecorations: syncPlaybackSensitiveDecorations,
+      syncPlaybackScrollGuard: syncPlaybackScrollGuard,
+      getPlaybackScrollGuardState: getPlaybackScrollGuardState,
       setRuntimePolicyForTest: function (policy) {
         runtimePolicy = Object.assign({}, runtimePolicy || {}, policy || {});
       },
