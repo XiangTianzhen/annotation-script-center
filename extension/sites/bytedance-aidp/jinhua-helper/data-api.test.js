@@ -5,9 +5,9 @@ const path = require("node:path");
 const test = require("node:test");
 
 const modulePath = path.resolve(__dirname, "data-api.js");
-const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_JINHUA_OBSERVER";
-const RECEIVE_TYPE = "BYTEDANCE_AIDP_JINHUA_RECEIVE_SNAPSHOT";
-const SUBMIT_TYPE = "BYTEDANCE_AIDP_JINHUA_SUBMIT_SNAPSHOT";
+const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
+const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
+const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
 
 function loadModule() {
   delete require.cache[modulePath];

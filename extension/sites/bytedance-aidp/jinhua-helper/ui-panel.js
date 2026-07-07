@@ -1,6 +1,6 @@
 (function () {
-  const ROOT_ATTR = "data-asc-bytedance-aidp-suzhou-panel";
-  const STYLE_ID = "asc-bytedance-aidp-suzhou-panel-style";
+  const ROOT_ATTR = "data-asc-bytedance-aidp-jinhua-panel";
+  const STYLE_ID = "asc-bytedance-aidp-jinhua-panel-style";
   let activeTooltipAnchor = null;
   let tooltipListenersBound = false;
 
