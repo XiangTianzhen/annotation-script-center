@@ -117,6 +117,10 @@ class FakeElement {
     this._attrs = new Map();
     this._ownText = String(source.text || "");
     this.value = source.value !== undefined ? String(source.value) : "";
+    this.scrollTop = Number.isFinite(Number(source.scrollTop)) ? Number(source.scrollTop) : 0;
+    this.scrollLeft = Number.isFinite(Number(source.scrollLeft)) ? Number(source.scrollLeft) : 0;
+    this.scrollHeight = Number.isFinite(Number(source.scrollHeight)) ? Number(source.scrollHeight) : 0;
+    this.clientHeight = Number.isFinite(Number(source.clientHeight)) ? Number(source.clientHeight) : 0;
     this._rect = Object.assign(
       {
         top: 0,
@@ -1479,6 +1483,53 @@ test("ByteDance AIDP content detects active wave playback from advancing elapsed
   }
 });
 
+test("ByteDance AIDP content defers playback-sensitive decorations while wave time is advancing", function () {
+  const contentModule = loadContentModule();
+  const originalDateNow = Date.now;
+  let fakeNow = 1000;
+  Date.now = function () {
+    return fakeNow;
+  };
+  const waveRoot = new FakeElement({
+    className: "neeko-wavesurfer-warper neeko-wavesurfer",
+    text: "0:00.000播放速度1.00倍速总时长1:18.738",
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      attributes: {
+        id: "conbination-wrap",
+      },
+      children: [
+        waveRoot,
+        createAidpVirtualSegmentTable([
+          createAidpVirtualSegmentTableRow(1),
+          createAidpVirtualSegmentTableRow(2),
+        ]),
+      ],
+    }),
+  ]);
+
+  try {
+    contentModule.__testOnly.setRuntimePolicyForTest({
+      runtimeAccessible: true,
+    });
+    assert.equal(contentModule.__testOnly.isWavePlaybackActive(root), false);
+    fakeNow = 2200;
+    waveRoot._ownText = "0:01.200播放速度1.00倍速总时长1:18.738";
+    const result = contentModule.__testOnly.syncPlaybackSensitiveDecorations(root, {
+      playbackScopeKey: "detail-1",
+    });
+
+    assert.deepEqual(result, {
+      changed: false,
+      deferred: true,
+    });
+    assert.equal(root.querySelectorAll("[data-asc-segment-recognize-button='true']").length, 0);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
 test("ByteDance AIDP content injects clear-segments button into the detail header action group", function () {
   const contentModule = loadContentModule();
   let clicked = 0;
@@ -1596,6 +1647,30 @@ test("ByteDance AIDP content injects per-row recognize buttons once and keeps a 
   assert.equal(recognizeButtons.length, 2);
   assert.equal(recognizeButtons[0].textContent, "识别音频");
   assert.equal(recognizeButtons[1].textContent, "识别音频");
+});
+
+test("ByteDance AIDP content restores protected scroll containers after injecting row recognize buttons", function () {
+  const contentModule = loadContentModule();
+  const virtualTable = createAidpVirtualSegmentTable([
+    createAidpVirtualSegmentTableRow(1),
+    createAidpVirtualSegmentTableRow(2),
+  ]);
+  const tableBody = virtualTable.querySelector(".arco-table-body");
+  tableBody.scrollTop = 540;
+  const detailWrap = new FakeElement({
+    attributes: {
+      id: "conbination-wrap",
+    },
+    scrollTop: 960,
+    children: [virtualTable],
+  });
+  const root = createFakeDocument([detailWrap]);
+
+  const inserted = contentModule.__testOnly.ensureSegmentRecognizeButtons(root, function () {});
+
+  assert.equal(inserted, true);
+  assert.equal(detailWrap.scrollTop, 960);
+  assert.equal(tableBody.scrollTop, 540);
 });
 
 test("ByteDance AIDP content does not inject recognize header or buttons for empty segment tables", function () {

@@ -1274,3 +1274,5 @@
 - 新增(aishell-tech): 接入泰语助手正式版
 - 调整(aishell-tech): 改为文本与语速双字段真实保存
 - 文档(aishell-tech): 同步泰语助手目录与平台索引
+- 修复(ByteDance AIDP): 播放期详情页双滚动层锁定，播放时冻结 helper 面板重挂、上下文刷新与分段表格补挂
+- 调整(ByteDance AIDP): 分段表格行内识别入口改为结构签名驱动，并在 `#conbination-wrap` / `.arco-table-body` 补写前后恢复滚动位置

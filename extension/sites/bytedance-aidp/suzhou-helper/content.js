@@ -2124,6 +2124,95 @@
     });
   }
 
+  function findDetailScrollContainer(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const nodes = [searchRoots[index]].concat(collectDescendantElements(searchRoots[index]));
+      const exact = nodes.find(function (node) {
+        return normalizeText(node?.getAttribute?.("id")) === "conbination-wrap";
+      });
+      if (exact && typeof exact.scrollTop === "number") {
+        return exact;
+      }
+      const fallback = nodes.find(function (node) {
+        return getClassName(node).includes("render-zone-container");
+      });
+      if (fallback && typeof fallback.scrollTop === "number") {
+        return fallback;
+      }
+    }
+    return null;
+  }
+
+  function findSegmentTableScrollContainer(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const nodes = [searchRoots[index]].concat(collectDescendantElements(searchRoots[index]));
+      const matched = nodes.find(function (node) {
+        const className = getClassName(node);
+        return (
+          className.includes("arco-table-body") &&
+          !className.includes("arco-table-body-inner")
+        );
+      });
+      if (matched && typeof matched.scrollTop === "number") {
+        return matched;
+      }
+    }
+    return null;
+  }
+
+  function captureProtectedScrollState(root) {
+    const nodes = [];
+    const seen = new Set();
+
+    function pushNode(node) {
+      if (!node || seen.has(node) || typeof node.scrollTop !== "number") {
+        return;
+      }
+      seen.add(node);
+      nodes.push({
+        node: node,
+        scrollTop: Number(node.scrollTop) || 0,
+        scrollLeft: typeof node.scrollLeft === "number" ? Number(node.scrollLeft) || 0 : null,
+      });
+    }
+
+    pushNode(findDetailScrollContainer(root));
+    pushNode(findSegmentTableScrollContainer(root));
+    return nodes;
+  }
+
+  function restoreProtectedScrollState(state) {
+    (Array.isArray(state) ? state : []).forEach(function (entry) {
+      if (!entry?.node || typeof entry.node.scrollTop !== "number") {
+        return;
+      }
+      entry.node.scrollTop = entry.scrollTop;
+      if (typeof entry.scrollLeft === "number" && typeof entry.node.scrollLeft === "number") {
+        entry.node.scrollLeft = entry.scrollLeft;
+      }
+    });
+  }
+
+  function runWithProtectedScrollState(root, callback) {
+    const state = captureProtectedScrollState(root);
+    let result;
+    try {
+      result = typeof callback === "function" ? callback() : undefined;
+    } catch (error) {
+      restoreProtectedScrollState(state);
+      throw error;
+    }
+    if (result && typeof result.then === "function") {
+      return result.finally(function () {
+        restoreProtectedScrollState(state);
+      });
+    }
+    restoreProtectedScrollState(state);
+    return result;
+  }
+
   function getSegmentNumberFromRow(rowNode, fallbackNumber) {
     const cells = getSegmentRowCells(rowNode, "body");
     const firstCellText = normalizeText(cells[0]?.textContent || cells[0]?.innerText || "");
@@ -2315,47 +2404,49 @@
     if (!documentLike || typeof documentLike.createElement !== "function") {
       return false;
     }
-    const recognizeOptions = normalizeSegmentRecognizeOptions(onRecognize);
-    const realRows = getSegmentTableRows(tableRoot).filter(isSegmentRecognizeDataRow);
-    let inserted = cleanupSegmentRecognizeNodes(tableRoot, realRows);
-    if (realRows.length <= 0) {
-      return inserted;
-    }
-    const headerRow = getSegmentTableHeaderRow(tableRoot);
-    if (
-      headerRow &&
-      safeQuerySelectorAll(headerRow, "[" + SEGMENT_RECOGNIZE_HEADER_ATTR + "='true']").length <= 0
-    ) {
-      const headerCell = createSegmentRecognizeHeaderCell(documentLike, headerRow);
-      if (headerCell) {
-        headerRow.appendChild(headerCell);
+    return runWithProtectedScrollState(root, function () {
+      const recognizeOptions = normalizeSegmentRecognizeOptions(onRecognize);
+      const realRows = getSegmentTableRows(tableRoot).filter(isSegmentRecognizeDataRow);
+      let inserted = cleanupSegmentRecognizeNodes(tableRoot, realRows);
+      if (realRows.length <= 0) {
+        return inserted;
+      }
+      const headerRow = getSegmentTableHeaderRow(tableRoot);
+      if (
+        headerRow &&
+        safeQuerySelectorAll(headerRow, "[" + SEGMENT_RECOGNIZE_HEADER_ATTR + "='true']").length <= 0
+      ) {
+        const headerCell = createSegmentRecognizeHeaderCell(documentLike, headerRow);
+        if (headerCell) {
+          headerRow.appendChild(headerCell);
+          inserted = true;
+        }
+      }
+      realRows.forEach(function (rowNode, index) {
+        const segmentNumber = getSegmentNumberFromRow(rowNode, index + 1);
+        const existingButton =
+          safeQuerySelectorAll(rowNode, "[" + SEGMENT_RECOGNIZE_BUTTON_ATTR + "='true']")[0] || null;
+        if (existingButton) {
+          updateSegmentRecognizeButton(existingButton, segmentNumber, recognizeOptions);
+          return;
+        }
+        const button = createSegmentRecognizeButton(
+          documentLike,
+          segmentNumber,
+          recognizeOptions
+        );
+        if (!button) {
+          return;
+        }
+        const actionCell = createSegmentRecognizeCell(documentLike, rowNode, button);
+        if (!actionCell) {
+          return;
+        }
+        rowNode.appendChild(actionCell);
         inserted = true;
-      }
-    }
-    realRows.forEach(function (rowNode, index) {
-      const segmentNumber = getSegmentNumberFromRow(rowNode, index + 1);
-      const existingButton =
-        safeQuerySelectorAll(rowNode, "[" + SEGMENT_RECOGNIZE_BUTTON_ATTR + "='true']")[0] || null;
-      if (existingButton) {
-        updateSegmentRecognizeButton(existingButton, segmentNumber, recognizeOptions);
-        return;
-      }
-      const button = createSegmentRecognizeButton(
-        documentLike,
-        segmentNumber,
-        recognizeOptions
-      );
-      if (!button) {
-        return;
-      }
-      const actionCell = createSegmentRecognizeCell(documentLike, rowNode, button);
-      if (!actionCell) {
-        return;
-      }
-      rowNode.appendChild(actionCell);
-      inserted = true;
+      });
+      return inserted;
     });
-    return inserted;
   }
 
   function scheduleRuntimeReload(runtimeContext) {
@@ -2678,11 +2769,60 @@
     };
   }
 
-  function syncRowRecognizeButtons() {
-    if (typeof document === "undefined") {
+  function buildSegmentRecognizeLayoutSignature(root, onRecognize) {
+    const tableRoot = findSegmentRowsTableRoot(root);
+    if (!tableRoot) {
+      return "";
+    }
+    const recognizeOptions = normalizeSegmentRecognizeOptions(onRecognize);
+    const headerRow = getSegmentTableHeaderRow(tableRoot);
+    const headerCellCount = headerRow
+      ? getSegmentRowCells(headerRow, "header").filter(function (node) {
+          return normalizeText(node?.getAttribute?.(SEGMENT_RECOGNIZE_HEADER_ATTR)) !== "true";
+        }).length
+      : 0;
+    const rowSignature = getSegmentTableRows(tableRoot)
+      .filter(isSegmentRecognizeDataRow)
+      .map(function (rowNode, index) {
+        const segmentNumber = getSegmentNumberFromRow(rowNode, index + 1);
+        const bodyCellCount = getSegmentRowCells(rowNode, "body").filter(function (node) {
+          return normalizeText(node?.getAttribute?.(SEGMENT_RECOGNIZE_CELL_ATTR)) !== "true";
+        }).length;
+        const actionState = recognizeOptions.getActionState(segmentNumber) || {};
+        return [
+          segmentNumber,
+          bodyCellCount,
+          normalizeText(actionState.mode) || "recognize",
+        ].join(":");
+      })
+      .join("|");
+    return [headerCellCount, rowSignature].join("||");
+  }
+
+  function syncRowRecognizeButtons(options) {
+    const source = options && typeof options === "object" ? options : {};
+    const root = source.root || (typeof document !== "undefined" ? document : null);
+    if (!root) {
       return false;
     }
-    return ensureSegmentRecognizeButtons(document, buildSegmentRecognizeButtonOptions());
+    const recognizeOptions = source.recognizeOptions || buildSegmentRecognizeButtonOptions();
+    const nextSignature = buildSegmentRecognizeLayoutSignature(root, recognizeOptions);
+    if (helperRuntime) {
+      if (!nextSignature) {
+        helperRuntime.rowRecognizeLayoutSignature = "";
+      } else if (
+        source.force !== true &&
+        normalizeText(helperRuntime.rowRecognizeLayoutSignature) === nextSignature
+      ) {
+        return false;
+      }
+    }
+    const changed = ensureSegmentRecognizeButtons(root, recognizeOptions);
+    if (helperRuntime) {
+      helperRuntime.rowRecognizeLayoutSignature =
+        buildSegmentRecognizeLayoutSignature(root, recognizeOptions) || nextSignature;
+    }
+    return changed;
   }
 
   function syncPlaybackSensitiveDecorations(root, config) {
@@ -2706,27 +2846,32 @@
       normalizeText(resolvedConfig.playbackScopeKey) ||
       helperRuntime?.playbackScopeKey ||
       getCurrentPlaybackScopeKey();
-    let changed = false;
-    changed =
-      applyWaveToolSettings(
-        root,
-        Object.assign({}, resolvedConfig, {
-          playbackScopeKey: playbackScopeKey,
-        })
-      ) || changed;
-    changed =
-      ensureClearSegmentsButton(root, function () {
-        void handleClearSegmentsAction();
-      }) || changed;
-    changed =
-      ensureFillLanguageKindsButton(root, function () {
-        void handleFillLanguageKindsAction();
-      }) || changed;
-    changed = syncRowRecognizeButtons() || changed;
-    return {
-      changed: changed,
-      deferred: false,
-    };
+    return runWithProtectedScrollState(root, function () {
+      let changed = false;
+      changed =
+        applyWaveToolSettings(
+          root,
+          Object.assign({}, resolvedConfig, {
+            playbackScopeKey: playbackScopeKey,
+          })
+        ) || changed;
+      changed =
+        ensureClearSegmentsButton(root, function () {
+          void handleClearSegmentsAction();
+        }) || changed;
+      changed =
+        ensureFillLanguageKindsButton(root, function () {
+          void handleFillLanguageKindsAction();
+        }) || changed;
+      changed =
+        syncRowRecognizeButtons({
+          root: root,
+        }) || changed;
+      return {
+        changed: changed,
+        deferred: false,
+      };
+    });
   }
 
   function createConcurrentTaskRunner(tasks, concurrency, runTask, onSettled, shouldStop) {
@@ -3464,7 +3609,12 @@
         return;
       }
       try {
-        helperRuntime.ui.mount();
+        if (typeof document !== "undefined" && isWavePlaybackActive(document)) {
+          return;
+        }
+        runWithProtectedScrollState(document, function () {
+          helperRuntime.ui.mount();
+        });
         const initialSyncResult = syncPlaybackSensitiveDecorations(
           document,
           Object.assign({}, helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS), {
@@ -3490,11 +3640,13 @@
         if (contextSyncResult.deferred) {
           return;
         }
-        helperRuntime.ui.renderAudioContext(context);
-        helperRuntime.ui.renderBatchSelection?.({
-          totalSegments: Array.isArray(context?.currentSegments) ? context.currentSegments.length : 0,
-          resetSelection:
-            normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
+        runWithProtectedScrollState(document, function () {
+          helperRuntime.ui.renderAudioContext(context);
+          helperRuntime.ui.renderBatchSelection?.({
+            totalSegments: Array.isArray(context?.currentSegments) ? context.currentSegments.length : 0,
+            resetSelection:
+              normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
+          });
         });
         helperRuntime.batchSelectionKey = normalizeText(context?.selectionKey);
         if (!normalizeText(context?.audioUrl)) {
@@ -4032,7 +4184,6 @@
     if (helperRuntime && helperRuntime.configSignature === configSignature) {
       helperRuntime.config = helperConfig;
       helperRuntime.endpoint = endpoint;
-      helperRuntime.ui.mount();
       helperRuntime.ui.setSegmentPreviewAutoApplyEnabled?.(
         helperConfig.segmentPreviewAutoApplyEnabled
       );
@@ -4040,20 +4191,18 @@
       helperRuntime.batchController?.setAutoFillEnabled?.(
         helperConfig.aiRecommendAutoFillEnabled
       );
-      applyWaveToolSettings(
-        document,
-        Object.assign({}, helperConfig, {
-          playbackScopeKey: helperRuntime.playbackScopeKey,
-        })
-      );
-      ensureClearSegmentsButton(document, function () {
-        void handleClearSegmentsAction();
-      });
-      ensureFillLanguageKindsButton(document, function () {
-        void handleFillLanguageKindsAction();
-      });
-      syncRowRecognizeButtons();
-      scheduleHelperContextRefresh(0);
+      if (typeof document !== "undefined" && !isWavePlaybackActive(document)) {
+        runWithProtectedScrollState(document, function () {
+          helperRuntime.ui.mount();
+        });
+        syncPlaybackSensitiveDecorations(
+          document,
+          Object.assign({}, helperConfig, {
+            playbackScopeKey: helperRuntime.playbackScopeKey,
+          })
+        );
+        scheduleHelperContextRefresh(0);
+      }
       return;
     }
     destroyHelperRuntime();
@@ -4169,39 +4318,35 @@
       rowRecommendSegmentNumber: 0,
       rowRecommendScopeKey: "",
       rowRecommendSegmentsSignature: "",
+      rowRecognizeLayoutSignature: "",
       rowRecommendCache: new Map(),
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
       },
     };
-    ui.mount();
     shortcuts?.bind?.();
-    applyWaveToolSettings(
+    runWithProtectedScrollState(document, function () {
+      ui.mount();
+      ui.renderCurrentRecommendation(null);
+      ui.renderAiMeta(null);
+      ui.renderBatchAiResults([], 0);
+      ui.renderBatchSelection({
+        totalSegments: 0,
+        resetSelection: true,
+      });
+      ui.renderBatchState({
+        phaseText: "",
+      });
+      ui.setStatus(
+        "苏州话脚本已就绪；当前支持单段识别直填输入框、批量识别和分段建议暂存写回。",
+        "success"
+      );
+    });
+    syncPlaybackSensitiveDecorations(
       document,
       Object.assign({}, helperConfig, {
         playbackScopeKey: helperRuntime.playbackScopeKey,
       })
-    );
-    ensureClearSegmentsButton(document, function () {
-      void handleClearSegmentsAction();
-    });
-    ensureFillLanguageKindsButton(document, function () {
-      void handleFillLanguageKindsAction();
-    });
-    syncRowRecognizeButtons();
-    ui.renderCurrentRecommendation(null);
-    ui.renderAiMeta(null);
-    ui.renderBatchAiResults([], 0);
-    ui.renderBatchSelection({
-      totalSegments: 0,
-      resetSelection: true,
-    });
-    ui.renderBatchState({
-      phaseText: "",
-    });
-    ui.setStatus(
-      "苏州话脚本已就绪；当前支持单段识别直填输入框、批量识别和分段建议暂存写回。",
-      "success"
     );
     scheduleHelperContextRefresh(0);
   }
@@ -4377,8 +4522,10 @@
         }
         scheduleDomSync();
         if (helperRuntime) {
-          helperRuntime.ui.mount();
           if (!isWavePlaybackActive(document)) {
+            runWithProtectedScrollState(document, function () {
+              helperRuntime.ui.mount();
+            });
             scheduleHelperContextRefresh(0);
           }
         } else if (runtimePolicy.runtimeAccessible && dataApiFactory && segmentFactory && uiFactory) {
@@ -4427,6 +4574,11 @@
       createBatchRecommendController: createBatchRecommendController,
       fillEmptyLanguageKinds: fillEmptyLanguageKinds,
       buildSegmentRequestContext: buildSegmentRequestContext,
+      buildSegmentRecognizeLayoutSignature: buildSegmentRecognizeLayoutSignature,
+      syncPlaybackSensitiveDecorations: syncPlaybackSensitiveDecorations,
+      setRuntimePolicyForTest: function (policy) {
+        runtimePolicy = Object.assign({}, runtimePolicy || {}, policy || {});
+      },
     },
   };
 
