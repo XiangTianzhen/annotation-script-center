@@ -1194,6 +1194,7 @@
 - 为扩展新增 `cookies` 权限，并将 ByteDance AIDP `切换账号` 改为直接清理 `aidp.bytedance.com` 登录 Cookie 后刷新页面
 - 新增 background service worker 的 AIDP Cookie 清理回归测试
 - 调整 ByteDance AIDP `切换账号` 的 Cookie 清理范围，补充 `mpsso.jiyunhudong.com` 与其顶层站点下 `accounts.feishu.cn` 分区第三方登录 Cookie 的清理
+- 调整 ByteDance AIDP 脚本设置保存成功后的收口：顶部提示跨刷新保留 1 秒，并在提示后自动刷新当前脚本设置页，避免脚本设置中心停留在旧渲染状态
 
 ## 2026-04-25（历史记录重建摘要）
 - 拆分快判统计本地服务

@@ -151,7 +151,15 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /setStatus\("bytedance-aidp-status", "正在保存设置\.\.\."\)/);
   assert.match(script, /function showTopToast\(/);
   assert.match(script, /top-toast/);
-  assert.match(script, /设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。/);
+  assert.match(script, /function persistPendingTopToast\(/);
+  assert.match(script, /function restorePendingTopToast\(/);
+  assert.match(script, /asr-edge-options-pending-top-toast/);
+  assert.match(script, /设置已保存，脚本设置页已刷新。/);
+  assert.match(
+    script,
+    /persistPendingTopToast\(\s*"设置已保存，脚本设置页已刷新。",\s*"success",\s*1000\s*\);[\s\S]*showTopToast\(\s*"设置已保存，脚本设置页已刷新。",\s*"success",\s*1000\s*\);[\s\S]*globalThis\.setTimeout\(function \(\) \{\s*reloadOptionsPage\(\);/
+  );
+  assert.match(script, /document\.addEventListener\("DOMContentLoaded", async function \(\) \{\s*restorePendingTopToast\(\);/);
   assert.match(script, /function renderBytedanceAidpSuzhouAiSettingsSection\(/);
   assert.match(script, /function shouldShowBytedanceAidpAiSettingsSection\(/);
   assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);
