@@ -97,6 +97,12 @@ function normalizeAgeRangeGuess(value) {
 }
 
 function normalizePureDialectGuess(value) {
+  if (value === true) {
+    return "纯方言";
+  }
+  if (value === false) {
+    return "口音普通话";
+  }
   const text = normalizeText(value);
   if (text === "纯方言" || text === "口音普通话" || text === "uncertain") {
     return text;

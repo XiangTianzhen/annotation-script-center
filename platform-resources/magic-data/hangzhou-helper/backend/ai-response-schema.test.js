@@ -19,6 +19,18 @@ test("Magic Data Hangzhou listen response normalizes pureDialectGuess", function
   assert.equal(result.pureDialectGuess, "纯方言");
 });
 
+test("Magic Data Hangzhou listen response maps boolean pureDialectGuess to readable labels", function () {
+  const pureDialectResult = schemaModule.normalizeListenResponse({
+    pureDialectGuess: true,
+  });
+  const accentedMandarinResult = schemaModule.normalizeListenResponse({
+    pureDialectGuess: false,
+  });
+
+  assert.equal(pureDialectResult.pureDialectGuess, "纯方言");
+  assert.equal(accentedMandarinResult.pureDialectGuess, "口音普通话");
+});
+
 test("Magic Data Hangzhou rule-first comparison includes pureDialect speaker check", function () {
   const result = schemaModule.normalizeRuleFirstComparison(
     {
