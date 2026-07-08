@@ -16,6 +16,7 @@
 
 - 首版结构对齐客家话助手：健康检查、defaults、review-current、日志统计都已可用。
 - 响应结构保持当前 Magic Data AI 质检口径，包含结构化结果、脱敏调试信息、usage/cost 与词表状态。
+- `speakerCheck` 当前包含 `gender / ageRange / pureDialect` 三项；其中 `pureDialect` 对应平台说话人属性里的“音频是否是纯方言”。
 - Prompt、`rulesProfile` 与服务名已切到杭州话语义，但默认模型口径先与客家话保持一致。
 
 ## 词表

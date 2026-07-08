@@ -288,6 +288,7 @@ function normalizeReviewRequest(body) {
     speaker: {
       gender: normalizeText(source?.speaker?.gender),
       ageRange: normalizeText(source?.speaker?.ageRange),
+      pureDialect: normalizeText(source?.speaker?.pureDialect),
     },
     modelMode: modelMode,
     recognitionStrategy: recognitionStrategy,

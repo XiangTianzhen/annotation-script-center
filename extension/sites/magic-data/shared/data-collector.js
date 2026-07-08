@@ -9,8 +9,10 @@
   const READY_WAIT_INTERVAL_MS = 120;
   const GENDER_OPTIONS = ["男", "女"];
   const AGE_OPTIONS = ["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上"];
+  const PURE_DIALECT_OPTIONS = ["纯方言", "口音普通话"];
   const GENDER_OPTION_SET = new Set(GENDER_OPTIONS);
   const AGE_OPTION_SET = new Set(AGE_OPTIONS);
+  const PURE_DIALECT_OPTION_SET = new Set(PURE_DIALECT_OPTIONS);
   const REJECT_BUTTON_TEXTS = ["清除结果", "清除文本", "挂起", "驳回", "拒绝"];
   const FOCUS_SENTINEL_ATTR = "data-asc-magic-data-shortcut-focus-sentinel";
 
@@ -396,11 +398,14 @@
     }
     const genderItem = findFormItemByLabel(scope, "性别");
     const ageItem = findFormItemByLabel(scope, "年龄");
+    const pureDialectItem = findFormItemByLabel(scope, "音频是否是纯方言");
     const genderValue = readCheckedRadioValue(genderItem);
     const ageValue = readCheckedRadioValue(ageItem);
+    const pureDialectValue = readCheckedRadioValue(pureDialectItem);
     return {
       gender: GENDER_OPTION_SET.has(genderValue) ? genderValue : "",
       ageRange: AGE_OPTION_SET.has(ageValue) ? ageValue : "",
+      pureDialect: PURE_DIALECT_OPTION_SET.has(pureDialectValue) ? pureDialectValue : "",
     };
   }
 
@@ -692,6 +697,7 @@
         speakId: normalizeSpeakerId(baseEntry?.speak_id || baseEntry?.speakId || baseEntry?.id),
         gender: "",
         ageRange: "",
+        pureDialect: "",
       };
       const speakInfoList = Array.isArray(baseEntry?.speak_info)
         ? baseEntry.speak_info
@@ -715,6 +721,10 @@
           }
           if (!result.ageRange && AGE_OPTION_SET.has(text)) {
             result.ageRange = text;
+            return;
+          }
+          if (!result.pureDialect && PURE_DIALECT_OPTION_SET.has(text)) {
+            result.pureDialect = text;
           }
         });
       });
@@ -751,6 +761,9 @@
     }
     if (parsedSpeaker.ageRange) {
       speaker.ageRange = parsedSpeaker.ageRange;
+    }
+    if (parsedSpeaker.pureDialect) {
+      speaker.pureDialect = parsedSpeaker.pureDialect;
     }
     if (!speaker.speakId && targetSpeakerId) {
       speaker.speakId = targetSpeakerId;

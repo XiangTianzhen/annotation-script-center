@@ -244,6 +244,40 @@
     return "无法判断";
   }
 
+  function renderCorrectTag(value) {
+    if (value === true) {
+      return '<span class="md-tag md-tag-ok">正确</span>';
+    }
+    if (value === false) {
+      return '<span class="md-tag md-tag-bad">错误</span>';
+    }
+    return '<span class="md-tag md-tag-uncertain">待复核</span>';
+  }
+
+  function buildSpeakerDetailRows(speakerCheck) {
+    const source = speakerCheck && typeof speakerCheck === "object" ? speakerCheck : {};
+    const genderCheck = source.gender || {};
+    const ageRangeCheck = source.ageRange || {};
+    const pureDialectCheck = source.pureDialect || {};
+    return [
+      ["性别判断", renderCorrectTag(genderCheck.isCorrect), true],
+      ["平台值", normalizeText(genderCheck.platformValue || "-")],
+      ["AI建议", normalizeText(genderCheck.suggestedValue || "-")],
+      ["原因", normalizeText(genderCheck.reason || "-")],
+      ["置信度", formatNumber(genderCheck.confidence, 2)],
+      ["年龄判断", renderCorrectTag(ageRangeCheck.isCorrect), true],
+      ["平台值", normalizeText(ageRangeCheck.platformValue || "-")],
+      ["AI建议", normalizeText(ageRangeCheck.suggestedValue || "-")],
+      ["原因", normalizeText(ageRangeCheck.reason || "-")],
+      ["置信度", formatNumber(ageRangeCheck.confidence, 2)],
+      ["纯方言判断", renderCorrectTag(pureDialectCheck.isCorrect), true],
+      ["平台值", normalizeText(pureDialectCheck.platformValue || "-")],
+      ["AI建议", normalizeText(pureDialectCheck.suggestedValue || "-")],
+      ["原因", normalizeText(pureDialectCheck.reason || "-")],
+      ["置信度", formatNumber(pureDialectCheck.confidence, 2)],
+    ];
+  }
+
   function getDynamicMaxPanelHeight() {
     const viewportHeight = Number(window.innerHeight || 0);
     const computed = Math.floor(viewportHeight - 320);
@@ -617,6 +651,7 @@
       return (
         hasActionableSpeakerSuggestion(speakerCheck.gender || {}, isValidGenderValue) ||
         hasActionableSpeakerSuggestion(speakerCheck.ageRange || {}, isValidAgeRangeValue) ||
+        hasActionableSpeakerSuggestion(speakerCheck.pureDialect || {}, isValidPureDialectValue) ||
         hasActionableTextSuggestion(data.dialectTextCheck || {}) ||
         hasActionableTextSuggestion(data.mandarinTextCheck || {})
       );
@@ -1094,6 +1129,10 @@
       ) >= 0;
     }
 
+    function isValidPureDialectValue(value) {
+      return ["纯方言", "口音普通话"].indexOf(normalizeText(value)) >= 0;
+    }
+
     function findSpeakerFormItemByLabel(labelText) {
       const speakerRoot = findSpeakerAttributesRoot();
       if (!(speakerRoot instanceof HTMLElement)) {
@@ -1237,8 +1276,39 @@
       const speakerCheck = resultData.speakerCheck || {};
       const genderItem = findSpeakerFormItemByLabel("性别");
       const ageItem = findSpeakerFormItemByLabel("年龄");
+      const pureDialectItem = findSpeakerFormItemByLabel("音频是否是纯方言");
       renderSpeakerSuggestion(genderItem, "性别", speakerCheck.gender || {}, isValidGenderValue);
       renderSpeakerSuggestion(ageItem, "年龄", speakerCheck.ageRange || {}, isValidAgeRangeValue);
+      renderSpeakerSuggestion(
+        pureDialectItem,
+        "音频是否是纯方言",
+        speakerCheck.pureDialect || {},
+        isValidPureDialectValue
+      );
+    }
+
+    function buildSpeakerDetailRows(speakerCheck) {
+      const source = speakerCheck && typeof speakerCheck === "object" ? speakerCheck : {};
+      const genderCheck = source.gender || {};
+      const ageRangeCheck = source.ageRange || {};
+      const pureDialectCheck = source.pureDialect || {};
+      return [
+        ["性别判断", renderCorrectTag(genderCheck.isCorrect), true],
+        ["平台值", normalizeText(genderCheck.platformValue || "-")],
+        ["AI建议", normalizeText(genderCheck.suggestedValue || "-")],
+        ["原因", normalizeText(genderCheck.reason || "-")],
+        ["置信度", formatNumber(genderCheck.confidence, 2)],
+        ["年龄判断", renderCorrectTag(ageRangeCheck.isCorrect), true],
+        ["平台值", normalizeText(ageRangeCheck.platformValue || "-")],
+        ["AI建议", normalizeText(ageRangeCheck.suggestedValue || "-")],
+        ["原因", normalizeText(ageRangeCheck.reason || "-")],
+        ["置信度", formatNumber(ageRangeCheck.confidence, 2)],
+        ["纯方言判断", renderCorrectTag(pureDialectCheck.isCorrect), true],
+        ["平台值", normalizeText(pureDialectCheck.platformValue || "-")],
+        ["AI建议", normalizeText(pureDialectCheck.suggestedValue || "-")],
+        ["原因", normalizeText(pureDialectCheck.reason || "-")],
+        ["置信度", formatNumber(pureDialectCheck.confidence, 2)],
+      ];
     }
 
     function shouldShowTextFillButton(checkData) {
@@ -1437,9 +1507,7 @@
         return;
       }
 
-      const speakerCheck = latestResult.speakerCheck || {};
-      const genderCheck = speakerCheck.gender || {};
-      const ageRangeCheck = speakerCheck.ageRange || {};
+      const speakerRows = buildSpeakerDetailRows(latestResult.speakerCheck || {});
       const dialectCheck = latestResult.dialectTextCheck || {};
       const mandarinCheck = latestResult.mandarinTextCheck || {};
 
@@ -1448,20 +1516,7 @@
       overallBlock.innerHTML = '<div class="md-check-title">总结论</div>';
       overallBlock.appendChild(createCheckGrid(buildOverallRows(latestResult)));
       resultNode.appendChild(overallBlock);
-      resultNode.appendChild(
-        createFoldSection("说话人属性", [
-          ["性别判断", renderCorrectTag(genderCheck.isCorrect), true],
-          ["平台值", normalizeText(genderCheck.platformValue || "-")],
-          ["AI建议", normalizeText(genderCheck.suggestedValue || "-")],
-          ["原因", normalizeText(genderCheck.reason || "-")],
-          ["置信度", formatNumber(genderCheck.confidence, 2)],
-          ["年龄判断", renderCorrectTag(ageRangeCheck.isCorrect), true],
-          ["平台值", normalizeText(ageRangeCheck.platformValue || "-")],
-          ["AI建议", normalizeText(ageRangeCheck.suggestedValue || "-")],
-          ["原因", normalizeText(ageRangeCheck.reason || "-")],
-          ["置信度", formatNumber(ageRangeCheck.confidence, 2)],
-        ])
-      );
+      resultNode.appendChild(createFoldSection("说话人属性", speakerRows));
       resultNode.appendChild(
         createFoldSection("杭州话内容", [
           ["是否正确", renderCorrectTag(dialectCheck.isCorrect), true],
@@ -1766,6 +1821,7 @@
       const speakerCheck = latestResult.speakerCheck || {};
       const genderCheck = speakerCheck.gender || {};
       const ageRangeCheck = speakerCheck.ageRange || {};
+      const pureDialectCheck = speakerCheck.pureDialect || {};
       const dialectCheck = latestResult.dialectTextCheck || {};
       const mandarinCheck = latestResult.mandarinTextCheck || {};
 
@@ -1797,6 +1853,22 @@
         }
         if (!result || result.ok !== true) {
           result = clickSpeakerOptionInItem(ageItem, suggestedValue);
+        }
+        if (result?.ok === true) {
+          appliedCount += 1;
+        }
+        results.push(result);
+      }
+
+      if (!isCheckPage && hasActionableSpeakerSuggestion(pureDialectCheck, isValidPureDialectValue)) {
+        const pureDialectItem = findSpeakerFormItemByLabel("音频是否是纯方言");
+        const suggestedValue = normalizeText(pureDialectCheck.suggestedValue || "");
+        let result = null;
+        if (typeof options.selectSpeakerValue === "function") {
+          result = options.selectSpeakerValue(suggestedValue);
+        }
+        if (!result || result.ok !== true) {
+          result = clickSpeakerOptionInItem(pureDialectItem, suggestedValue);
         }
         if (result?.ok === true) {
           appliedCount += 1;
@@ -2099,6 +2171,7 @@
   exportedApi.__test__ = {
     resolveFillAllSuggestionsOutcome: resolveFillAllSuggestionsOutcome,
     buildOverallRows: buildOverallRows,
+    buildSpeakerDetailRows: buildSpeakerDetailRows,
     unwrapResultEnvelope: unwrapResultEnvelope,
     shouldDisableShowRawOutput: function (isLoading) {
       return isLoading === true;

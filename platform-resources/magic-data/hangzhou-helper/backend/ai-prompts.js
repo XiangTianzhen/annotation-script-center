@@ -10,7 +10,7 @@ const DEFAULT_LISTEN_TEMPLATE = [
 ].join("\n");
 const DEFAULT_COMPARE_TEMPLATE = [
   "当前任务是杭州话三项预测质检，不是直接改写平台文本。",
-  "请分别检查：说话人书写（性别/年龄）、杭州话内容、普通话文本。",
+  "请分别检查：说话人书写（性别/年龄/音频是否是纯方言）、杭州话内容、普通话文本。",
   "每项必须给出是否正确、平台值、建议值、原因、置信度。",
   "所有普通中文字段一律输出简体中文，禁止输出普通繁体字；只有命中杭州话词表统一用字时才保留该写法。",
   "严格输出 JSON，不输出额外解释。",
@@ -73,10 +73,11 @@ function buildListenPrompt(request, lexiconContext) {
   const promptLines = [
     template,
     "请优先判断音频有效性与风险：无有效人声、噪音、方言区域错误、切音、多人重叠、听不清、非方言、敏感数据、机器合成音。",
-    "请辅助判断说话人性别和年龄段，可输出 uncertain。",
-    "输出严格 JSON 字段：heardDialectText, heardMandarinMeaning, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, confidence。",
+    "请辅助判断说话人性别、年龄段，以及音频是否是纯方言；不确定时可输出 uncertain。",
+    "输出严格 JSON 字段：heardDialectText, heardMandarinMeaning, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, pureDialectGuess, confidence。",
     "validityDecision 只能是 valid|invalid|uncertain。",
     "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
+    "pureDialectGuess 只能是 纯方言|口音普通话|uncertain。",
     "heardDialectText 与 heardMandarinMeaning 中的普通中文必须使用简体，禁止输出 這/個/聽/講/說/學/競/賽/輔/導 等普通繁体字。",
   ];
 
@@ -108,6 +109,7 @@ function buildComparePrompt(request, listen, lexiconContext) {
       mandarinText: request.platformMandarinText,
       gender: request?.speaker?.gender || "",
       ageRange: request?.speaker?.ageRange || "",
+      pureDialect: request?.speaker?.pureDialect || "",
     },
     listenEvidence: {
       heardDialectText: listen.heardDialectText,
@@ -117,6 +119,7 @@ function buildComparePrompt(request, listen, lexiconContext) {
       riskFlags: listen.riskFlags,
       genderGuess: listen.genderGuess,
       ageRangeGuess: listen.ageRangeGuess,
+      pureDialectGuess: listen.pureDialectGuess,
       confidence: listen.confidence,
     },
   };
@@ -124,7 +127,7 @@ function buildComparePrompt(request, listen, lexiconContext) {
   const promptLines = [
     template,
     "输出结构必须包含：speakerCheck, dialectTextCheck, mandarinTextCheck, overall, heard。",
-    "speakerCheck 中必须包含 gender 与 ageRange 两个对象，每个对象字段为：isCorrect, platformValue, suggestedValue, reason, confidence。",
+    "speakerCheck 中必须包含 gender、ageRange、pureDialect 三个对象，每个对象字段为：isCorrect, platformValue, suggestedValue, reason, confidence。",
     "dialectTextCheck / mandarinTextCheck 字段为：isCorrect, platformValue, suggestedValue, reason, confidence。",
     "overall 字段包含：reviewConclusion(pass|need_review|risky|invalid_audio), shouldReview, summary。",
     "heard 字段包含：heardDialectText, heardMandarinMeaning。",
@@ -166,7 +169,7 @@ function buildOmniSinglePrompt(request, lexiconContext) {
   const promptLines = [
     template,
     "规则：",
-    "1. 说话人书写需检查性别和年龄段；不确定时 isCorrect=null 且 shouldReview=true。",
+    "1. 说话人书写需检查性别、年龄段、音频是否是纯方言；不确定时 isCorrect=null 且 shouldReview=true。",
     "2. 如果实际发声与平台方言行一致，优先保留平台方言行。",
     "3. 如果实际发声明显不同，方言建议按实际发声输出。",
     "4. 第二行普通话含义必须与方言行含义一致；不确定时 shouldReview=true。",
@@ -211,10 +214,11 @@ function buildRecognitionConvertListenPrompt(request, lexiconContext) {
   const promptLines = [
     template,
     "先判断音频是否有效，再输出识别到的普通话文本。",
-    "JSON 必须包含字段：recognizedMandarinText, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, confidence。",
+    "JSON 必须包含字段：recognizedMandarinText, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, pureDialectGuess, confidence。",
     "validityDecision 只能是 valid|invalid|uncertain。",
     "genderGuess 只能是 男|女|uncertain。",
     "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
+    "pureDialectGuess 只能是 纯方言|口音普通话|uncertain。",
     "recognizedMandarinText 必须使用简体中文，禁止输出普通繁体字。",
   ];
   if (lexiconText) {
@@ -244,6 +248,7 @@ function buildRecognitionConvertComparePrompt(request, context) {
       mandarinText: request.platformMandarinText || "",
       gender: request?.speaker?.gender || "",
       ageRange: request?.speaker?.ageRange || "",
+      pureDialect: request?.speaker?.pureDialect || "",
     },
     listenEvidence: context?.listenEvidence || {},
     lexiconMatches: Array.isArray(context?.lexiconMatches) ? context.lexiconMatches : [],
@@ -251,7 +256,7 @@ function buildRecognitionConvertComparePrompt(request, context) {
   const promptLines = [
     template,
     "输出结构必须包含：speakerCheck, dialectTextCheck, mandarinTextCheck, overall, heard。",
-    "speakerCheck 内必须有 gender 和 ageRange，字段：isCorrect, platformValue, suggestedValue, reason, confidence。",
+    "speakerCheck 内必须有 gender、ageRange、pureDialect，字段：isCorrect, platformValue, suggestedValue, reason, confidence。",
     "dialectTextCheck / mandarinTextCheck 字段：isCorrect, platformValue, suggestedValue, reason, confidence。",
     "overall 字段：reviewConclusion(pass|need_review|risky|invalid_audio), shouldReview, summary。",
     "heard 字段：heardDialectText, heardMandarinMeaning。",

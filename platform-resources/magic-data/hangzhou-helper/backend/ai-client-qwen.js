@@ -484,6 +484,7 @@ function buildMockListenResponse(input) {
     isValidAudio: true,
     invalidReasons: [],
     riskFlags: [],
+    pureDialectGuess: "uncertain",
     confidence: 0.82,
   });
 }

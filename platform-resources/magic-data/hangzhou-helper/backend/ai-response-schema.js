@@ -96,6 +96,14 @@ function normalizeAgeRangeGuess(value) {
   return AGE_RANGE_SET.has(text) ? text : "uncertain";
 }
 
+function normalizePureDialectGuess(value) {
+  const text = normalizeText(value);
+  if (text === "纯方言" || text === "口音普通话" || text === "uncertain") {
+    return text;
+  }
+  return "uncertain";
+}
+
 function normalizeTriState(value) {
   if (value === true || value === false || value === null) {
     return value;
@@ -182,6 +190,7 @@ function normalizeListenResponse(modelJson) {
       ? String(source.genderGuess || "").trim() || "uncertain"
       : "uncertain",
     ageRangeGuess: normalizeAgeRangeGuess(source.ageRangeGuess),
+    pureDialectGuess: normalizePureDialectGuess(source.pureDialectGuess),
     confidence: normalizeConfidence(source.confidence),
   };
 }
@@ -222,6 +231,13 @@ function normalizeRuleFirstComparison(modelJson, request, listen) {
       issues: speakerIssues,
       confidence: listen?.confidence || source.confidence,
     }),
+    pureDialect: normalizePredictionCheck(speakerCheckSource.pureDialect, {
+      platformValue: request?.speaker?.pureDialect || "",
+      suggestedValue: listen?.pureDialectGuess || "",
+      reason: speakerIssues[2] || speakerIssues[1] || speakerIssues[0] || "",
+      issues: speakerIssues,
+      confidence: listen?.confidence || source.confidence,
+    }),
   };
 
   const dialectTextCheck = normalizePredictionCheck(dialectTextCheckSource, {
@@ -256,6 +272,13 @@ function normalizeRuleFirstComparison(modelJson, request, listen) {
     speakerIssues.indexOf(speakerCheck.ageRange.reason) < 0
   ) {
     speakerIssues.push(speakerCheck.ageRange.reason);
+  }
+  if (
+    speakerCheck.pureDialect.isCorrect === false &&
+    speakerCheck.pureDialect.reason &&
+    speakerIssues.indexOf(speakerCheck.pureDialect.reason) < 0
+  ) {
+    speakerIssues.push(speakerCheck.pureDialect.reason);
   }
   if (
     dialectTextCheck.isCorrect === false &&
@@ -438,6 +461,17 @@ function normalizeOmniSingleComparison(modelJson, request) {
       issues: textRuleCheck.speakerAttributeIssues,
       confidence: audioCheckSource.confidence || source.confidence,
     }),
+    pureDialect: normalizePredictionCheck(speakerCheckSource.pureDialect, {
+      platformValue: request?.speaker?.pureDialect || "",
+      suggestedValue: audioCheckSource.pureDialectGuess || "",
+      reason:
+        textRuleCheck.speakerAttributeIssues[2] ||
+        textRuleCheck.speakerAttributeIssues[1] ||
+        textRuleCheck.speakerAttributeIssues[0] ||
+        "",
+      issues: textRuleCheck.speakerAttributeIssues,
+      confidence: audioCheckSource.confidence || source.confidence,
+    }),
   };
   const dialectTextCheck = normalizePredictionCheck(dialectTextCheckSource, {
     platformValue: request.platformDialectText,
@@ -466,6 +500,13 @@ function normalizeOmniSingleComparison(modelJson, request) {
     textRuleCheck.speakerAttributeIssues.indexOf(speakerCheck.ageRange.reason) < 0
   ) {
     textRuleCheck.speakerAttributeIssues.push(speakerCheck.ageRange.reason);
+  }
+  if (
+    speakerCheck.pureDialect.isCorrect === false &&
+    speakerCheck.pureDialect.reason &&
+    textRuleCheck.speakerAttributeIssues.indexOf(speakerCheck.pureDialect.reason) < 0
+  ) {
+    textRuleCheck.speakerAttributeIssues.push(speakerCheck.pureDialect.reason);
   }
   if (
     dialectTextCheck.isCorrect === false &&
@@ -506,6 +547,7 @@ function normalizeOmniSingleComparison(modelJson, request) {
         ? String(audioCheckSource.genderGuess || "").trim() || "uncertain"
         : "uncertain",
       ageRangeGuess: normalizeAgeRangeGuess(audioCheckSource.ageRangeGuess),
+      pureDialectGuess: normalizePureDialectGuess(audioCheckSource.pureDialectGuess),
       heardDialectText: heardDialectText,
       heardMandarinMeaning: heardMandarinMeaning,
       confidence: normalizeConfidence(audioCheckSource.confidence || source.confidence),
