@@ -360,6 +360,21 @@ test("Aishell storage defaults expose Thai helper config", async function () {
   }
 });
 
+test("Aishell storage defaults expose cn-en short drama config", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.aishellTech.scripts.cnEnShortDrama;
+
+    assert.equal(script.id, "aishellTechCnEnShortDrama");
+    assert.equal(script.enabled, false);
+    assert.equal(script.aiRecommendEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("Aishell storage enables Vietnamese helper as the active mutually exclusive script", async function () {
   const harness = loadStorageApi({});
 
@@ -395,6 +410,26 @@ test("Aishell storage enables Thai helper as the active mutually exclusive scrip
     assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled, false);
     assert.equal(settings.platforms.aishellTech.scripts.thaiHelper.enabled, true);
     assert.equal(settings.platforms.aishellTech.scripts.thaiHelper.aiRecommendEnabled, true);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage enables cn-en short drama as the active mutually exclusive script", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const settings = await harness.storage.setScriptEnabled("aishellTechCnEnShortDrama", true);
+
+    assert.equal(settings.platforms.aishellTech.activeScriptId, "aishellTechCnEnShortDrama");
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.aiRecommendEnabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.thaiHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.thaiHelper.aiRecommendEnabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.cnEnShortDrama.enabled, true);
+    assert.equal(settings.platforms.aishellTech.scripts.cnEnShortDrama.aiRecommendEnabled, false);
   } finally {
     harness.cleanup();
   }

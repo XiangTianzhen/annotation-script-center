@@ -2548,6 +2548,23 @@
     return result;
   }
 
+  function normalizeAishellTechCnEnShortDramaConfig(config, defaults) {
+    const source = isPlainObject(config) ? config : {};
+    const defaultConfig = isPlainObject(defaults) ? defaults : {};
+    const result = deepMerge(defaultConfig, source);
+    const constants = getConstants();
+
+    result.id =
+      constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID ||
+      result.id ||
+      "aishellTechCnEnShortDrama";
+    result.enabled = result.enabled === true;
+    result.aiRecommendEnabled = false;
+    result.shortcuts = {};
+
+    return result;
+  }
+
   function normalizeAishellTechThaiShortcuts(value, fallback) {
     const constants = getConstants();
     const actions = Array.isArray(constants.AISHELL_TECH_THAI_SHORTCUT_ACTIONS)
@@ -3180,6 +3197,9 @@
     const rawThaiHelperConfig = isPlainObject(rawPlatform.scripts?.thaiHelper)
       ? rawPlatform.scripts.thaiHelper
       : {};
+    const rawCnEnShortDramaConfig = isPlainObject(rawPlatform.scripts?.cnEnShortDrama)
+      ? rawPlatform.scripts.cnEnShortDrama
+      : {};
     const defaultPlatform =
       defaults?.platforms?.aishellTech || constants.DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS || {
         enabled: true,
@@ -3294,12 +3314,21 @@
               ignoreAiResult: null,
             },
           },
+          cnEnShortDrama: {
+            id:
+              constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID || "aishellTechCnEnShortDrama",
+            enabled: false,
+            aiRecommendEnabled: false,
+            shortcuts: {},
+          },
         },
       };
     const minnanId = constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
     const vietnameseId =
       constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
     const thaiId = constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
+    const cnEnShortDramaId =
+      constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID || "aishellTechCnEnShortDrama";
 
     if (!isPlainObject(settings.platforms)) {
       settings.platforms = {};
@@ -3333,6 +3362,12 @@
         defaultPlatform.scripts?.thaiHelper || {},
         rawThaiHelperConfig
       );
+    settings.platforms.aishellTech.scripts.cnEnShortDrama =
+      normalizeAishellTechCnEnShortDramaConfig(
+        settings.platforms.aishellTech.scripts.cnEnShortDrama,
+        defaultPlatform.scripts?.cnEnShortDrama || {},
+        rawCnEnShortDramaConfig
+      );
 
     let minnanEnabled =
       settings.platforms.aishellTech.scripts.minnanHelper.enabled !== false &&
@@ -3343,6 +3378,8 @@
     let thaiEnabled =
       settings.platforms.aishellTech.scripts.thaiHelper.enabled !== false &&
       settings.platforms.aishellTech.scripts.thaiHelper.aiRecommendEnabled !== false;
+    let cnEnShortDramaEnabled =
+      settings.platforms.aishellTech.scripts.cnEnShortDrama.enabled !== false;
     let activeScriptId = normalizeAishellTechActiveScriptId(
       settings.platforms.aishellTech.activeScriptId
     );
@@ -3353,24 +3390,37 @@
       activeScriptId = "";
     } else if (activeScriptId === thaiId && !thaiEnabled) {
       activeScriptId = "";
+    } else if (activeScriptId === cnEnShortDramaId && !cnEnShortDramaEnabled) {
+      activeScriptId = "";
     }
 
     if (!activeScriptId) {
-      if (minnanEnabled && !vietnameseEnabled && !thaiEnabled) {
+      if (minnanEnabled && !vietnameseEnabled && !thaiEnabled && !cnEnShortDramaEnabled) {
         activeScriptId = minnanId;
-      } else if (!minnanEnabled && vietnameseEnabled && !thaiEnabled) {
+      } else if (!minnanEnabled && vietnameseEnabled && !thaiEnabled && !cnEnShortDramaEnabled) {
         activeScriptId = vietnameseId;
-      } else if (!minnanEnabled && !vietnameseEnabled && thaiEnabled) {
+      } else if (!minnanEnabled && !vietnameseEnabled && thaiEnabled && !cnEnShortDramaEnabled) {
         activeScriptId = thaiId;
-      } else if (minnanEnabled || vietnameseEnabled || thaiEnabled) {
+      } else if (!minnanEnabled && !vietnameseEnabled && !thaiEnabled && cnEnShortDramaEnabled) {
+        activeScriptId = cnEnShortDramaId;
+      } else if (minnanEnabled || vietnameseEnabled || thaiEnabled || cnEnShortDramaEnabled) {
         activeScriptId = normalizeAishellTechActiveScriptId(defaultPlatform.activeScriptId);
         if (
           !activeScriptId ||
           (activeScriptId === minnanId && !minnanEnabled) ||
           (activeScriptId === vietnameseId && !vietnameseEnabled) ||
-          (activeScriptId === thaiId && !thaiEnabled)
+          (activeScriptId === thaiId && !thaiEnabled) ||
+          (activeScriptId === cnEnShortDramaId && !cnEnShortDramaEnabled)
         ) {
-          activeScriptId = minnanEnabled ? minnanId : vietnameseEnabled ? vietnameseId : thaiId;
+          activeScriptId = minnanEnabled
+            ? minnanId
+            : vietnameseEnabled
+              ? vietnameseId
+              : thaiEnabled
+                ? thaiId
+                : cnEnShortDramaEnabled
+                  ? cnEnShortDramaId
+                  : "";
         }
       }
     }
@@ -3387,13 +3437,24 @@
       minnanEnabled = false;
       vietnameseEnabled = false;
       thaiEnabled = true;
+      cnEnShortDramaEnabled = false;
+    } else if (activeScriptId === cnEnShortDramaId) {
+      minnanEnabled = false;
+      vietnameseEnabled = false;
+      thaiEnabled = false;
+      cnEnShortDramaEnabled = true;
     } else if (
-      (minnanEnabled ? 1 : 0) + (vietnameseEnabled ? 1 : 0) + (thaiEnabled ? 1 : 0) > 1
+      (minnanEnabled ? 1 : 0) +
+        (vietnameseEnabled ? 1 : 0) +
+        (thaiEnabled ? 1 : 0) +
+        (cnEnShortDramaEnabled ? 1 : 0) >
+      1
     ) {
       activeScriptId = minnanId;
       minnanEnabled = true;
       vietnameseEnabled = false;
       thaiEnabled = false;
+      cnEnShortDramaEnabled = false;
     }
 
     settings.platforms.aishellTech.scripts.minnanHelper.enabled = minnanEnabled;
@@ -3402,6 +3463,8 @@
     settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled = vietnameseEnabled;
     settings.platforms.aishellTech.scripts.thaiHelper.enabled = thaiEnabled;
     settings.platforms.aishellTech.scripts.thaiHelper.aiRecommendEnabled = thaiEnabled;
+    settings.platforms.aishellTech.scripts.cnEnShortDrama.enabled = cnEnShortDramaEnabled;
+    settings.platforms.aishellTech.scripts.cnEnShortDrama.aiRecommendEnabled = false;
     settings.platforms.aishellTech.activeScriptId = activeScriptId || "";
 
     return settings.platforms.aishellTech;
@@ -3413,8 +3476,15 @@
     const vietnameseId =
       constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
     const thaiId = constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
+    const cnEnShortDramaId =
+      constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID || "aishellTechCnEnShortDrama";
     const text = String(value || "").trim();
-    if (text === minnanId || text === vietnameseId || text === thaiId) {
+    if (
+      text === minnanId ||
+      text === vietnameseId ||
+      text === thaiId ||
+      text === cnEnShortDramaId
+    ) {
       return text;
     }
     return "";
@@ -5038,14 +5108,18 @@
     if (
       scriptId === constants.AISHELL_TECH_MINNAN_SCRIPT_ID ||
       scriptId === constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID ||
-      scriptId === constants.AISHELL_TECH_THAI_SCRIPT_ID
+      scriptId === constants.AISHELL_TECH_THAI_SCRIPT_ID ||
+      scriptId === constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID
     ) {
       const minnanId = constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
       const vietnameseId =
         constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
       const thaiId = constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
+      const cnEnShortDramaId =
+        constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID || "aishellTechCnEnShortDrama";
       const isVietnamese = scriptId === vietnameseId;
       const isThai = scriptId === thaiId;
+      const isCnEnShortDrama = scriptId === cnEnShortDramaId;
       const scriptPatch = nextEnabled
         ? {
             minnanHelper: {
@@ -5062,6 +5136,11 @@
               id: thaiId,
               enabled: isThai,
               aiRecommendEnabled: isThai,
+            },
+            cnEnShortDrama: {
+              id: cnEnShortDramaId,
+              enabled: isCnEnShortDrama,
+              aiRecommendEnabled: false,
             },
           }
         : isVietnamese
@@ -5080,6 +5159,14 @@
                   aiRecommendEnabled: false,
                 },
               }
+            : isCnEnShortDrama
+              ? {
+                  cnEnShortDrama: {
+                    id: cnEnShortDramaId,
+                    enabled: false,
+                    aiRecommendEnabled: false,
+                  },
+                }
           : {
               minnanHelper: {
                 id: minnanId,

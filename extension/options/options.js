@@ -30,6 +30,8 @@
     constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
   const aishellTechThaiScriptId =
     constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
+  const aishellTechCnEnShortDramaScriptId =
+    constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID || "aishellTechCnEnShortDrama";
   const abakaAiTaskPageCaptureScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
   const haitianUtransAudioDownloadHelperScriptId =
@@ -514,6 +516,8 @@
       { key: "fillRecommendedText", label: "填入并保存当前条" },
       { key: "ignoreAiResult", label: "忽略 AI 结果" },
     ];
+  const aishellTechCnEnShortDramaShortcutActions =
+    constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SHORTCUT_ACTIONS || [];
   const dataBakerCvpcShortcutActions = [
     { key: "valid", label: "当前段设为 Valid" },
     { key: "invalid", label: "当前段设为 Invalid" },
@@ -4338,7 +4342,8 @@
     return (
       scriptId === aishellTechMinnanScriptId ||
       scriptId === aishellTechVietnameseScriptId ||
-      scriptId === aishellTechThaiScriptId
+      scriptId === aishellTechThaiScriptId ||
+      scriptId === aishellTechCnEnShortDramaScriptId
     );
   }
 
@@ -4350,6 +4355,10 @@
     return scriptId === aishellTechThaiScriptId;
   }
 
+  function isAishellTechCnEnShortDramaScript(scriptId) {
+    return scriptId === aishellTechCnEnShortDramaScriptId;
+  }
+
   function supportsAsrVoiceAiSettings(scriptId) {
     return (
       scriptId === judgementProjectId ||
@@ -4358,7 +4367,7 @@
       scriptId === dataBakerCvpcLiuzhouScriptId ||
       isBytedanceAidpScript(scriptId) ||
       isMagicDataScript(scriptId) ||
-      isAishellTechScript(scriptId)
+      (isAishellTechScript(scriptId) && !isAishellTechCnEnShortDramaScript(scriptId))
     );
   }
 
@@ -4382,6 +4391,9 @@
       return "magic-data-status";
     }
     if (isAishellTechScript(scriptId)) {
+      if (isAishellTechCnEnShortDramaScript(scriptId)) {
+        return "detail-status";
+      }
       return isAishellTechVietnameseScript(scriptId)
         ? "aishell-tech-vietnamese-status"
         : isAishellTechThaiScript(scriptId)
@@ -5305,6 +5317,9 @@
   }
 
   function getAishellTechShortcutActions(scriptId) {
+    if (isAishellTechCnEnShortDramaScript(scriptId)) {
+      return aishellTechCnEnShortDramaShortcutActions;
+    }
     return isAishellTechVietnameseScript(scriptId)
       ? aishellTechVietnameseShortcutActions
       : isAishellTechThaiScript(scriptId)
@@ -5655,27 +5670,33 @@
     if (
       candidate === aishellTechMinnanScriptId ||
       candidate === aishellTechVietnameseScriptId ||
-      candidate === aishellTechThaiScriptId
+      candidate === aishellTechThaiScriptId ||
+      candidate === aishellTechCnEnShortDramaScriptId
     ) {
       return candidate;
     }
     const minnanConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
     const vietnameseConfig = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
     const thaiConfig = settings?.platforms?.aishellTech?.scripts?.thaiHelper || {};
+    const cnEnShortDramaConfig = settings?.platforms?.aishellTech?.scripts?.cnEnShortDrama || {};
     const minnanEnabled =
       minnanConfig.enabled !== false && minnanConfig.aiRecommendEnabled !== false;
     const vietnameseEnabled =
       vietnameseConfig.enabled !== false && vietnameseConfig.aiRecommendEnabled !== false;
     const thaiEnabled =
       thaiConfig.enabled !== false && thaiConfig.aiRecommendEnabled !== false;
-    if (minnanEnabled && !vietnameseEnabled && !thaiEnabled) {
+    const cnEnShortDramaEnabled = cnEnShortDramaConfig.enabled !== false;
+    if (minnanEnabled && !vietnameseEnabled && !thaiEnabled && !cnEnShortDramaEnabled) {
       return aishellTechMinnanScriptId;
     }
-    if (!minnanEnabled && vietnameseEnabled && !thaiEnabled) {
+    if (!minnanEnabled && vietnameseEnabled && !thaiEnabled && !cnEnShortDramaEnabled) {
       return aishellTechVietnameseScriptId;
     }
-    if (!minnanEnabled && !vietnameseEnabled && thaiEnabled) {
+    if (!minnanEnabled && !vietnameseEnabled && thaiEnabled && !cnEnShortDramaEnabled) {
       return aishellTechThaiScriptId;
+    }
+    if (!minnanEnabled && !vietnameseEnabled && !thaiEnabled && cnEnShortDramaEnabled) {
+      return aishellTechCnEnShortDramaScriptId;
     }
     return minnanEnabled
       ? aishellTechMinnanScriptId
@@ -5683,6 +5704,8 @@
         ? aishellTechVietnameseScriptId
         : thaiEnabled
           ? aishellTechThaiScriptId
+          : cnEnShortDramaEnabled
+            ? aishellTechCnEnShortDramaScriptId
           : "";
   }
 
@@ -6269,7 +6292,35 @@
     return config;
   }
 
+  function getAishellTechCnEnShortDramaConfig(settings) {
+    const defaults =
+      constants.DEFAULT_SETTINGS?.platforms?.aishellTech?.scripts?.cnEnShortDrama || {};
+    const current = settings?.platforms?.aishellTech?.scripts?.cnEnShortDrama || {};
+    const config = Object.assign(
+      {
+        id: aishellTechCnEnShortDramaScriptId,
+        enabled: false,
+        aiRecommendEnabled: false,
+        shortcuts: {},
+      },
+      defaults,
+      current
+    );
+
+    config.id = aishellTechCnEnShortDramaScriptId;
+    config.enabled = config.enabled === true;
+    config.aiRecommendEnabled = false;
+    config.shortcuts = normalizeAishellTechShortcuts(
+      config.shortcuts,
+      aishellTechCnEnShortDramaScriptId
+    );
+    return config;
+  }
+
   function getAishellTechConfig(settings, scriptId) {
+    if (isAishellTechCnEnShortDramaScript(scriptId)) {
+      return getAishellTechCnEnShortDramaConfig(settings);
+    }
     return isAishellTechVietnameseScript(scriptId)
       ? getAishellTechVietnameseConfig(settings)
       : isAishellTechThaiScript(scriptId)
@@ -7898,6 +7949,11 @@
     }
 
     if (isAishellTechScript(scriptId)) {
+      if (isAishellTechCnEnShortDramaScript(scriptId)) {
+        panel.classList.add("hidden");
+        panel.innerHTML = "";
+        return;
+      }
       if (isAishellTechVietnameseScript(scriptId)) {
         renderAishellTechVietnameseAiSettingsSection(panel, headerHtml, defaultsTipId);
       } else if (isAishellTechThaiScript(scriptId)) {
@@ -13050,6 +13106,10 @@
       "hidden",
       scriptId !== aishellTechThaiScriptId
     );
+    getElement("detail-aishell-tech-cn-en-short-drama-panel").classList.toggle(
+      "hidden",
+      scriptId !== aishellTechCnEnShortDramaScriptId
+    );
     getElement("detail-magic-data-annotator-panel").classList.toggle("hidden", !isMagicDataScript(scriptId));
     getElement("detail-abaka-ai-task-page-panel").classList.toggle(
       "hidden",
@@ -13152,9 +13212,11 @@
         getAsrVoiceAiStatusTargetId(scriptId),
         isAishellTechVietnameseScript(scriptId)
           ? "希尔贝壳越南语助手使用单阶段 Omni 识别；批量模式只处理当前分包，并保持 AI 并发请求 + 页面串行保存，不自动提交任务。"
+          : isAishellTechCnEnShortDramaScript(scriptId)
+            ? "中英短剧脚本当前只在 /mytask/mark 展示只读“当前媒体信息”面板，不接入 AI 推荐、自动保存或自动提交。"
           : isAishellTechThaiScript(scriptId)
             ? "希尔贝壳泰语助手使用单阶段 Omni 同时输出文本与语速；批量模式只处理当前分包，并保持 AI 并发请求 + 页面串行保存，不自动提交任务。"
-          : "希尔贝壳批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条会先对齐到目标条，再调用平台原生保存接口，不自动提交任务。"
+            : "希尔贝壳批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条会先对齐到目标条，再调用平台原生保存接口，不自动提交任务。"
       );
       return;
     }
@@ -13665,6 +13727,13 @@
   }
 
   function applyAishellTechForm(settings, scriptId) {
+    if (isAishellTechCnEnShortDramaScript(scriptId)) {
+      const config = getAishellTechCnEnShortDramaConfig(settings);
+      aishellTechShortcutsDraft = clone(config.shortcuts) || {};
+      stopAishellTechShortcutRecording("");
+      renderAishellTechShortcutGrid();
+      return;
+    }
     if (isAishellTechVietnameseScript(scriptId)) {
       applyAishellTechVietnameseForm(settings);
       return;

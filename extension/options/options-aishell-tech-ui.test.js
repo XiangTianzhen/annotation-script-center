@@ -55,3 +55,11 @@ test("Aishell Thai detail panel exists in options html", function () {
   assert.match(html, /希尔贝壳泰语助手/);
   assert.match(html, /save-aishell-tech-thai-settings/);
 });
+
+test("Aishell cn-en short drama detail panel exists in options html", function () {
+  const html = fs.readFileSync(path.resolve(__dirname, "options.html"), "utf8");
+
+  assert.match(html, /detail-aishell-tech-cn-en-short-drama-panel/);
+  assert.match(html, /中英短剧脚本/);
+  assert.match(html, /当前版本无额外设置项/);
+});

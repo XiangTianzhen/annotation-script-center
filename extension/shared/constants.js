@@ -70,6 +70,7 @@
   const AISHELL_TECH_MINNAN_SCRIPT_ID = "aishellTechMinnanAssistant";
   const AISHELL_TECH_VIETNAMESE_SCRIPT_ID = "aishellTechVietnameseAssistant";
   const AISHELL_TECH_THAI_SCRIPT_ID = "aishellTechThaiAssistant";
+  const AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID = "aishellTechCnEnShortDrama";
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
   const BACKEND_ENDPOINT_MODE_BETA = "beta";
@@ -373,6 +374,7 @@
       return clone(item);
     }
   );
+  const AISHELL_TECH_CN_EN_SHORT_DRAMA_SHORTCUT_ACTIONS = [];
   const DATABAKER_AI_OMNI_MODEL_VALUES = DATABAKER_AI_OMNI_MODEL_OPTIONS.map(function (item) {
     return String(item?.value || "").trim();
   }).filter(Boolean);
@@ -1576,6 +1578,21 @@
       matchUrl:
         "https://mark.aishelltech.com/mytask/mark?taskId=...&packageId=...",
     },
+    aishellTechCnEnShortDrama: {
+      id: AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID,
+      platformId: AISHELL_TECH_PLATFORM_ID,
+      label: "中英短剧脚本",
+      shortLabel: "中英短剧脚本",
+      description: "希尔贝壳 /mytask/mark 当前媒体信息只读面板。",
+      note:
+        "当前版本只展示题目、模板、总时长、分段数、视频和音频；不接入 AI 推荐，不自动保存，不自动提交任务。",
+      capabilityScope: "readonly-current-media-panel",
+      statusLabel: "中英短剧脚本",
+      detailView: "aishell-tech-cn-en-short-drama",
+      host: AISHELL_TECH_PLATFORM.host,
+      matchUrl:
+        "https://mark.aishelltech.com/mytask/mark?taskId=...&packageId=...",
+    },
   };
 
   const SHORTCUT_DEFINITIONS = [
@@ -1980,6 +1997,9 @@
     const minnanShortcuts = createEmptyShortcutMap(AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS);
     const vietnameseShortcuts = createEmptyShortcutMap(AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS);
     const thaiShortcuts = createEmptyShortcutMap(AISHELL_TECH_THAI_SHORTCUT_ACTIONS);
+    const cnEnShortDramaShortcuts = createEmptyShortcutMap(
+      AISHELL_TECH_CN_EN_SHORT_DRAMA_SHORTCUT_ACTIONS
+    );
 
     return {
       enabled: true,
@@ -2067,6 +2087,12 @@
           aiRecommendStopSequences: "",
           aiRecommendEnableThinking: false,
           shortcuts: thaiShortcuts,
+        },
+        cnEnShortDrama: {
+          id: AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID,
+          enabled: false,
+          aiRecommendEnabled: false,
+          shortcuts: cnEnShortDramaShortcuts,
         },
       },
     };
@@ -2493,12 +2519,15 @@
           ? "vietnameseHelper"
           : scriptId === AISHELL_TECH_THAI_SCRIPT_ID
             ? "thaiHelper"
-            : "minnanHelper";
+            : scriptId === AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID
+              ? "cnEnShortDrama"
+              : "minnanHelper";
       const scriptSettings = settings?.platforms?.aishellTech?.scripts?.[scriptKey] || {};
+      const requiresAiRecommend = scriptId !== AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID;
       return Boolean(
         settings?.platforms?.aishellTech?.enabled !== false &&
           scriptSettings.enabled !== false &&
-          scriptSettings.aiRecommendEnabled !== false &&
+          (!requiresAiRecommend || scriptSettings.aiRecommendEnabled !== false) &&
           (!activeScriptId || activeScriptId === scriptId)
       );
     }
@@ -2601,6 +2630,7 @@
     AISHELL_TECH_MINNAN_SCRIPT_ID: AISHELL_TECH_MINNAN_SCRIPT_ID,
     AISHELL_TECH_VIETNAMESE_SCRIPT_ID: AISHELL_TECH_VIETNAMESE_SCRIPT_ID,
     AISHELL_TECH_THAI_SCRIPT_ID: AISHELL_TECH_THAI_SCRIPT_ID,
+    AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID: AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
     DATABAKER_AI_RECOMMEND_PATH: DATABAKER_AI_RECOMMEND_PATH,
@@ -2706,6 +2736,9 @@
     BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS: clone(BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS),
     AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS: clone(AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS),
     AISHELL_TECH_THAI_SHORTCUT_ACTIONS: clone(AISHELL_TECH_THAI_SHORTCUT_ACTIONS),
+    AISHELL_TECH_CN_EN_SHORT_DRAMA_SHORTCUT_ACTIONS: clone(
+      AISHELL_TECH_CN_EN_SHORT_DRAMA_SHORTCUT_ACTIONS
+    ),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),
     ABAKA_AI_TASK21_VISION_MODEL_OPTIONS: clone(ABAKA_AI_TASK21_VISION_MODEL_OPTIONS),

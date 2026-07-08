@@ -117,6 +117,10 @@ function loadPopup(documentLike, chromeLike, storageLike) {
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: "magicDataAnnotatorAiReview",
     MAGIC_DATA_MINNAN_SCRIPT_ID: "magicDataMinnanAssistant",
     MAGIC_DATA_HANGZHOU_SCRIPT_ID: "magicDataHangzhouAssistant",
+    AISHELL_TECH_MINNAN_SCRIPT_ID: "aishellTechMinnanAssistant",
+    AISHELL_TECH_VIETNAMESE_SCRIPT_ID: "aishellTechVietnameseAssistant",
+    AISHELL_TECH_THAI_SCRIPT_ID: "aishellTechThaiAssistant",
+    AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID: "aishellTechCnEnShortDrama",
     SCRIPT_LIBRARY: {
       bytedanceAidpSuzhouHelper: {
         label: "苏州话脚本",
@@ -133,6 +137,18 @@ function loadPopup(documentLike, chromeLike, storageLike) {
       magicDataHangzhouAssistant: {
         label: "杭州话脚本",
       },
+      aishellTechMinnanAssistant: {
+        label: "希尔贝壳闽南语助手",
+      },
+      aishellTechVietnameseAssistant: {
+        label: "希尔贝壳越南语助手",
+      },
+      aishellTechThaiAssistant: {
+        label: "希尔贝壳泰语助手",
+      },
+      aishellTechCnEnShortDrama: {
+        label: "中英短剧脚本",
+      },
     },
     PLATFORM_LIBRARY: {
       bytedanceAidp: {
@@ -140,6 +156,9 @@ function loadPopup(documentLike, chromeLike, storageLike) {
       },
       magicData: {
         label: "Magic Data ANNOTATOR",
+      },
+      aishellTech: {
+        label: "希尔贝壳",
       },
     },
     isScriptVisible() {
@@ -378,4 +397,52 @@ test("popup shows the detected Hangzhou script when Magic Data activeScriptId sw
   assert.deepEqual(chromeLike.createdUrls, [
     "chrome-extension://test/options/options.html?view=script&script=magicDataHangzhouAssistant",
   ]);
+});
+
+test("popup shows the detected cn-en short drama script when Aishell activeScriptId switches to cn-en short drama", async function () {
+  const documentLike = createDocument();
+  const chromeLike = createChrome(
+    "https://mark.aishelltech.com/mytask/mark?taskId=task-1&packageId=package-1"
+  );
+  const storageLike = {
+    async getSettings() {
+      return {
+        platforms: {
+          aishellTech: {
+            enabled: true,
+            activeScriptId: "aishellTechCnEnShortDrama",
+            scripts: {
+              minnanHelper: {
+                enabled: false,
+                aiRecommendEnabled: false,
+              },
+              vietnameseHelper: {
+                enabled: false,
+                aiRecommendEnabled: false,
+              },
+              thaiHelper: {
+                enabled: false,
+                aiRecommendEnabled: false,
+              },
+              cnEnShortDrama: {
+                enabled: true,
+                aiRecommendEnabled: false,
+              },
+            },
+          },
+        },
+      };
+    },
+    async setScriptEnabled() {
+      throw new Error("not-needed");
+    },
+  };
+
+  loadPopup(documentLike, chromeLike, storageLike);
+
+  await documentLike.dispatchDOMContentLoaded();
+  await flushTasks();
+
+  assert.equal(documentLike.getElementById("detected-title").textContent, "中英短剧脚本");
+  assert.equal(documentLike.getElementById("detected-status-pill").textContent, "已启用");
 });

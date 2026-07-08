@@ -376,6 +376,22 @@
     },
     {
       "matches": [
+        "https://mark.aishelltech.com/*"
+      ],
+      "js": [
+        "shared/build-meta.js",
+        "shared/constants.js",
+        "shared/storage.js",
+        "sites/aishell-tech/cn-en-short-drama/data-api.js",
+        "sites/aishell-tech/cn-en-short-drama/ui-panel.js",
+        "sites/aishell-tech/cn-en-short-drama/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
         "http://*/*"
       ],
       "js": [

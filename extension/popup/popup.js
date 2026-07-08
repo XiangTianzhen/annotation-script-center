@@ -33,6 +33,8 @@
     constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
   const aishellTechThaiScriptId =
     constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
+  const aishellTechCnEnShortDramaScriptId =
+    constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID || "aishellTechCnEnShortDrama";
   const abakaAiHost = (constants.ABAKA_AI_PLATFORM || {}).host || "abao.fortidyndns.com";
   const abakaAiScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
@@ -139,6 +141,11 @@
         return (
           settings?.platforms?.aishellTech?.enabled !== false &&
           settings?.platforms?.aishellTech?.scripts?.thaiHelper?.enabled !== false
+        );
+      case aishellTechCnEnShortDramaScriptId:
+        return (
+          settings?.platforms?.aishellTech?.enabled !== false &&
+          settings?.platforms?.aishellTech?.scripts?.cnEnShortDrama?.enabled !== false
         );
       case abakaAiScriptId:
         return (
@@ -603,6 +610,7 @@
       const aiReady = aishellState.aiReady;
       const activeScriptId = aishellState.activeScriptId || aishellTechMinnanScriptId;
       const activeLabel = aishellState.scriptLabel;
+      const isCnEnShortDrama = activeScriptId === aishellTechCnEnShortDramaScriptId;
 
       if (pathname === "/mytask/mark") {
         return {
@@ -612,10 +620,14 @@
           url: url,
           platformEnabled: aishellState.platformEnabled,
           scriptEnabled: enabled,
-          statusText: !enabled ? "未启用" : aiReady ? "已支持" : "AI 推荐已关闭",
-          statusTone: !enabled ? "disabled" : aiReady ? "success" : "pending",
+          statusText: !enabled ? "未启用" : isCnEnShortDrama ? "已启用" : aiReady ? "已支持" : "AI 推荐已关闭",
+          statusTone: !enabled ? "disabled" : isCnEnShortDrama || aiReady ? "success" : "pending",
           title: "当前页面命中希尔贝壳数据标注页",
-          description: aiReady
+          description: !enabled
+            ? "当前页已命中希尔贝壳数据标注页，但平台脚本未启用、未选择生效脚本，或 AI 推荐面板已关闭。"
+            : isCnEnShortDrama
+              ? "当前页可使用“" + activeLabel + "”：显示只读当前媒体信息面板，不自动保存、不自动提交。"
+            : aiReady
             ? "当前页可使用“" + activeLabel + "”：支持当前条 AI 推荐、复制、填入，以及当前分包内从当前选中条开始的批量串行保存。"
             : "当前页已命中希尔贝壳数据标注页，但平台脚本未启用、未选择生效脚本，或 AI 推荐面板已关闭。",
         };
@@ -797,12 +809,14 @@
     const minnanConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
     const vietnameseConfig = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
     const thaiConfig = settings?.platforms?.aishellTech?.scripts?.thaiHelper || {};
+    const cnEnShortDramaConfig = settings?.platforms?.aishellTech?.scripts?.cnEnShortDrama || {};
     const minnanEnabled =
       minnanConfig.enabled !== false && minnanConfig.aiRecommendEnabled !== false;
     const vietnameseEnabled =
       vietnameseConfig.enabled !== false && vietnameseConfig.aiRecommendEnabled !== false;
     const thaiEnabled =
       thaiConfig.enabled !== false && thaiConfig.aiRecommendEnabled !== false;
+    const cnEnShortDramaEnabled = cnEnShortDramaConfig.enabled !== false;
     const resolvedScriptId =
       activeScriptId === aishellTechMinnanScriptId && minnanEnabled
         ? aishellTechMinnanScriptId
@@ -810,18 +824,24 @@
           ? aishellTechVietnameseScriptId
           : activeScriptId === aishellTechThaiScriptId && thaiEnabled
             ? aishellTechThaiScriptId
-            : minnanEnabled && !vietnameseEnabled && !thaiEnabled
+            : activeScriptId === aishellTechCnEnShortDramaScriptId && cnEnShortDramaEnabled
+              ? aishellTechCnEnShortDramaScriptId
+            : minnanEnabled && !vietnameseEnabled && !thaiEnabled && !cnEnShortDramaEnabled
             ? aishellTechMinnanScriptId
-            : vietnameseEnabled && !minnanEnabled && !thaiEnabled
+            : vietnameseEnabled && !minnanEnabled && !thaiEnabled && !cnEnShortDramaEnabled
               ? aishellTechVietnameseScriptId
-              : thaiEnabled && !minnanEnabled && !vietnameseEnabled
+              : thaiEnabled && !minnanEnabled && !vietnameseEnabled && !cnEnShortDramaEnabled
                 ? aishellTechThaiScriptId
+                : cnEnShortDramaEnabled && !minnanEnabled && !vietnameseEnabled && !thaiEnabled
+                  ? aishellTechCnEnShortDramaScriptId
                 : minnanEnabled
                   ? aishellTechMinnanScriptId
                   : vietnameseEnabled
                     ? aishellTechVietnameseScriptId
                     : thaiEnabled
                       ? aishellTechThaiScriptId
+                      : cnEnShortDramaEnabled
+                        ? aishellTechCnEnShortDramaScriptId
                       : "";
     const activeScript = resolvedScriptId ? scriptLibrary[resolvedScriptId] || {} : {};
     return {
@@ -834,7 +854,9 @@
       aiReady:
         platformEnabled &&
         Boolean(resolvedScriptId) &&
-        (resolvedScriptId === aishellTechVietnameseScriptId
+        (resolvedScriptId === aishellTechCnEnShortDramaScriptId
+          ? true
+          : resolvedScriptId === aishellTechVietnameseScriptId
           ? vietnameseEnabled
           : resolvedScriptId === aishellTechThaiScriptId
             ? thaiEnabled
