@@ -33,6 +33,11 @@
 - 成功响应固定返回：
   - `listenText`
   - `finalMandarinText`
+  - `isSinging`
+  - `isNonJinhuaDialect`
+  - `blockAutoFill`
+  - `needHumanReview`
+  - `notes`
   - `usage`
   - `cost`
   - `timing`
@@ -41,12 +46,20 @@
   - `debug`
 - 最终可写回字段固定只有：
   - `finalMandarinText`
+- 默认阻止自动填入只看：
+  - `isSinging`
+  - `isNonJinhuaDialect`
+  - `blockAutoFill`
+- `needHumanReview` 继续保留，但不会单独阻断自动填入
 
 ## AI 规则
 
 - 两阶段固定为：
-  - `listen`：原始听音草稿
-  - `refine`：普通话翻译收口
+  - `listen`：原始听音草稿、`唱歌` 判断、`非金华话` 判断
+  - `refine`：普通话翻译收口、格式约束、`blockAutoFill` 决策
+- 两阶段 JSON 契约固定为：
+  - `listen`：`listenText, isSinging, isNonJinhuaDialect, needHumanReview, notes`
+  - `refine`：`finalMandarinText, isSinging, isNonJinhuaDialect, blockAutoFill, needHumanReview, notes`
 - 最终输出规则固定为：
   - 最终输出是“普通话翻译”，不是金华话原文稿
   - 普通话不要截取，听到多少写多少
@@ -55,10 +68,12 @@
   - 不知名人名、地名、公司名或其他无法精准锁定的事物，使用 `##名称##` 包起来
   - 抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容
   - 语气词等按听到的普通话写法保留
+  - 时间词和常见词优先按规则映射收口，例如 `前日 -> 前天`、`后日 -> 后天`、`今朝 -> 今天`
   - 明显口吃式连续重复最多保留 `3` 次
   - 正常有语义的重复内容不压缩
   - 不使用阿拉伯数字，统一改写为汉字数字
   - 纯静音或完全听不清时返回空字符串
+  - 即使判断为 `唱歌` 或 `非金华话`，也仍然尽量返回可识别文本，只是默认 `blockAutoFill=true`
 
 ## 日志与导出
 

@@ -2434,6 +2434,58 @@ test("ByteDance AIDP content keeps preview when auto-apply is disabled", async f
   });
 });
 
+test("ByteDance AIDP content keeps blocked current recommendation for manual force fill", async function () {
+  const contentModule = loadContentModule();
+  let fillCalls = 0;
+  const autoFillResult = await contentModule.__testOnly.maybeAutoFillCurrentRecommendation(
+    {
+      config: {
+        aiRecommendAutoFillEnabled: true,
+      },
+      dataApi: {
+        async fillCurrentRegionTextIntoDom() {
+          fillCalls += 1;
+          return {
+            ok: true,
+            message: "should not run",
+            filledCount: 1,
+            skippedCount: 0,
+          };
+        },
+      },
+    },
+    {
+      segmentNumber: 3,
+      finalMandarinText: "歌词还是需要人工决定要不要填。",
+      isSinging: true,
+      blockAutoFill: true,
+    }
+  );
+
+  assert.deepEqual(autoFillResult, {
+    attempted: false,
+    ok: false,
+    reason: "blocked-auto-fill",
+  });
+  assert.equal(fillCalls, 0);
+});
+
+test("ByteDance AIDP row recognize button switches to force-fill label for blocked cached results", function () {
+  const contentModule = loadContentModule();
+  const root = createFakeDocument([]);
+  const button = contentModule.__testOnly.createSegmentRecognizeButton(root, 4, {
+    getActionState() {
+      return {
+        mode: "force-fill",
+      };
+    },
+  });
+
+  assert.ok(button);
+  assert.equal(button.textContent, "强制填入");
+  assert.equal(button.getAttribute("data-asc-segment-recognize-action"), "force-fill");
+});
+
 test("ByteDance AIDP content exposes exactly the expected shortcut action handlers", async function () {
   const contentModule = loadContentModule();
   const calls = [];
@@ -2696,6 +2748,8 @@ test("ByteDance AIDP batch controller caches results without writeback when auto
 test("ByteDance AIDP batch controller writes once after recognition when auto-fill is enabled", async function () {
   const contentModule = loadContentModule();
   const writeCalls = [];
+  const renderStates = [];
+  const statusCalls = [];
   const currentContext = {
     audioUrl: "https://example.test/audio.m4a",
     selectionKey: "selection-2",
@@ -2747,12 +2801,18 @@ test("ByteDance AIDP batch controller writes once after recognition when auto-fi
           segmentNumber,
           listenText: "第" + String(segmentNumber) + "段听音",
           finalMandarinText: "第" + String(segmentNumber) + "段普通话",
+          isSinging: segmentNumber === 2,
+          blockAutoFill: segmentNumber === 2,
         };
       },
     },
     ui: {
-      renderBatchState() {},
-      setStatus() {},
+      renderBatchState(snapshot) {
+        renderStates.push(snapshot);
+      },
+      setStatus(message, tone) {
+        statusCalls.push({ message, tone });
+      },
     },
   });
 
@@ -2766,9 +2826,22 @@ test("ByteDance AIDP batch controller writes once after recognition when auto-fi
     writeCalls[0].updates.map(function (item) {
       return item.segmentNumber;
     }),
-    [1, 2]
+    [1]
   );
-  assert.equal(result.pendingFill, false);
+  assert.equal(result.pendingFill, true);
+  assert.equal(result.reviewCount, 1);
+  assert.equal(
+    renderStates.some(function (item) {
+      return item && item.actionMode === "force-fill";
+    }),
+    true
+  );
+  assert.equal(
+    statusCalls.some(function (item) {
+      return /待复核/.test(String(item.message || ""));
+    }),
+    true
+  );
 });
 
 test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Space play-pause toggle", function () {

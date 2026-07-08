@@ -194,6 +194,10 @@
       "[" + ROOT_ATTR + "] .preview-unsafe { margin-top: 8px; color: #c2410c; }",
       "[" + ROOT_ATTR + "] .info-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(240px, 0.9fr); gap: 12px; align-items: start; }",
       "[" + ROOT_ATTR + "] .info-pane, [" + ROOT_ATTR + "] .debug-pane { display: grid; gap: 10px; min-width: 0; }",
+      "[" + ROOT_ATTR + "] .review-warning { display: grid; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid rgba(181, 71, 8, 0.2); border-radius: 10px; background: #fff8f2; color: #9a3412; }",
+      "[" + ROOT_ATTR + "] .review-warning-text { color: #9a3412; }",
+      "[" + ROOT_ATTR + "] .review-tag-row { display: flex; flex-wrap: wrap; gap: 8px; }",
+      "[" + ROOT_ATTR + "] .review-tag { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; background: #ffe7d1; color: #9a3412; font-weight: 600; }",
       "[" + ROOT_ATTR + "] .debug-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .debug-title { font-weight: 600; color: #26418b; }",
       "[" + ROOT_ATTR + "] .debug-copy-button { min-height: 28px; padding: 0 12px; font-size: 12px; }",
@@ -542,6 +546,10 @@
       if (batchActionMode === "running") {
         actionButton = createButton("停止批量", false, function () {
           deps.onBatchStop?.();
+        });
+      } else if (batchActionMode === "force-fill") {
+        actionButton = createButton("强制填入", true, function () {
+          deps.onBatchFill?.();
         });
       } else if (batchActionMode === "fill") {
         actionButton = createButton("填入", true, function () {
@@ -916,7 +924,9 @@
         ? normalizeText(source.actionMode)
         : source.isRunning === true
           ? "running"
-          : source.hasPendingFill === true
+          : source.hasPendingFill === true && Number(source.reviewCount || 0) > 0
+            ? "force-fill"
+            : source.hasPendingFill === true
             ? "fill"
             : aiRecommendAutoFillEnabled
               ? "recognizeAndFill"
@@ -926,7 +936,12 @@
         renderBatchActionButton();
       }
       clearNode(batchStateNode);
-      if (!normalizeText(source.phaseText) && (!Array.isArray(source.failures) || source.failures.length <= 0)) {
+      if (
+        !normalizeText(source.phaseText) &&
+        (!Array.isArray(source.failures) || source.failures.length <= 0) &&
+        source.hasPendingFill !== true &&
+        Number(source.reviewCount || 0) <= 0
+      ) {
         return;
       }
       const summary = document.createElement("div");
@@ -943,7 +958,10 @@
         "；失败 " +
         String(Number(source.failedCount || 0) || 0) +
         "；跳过 " +
-        String(Number(source.skippedCount || 0) || 0);
+        String(Number(source.skippedCount || 0) || 0) +
+        (Number(source.reviewCount || 0) > 0
+          ? "；待复核 " + String(Number(source.reviewCount || 0) || 0)
+          : "");
       batchStateNode.appendChild(summary);
       const failures = Array.isArray(source.failures) ? source.failures : [];
       if (failures.length > 0) {
@@ -1114,7 +1132,47 @@
       const refineUsage = source.usage?.refine || {};
       const listenCost = source.cost?.listen || {};
       const refineCost = source.cost?.refine || {};
+      const reviewTags = [];
+      if (source.isSinging === true) {
+        reviewTags.push("唱歌");
+      }
+      if (source.isNonJinhuaDialect === true) {
+        reviewTags.push("非金华话");
+      }
       renderBatchAiResultTabs();
+      if (reviewTags.length > 0 || source.blockAutoFill === true) {
+        const warningCard = document.createElement("div");
+        warningCard.className = "review-warning";
+        if (reviewTags.length > 0) {
+          const tagRow = document.createElement("div");
+          tagRow.className = "review-tag-row";
+          reviewTags.forEach(function (tagText) {
+            const tagNode = document.createElement("span");
+            tagNode.className = "review-tag";
+            tagNode.textContent = tagText;
+            tagRow.appendChild(tagNode);
+          });
+          warningCard.appendChild(tagRow);
+        }
+        const warningText = document.createElement("div");
+        warningText.className = "review-warning-text";
+        warningText.textContent =
+          "检测到" +
+          (reviewTags.length > 0 ? reviewTags.join(" / ") : "待人工复核") +
+          "，默认不自动填入，请人工判断后再决定是否强制填入。";
+        warningCard.appendChild(warningText);
+        if (batchAiResults.length <= 0 && normalizeText(source.finalMandarinText)) {
+          const warningActions = document.createElement("div");
+          warningActions.className = "action-row";
+          warningActions.appendChild(
+            createButton("强制填入当前段", true, function () {
+              deps.onForceFillCurrent?.();
+            })
+          );
+          warningCard.appendChild(warningActions);
+        }
+        aiMetaNode.appendChild(warningCard);
+      }
       const layout = document.createElement("div");
       layout.className = "info-layout";
       const infoPane = document.createElement("div");
@@ -1202,7 +1260,11 @@
 
     function setAiRecommendAutoFillEnabled(enabled) {
       aiRecommendAutoFillEnabled = enabled !== false;
-      if (batchActionMode !== "running" && batchActionMode !== "fill") {
+      if (
+        batchActionMode !== "running" &&
+        batchActionMode !== "fill" &&
+        batchActionMode !== "force-fill"
+      ) {
         batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
       }
       renderBatchActionButton();

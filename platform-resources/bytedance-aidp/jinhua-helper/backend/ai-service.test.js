@@ -56,3 +56,95 @@ test("Jinhua ai service preserves unknown-entity wrappers with Chinese punctuati
 
   assert.equal(result.finalMandarinText, "##阿布公司##？");
 });
+
+test("Jinhua ai service defaults split listen-stage judgement fields from refine-stage formatting fields", function () {
+  const payload = aiService.createDefaultsPayload();
+  const listenPrompt = String(payload.defaults?.stages?.listen?.prompt || "");
+  const refinePrompt = String(payload.defaults?.stages?.refine?.prompt || "");
+
+  assert.match(
+    listenPrompt,
+    /listenText, isSinging, isNonJinhuaDialect, needHumanReview, notes/
+  );
+  assert.doesNotMatch(listenPrompt, /不要使用阿拉伯数字/);
+  assert.doesNotMatch(listenPrompt, /口吃式/);
+  assert.match(
+    refinePrompt,
+    /finalMandarinText, isSinging, isNonJinhuaDialect, blockAutoFill, needHumanReview, notes/
+  );
+  assert.match(refinePrompt, /不要使用阿拉伯数字/);
+  assert.match(refinePrompt, /前日/);
+});
+
+test("Jinhua ai service keeps transcript text while blocking auto-fill for singing results", async function () {
+  const request = aiService.normalizeRecommendRequest({
+    requestId: "req-jinhua-singing",
+    audioDataUrl: "data:audio/wav;base64,ZmFrZQ==",
+    startMs: 0,
+    endMs: 1800,
+    segmentNumber: 2,
+    fieldContext: {
+      text: "",
+    },
+    editorContext: {
+      query: {
+        taskId: "task-1",
+      },
+    },
+  });
+  let nowValue = 0;
+  const result = await aiService.recommend(
+    request,
+    {
+      rulesText: "fake rules",
+    },
+    {
+      now: function () {
+        nowValue += 25;
+        return nowValue;
+      },
+      normalizeUsage: function (usage) {
+        return usage || {};
+      },
+      requestOmniInputAudio: async function () {
+        return {
+          model: "qwen3.5-omni-flash",
+          rawText: JSON.stringify({
+            listenText: "这一段像在唱歌。",
+            isSinging: true,
+            isNonJinhuaDialect: false,
+            needHumanReview: false,
+            notes: ["听音阶段识别为唱歌"],
+          }),
+          usage: {
+            total_tokens: 10,
+          },
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          model: "qwen3.5-plus",
+          rawText: JSON.stringify({
+            finalMandarinText: "这一段像在唱歌，但是还是能听出歌词。",
+            isSinging: true,
+            isNonJinhuaDialect: false,
+            blockAutoFill: true,
+            needHumanReview: true,
+            notes: ["收口阶段要求人工复核"],
+          }),
+          usage: {
+            total_tokens: 20,
+          },
+        };
+      },
+    }
+  );
+
+  assert.equal(result.listenText, "这一段像在唱歌。");
+  assert.equal(result.finalMandarinText, "这一段像在唱歌，但是还是能听出歌词。");
+  assert.equal(result.isSinging, true);
+  assert.equal(result.isNonJinhuaDialect, false);
+  assert.equal(result.blockAutoFill, true);
+  assert.equal(result.needHumanReview, true);
+  assert.deepEqual(result.notes, ["听音阶段识别为唱歌", "收口阶段要求人工复核"]);
+});

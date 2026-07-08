@@ -592,6 +592,54 @@ test("AIDP jinhua ui panel renders Mandarin transcript wording and AI return cop
   }
 });
 
+test("AIDP jinhua ui panel shows review warning tags and force-fill action for blocked current recommendation", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  const forceFillCalls = [];
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({
+      onForceFillCurrent() {
+        forceFillCalls.push("force-fill");
+      },
+    });
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = findMountedPanelRoot(harness.body);
+    runtime.renderCurrentRecommendation({
+      segmentNumber: 5,
+      listenText: "这一段像在唱歌。",
+      finalMandarinText: "这一段像在唱歌，但是还能听出歌词。",
+      isSinging: true,
+      isNonJinhuaDialect: true,
+      blockAutoFill: true,
+    });
+    runtime.renderAiMeta({
+      debug: {
+        reason: "blocked",
+      },
+    });
+
+    assert.match(panelRoot.textContent, /唱歌/);
+    assert.match(panelRoot.textContent, /非金华话/);
+    assert.match(panelRoot.textContent, /默认不自动填入/);
+
+    const forceFillButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.textContent.includes("强制填入当前段");
+    });
+    assert.ok(forceFillButton);
+    forceFillButton.click();
+    assert.deepEqual(forceFillCalls, ["force-fill"]);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP jinhua ui panel removes current-segment section and keeps preview-batch above audio-meta", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -742,12 +790,14 @@ test("AIDP jinhua ui panel uses a single batch primary button that follows auto-
       succeededCount: 3,
       failedCount: 0,
       skippedCount: 1,
+      reviewCount: 1,
     });
     primaryButton = findNode(panelRoot, function (node) {
       return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
     });
     assert.ok(primaryButton);
-    assert.equal(primaryButton.textContent, "填入");
+    assert.equal(primaryButton.textContent, "强制填入");
+    assert.match(panelRoot.textContent, /待复核 1/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

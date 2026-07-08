@@ -19,6 +19,8 @@
   - 快捷键录制开始后改为顶部常驻提示；录制成功、取消和删除继续走顶部 `1s` toast
   - 管理区 `/management/*` 已补 header 账号区 `切换账号` 按钮，会先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 站点储存，再补清 AIDP / SSO / 第三方登录 Cookie 后刷新页面
   - 关闭自动填入时，行内识别会先缓存结果，再由同一行 `填入` 按钮直填 textarea
+  - 命中 `唱歌` 或 `非金华话` 时，后端仍返回转写文本，但默认不自动填入；运行时会改为 `强制填入`
+  - 批量识别会把可直接写回结果与 `待复核` 结果分开统计；`待复核` 不再混进 `跳过`
   - 运行时现已独立读写 `jinhuaHelper` 配置，并与苏州话共享页面时保持脚本互斥下的 AI 隐藏 owner 隔离
 
 ## 当前资料覆盖
@@ -74,6 +76,9 @@
   - 最终只写 `regions[*].txt`
   - 写入值固定为 `finalMandarinText`
   - 输出是“普通话翻译”
+  - 同时返回 `isSinging`、`isNonJinhuaDialect`、`blockAutoFill`
+  - 默认拦截自动填入只看 `isSinging / isNonJinhuaDialect / blockAutoFill`
+  - `needHumanReview` 保留给人工判断，但不会单独阻断自动填入
   - 不保留金华话副结果字段
   - 不改 `regions[*].ms`
   - 不改提交 / 下一题链路
@@ -81,7 +86,9 @@
 - 当前批量能力边界：
   - 只作用于当前题当前页 `regions`
   - 默认并发 `5`
-  - 只在整批结束后合并一次并写回一次
+  - 自动填入开启时，只在整批结束后自动写回安全结果
+  - 命中 `唱歌` 或 `非金华话` 的段保留为 `待复核`，等待后续 `强制填入`
+  - 自动填入关闭时，整批结果先缓存；若包含待复核结果，主按钮会切成 `强制填入`
   - 当前题或快照漂移时 fail closed
 - 当前脚本级后端入口：
   - `platform-resources/bytedance-aidp/jinhua-helper/backend/`

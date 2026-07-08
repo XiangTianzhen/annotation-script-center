@@ -1391,3 +1391,10 @@
 - 文档(haitian-utrans): 补充平台入口、脚本 README 与平台索引
 - 新增(haitian-utrans): 在平台设置中接入音频下载助手，并增加“是否开启悬浮窗下载功能”单开关
 - 修复(haitian-utrans): 将下载桥接改为扩展脚本注入，避免 uTrans 页面 CSP 拦截内联脚本
+
+## 2026-07-08
+- 优化(ByteDance AIDP): 重分工金华话两阶段 AI，听音阶段只保留粗听文本与 `唱歌 / 非金华话` 判断，普通话收口阶段接管格式约束、时间词映射与 `blockAutoFill` 决策
+- 新增(ByteDance AIDP): 金华话 AI 推荐接口补充 `isSinging`、`isNonJinhuaDialect`、`blockAutoFill`，命中唱歌或非金华话时继续返回转写文本但默认不自动填入
+- 优化(ByteDance AIDP): 行内识别与底部 `AI信息` 面板新增 `唱歌 / 非金华话` 风险提示与 `强制填入当前段`
+- 优化(ByteDance AIDP): 批量识别拆分“可直接写回”与“待复核强制填入”两组，新增 `待复核` 计数，并将主按钮扩展为 `强制填入`
+- 测试(ByteDance AIDP): 补充金华话后端、行内识别与 UI 面板关于新字段、默认拦截和强制填入的回归测试

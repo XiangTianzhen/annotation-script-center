@@ -54,26 +54,37 @@ const ARABIC_DIGIT_TO_CHINESE = Object.freeze({
 });
 const EMPTY_RESULT_PATTERN =
   /^(纯静音|静音|完全听不清|听不清|听不出来|无法听清|无法识别|无内容|无语音|没有声音)([，。？！；,.!?;:]*)$/;
+const LISTEN_STAGE_RULE_LINES = [
+  "只做粗听，不负责格式统一、数字汉字化、标点规整或重复字裁剪。",
+  "重点判断两个信号：主说话人是否在唱歌；主要内容是否不是金华话。",
+  "即使判断为唱歌或非金华话，也仍然保留你能听出来的文本，不要直接清空。",
+];
+const REFINE_STAGE_RULE_LINES = [
+  "负责把听音草稿收口成普通话写法，并决定默认是否允许自动填入。",
+  "如果听音阶段已标记唱歌或非金华话，默认 blockAutoFill=true；但 finalMandarinText 仍要尽量保留可识别文本。",
+  "时间词和金华话常见词优先按下列映射收口：前日->前天，后日->后天，今朝->今天，昨日->昨天，明朝->明天，面腔->脸庞，毛脚->未婚夫，火哇->火了，灵光->厉害。",
+];
 const DEFAULT_LISTEN_PROMPT = [
   "请严格只根据当前音频片段输出原始听音草稿。",
   "最终目标不是金华话原文稿，而是给下一阶段一个保守的听音结果。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：listenText, needHumanReview, notes。",
+  "JSON 字段固定为：listenText, isSinging, isNonJinhuaDialect, needHumanReview, notes。",
   "listenText 只写你听到的大致文本，不做润色，不做语义扩写，也不要截取成局部短句。",
   "不知名人名、地名、公司名或其他无法精准锁定的事物，用 ##名称## 包起来。",
-  "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
-  "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！；不要使用阿拉伯数字。",
+  "请显式判断 isSinging 和 isNonJinhuaDialect，布尔值只能写 true 或 false。",
+  "抖音音效不截取；如果主说话人在唱歌，也仍然保留能听出来的文字，并把 isSinging 设为 true。",
   "听不清时必须保守；纯静音或完全听不清时，listenText 返回空字符串。",
 ].join("\n");
 const DEFAULT_REFINE_PROMPT = [
   "请把听音草稿收口成普通话翻译。",
   "最终输出不是金华话原文稿，也不是润色后的书面语。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：finalMandarinText, needHumanReview, notes。",
+  "JSON 字段固定为：finalMandarinText, isSinging, isNonJinhuaDialect, blockAutoFill, needHumanReview, notes。",
   "以听音为主，写成普通话写法；不要自由改写，不要补充没听到的信息，也不要截取成局部短句。",
   "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！。",
   "不知名人名、地名、公司名或其他无法精准锁定的事物，用 ##名称## 包起来。",
-  "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
+  "如果主说话人在唱歌或主要内容不是金华话，也仍然保留可识别文本，但 blockAutoFill 必须设为 true。",
+  "时间词和金华话常见词优先按下列映射收口：前日->前天，后日->后天，今朝->今天，昨日->昨天，明朝->明天，面腔->脸庞，毛脚->未婚夫，火哇->火了，灵光->厉害。",
   "语气词等按听到的普通话写法保留。",
   "不要使用阿拉伯数字，统一改写为汉字数字。",
   "明显的口吃式同字或同音节连续重复，最多保留 3 次；有语义的正常重复不要误删。",
@@ -195,6 +206,10 @@ function normalizeNotes(value) {
     }),
     8
   );
+}
+
+function normalizeBooleanFlag(value) {
+  return value === true;
 }
 
 function normalizeErrorDebugObject(value) {
@@ -338,19 +353,14 @@ function appendPromptRequirements(prompt, requiredLines) {
     .join("\n");
 }
 
-function buildRulesExcerpt(assetsContext) {
-  return String(assetsContext?.rulesText || "")
-    .split(/\r?\n/)
-    .slice(0, 60)
-    .join("\n");
-}
-
 function normalizeListenStageOutput(value) {
   const source = value && typeof value === "object" ? value : { listenText: value };
   return {
     listenText: normalizeMandarinResultText(
       source.listenText || source.heardText || source.text || source.audioText || ""
     ),
+    isSinging: normalizeBooleanFlag(source.isSinging),
+    isNonJinhuaDialect: normalizeBooleanFlag(source.isNonJinhuaDialect),
     needHumanReview: source.needHumanReview === true,
     notes: normalizeNotes(source.notes),
   };
@@ -366,6 +376,9 @@ function normalizeRefineStageOutput(value) {
         source.text ||
         ""
     ),
+    isSinging: normalizeBooleanFlag(source.isSinging),
+    isNonJinhuaDialect: normalizeBooleanFlag(source.isNonJinhuaDialect),
+    blockAutoFill: normalizeBooleanFlag(source.blockAutoFill),
     needHumanReview: source.needHumanReview === true,
     notes: normalizeNotes(source.notes),
   };
@@ -378,14 +391,17 @@ function buildListenPrompt(request, assetsContext) {
       [
         "listenText 只保留听到的文本，不要润色成自然书面语。",
         "普通话不要截取，听到多少写多少；不知名实体用 ##名称## 包起来。",
-        "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
-        "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！；不要使用阿拉伯数字。",
+        "isSinging 和 isNonJinhuaDialect 只能输出 true 或 false。",
+        "唱歌或非金华话也不要直接放弃文本，只要能听出来就继续写 listenText。",
         "纯静音或完全听不清时，listenText 返回空字符串。",
       ]
     ),
     userPrompt: [
-      "项目规则摘要：",
-      buildRulesExcerpt(assetsContext),
+      "听音阶段规则：",
+      LISTEN_STAGE_RULE_LINES.join("\n"),
+      normalizeText(assetsContext?.rulesText)
+        ? "参考资料已加载：jinhua-rules.md（本阶段只使用精简规则，不直接展开整份规则文本）。"
+        : "",
       "当前上下文：",
       JSON.stringify(
         {
@@ -413,15 +429,19 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
       [
         "finalMandarinText 必须是普通话翻译，不是金华话原文稿，不是润色稿。",
         "普通话不要截取，听到多少写多少；不知名实体用 ##名称## 包起来。",
-        "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
+        "如果 listen 阶段已标记唱歌或非金华话，除非文本证据非常明确，否则继续保持对应布尔值为 true。",
+        "blockAutoFill 必须与 isSinging / isNonJinhuaDialect 保持一致；命中任一时必须为 true。",
         "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！；不要使用阿拉伯数字。",
         "语气词保留；口吃式连续重复最多保留 3 次。",
         "纯静音或完全听不清时，finalMandarinText 返回空字符串。",
       ]
     ),
     userPrompt: [
-      "项目规则摘要：",
-      buildRulesExcerpt(assetsContext),
+      "收口阶段规则：",
+      REFINE_STAGE_RULE_LINES.join("\n"),
+      normalizeText(assetsContext?.rulesText)
+        ? "参考资料已加载：jinhua-rules.md（本阶段只使用精简规则，不直接展开整份规则文本）。"
+        : "",
       "当前上下文：",
       JSON.stringify(
         {
@@ -431,7 +451,11 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
             durationMs: request.durationMs,
             segmentNumber: request.segmentNumber,
           },
-          listenText: listenResult.listenText,
+          listenResult: {
+            listenText: listenResult.listenText,
+            isSinging: listenResult.isSinging === true,
+            isNonJinhuaDialect: listenResult.isNonJinhuaDialect === true,
+          },
           fieldContext: request.fieldContext,
           editorContext: request.editorContext,
         },
@@ -498,6 +522,8 @@ async function runListenStage(request, assetsContext, deps) {
   const normalized = normalizeListenStageOutput(parsed);
   return {
     listenText: normalized.listenText,
+    isSinging: normalized.isSinging,
+    isNonJinhuaDialect: normalized.isNonJinhuaDialect,
     needHumanReview: normalized.needHumanReview,
     notes: normalized.notes,
     rawText: String(result.rawText || ""),
@@ -533,6 +559,9 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
   const normalized = normalizeRefineStageOutput(parsed);
   return {
     finalMandarinText: normalized.finalMandarinText,
+    isSinging: normalized.isSinging,
+    isNonJinhuaDialect: normalized.isNonJinhuaDialect,
+    blockAutoFill: normalized.blockAutoFill,
     needHumanReview: normalized.needHumanReview,
     notes: normalized.notes,
     rawText: String(result.rawText || ""),
@@ -575,9 +604,16 @@ async function recommend(request, assetsContext, overrides) {
   const refineResult = await runRefineStage(request, normalizedAssetsContext, listenResult, deps);
   const models = Object.assign({}, listenResult.models || {}, refineResult.models || {});
   const usage = Object.assign({}, listenResult.usage || {}, refineResult.usage || {});
+  const isSinging = listenResult.isSinging === true || refineResult.isSinging === true;
+  const isNonJinhuaDialect =
+    listenResult.isNonJinhuaDialect === true || refineResult.isNonJinhuaDialect === true;
+  const blockAutoFill = refineResult.blockAutoFill === true || isSinging || isNonJinhuaDialect;
   return {
     listenText: normalizeText(listenResult.listenText),
     finalMandarinText: normalizeText(refineResult.finalMandarinText),
+    isSinging: isSinging,
+    isNonJinhuaDialect: isNonJinhuaDialect,
+    blockAutoFill: blockAutoFill,
     needHumanReview:
       listenResult.needHumanReview === true || refineResult.needHumanReview === true,
     notes: mergeNotes(listenResult.notes, refineResult.notes),
@@ -665,6 +701,9 @@ function buildRecommendSuccessBody(context) {
     requestId: normalizeText(source.requestId || source.normalizedRequest?.requestId),
     listenText: normalizeText(result.listenText),
     finalMandarinText: normalizeText(result.finalMandarinText),
+    isSinging: result.isSinging === true,
+    isNonJinhuaDialect: result.isNonJinhuaDialect === true,
+    blockAutoFill: result.blockAutoFill === true,
     usage: result.usage && typeof result.usage === "object" ? result.usage : {},
     cost: result.cost && typeof result.cost === "object" ? result.cost : {},
     timing: result.timing && typeof result.timing === "object" ? result.timing : {},

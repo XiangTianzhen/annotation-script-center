@@ -2927,8 +2927,15 @@
       return;
     }
     const state = getSegmentRecognizeActionState(options, segmentNumber);
-    const mode = normalizeText(state.mode) === "fill" ? "fill" : "recognize";
-    button.textContent = mode === "fill" ? "填入" : "识别音频";
+    const normalizedMode = normalizeText(state.mode);
+    const mode =
+      normalizedMode === "force-fill"
+        ? "force-fill"
+        : normalizedMode === "fill"
+          ? "fill"
+          : "recognize";
+    button.textContent =
+      mode === "force-fill" ? "强制填入" : mode === "fill" ? "填入" : "识别音频";
     button.setAttribute(SEGMENT_RECOGNIZE_ACTION_ATTR, mode);
   }
 
@@ -2952,8 +2959,14 @@
     button.style.whiteSpace = "nowrap";
     button.addEventListener("click", function () {
       const state = getSegmentRecognizeActionState(recognizeOptions, segmentNumber);
-      const mode = normalizeText(state.mode) === "fill" ? "fill" : "recognize";
-      if (mode === "fill" && typeof recognizeOptions.onFill === "function") {
+      const normalizedMode = normalizeText(state.mode);
+      const mode =
+        normalizedMode === "force-fill"
+          ? "force-fill"
+          : normalizedMode === "fill"
+            ? "fill"
+            : "recognize";
+      if ((mode === "fill" || mode === "force-fill") && typeof recognizeOptions.onFill === "function") {
         recognizeOptions.onFill(segmentNumber);
         return;
       }
@@ -3291,6 +3304,9 @@
       segmentNumber: Number(source.segmentNumber || 0) || 0,
       listenText: normalizeText(source.listenText),
       finalMandarinText: normalizeText(source.finalMandarinText),
+      isSinging: source.isSinging === true,
+      isNonJinhuaDialect: source.isNonJinhuaDialect === true,
+      blockAutoFill: source.blockAutoFill === true,
       usage: source.usage && typeof source.usage === "object" ? source.usage : {},
       cost: source.cost && typeof source.cost === "object" ? source.cost : {},
       timing: source.timing && typeof source.timing === "object" ? source.timing : {},
@@ -3301,12 +3317,45 @@
     };
   }
 
+  function getRecommendationReviewReasons(recommendation) {
+    const source = recommendation && typeof recommendation === "object" ? recommendation : {};
+    const reasons = [];
+    if (source.isSinging === true) {
+      reasons.push("唱歌");
+    }
+    if (source.isNonJinhuaDialect === true) {
+      reasons.push("非金华话");
+    }
+    return reasons;
+  }
+
+  function shouldBlockRecommendationAutoFill(recommendation) {
+    const source = recommendation && typeof recommendation === "object" ? recommendation : {};
+    return (
+      source.blockAutoFill === true ||
+      source.isSinging === true ||
+      source.isNonJinhuaDialect === true
+    );
+  }
+
+  function formatRecommendationReviewReasonText(recommendation) {
+    const reasons = getRecommendationReviewReasons(recommendation);
+    return reasons.length > 0 ? reasons.join(" / ") : "待人工复核";
+  }
+
   async function maybeAutoFillCurrentRecommendation(runtimeContext, recommendation) {
     if (runtimeContext?.config?.aiRecommendAutoFillEnabled === false) {
       return {
         attempted: false,
         ok: false,
         reason: "disabled",
+      };
+    }
+    if (shouldBlockRecommendationAutoFill(recommendation)) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "blocked-auto-fill",
       };
     }
     if (!runtimeContext?.dataApi?.fillCurrentRegionTextIntoDom) {
@@ -3400,6 +3449,9 @@
         selectionKey: selectionKey,
         segmentNumber: recommendation.segmentNumber,
         finalMandarinText: recommendation.finalMandarinText,
+        isSinging: recommendation.isSinging === true,
+        isNonJinhuaDialect: recommendation.isNonJinhuaDialect === true,
+        blockAutoFill: recommendation.blockAutoFill === true,
         displayPayload: Object.assign({}, recommendation),
       }
     );
@@ -3423,22 +3475,34 @@
         void handleFillRowRecommendAction(segmentNumber);
       },
       getActionState: function (segmentNumber) {
-        if (!helperRuntime || helperRuntime.config?.aiRecommendAutoFillEnabled !== false) {
+        if (!helperRuntime) {
           return {
             mode: "recognize",
           };
         }
-        return getCachedRowRecommendation(
+        const cached = getCachedRowRecommendation(
           helperRuntime,
           helperRuntime.rowRecommendScopeKey,
           segmentNumber
-        )
-          ? {
-              mode: "fill",
-            }
-          : {
-              mode: "recognize",
-            };
+        );
+        if (!cached) {
+          return {
+            mode: "recognize",
+          };
+        }
+        if (shouldBlockRecommendationAutoFill(cached)) {
+          return {
+            mode: "force-fill",
+          };
+        }
+        if (helperRuntime.config?.aiRecommendAutoFillEnabled === false) {
+          return {
+            mode: "fill",
+          };
+        }
+        return {
+          mode: "recognize",
+        };
       },
     };
   }
@@ -3623,16 +3687,57 @@
       return 0;
     }
 
+    function getPendingActionMode(source) {
+      return Number(source?.reviewCount || 0) > 0 ? "force-fill" : "fill";
+    }
+
+    function buildPendingFillMessage(updateCount, reviewCount) {
+      const safeCount = Math.max(0, Number(updateCount || 0) - Number(reviewCount || 0));
+      if (reviewCount > 0 && safeCount > 0) {
+        return (
+          "已生成 " +
+          String(safeCount) +
+          " 段可直接写回结果，另有 " +
+          String(reviewCount) +
+          " 段待复核，点击“强制填入”可写回当前结果。"
+        );
+      }
+      if (reviewCount > 0) {
+        return (
+          "已生成 " +
+          String(reviewCount) +
+          " 段待复核结果，默认不自动填入，点击“强制填入”可写回当前结果。"
+        );
+      }
+      return (
+        "已生成 " + String(updateCount) + " 段识别结果，点击“填入”可写回当前结果。"
+      );
+    }
+
+    function buildForceFillStatusMessage(baseMessage, reviewCount) {
+      const normalizedBase = normalizeText(baseMessage);
+      if (Number(reviewCount || 0) <= 0) {
+        return normalizedBase || "批量写回已完成。";
+      }
+      if (normalizedBase) {
+        return normalizedBase + " 待复核 " + String(reviewCount) + " 段，请继续人工复核。";
+      }
+      return "已强制填入待复核结果，请继续人工复核。";
+    }
+
     function render(run, phaseText, actionMode) {
       const source = run && typeof run === "object" ? run : {};
+      const normalizedActionMode = normalizeText(actionMode) || getIdleActionMode();
       ui?.renderBatchState?.({
         phaseText: phaseText,
-        actionMode: normalizeText(actionMode) || getIdleActionMode(),
+        actionMode: normalizedActionMode,
+        hasPendingFill: normalizedActionMode === "fill" || normalizedActionMode === "force-fill",
         totalCount: Number(source.totalCount || 0) || 0,
         concurrency: Number(source.concurrency || 0) || 0,
         succeededCount: Number(source.succeededCount || 0) || 0,
         failedCount: Number(source.failedCount || 0) || 0,
         skippedCount: Number(source.skippedCount || 0) || 0,
+        reviewCount: Number(source.reviewCount || 0) || 0,
         currentSegmentNumber: Number(source.currentSegmentNumber || 0) || 0,
         failures: Array.isArray(source.failures) ? source.failures.slice() : [],
       });
@@ -3685,9 +3790,13 @@
         succeededCount: 0,
         failedCount: 0,
         skippedCount: 0,
+        reviewCount: 0,
         failures: [],
         updates: [],
+        directUpdates: [],
+        reviewUpdates: [],
         results: [],
+        reviewResults: [],
         stopRequested: false,
       };
       activeRun = run;
@@ -3730,10 +3839,17 @@
             const payload = buildRecommendationDisplayPayload(entry.value);
             run.results.push(payload);
             if (payload.finalMandarinText) {
-              run.updates.push({
+              const update = {
                 segmentNumber: payload.segmentNumber,
                 finalMandarinText: payload.finalMandarinText,
-              });
+              };
+              if (shouldBlockRecommendationAutoFill(payload)) {
+                run.reviewUpdates.push(update);
+                run.reviewResults.push(payload);
+                run.reviewCount += 1;
+              } else {
+                run.directUpdates.push(update);
+              }
               run.succeededCount += 1;
             } else {
               run.skippedCount += 1;
@@ -3768,9 +3884,13 @@
       run.results.sort(function (left, right) {
         return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
       });
-      run.updates.sort(function (left, right) {
+      run.directUpdates.sort(function (left, right) {
         return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
       });
+      run.reviewUpdates.sort(function (left, right) {
+        return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
+      });
+      run.updates = run.directUpdates.concat(run.reviewUpdates);
       activeRun = null;
       ui?.renderBatchAiResults?.(run.results, pickBatchAiActiveSegment(run.results));
       return {
@@ -3783,9 +3903,12 @@
         succeededCount: run.succeededCount,
         failedCount: run.failedCount,
         skippedCount: run.skippedCount,
+        reviewCount: run.reviewCount,
         failures: run.failures.slice(),
         results: run.results.slice(),
         updates: run.updates.slice(),
+        directUpdates: run.directUpdates.slice(),
+        reviewUpdates: run.reviewUpdates.slice(),
       };
     }
 
@@ -3815,12 +3938,20 @@
                 succeededCount: Number(result.succeededCount || 0) || 0,
                 failedCount: Number(result.failedCount || 0) || 0,
                 skippedCount: Number(result.skippedCount || 0) || 0,
+                reviewCount: Number(result.reviewCount || 0) || 0,
                 failures: Array.isArray(result.failures) ? result.failures.slice() : [],
                 results: Array.isArray(result.results) ? result.results.slice() : [],
+                directUpdates: Array.isArray(result.directUpdates)
+                  ? result.directUpdates.slice()
+                  : [],
+                reviewUpdates: Array.isArray(result.reviewUpdates)
+                  ? result.reviewUpdates.slice()
+                  : [],
                 updates: result.updates.slice(),
               }
             : null;
         const hasPendingFill = Boolean(pendingFill && pendingFill.updates.length > 0);
+        const pendingActionMode = hasPendingFill ? getPendingActionMode(pendingFill) : getIdleActionMode();
         render(
           {
             totalCount: result.totalCount,
@@ -3828,14 +3959,17 @@
             succeededCount: result.succeededCount,
             failedCount: result.failedCount,
             skippedCount: result.skippedCount,
+            reviewCount: result.reviewCount,
             failures: result.failures,
           },
           hasPendingFill ? "批量识别已完成" : "",
-          hasPendingFill ? "fill" : getIdleActionMode()
+          pendingActionMode
         );
         if (hasPendingFill) {
-          const successMessage =
-            "已生成 " + String(pendingFill.updates.length) + " 段识别结果，点击“填入”可写回当前结果。";
+          const successMessage = buildPendingFillMessage(
+            pendingFill.updates.length,
+            pendingFill.reviewCount
+          );
           ui?.setStatus?.(successMessage, "success");
           return Object.assign({}, result, {
             message: successMessage,
@@ -3852,6 +3986,69 @@
         });
       }
 
+      if (Array.isArray(result.reviewUpdates) && result.reviewUpdates.length > 0) {
+        let saveResult = {
+          ok: true,
+          message: "",
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+        if (Array.isArray(result.directUpdates) && result.directUpdates.length > 0) {
+          saveResult = await writeUpdates(
+            result.selectionKey,
+            result.currentSignature,
+            result.directUpdates
+          );
+        }
+        const mergedSkippedCount =
+          Number(result.skippedCount || 0) + Number(saveResult.skippedCount || 0);
+        pendingFill = {
+          selectionKey: normalizeText(result.selectionKey),
+          currentSignature: normalizeText(result.currentSignature),
+          totalCount: Number(result.totalCount || 0) || 0,
+          concurrency: Number(result.concurrency || 0) || 0,
+          succeededCount: Number(result.succeededCount || 0) || 0,
+          failedCount: Number(result.failedCount || 0) || 0,
+          skippedCount: mergedSkippedCount,
+          reviewCount: Number(result.reviewCount || 0) || 0,
+          failures: Array.isArray(result.failures) ? result.failures.slice() : [],
+          results: Array.isArray(result.results) ? result.results.slice() : [],
+          directUpdates: [],
+          reviewUpdates: result.reviewUpdates.slice(),
+          updates: result.reviewUpdates.slice(),
+        };
+        render(
+          pendingFill,
+          saveResult.ok ? "批量写回完成" : "批量写回失败",
+          getPendingActionMode(pendingFill)
+        );
+        let reviewMessage = "";
+        if (saveResult.ok && saveResult.writtenCount > 0) {
+          reviewMessage =
+            "已自动填入 " +
+            String(saveResult.writtenCount) +
+            " 段，另有 " +
+            String(result.reviewCount) +
+            " 段待复核，点击“强制填入”可写回剩余结果。";
+          ui?.setStatus?.(reviewMessage, "warning");
+        } else if (saveResult.ok) {
+          reviewMessage =
+            "当前识别结果命中" +
+            String(result.reviewCount) +
+            " 段待复核，默认不自动填入，点击“强制填入”可写回当前结果。";
+          ui?.setStatus?.(reviewMessage, "warning");
+        } else {
+          reviewMessage = normalizeText(saveResult.message) || "批量写回失败。";
+          ui?.setStatus?.(reviewMessage, "error");
+        }
+        return Object.assign({}, result, saveResult, {
+          message: reviewMessage,
+          pendingFill: true,
+          writtenCount: Number(saveResult.writtenCount || 0) || 0,
+          skippedCount: mergedSkippedCount,
+        });
+      }
+
       const saveResult = await writeUpdates(
         result.selectionKey,
         result.currentSignature,
@@ -3864,6 +4061,7 @@
           succeededCount: result.succeededCount,
           failedCount: result.failedCount,
           skippedCount: result.skippedCount + Number(saveResult.skippedCount || 0),
+          reviewCount: result.reviewCount,
           failures: result.failures,
         },
         saveResult.ok ? "批量写回完成" : "批量写回失败",
@@ -3922,14 +4120,16 @@
         saveResult.ok ? "批量写回完成" : "批量写回失败",
         getIdleActionMode()
       );
+      const finalMessage = buildForceFillStatusMessage(saveResult.message, pendingFill.reviewCount);
       if (saveResult.ok && saveResult.writtenCount > 0) {
-        ui?.setStatus?.(saveResult.message, "success");
+        ui?.setStatus?.(finalMessage, "success");
       } else if (saveResult.ok) {
-        ui?.setStatus?.(saveResult.message, "warning");
+        ui?.setStatus?.(finalMessage, "warning");
       } else {
-        ui?.setStatus?.(saveResult.message, "error");
+        ui?.setStatus?.(finalMessage, "error");
       }
       const result = Object.assign({}, pendingFill, saveResult, {
+        message: finalMessage,
         pendingFill: false,
         skippedCount: mergedSkippedCount,
       });
@@ -3954,7 +4154,7 @@
           pendingFill,
           "",
           pendingFill && Array.isArray(pendingFill.updates) && pendingFill.updates.length > 0
-            ? "fill"
+            ? getPendingActionMode(pendingFill)
             : getIdleActionMode()
         );
       }
@@ -4445,6 +4645,15 @@
       if (autoFillResult.attempted) {
         return;
       }
+      if (autoFillResult.reason === "blocked-auto-fill") {
+        helperRuntime.ui.setStatus(
+          "识别结果已生成，检测到" +
+            formatRecommendationReviewReasonText(helperRuntime.lastRecommendation) +
+            "，默认不自动填入，请人工复核后点击“强制填入当前段”。",
+          "warning"
+        );
+        return;
+      }
       helperRuntime.ui.setStatus("识别结果已生成，可继续复核或暂存。", "success");
     } catch (error) {
       helperRuntime.ui.setStatus(
@@ -4495,7 +4704,10 @@
       helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
       helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
       const selectionKey = normalizeText(context?.selectionKey);
-      if (helperRuntime.config?.aiRecommendAutoFillEnabled === false) {
+      if (
+        helperRuntime.config?.aiRecommendAutoFillEnabled === false ||
+        shouldBlockRecommendationAutoFill(helperRuntime.lastRecommendation)
+      ) {
         if (!normalizeText(helperRuntime.lastRecommendation.finalMandarinText)) {
           deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
           syncRowRecognizeButtons();
@@ -4507,6 +4719,17 @@
         }
         cacheRowRecommendation(helperRuntime, selectionKey, helperRuntime.lastRecommendation);
         syncRowRecognizeButtons();
+        if (shouldBlockRecommendationAutoFill(helperRuntime.lastRecommendation)) {
+          helperRuntime.ui.setStatus(
+            "已生成第 " +
+              String(targetSegmentNumber) +
+              " 段识别结果，检测到" +
+              formatRecommendationReviewReasonText(helperRuntime.lastRecommendation) +
+              "，点击“强制填入”可写入输入框。",
+            "warning"
+          );
+          return;
+        }
         helperRuntime.ui.setStatus(
           "已生成第 " + String(targetSegmentNumber) + " 段识别结果，点击“填入”可写入输入框。",
           "success"
@@ -4571,7 +4794,7 @@
       const cached = getCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
       if (!cached) {
         helperRuntime.ui.setStatus(
-          "请先完成第 " + String(targetSegmentNumber) + " 段识别，再点击“填入”。",
+          "请先完成第 " + String(targetSegmentNumber) + " 段识别，再点击“填入”或“强制填入”。",
           "error"
         );
         syncRowRecognizeButtons();
@@ -4590,10 +4813,13 @@
         deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
         syncRowRecognizeButtons();
       }
-      helperRuntime.ui.setStatus(
-        result.message,
-        result.filledCount > 0 ? "success" : result.ok ? "warning" : "error"
-      );
+      helperRuntime.ui.setStatus(result.message, result.filledCount > 0 ? "success" : result.ok ? "warning" : "error");
+      if (result.ok && result.filledCount > 0 && shouldBlockRecommendationAutoFill(cached)) {
+        helperRuntime.ui.setStatus(
+          "已强制填入第 " + String(targetSegmentNumber) + " 段，请继续人工复核。",
+          "success"
+        );
+      }
     } catch (error) {
       helperRuntime.ui.setStatus(
         "第 " +
@@ -4605,16 +4831,24 @@
     }
   }
 
-  async function handleWriteCurrentRecommendAction() {
+  async function handleWriteCurrentRecommendAction(forceFill) {
     if (!helperRuntime || !helperRuntime.lastRecommendation) {
       helperRuntime?.ui?.setStatus?.("请先生成识别结果。", "error");
       return;
     }
-    const result = await helperRuntime.dataApi.writeCurrentRegionText(helperRuntime.lastRecommendation);
-    helperRuntime.ui.setStatus(result.message, result.writtenCount > 0 ? "success" : result.ok ? "warning" : "error");
-    if (result.ok && result.writtenCount > 0) {
-      scheduleRuntimeReload(helperRuntime);
+    if (!helperRuntime.dataApi?.fillCurrentRegionTextIntoDom) {
+      helperRuntime.ui.setStatus("当前版本缺少单段直填能力，请刷新扩展后重试。", "error");
+      return;
     }
+    const result = await helperRuntime.dataApi.fillCurrentRegionTextIntoDom({
+      segmentNumber: helperRuntime.lastRecommendation.segmentNumber,
+      finalMandarinText: helperRuntime.lastRecommendation.finalMandarinText,
+    });
+    if (result.ok && result.filledCount > 0 && forceFill === true) {
+      helperRuntime.ui.setStatus("已强制填入当前段，请继续人工复核。", "success");
+      return;
+    }
+    helperRuntime.ui.setStatus(result.message, result.filledCount > 0 ? "success" : result.ok ? "warning" : "error");
   }
 
   async function handleBatchRecommendAction(selectedNumbers) {
@@ -4922,7 +5156,10 @@
         void handleRecommendAction();
       },
       onWriteCurrentRecommend: function () {
-        void handleWriteCurrentRecommendAction();
+        void handleWriteCurrentRecommendAction(false);
+      },
+      onForceFillCurrent: function () {
+        void handleWriteCurrentRecommendAction(true);
       },
       onBatchRecommend: function (selectedNumbers) {
         if (helperConfig.aiRecommendEnabled === false) {
@@ -5262,7 +5499,9 @@
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
       ensureHideAuxiliaryZoneButton: ensureHideAuxiliaryZoneButton,
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
+      createSegmentRecognizeButton: createSegmentRecognizeButton,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
+      maybeAutoFillCurrentRecommendation: maybeAutoFillCurrentRecommendation,
       createShortcutActions: createShortcutActions,
       createBatchRecommendController: createBatchRecommendController,
       fillEmptyLanguageKinds: fillEmptyLanguageKinds,
