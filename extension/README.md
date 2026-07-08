@@ -83,6 +83,7 @@ sites/
     minnan-helper/
     vietnamese-helper/
     thai-helper/
+    cn-en-short-drama/
 ```
 
 - `alibaba-labelx/asr-judgement/`
@@ -111,6 +112,8 @@ sites/
   - Aishell Tech 越南语助手
 - `aishell-tech/thai-helper/`
   - Aishell Tech 泰语助手
+- `aishell-tech/cn-en-short-drama/`
+  - Aishell Tech 中英短剧脚本（只读当前媒体信息面板）
 
 ## 版本与发布
 

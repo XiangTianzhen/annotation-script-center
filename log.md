@@ -1,3 +1,24 @@
+## 2026-07-08（希尔贝壳中英短剧脚本正式接入并新增当前媒体信息面板）
+- 新增 `extension/sites/aishell-tech/cn-en-short-drama/`
+  - 接入 `data-api.js`、`ui-panel.js`、`content.js`
+  - 在 `/mytask/mark` 整段评分模板上挂载只读 `当前媒体信息` 面板
+  - 展示 `题目 / 模板 / 总时长 / 分段数 / 视频 / 音频`
+  - 缺少稳定视频地址时显示 `暂无视频`
+- 更新脚本中心接线：
+  - `extension/manifest.json`
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/popup/popup.js`
+- 更新文档：
+  - `extension/README.md`
+  - `extension/sites/aishell-tech/cn-en-short-drama/README.md`
+  - `platform-resources/README.md`
+  - `platform-resources/aishell-tech/README.md`
+  - `platform-resources/aishell-tech/cn-en-short-drama/README.md`
+  - `docs/platforms-index.md`
+
 ## 2026-07-08（初始化希尔贝壳中英短剧脚本资料并补采整段标注结构）
 - 新增 `platform-resources/aishell-tech/cn-en-short-drama/README.md`
   - 记录 `cn-en-short-drama` 的正式脚本预留状态与脚本资料边界

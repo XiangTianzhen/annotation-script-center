@@ -44,10 +44,11 @@
 - `extension/sites/aishell-tech/minnan-helper/` 闽南语助手运行时代码。
 - `extension/sites/aishell-tech/vietnamese-helper/` 越南语助手运行时代码。
 - `extension/sites/aishell-tech/thai-helper/` 泰语助手运行时代码。
+- `extension/sites/aishell-tech/cn-en-short-drama/` 中英短剧脚本运行时代码（只读当前媒体信息面板）。
 - `platform-resources/aishell-tech/minnan-helper/backend/` 闽南语助手独立 AI recommend 路由。
 - `platform-resources/aishell-tech/vietnamese-helper/backend/` 越南语助手独立 AI recommend 路由。
 - `platform-resources/aishell-tech/thai-helper/backend/` 泰语助手独立 AI recommend 路由。
-- `platform-resources/aishell-tech/cn-en-short-drama/` 中英短剧脚本资料预留；当前已补脚本专属页面结构与 Network 参考，尚未创建 runtime 与独立后端。
+- `platform-resources/aishell-tech/cn-en-short-drama/` 中英短剧脚本资料；当前已补脚本专属页面结构与 Network 参考，并已接入只读 runtime。
 - `/mytask/index`、`/mytask/detail/:taskId`、`/mytask/mark` 的路由覆盖与资料复用。
 
 当前业务能力只在 `/mytask/mark` 生效；`我的团队` 页面仍只有 network 与 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
@@ -79,7 +80,7 @@
 - 脚本专属整段评分模板：
   - 以 `platform-resources/aishell-tech/cn-en-short-drama/page-structure/README.md` 为准
   - Network 以 `platform-resources/aishell-tech/cn-en-short-drama/network/README.md` 为准
-  - 当前只做中英短剧脚本资料预留，不并回共享 `04-mytask-mark.md`
+  - 当前已接入 `extension/sites/aishell-tech/cn-en-short-drama/` 只读媒体面板，不并回共享 `04-mytask-mark.md`
 
 ### 当前专属后端
 
@@ -129,6 +130,10 @@
 - 闽南语助手当前 AI 配置固定为独立的 `转换 / 听音 / 比较` 三板块。
 - 越南语助手当前 AI 配置固定为单阶段 Omni；结果区只展示 `原始文本` 与 `识别文本`。
 - 泰语助手当前 AI 配置固定为单阶段 Omni；结果区展示 `识别文本` 与 `语速建议`，保存时回填 `text + speed`。
+- 中英短剧脚本当前固定为只读 `当前媒体信息` 面板：
+  - 展示 `题目 / 模板 / 总时长 / 分段数 / 视频 / 音频`
+  - 视频缺失时显示 `暂无视频`
+  - 不接 AI、不自动保存、不自动提交
 - 当前条支持 AI 识别、复制识别文本、填入当前条；越南语助手不再暴露听音文本复制与差异高亮。
 - 泰语助手当前条支持 AI 识别、填入文本与语速并触发真实保存；当文本已一致但语速仍缺失时，仍允许直接应用语速建议。
 - 批量模式保留 `全部AI批量识别` 与 `未完成的AI批量识别` 两种入口。

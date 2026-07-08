@@ -164,6 +164,7 @@
   - `minnan-helper/`
   - `vietnamese-helper/`
   - `thai-helper/`
+  - `cn-en-short-drama/`
 
 ## 统一后端边界
 

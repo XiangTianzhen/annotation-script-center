@@ -92,13 +92,14 @@
 - 闽南语助手运行时 README：`extension/sites/aishell-tech/minnan-helper/README.md`
 - 越南语助手运行时 README：`extension/sites/aishell-tech/vietnamese-helper/README.md`
 - 泰语助手运行时 README：`extension/sites/aishell-tech/thai-helper/README.md`
+- 中英短剧脚本运行时 README：`extension/sites/aishell-tech/cn-en-short-drama/README.md`
 - 闽南语助手资料：`platform-resources/aishell-tech/minnan-helper/README.md`
 - 越南语助手资料：`platform-resources/aishell-tech/vietnamese-helper/README.md`
 - 泰语助手资料：`platform-resources/aishell-tech/thai-helper/README.md`
 - 中英短剧脚本资料：`platform-resources/aishell-tech/cn-en-short-drama/README.md`
 - 中英短剧页面结构：`platform-resources/aishell-tech/cn-en-short-drama/page-structure/README.md`
 - 中英短剧 Network：`platform-resources/aishell-tech/cn-en-short-drama/network/README.md`
-- 当前仅完成中英短剧脚本资料预留，尚未创建运行时代码目录
+- 中英短剧脚本当前已正式接入运行时，第一版只提供只读 `当前媒体信息` 面板
 - 平台共用资料：
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`
