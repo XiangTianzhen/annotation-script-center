@@ -41,3 +41,6 @@
 
 - 新增缺口时，先补稳定参考结论，再同步更新对应平台 README 或 `log.md`。
 - 如果目录当前没有专属差异，保持空目录或由父级 README 说明，不额外制造占位文档。
+- Aishell 当前 `/mytask/mark` 已至少存在两类模板：
+  - 共享短标注模板：继续维护在 `04-mytask-mark.md`
+  - 中英短剧脚本专属整段评分模板：单独维护在 `../cn-en-short-drama/page-structure/README.md`

@@ -1,3 +1,15 @@
+## 2026-07-08（初始化希尔贝壳中英短剧脚本资料并补采整段标注结构）
+- 新增 `platform-resources/aishell-tech/cn-en-short-drama/README.md`
+  - 记录 `cn-en-short-drama` 的正式脚本预留状态与脚本资料边界
+- 新增 `platform-resources/aishell-tech/cn-en-short-drama/page-structure/README.md`
+  - 补采 `floating-mark-area + mark-form` 整段标注模板，记录双通道波形、6 个评分项与原生写操作边界
+- 更新 `platform-resources/aishell-tech/README.md`
+  - 补充中英短剧脚本资料入口，并注明 `/mytask/mark` 当前至少存在共享短标注与脚本专属整段评分两类模板
+- 更新 `platform-resources/aishell-tech/page-structure/README.md`
+  - 补充中英短剧脚本专属整段评分模板的边界说明，避免混入共享 `04-mytask-mark.md`
+- 更新 `docs/platforms-index.md`
+  - 增加中英短剧脚本资料入口，并注明本轮未创建运行时代码目录
+
 ## 2026-07-08（回退 ByteDance AIDP 下拉框与多行输入框样式）
 - 更新 `extension/options/options.html`
   - 移除 AIDP 基础设置下拉框上的局部自定义下拉标记，并删除详情页内的 `aidp-ui-layer` 占位节点

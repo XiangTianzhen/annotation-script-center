@@ -47,6 +47,7 @@
 - `platform-resources/aishell-tech/minnan-helper/backend/` 闽南语助手独立 AI recommend 路由。
 - `platform-resources/aishell-tech/vietnamese-helper/backend/` 越南语助手独立 AI recommend 路由。
 - `platform-resources/aishell-tech/thai-helper/backend/` 泰语助手独立 AI recommend 路由。
+- `platform-resources/aishell-tech/cn-en-short-drama/` 中英短剧脚本资料预留；当前只补脚本专属页面结构参考，尚未创建 runtime 与独立后端。
 - `/mytask/index`、`/mytask/detail/:taskId`、`/mytask/mark` 的路由覆盖与资料复用。
 
 当前业务能力只在 `/mytask/mark` 生效；`我的团队` 页面仍只有 network 与 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
@@ -68,6 +69,15 @@
 - 任务 / 分包 / 条目请求链
 - 保存接口结构 `POST /api/mark/SaveShortMark`
 - 音频拼接规则 `dataRoot + url`
+
+当前 `/mytask/mark` 已至少确认两类模板：
+
+- 共享短标注模板：
+  - 以 `platform-resources/aishell-tech/page-structure/04-mytask-mark.md` 为准
+  - 现有闽南语 / 越南语 / 泰语助手继续复用
+- 脚本专属整段评分模板：
+  - 以 `platform-resources/aishell-tech/cn-en-short-drama/page-structure/README.md` 为准
+  - 当前只做中英短剧脚本资料预留，不并回共享 `04-mytask-mark.md`
 
 ### 当前专属后端
 
