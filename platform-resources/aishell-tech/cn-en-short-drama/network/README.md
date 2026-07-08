@@ -40,6 +40,7 @@
 
 ## 当前边界 / 待补项
 
-- 当前结论来自 live 页面按钮测试与 bundle 静态分析交叉核验，不包含完整 HAR。
-- `查看历史标注记录` 当前已确认会拉起专属读接口，但 live 页面测试中同时观察到 `GetMarkHistoryList` 异常日志，后续仍建议补一次 Network 面板直采。
+- 当前结论来自 live 页面按钮测试、历史弹窗直采与 bundle 静态分析交叉核验，不包含完整 HAR。
+- `查看历史标注记录` 当前已确认会拉起历史弹窗；live 复现时表格头正常渲染，但内容显示 `暂无数据`，同时运行时日志仍输出缺少 `taskItemId` 后缀的 `/api/mark/GetMarkHistoryList/`。
+- 当前仍缺原始 request/response headers 与 response body 级别的浏览器面板记录。
 - 当前文档只服务脚本资料初始化，不代表已授权前端绕过真实页面按钮直接调用保存 / 完成接口。

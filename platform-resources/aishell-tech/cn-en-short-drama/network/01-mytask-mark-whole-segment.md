@@ -26,6 +26,7 @@
   - `完成标注` 单独调用完成接口，并在成功后刷新列表、定位下一条
 - `设置为无效` 不是直接写操作，先弹出确认框 `是否设置为无效音频?`，确认后才调用写接口。
 - `查看历史标注记录` 会先拉起弹窗；当前 live 页面测试时同时观察到 `GetMarkHistoryList` 相关异常日志，需要把异常边界单独记住。
+- 当前进一步直采时，历史弹窗表格头部正常渲染，内容区显示 `暂无数据`。
 
 ## 请求体摘要
 
@@ -69,7 +70,9 @@
   - 当前 live 测试只验证到确认弹层，未继续确认写入
 - `GetMarkHistoryList`
   - 当前 bundle 逻辑会把 `result` 赋给历史列表数据源
-  - 当前 live 按钮测试同时观察到控制台异常：`/api/mark/GetMarkHistoryList/ 后端接口 undefined 异常：undefined`
+  - 当前 live 直采时弹窗正文显示：`标注人 / 是否有效 / 标注内容 / 标注时间`
+  - 当前 live 直采时表格内容显示：`暂无数据`
+  - 当前 live 按钮测试同时观察到运行时异常：`/api/mark/GetMarkHistoryList/ 后端接口 undefined 异常：undefined`
 
 ## 关键字段
 
@@ -96,5 +99,6 @@
 
 - 当前接口路径与参数结构来自 live 页面按钮测试和前端 bundle 静态分析交叉核验，仍未补完整 HAR。
 - `GetMarkHistoryList` 当前 live 页面测试已出现异常日志，需后续确认是页面局部状态问题、接口缺参还是当前账号 / 任务数据边界。
+- 当前运行时日志里出现的是 `/api/mark/GetMarkHistoryList/` 空路径尾巴，表现上更像请求参数未带上 `taskItemId`，但仍需后续补原始 headers/body 才能最终定性。
 - 本页只沉淀脚本专属整段模板差异；平台共用初始化、列表和模板读取不要重复抄回本页。
 - 不记录真实 `taskId`、`packageId`、token、cookie、完整资源 URL 或真实评分内容。

@@ -1410,6 +1410,7 @@
 - 测试(Magic Data): 补充杭州话脚本的 storage、options、popup、manifest、前端面板与后端路由回归测试
 - 文档(Magic Data): 同步杭州话脚本目录、隐藏 beta 口径与词表预留说明，明确本轮不处理 `杭州方言正字表0509.xlsx`
 - 文档(aishell-tech): 补充中英短剧脚本 Network 专项采集，沉淀整段标注模板的保存 / 完成 / 有效性 / 历史记录接口边界
+- 文档(aishell-tech): 追加 GetMarkHistoryList 直采结论，确认历史弹窗显示暂无数据且运行时日志仍出现缺少 taskItemId 后缀的请求路径
 - 优化(ByteDance AIDP): 重分工金华话两阶段 AI，听音阶段只保留粗听文本与 `唱歌 / 非金华话` 判断，普通话收口阶段接管格式约束、时间词映射与 `blockAutoFill` 决策
 - 新增(ByteDance AIDP): 金华话 AI 推荐接口补充 `isSinging`、`isNonJinhuaDialect`、`blockAutoFill`，命中唱歌或非金华话时继续返回转写文本但默认不自动填入
 - 优化(ByteDance AIDP): 行内识别与底部 `AI信息` 面板新增 `唱歌 / 非金华话` 风险提示与 `强制填入当前段`
