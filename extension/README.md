@@ -33,6 +33,7 @@ node scripts/sync-local-build-meta.js
 - 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明。
 - 后端地址统一从 options 首页 / 系统管理入口配置；脚本详情页不新增独立后端地址。
 - 同平台多个脚本默认互斥启用；需要并行启用必须由当前任务明确授权。
+- Magic Data 当前包含客家话、闽南语、杭州话三套脚本；杭州话脚本沿用现有 beta 解锁口径，未解锁时不在脚本列表展示。
 - `AI 设置`、`基础设置`、`快捷键` 保持脚本级独立保存。
 - 快捷键面板统一复用 `extension/options/options-shared-shortcut-panel.js`。
 - 默认快捷键统一为空；只有用户显式保存后才生效。
@@ -75,6 +76,7 @@ sites/
     shared/
     hakka-helper/
     minnan-helper/
+    hangzhou-helper/
   abaka-ai/
     task-page/
   aishell-tech/
@@ -99,6 +101,8 @@ sites/
   - Magic Data 客家话助手
 - `magic-data/minnan-helper/`
   - Magic Data 闽南语助手
+- `magic-data/hangzhou-helper/`
+  - Magic Data 杭州话脚本（隐藏 beta）
 - `abaka-ai/task-page/`
   - Task 页面助手
 - `aishell-tech/minnan-helper/`

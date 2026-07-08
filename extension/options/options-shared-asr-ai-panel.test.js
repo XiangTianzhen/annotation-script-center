@@ -59,6 +59,30 @@ test("shared AI panel spec marks CVPC as a standalone two-stage layout without c
   ]);
 });
 
+test("shared AI panel spec treats Hangzhou helper as a Magic Data script", function () {
+  const spec = buildSharedAsrAiPanelSpec("magicDataHangzhouAssistant");
+
+  assert.equal(spec.prefix, "magic-data-ai");
+  assert.equal(spec.showPipelineMode, true);
+  assert.equal(spec.showRecognitionStrategy, true);
+  assert.equal(spec.showAutofillConcurrency, false);
+  assert.equal(spec.enableFieldLabel, "启用 AI 质检助手");
+  assert.equal(spec.enableFieldHelp, "关闭后不显示 AI 质检建议");
+  assert.deepEqual(spec.modelFieldOrder, [
+    "enabled",
+    "pipelineMode",
+    "recognitionStrategy",
+    "listenModel",
+    "listenModelNote",
+    "singleModel",
+    "compareModel",
+    "timeout",
+    "thinking",
+    "showHeardText",
+    "showEstimatedIncome",
+  ]);
+});
+
 test("shared AI panel renders the shared autofill concurrency field with the expected ids", function () {
   const html = renderSharedAsrAutofillConcurrencyField("aishellTechMinnanAssistant");
 

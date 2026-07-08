@@ -114,6 +114,9 @@ function loadPopup(documentLike, chromeLike, storageLike) {
     },
     BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID: "bytedanceAidpSuzhouHelper",
     BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID: "bytedanceAidpJinhuaHelper",
+    MAGIC_DATA_ANNOTATOR_SCRIPT_ID: "magicDataAnnotatorAiReview",
+    MAGIC_DATA_MINNAN_SCRIPT_ID: "magicDataMinnanAssistant",
+    MAGIC_DATA_HANGZHOU_SCRIPT_ID: "magicDataHangzhouAssistant",
     SCRIPT_LIBRARY: {
       bytedanceAidpSuzhouHelper: {
         label: "苏州话脚本",
@@ -121,10 +124,22 @@ function loadPopup(documentLike, chromeLike, storageLike) {
       bytedanceAidpJinhuaHelper: {
         label: "金华话脚本",
       },
+      magicDataAnnotatorAiReview: {
+        label: "客家话助手",
+      },
+      magicDataMinnanAssistant: {
+        label: "闽南语助手",
+      },
+      magicDataHangzhouAssistant: {
+        label: "杭州话脚本",
+      },
     },
     PLATFORM_LIBRARY: {
       bytedanceAidp: {
         label: "ByteDance AIDP",
+      },
+      magicData: {
+        label: "Magic Data ANNOTATOR",
       },
     },
     isScriptVisible() {
@@ -292,5 +307,75 @@ test("popup shows the detected Jinhua script when AIDP activeScriptId switches t
   assert.deepEqual(toggleCalls, []);
   assert.deepEqual(chromeLike.createdUrls, [
     "chrome-extension://test/options/options.html?view=script&script=bytedanceAidpJinhuaHelper",
+  ]);
+});
+
+test("popup shows the detected Hangzhou script when Magic Data activeScriptId switches to hangzhou", async function () {
+  const documentLike = createDocument();
+  const chromeLike = createChrome(
+    "https://work.magicdatatech.com/#/asrmark?taskItemId=task-1"
+  );
+  const storageLike = {
+    async getSettings() {
+      return {
+        platforms: {
+          magicData: {
+            enabled: true,
+            activeScriptId: "magicDataHangzhouAssistant",
+            scripts: {
+              hakkaHelper: {
+                enabled: false,
+                aiReviewEnabled: false,
+              },
+              minnanHelper: {
+                enabled: false,
+                aiReviewEnabled: false,
+              },
+              hangzhouHelper: {
+                enabled: true,
+                aiReviewEnabled: true,
+              },
+            },
+          },
+        },
+        scriptCenter: {
+          projects: {
+            magicDataAnnotator: {
+              enabled: false,
+              aiReviewEnabled: false,
+            },
+            magicDataMinnanAssistant: {
+              enabled: false,
+              aiReviewEnabled: false,
+            },
+            magicDataHangzhouAssistant: {
+              enabled: true,
+              aiReviewEnabled: true,
+            },
+          },
+        },
+      };
+    },
+    async setScriptEnabled() {
+      throw new Error("not-needed");
+    },
+  };
+
+  loadPopup(documentLike, chromeLike, storageLike);
+
+  await documentLike.dispatchDOMContentLoaded();
+  await flushTasks();
+
+  assert.equal(documentLike.getElementById("detected-title").textContent, "杭州话脚本");
+  assert.equal(documentLike.getElementById("detected-status-pill").textContent, "已启用");
+  assert.equal(
+    documentLike.getElementById("detected-description").textContent,
+    "运行状态：已支持"
+  );
+
+  documentLike.getElementById("open-script-settings").click();
+
+  assert.deepEqual(chromeLike.createdUrls, [
+    "chrome-extension://test/options/options.html?view=script&script=magicDataHangzhouAssistant",
   ]);
 });

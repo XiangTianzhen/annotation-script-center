@@ -1405,6 +1405,10 @@
 - 修复(haitian-utrans): 将下载桥接改为扩展脚本注入，避免 uTrans 页面 CSP 拦截内联脚本
 
 ## 2026-07-08
+- 新增(Magic Data): 接入隐藏 beta 的杭州话脚本，前端运行时与后端接口首版按客家话助手能力复制
+- 调整(Magic Data): 将客家话 / 闽南语双脚本互斥扩展为客家话 / 闽南语 / 杭州话三脚本互斥
+- 测试(Magic Data): 补充杭州话脚本的 storage、options、popup、manifest、前端面板与后端路由回归测试
+- 文档(Magic Data): 同步杭州话脚本目录、隐藏 beta 口径与词表预留说明，明确本轮不处理 `杭州方言正字表0509.xlsx`
 - 优化(ByteDance AIDP): 重分工金华话两阶段 AI，听音阶段只保留粗听文本与 `唱歌 / 非金华话` 判断，普通话收口阶段接管格式约束、时间词映射与 `blockAutoFill` 决策
 - 新增(ByteDance AIDP): 金华话 AI 推荐接口补充 `isSinging`、`isNonJinhuaDialect`、`blockAutoFill`，命中唱歌或非金华话时继续返回转写文本但默认不自动填入
 - 优化(ByteDance AIDP): 行内识别与底部 `AI信息` 面板新增 `唱歌 / 非金华话` 风险提示与 `强制填入当前段`

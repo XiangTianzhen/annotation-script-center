@@ -52,8 +52,10 @@
 - 平台运行时代码：`extension/sites/magic-data/README.md`
 - 客家话助手运行时 README：`extension/sites/magic-data/hakka-helper/README.md`
 - 闽南语助手运行时 README：`extension/sites/magic-data/minnan-helper/README.md`
+- 杭州话脚本运行时 README：`extension/sites/magic-data/hangzhou-helper/README.md`
 - 客家话助手资料：`platform-resources/magic-data/hakka-helper/README.md`
 - 闽南语助手资料：`platform-resources/magic-data/minnan-helper/README.md`
+- 杭州话脚本资料：`platform-resources/magic-data/hangzhou-helper/README.md`
 - 平台共用资料：
   - `platform-resources/magic-data/network/README.md`
   - `platform-resources/magic-data/page-structure/README.md`

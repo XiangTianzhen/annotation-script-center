@@ -22,6 +22,8 @@
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const magicDataMinnanScriptId =
     constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
+  const magicDataHangzhouScriptId =
+    constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID || "magicDataHangzhouAssistant";
   const aishellTechMinnanScriptId =
     constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
   const aishellTechVietnameseScriptId =
@@ -940,6 +942,7 @@
     bytedanceAidpJinhuaHelper: "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
     magicDataAnnotatorAiReview: "/api/magic-data/hakka-helper/ai/defaults",
     magicDataMinnanAssistant: "/api/magic-data/minnan-helper/ai/defaults",
+    magicDataHangzhouAssistant: "/api/magic-data/hangzhou-helper/ai/defaults",
     aishellTechMinnanAssistant: "/api/aishell-tech/minnan-helper/ai/recommend/defaults",
     aishellTechVietnameseAssistant: "/api/aishell-tech/vietnamese-helper/ai/recommend/defaults",
     aishellTechThaiAssistant: "/api/aishell-tech/thai-helper/ai/recommend/defaults",
@@ -3727,7 +3730,7 @@
 
   function getMagicDataMinnanCompareModelDefault(aiDefaults, scriptId) {
     const fallback =
-      scriptId === magicDataAnnotatorScriptId ? "qwen3.5-flash" : "qwen3.5-plus";
+      scriptId === magicDataMinnanScriptId ? "qwen3.5-plus" : "qwen3.5-flash";
     return normalizeDataBakerCompareModel(
       aiDefaults?.compareModel || aiDefaults?.reviewModel,
       fallback
@@ -4292,7 +4295,11 @@
   }
 
   function isMagicDataScript(scriptId) {
-    return scriptId === magicDataAnnotatorScriptId || scriptId === magicDataMinnanScriptId;
+    return (
+      scriptId === magicDataAnnotatorScriptId ||
+      scriptId === magicDataMinnanScriptId ||
+      scriptId === magicDataHangzhouScriptId
+    );
   }
 
   function getScriptsByPlatformId(platformId) {
@@ -4446,6 +4453,9 @@
     if (scriptId === magicDataMinnanScriptId) {
       return asrVoiceAiDefaultsPaths.magicDataMinnanAssistant;
     }
+    if (scriptId === magicDataHangzhouScriptId) {
+      return asrVoiceAiDefaultsPaths.magicDataHangzhouAssistant;
+    }
     if (scriptId === aishellTechMinnanScriptId) {
       return asrVoiceAiDefaultsPaths.aishellTechMinnanAssistant;
     }
@@ -4528,7 +4538,7 @@
 
     if (isMagicDataScript(scriptId)) {
       const defaultCompareModel =
-        scriptId === magicDataAnnotatorScriptId ? "qwen3.5-flash" : "qwen3.5-plus";
+        scriptId === magicDataMinnanScriptId ? "qwen3.5-plus" : "qwen3.5-flash";
       baseDefaults.reviewModel = defaultCompareModel;
       baseDefaults.compareModel = defaultCompareModel;
     }
@@ -5514,10 +5524,14 @@
 
   function getMagicDataConfig(settings, scriptId) {
     const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataAnnotatorScriptId;
-    const source =
-      targetScriptId === magicDataMinnanScriptId
-        ? settings?.platforms?.magicData?.scripts?.minnanHelper ||
-          settings?.scriptCenter?.projects?.magicDataMinnanAssistant ||
+    const isMinnanScript = targetScriptId === magicDataMinnanScriptId;
+    const source = isMinnanScript
+      ? settings?.platforms?.magicData?.scripts?.minnanHelper ||
+        settings?.scriptCenter?.projects?.magicDataMinnanAssistant ||
+        {}
+      : targetScriptId === magicDataHangzhouScriptId
+        ? settings?.platforms?.magicData?.scripts?.hangzhouHelper ||
+          settings?.scriptCenter?.projects?.magicDataHangzhouAssistant ||
           {}
         : settings?.platforms?.magicData?.scripts?.hakkaHelper ||
           settings?.scriptCenter?.projects?.magicDataAnnotator ||
@@ -5543,8 +5557,7 @@
       source.aiReviewListenModel || source.listenModel,
       "qwen3.5-omni-flash"
     );
-    const defaultCompareModel =
-      targetScriptId === magicDataMinnanScriptId ? "qwen3.5-plus" : "qwen3.5-flash";
+    const defaultCompareModel = isMinnanScript ? "qwen3.5-plus" : "qwen3.5-flash";
     const minnanCompareModel = normalizeDataBakerCompareModel(
       source.aiReviewCompareModel || source.reviewModel,
       defaultCompareModel
@@ -5572,11 +5585,11 @@
       aiReviewSingleModel: minnanSingleModel,
       aiReviewEnableThinking: minnanEnableThinking,
       listenModel:
-        targetScriptId === magicDataMinnanScriptId
+        isMinnanScript
           ? minnanListenModel
           : normalizeMagicDataModel(source.listenModel, magicDataDefaultSettings.listenModel),
       reviewModel:
-        targetScriptId === magicDataMinnanScriptId
+        isMinnanScript
           ? minnanCompareModel
           : normalizeMagicDataModel(source.reviewModel, magicDataDefaultSettings.reviewModel),
       reviewMode: normalizeMagicDataReviewMode(source.reviewMode, magicDataDefaultSettings.reviewMode),
@@ -5609,7 +5622,11 @@
 
   function getMagicDataActiveScriptId(settings) {
     const candidate = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
-    if (candidate === magicDataAnnotatorScriptId || candidate === magicDataMinnanScriptId) {
+    if (
+      candidate === magicDataAnnotatorScriptId ||
+      candidate === magicDataMinnanScriptId ||
+      candidate === magicDataHangzhouScriptId
+    ) {
       return candidate;
     }
     return "";
@@ -9733,72 +9750,59 @@
         : currentMagicDataActiveScriptId === targetScriptId
           ? ""
           : currentMagicDataActiveScriptId;
-      const patchPayload =
-        targetScriptId === magicDataMinnanScriptId
-          ? {
-              scriptCenter: {
-                projects: {
-                  magicDataMinnanAssistant: payloadConfig,
-                  ...(enabled
-                    ? {
-                        magicDataAnnotator: {
-                          enabled: false,
-                          aiReviewEnabled: false,
-                        },
-                      }
-                    : {}),
-                },
-              },
-              platforms: {
-                magicData: {
-                  activeScriptId: nextMagicDataActiveScriptId,
-                  scripts: {
-                    minnanHelper: Object.assign({ id: magicDataMinnanScriptId }, payloadConfig),
-                    ...(enabled
-                      ? {
-                          hakkaHelper: {
-                            id: magicDataAnnotatorScriptId,
-                            enabled: false,
-                            aiReviewEnabled: false,
-                          },
-                        }
-                      : {}),
-                  },
-                },
-              },
-            }
-          : {
-              scriptCenter: {
-                projects: {
-                  magicDataAnnotator: payloadConfig,
-                  ...(enabled
-                    ? {
-                        magicDataMinnanAssistant: {
-                          enabled: false,
-                          aiReviewEnabled: false,
-                        },
-                      }
-                    : {}),
-                },
-              },
-              platforms: {
-                magicData: {
-                  activeScriptId: nextMagicDataActiveScriptId,
-                  scripts: {
-                    hakkaHelper: Object.assign({ id: magicDataAnnotatorScriptId }, payloadConfig),
-                    ...(enabled
-                      ? {
-                          minnanHelper: {
-                            id: magicDataMinnanScriptId,
-                            enabled: false,
-                            aiReviewEnabled: false,
-                          },
-                        }
-                      : {}),
-                  },
-                },
-              },
-            };
+      const magicDataScriptDefinitions = [
+        {
+          scriptId: magicDataAnnotatorScriptId,
+          scriptKey: "hakkaHelper",
+          legacyKey: "magicDataAnnotator",
+        },
+        {
+          scriptId: magicDataMinnanScriptId,
+          scriptKey: "minnanHelper",
+          legacyKey: "magicDataMinnanAssistant",
+        },
+        {
+          scriptId: magicDataHangzhouScriptId,
+          scriptKey: "hangzhouHelper",
+          legacyKey: "magicDataHangzhouAssistant",
+        },
+      ];
+      const scriptCenterProjects = {};
+      const platformScripts = {};
+      magicDataScriptDefinitions.forEach(function (definition) {
+        const isTargetScript = definition.scriptId === targetScriptId;
+        if (isTargetScript) {
+          scriptCenterProjects[definition.legacyKey] = payloadConfig;
+          platformScripts[definition.scriptKey] = Object.assign(
+            { id: definition.scriptId },
+            payloadConfig
+          );
+          return;
+        }
+        if (!enabled) {
+          return;
+        }
+        scriptCenterProjects[definition.legacyKey] = {
+          enabled: false,
+          aiReviewEnabled: false,
+        };
+        platformScripts[definition.scriptKey] = {
+          id: definition.scriptId,
+          enabled: false,
+          aiReviewEnabled: false,
+        };
+      });
+      const patchPayload = {
+        scriptCenter: {
+          projects: scriptCenterProjects,
+        },
+        platforms: {
+          magicData: {
+            activeScriptId: nextMagicDataActiveScriptId,
+            scripts: platformScripts,
+          },
+        },
+      };
       currentSettings = await storage.patchSettings(patchPayload);
       renderCurrentView();
       setStatus("magic-data-status", "Magic Data 设置已保存；如页面未生效请刷新目标页面。");
@@ -14897,40 +14901,38 @@
       if (typeof storage.setScriptEnabled === "function") {
         currentSettings = await storage.setScriptEnabled(scriptId, enabled);
       } else if (isMagicDataScript(scriptId) && typeof storage.patchSettings === "function") {
-        const isMinnan = scriptId === magicDataMinnanScriptId;
+        const magicDataScriptDefinitions = [
+          {
+            scriptId: magicDataAnnotatorScriptId,
+            scriptKey: "hakkaHelper",
+          },
+          {
+            scriptId: magicDataMinnanScriptId,
+            scriptKey: "minnanHelper",
+          },
+          {
+            scriptId: magicDataHangzhouScriptId,
+            scriptKey: "hangzhouHelper",
+          },
+        ];
+        const scriptPatch = {};
+        magicDataScriptDefinitions.forEach(function (definition) {
+          const isTargetScript = definition.scriptId === scriptId;
+          const scriptEnabled = enabled ? isTargetScript : isTargetScript ? false : undefined;
+          if (typeof scriptEnabled === "boolean") {
+            scriptPatch[definition.scriptKey] = {
+              id: definition.scriptId,
+              enabled: scriptEnabled,
+              aiReviewEnabled: scriptEnabled,
+            };
+          }
+        });
         currentSettings = await storage.patchSettings({
           platforms: {
             magicData: {
               enabled: true,
               activeScriptId: enabled ? scriptId : "",
-              scripts: enabled
-                ? {
-                    hakkaHelper: {
-                      id: magicDataAnnotatorScriptId,
-                      enabled: !isMinnan,
-                      aiReviewEnabled: !isMinnan,
-                    },
-                    minnanHelper: {
-                      id: magicDataMinnanScriptId,
-                      enabled: isMinnan,
-                      aiReviewEnabled: isMinnan,
-                    },
-                  }
-                : isMinnan
-                  ? {
-                      minnanHelper: {
-                        id: magicDataMinnanScriptId,
-                        enabled: false,
-                        aiReviewEnabled: false,
-                      },
-                    }
-                  : {
-                      hakkaHelper: {
-                        id: magicDataAnnotatorScriptId,
-                        enabled: false,
-                        aiReviewEnabled: false,
-                      },
-                    },
+              scripts: scriptPatch,
             },
           },
         });

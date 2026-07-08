@@ -64,6 +64,7 @@
   const BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID = "bytedanceAidpJinhuaHelper";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
+  const MAGIC_DATA_HANGZHOU_SCRIPT_ID = "magicDataHangzhouAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
   const HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID = "haitianUtransAudioDownloadHelper";
   const AISHELL_TECH_MINNAN_SCRIPT_ID = "aishellTechMinnanAssistant";
@@ -1485,6 +1486,21 @@
       host: MAGIC_DATA_PLATFORM.host,
       matchUrl: "https://work.magicdatatech.com/#/asrmark?taskItemId=...",
     },
+    magicDataHangzhouAssistant: {
+      id: MAGIC_DATA_HANGZHOU_SCRIPT_ID,
+      platformId: MAGIC_DATA_PLATFORM_ID,
+      visibility: RELEASE_VISIBILITY_BETA,
+      label: "杭州话脚本",
+      shortLabel: "杭州话脚本",
+      description: "用于 Magic Data #/asrmark 与 #/asrmarkCheck 当前条杭州话 AI 质检 beta 辅助，不自动保存、不自动提交。",
+      note: "首版能力先与客家话助手对齐，独立词表后续再接入。",
+      capabilityScope: "rule-first-ai-review",
+      statusLabel: "杭州话脚本",
+      detailView: "magic-data-hangzhou-assistant",
+      host: MAGIC_DATA_PLATFORM.host,
+      matchUrl: "https://work.magicdatatech.com/#/asrmark?taskItemId=...",
+    },
+
     abakaAiTaskPageCapture: {
       id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
       platformId: ABAKA_AI_PLATFORM_ID,
@@ -2250,6 +2266,35 @@
           aiReviewStopSequences: "",
           shortcuts: {},
         },
+        magicDataHangzhouAssistant: {
+          enabled: false,
+          aiReviewEnabled: false,
+          aiReviewModelMode: "two_stage",
+          aiReviewRecognitionStrategy: "direct_dialect",
+          aiReviewRecognitionMode: "two_stage",
+          aiReviewListenModel: "qwen3.5-omni-flash",
+          aiReviewCompareModel: "qwen3.5-flash",
+          aiReviewSingleModel: "qwen3.5-omni-flash",
+          aiReviewEnableThinking: false,
+          listenModel: "qwen3.5-omni-flash",
+          reviewModel: "qwen3.5-flash",
+          reviewMode: "rule_first",
+          showHeardText: true,
+          showEstimatedIncome: true,
+          enableThinking: false,
+          aiReviewRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiReviewListenPrompt: "",
+          aiReviewComparePrompt: "",
+          aiReviewTemperature: "",
+          aiReviewTopP: "",
+          aiReviewMaxTokens: "",
+          aiReviewMaxCompletionTokens: "",
+          aiReviewPresencePenalty: "",
+          aiReviewFrequencyPenalty: "",
+          aiReviewSeed: "",
+          aiReviewStopSequences: "",
+          shortcuts: {},
+        },
       },
     },
     platforms: {
@@ -2296,6 +2341,36 @@
             id: MAGIC_DATA_MINNAN_SCRIPT_ID,
             enabled: false,
             aiReviewEnabled: false,
+          },
+          hangzhouHelper: {
+            id: MAGIC_DATA_HANGZHOU_SCRIPT_ID,
+            enabled: false,
+            aiReviewEnabled: false,
+            aiReviewModelMode: "two_stage",
+            aiReviewRecognitionStrategy: "direct_dialect",
+            aiReviewRecognitionMode: "two_stage",
+            aiReviewListenModel: "qwen3.5-omni-flash",
+            aiReviewCompareModel: "qwen3.5-flash",
+            aiReviewSingleModel: "qwen3.5-omni-flash",
+            aiReviewEnableThinking: false,
+            listenModel: "qwen3.5-omni-flash",
+            reviewModel: "qwen3.5-flash",
+            reviewMode: "rule_first",
+            showHeardText: true,
+            showEstimatedIncome: true,
+            enableThinking: false,
+            aiReviewRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiReviewListenPrompt: "",
+            aiReviewComparePrompt: "",
+            aiReviewTemperature: "",
+            aiReviewTopP: "",
+            aiReviewMaxTokens: "",
+            aiReviewMaxCompletionTokens: "",
+            aiReviewPresencePenalty: "",
+            aiReviewFrequencyPenalty: "",
+            aiReviewSeed: "",
+            aiReviewStopSequences: "",
+            shortcuts: {},
           },
         },
       },
@@ -2445,7 +2520,11 @@
     if (script.platformId === MAGIC_DATA_PLATFORM_ID) {
       const activeScriptId = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
       const scriptKey =
-        scriptId === MAGIC_DATA_ANNOTATOR_SCRIPT_ID ? "hakkaHelper" : "minnanHelper";
+        scriptId === MAGIC_DATA_ANNOTATOR_SCRIPT_ID
+          ? "hakkaHelper"
+          : scriptId === MAGIC_DATA_MINNAN_SCRIPT_ID
+            ? "minnanHelper"
+            : "hangzhouHelper";
       const scriptSettings = settings?.platforms?.magicData?.scripts?.[scriptKey] || {};
       return Boolean(
         settings?.platforms?.magicData?.enabled !== false &&
@@ -2515,6 +2594,7 @@
     BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID: BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID,
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
     MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
+    MAGIC_DATA_HANGZHOU_SCRIPT_ID: MAGIC_DATA_HANGZHOU_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
     HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID:
       HAITIAN_UTRANS_AUDIO_DOWNLOAD_HELPER_SCRIPT_ID,

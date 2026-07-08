@@ -130,6 +130,7 @@
 - 脚本：
   - `hakka-helper/`
   - `minnan-helper/`
+  - `hangzhou-helper/`
 
 ### Abaka AI
 

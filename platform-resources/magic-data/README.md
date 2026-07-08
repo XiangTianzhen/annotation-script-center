@@ -1,71 +1,42 @@
 # Magic Data ANNOTATOR 平台资料
 
-本目录用于维护 Magic Data ANNOTATOR 的平台共用资料与助手专属资料。
+本目录维护 Magic Data 平台共用资料与脚本专属资料。
 
-## 当前助手
+## 当前脚本
 
-- 客家话助手（脚本 ID：`magicDataAnnotatorAiReview`）
-- 闽南语助手（脚本 ID：`magicDataMinnanAssistant`）
-- 同平台互斥启用：同一时刻只允许一个助手处于启用状态；启用一个时会自动关闭另一个。
+- 客家话助手：`magicDataAnnotatorAiReview`
+- 闽南语助手：`magicDataMinnanAssistant`
+- 杭州话脚本：`magicDataHangzhouAssistant`
+- 同平台默认互斥启用；`platforms.magicData.activeScriptId` 同一时刻只允许指向一个脚本。
+- 杭州话脚本当前沿用现有 beta 解锁口径，未解锁时不在脚本中心展示。
 
 ## 目录职责
 
-- `backend/`：平台共用后端能力与兼容逻辑（如旧 `annotator` API 兼容）。
-- `network/`：平台共用 Network 采集资料（两助手共用，不重复维护）。
-- `page-structure/`：平台共用页面结构资料（两助手共用，不重复维护）。
-- `hakka-helper/`：客家话助手专属资料（后端实现、词表、专属差异）。
-- `minnan-helper/`：闽南语助手专属资料（后端实现、词表、专属差异）。
+- `backend/`：平台共用后端能力与注册辅助。
+- `network/`：平台共用 Network 采集资料。
+- `page-structure/`：平台共用页面结构资料。
+- `hakka-helper/`：客家话助手专属资料。
+- `minnan-helper/`：闽南语助手专属资料。
+- `hangzhou-helper/`：杭州话脚本专属资料。
 
-## 接口口径（统一后端）
+## 当前实现口径
 
-- 客家话助手：
-  - `GET /api/magic-data/hakka-helper/ai/review-current/health`
-  - `GET /api/magic-data/hakka-helper/ai/defaults`
-  - `POST /api/magic-data/hakka-helper/ai/review-current`
-  - 页面支持：`#/asrmark`、`#/asrmarkCheck`
-  - 默认评测落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，`enable_thinking=false`
-  - 后端输出结构已对齐闽南语助手，返回 `speakerCheck/dialectTextCheck/mandarinTextCheck/overall` 与脱敏 `rawAiDebug` 字段，legacy `annotator` 路径继续兼容
-- 闽南语助手：
-  - `GET /api/magic-data/minnan-helper/ai/review-current/health`
-  - `GET /api/magic-data/minnan-helper/ai/defaults`
-  - `POST /api/magic-data/minnan-helper/ai/review-current`
-  - 模型方案（`modelMode`）：`two_stage`（`fun-asr` / Qwen Omni 听音）与 `omni_single`（Qwen Omni 单模型）
-  - 识别策略（`recognitionStrategy`）：`direct_dialect`、`mandarin_to_dialect`（先普通话识别再词表转换）
-  - legacy 兼容：`recognition_convert` 仅作为旧字段映射，不再作为前端同级模型方案展示
-  - 业务语义：三项预测质检（说话人书写、闽南语内容、普通话文本）
-- 旧路径兼容（映射到客家话助手）：
-  - `GET /api/magic-data/annotator/ai/review-current/health`
-  - `GET /api/magic-data/annotator/ai/defaults`
-  - `POST /api/magic-data/annotator/ai/review-current`
+- 客家话 legacy `/api/magic-data/annotator/*` 继续只归属客家话助手。
+- 闽南语与杭州话都使用各自独立路径，不新增 `annotator` legacy 别名。
+- 杭州话首版以前端运行时和后端接口复制客家话能力为主：
+  - 支持 `#/asrmark` 与 `#/asrmarkCheck`
+  - 保留右侧 AI 面板、行内填入、原始输出、快捷键和当前页临时全自动链路
+  - 默认模型口径先与客家话保持一致，不新增独立模型链路
+- Magic Data 三脚本共享平台结构采集与统一后端地址入口，但 `AI 设置`、`基础设置`、`快捷键` 仍按脚本独立保存。
+- Options / popup / storage 已扩成三脚本互斥逻辑；启用杭州话时会自动关闭客家话和闽南语。
 
-## 平台共用与助手差异
+## 杭州话当前边界
 
-- 页面结构与 Network 资料统一维护在平台根级 `page-structure/` 与 `network/`。
-- 客家话与闽南语助手共享平台结构采集能力，但模型配置、词表、Prompt 与后端 profile 独立维护。
-- Magic Data 双助手前端均不提供并发数配置；批量限流与排队保护由统一后端 provider queue 负责。
-- 客家话与闽南语助手前端交互能力已对齐：行内建议、说话人建议、原始输出、全部填入、三块独立折叠与差异对比保持同一口径；差异仅在语言文案、词表、Prompt、`rulesProfile` 与 API endpoint。
-- Magic Data 双助手的“显示 AI 原始输出”按钮统一保持可点击；当前条没有 AI 返回时点击只提示空状态，不再置灰。
-- 客家话助手审核页（`#/asrmarkCheck`）默认以“只读质检建议”为主，不自动改写平台文本，不自动保存/提交；用户可手动参考结论执行页面操作。
-- 客家话助手 `#/asrmark` 前端已新增当前页临时“全自动”模式，固定执行 `AI识别 -> 填入 -> 提交`；默认关闭、刷新后不保留，通过可录制快捷键 `开启/关闭全自动` 控制，AI 四项都正确时会直接继续提交；失败立即停机、手动关闭立即停止。`#/asrmarkCheck` 审核页仍不参与自动提交链路。
-- Options 对 Magic Data 双助手的模型方案/识别策略/听音模型/比较模型/单模型统一为显式保存；保存时同步写 `aiReview*` 与 legacy 字段，避免 Hakka 切换策略/比较模型后刷新回退。
-- `storage` 的 legacy 迁移策略改为显式字段优先，`recognition_convert` 不再反向覆盖用户已保存的 `modelMode/recognitionStrategy`；双助手比较模型下拉已补齐联动更新。
-- Magic Data 双助手 options 不再展示 `AI 质检模式`，统一按 `modelMode + recognitionStrategy` 控制；客家话审核页文本可编辑时支持行内填入与文本项批量填入（不自动保存/提交）。
-- 客家话助手改为通过 AI prompt 约束普通中文输出简体；不再依赖本地后端响应出口统一繁转简。
-- 闽南语助手展示改为“左侧页面基础信息 + 右侧 AI 面板”：
-  - 不再创建左侧独立大摘要框，避免空白占位；说话人建议直接插入“说话人属性”表单项。
-  - 右侧 AI 面板保留总结论与三项质检结果，三块详情（说话人属性/闽南语内容/普通话文本）独立折叠。
-  - 行内建议与说话人建议按 task 幂等更新，避免 hover 场景下节点反复重建。
-  - 三块详情折叠状态按 `taskItemId + section` 记忆，避免点击后被刷新流程回收。
-  - 文本行与说话人属性都支持行内 AI 建议；正确项不显示填入按钮。
-  - 支持“全部填入AI推荐”，仅填需要修改的项，不自动保存/提交。
+- 只预留 `backend/lexicon/` 目录与文件命名，不在本轮复制或转换 `杭州方言正字表0509.xlsx`。
+- 词表缺失时，杭州话后端继续按无词表模式运行，`review-current` 不被阻断。
+- 词表接入、JSON 生成和内容维护放到后续单独任务处理。
 
 ## 安全边界
 
 - AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。
 - 文档与日志不记录 token、cookie、authorization、完整签名 URL、完整敏感文本。
-
-## 目录治理说明
-
-- 已收口平台共用资料到 `network/` 与 `page-structure/`。
-- 已移除旧根级散落索引文档，边界内容已并入 `network/09-safety-boundary-rules.md` 与本 README 口径。
-- 已移除旧资料目录 `annotator/`、`shared/`，不再作为现行目录入口。

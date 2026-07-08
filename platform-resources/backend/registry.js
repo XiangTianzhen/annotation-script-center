@@ -16,6 +16,9 @@ const {
   registerRoutes: registerBytedanceAidpJinhuaRoutes,
 } = require("../bytedance-aidp/jinhua-helper/backend");
 const { registerRoutes: registerMagicDataHakkaRoutes } = require("../magic-data/hakka-helper/backend");
+const {
+  registerRoutes: registerMagicDataHangzhouRoutes,
+} = require("../magic-data/hangzhou-helper/backend");
 const { registerRoutes: registerMagicDataMinnanRoutes } = require("../magic-data/minnan-helper/backend");
 const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/task21/backend");
 const { registerRoutes: registerAishellTechMinnanRoutes } = require("../aishell-tech/minnan-helper/backend");
@@ -72,6 +75,7 @@ function registerProjectRoutes(router, options) {
     router,
     config.magicDataHakkaHelper || config.magicDataAnnotator || {}
   );
+  registerMagicDataHangzhouRoutes(router, config.magicDataHangzhouHelper || {});
   registerMagicDataMinnanRoutes(router, config.magicDataMinnanHelper || {});
   registerAbakaTask21AiRoutes(router, config.abakaTask21Ai || {});
   registerAishellTechMinnanRoutes(router, config.aishellTechMinnanHelper || {});

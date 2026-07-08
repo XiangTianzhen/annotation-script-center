@@ -24,6 +24,8 @@
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const magicDataMinnanScriptId =
     constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
+  const magicDataHangzhouScriptId =
+    constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID || "magicDataHangzhouAssistant";
   const aishellTechHost = (constants.AISHELL_TECH_PLATFORM || {}).host || "mark.aishelltech.com";
   const aishellTechMinnanScriptId =
     constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
@@ -117,6 +119,11 @@
         return (
           settings?.platforms?.magicData?.enabled !== false &&
           settings?.platforms?.magicData?.scripts?.minnanHelper?.enabled !== false
+        );
+      case magicDataHangzhouScriptId:
+        return (
+          settings?.platforms?.magicData?.enabled !== false &&
+          settings?.platforms?.magicData?.scripts?.hangzhouHelper?.enabled !== false
         );
       case aishellTechMinnanScriptId:
         return (
@@ -409,21 +416,32 @@
         settings?.platforms?.magicData?.scripts?.minnanHelper?.aiReviewEnabled !== false &&
         settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.enabled !== false &&
         settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.aiReviewEnabled !== false;
-      const configuredActiveScriptId = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
+      const hangzhouEnabled =
+        settings?.platforms?.magicData?.scripts?.hangzhouHelper?.enabled !== false &&
+        settings?.platforms?.magicData?.scripts?.hangzhouHelper?.aiReviewEnabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataHangzhouAssistant?.enabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataHangzhouAssistant?.aiReviewEnabled !== false;
+      const configuredActiveScriptId = String(
+        settings?.platforms?.magicData?.activeScriptId || ""
+      ).trim();
       const activeScriptId =
         configuredActiveScriptId === magicDataHakkaScriptId && hakkaEnabled
           ? magicDataHakkaScriptId
           : configuredActiveScriptId === magicDataMinnanScriptId && minnanEnabled
             ? magicDataMinnanScriptId
-            : hakkaEnabled && !minnanEnabled
-              ? magicDataHakkaScriptId
-              : minnanEnabled && !hakkaEnabled
-                ? magicDataMinnanScriptId
-                : null;
+            : configuredActiveScriptId === magicDataHangzhouScriptId && hangzhouEnabled
+              ? magicDataHangzhouScriptId
+              : hakkaEnabled && !minnanEnabled && !hangzhouEnabled
+                ? magicDataHakkaScriptId
+                : minnanEnabled && !hakkaEnabled && !hangzhouEnabled
+                  ? magicDataMinnanScriptId
+                  : hangzhouEnabled && !hakkaEnabled && !minnanEnabled
+                    ? magicDataHangzhouScriptId
+                    : null;
       const activeScript = activeScriptId ? scriptLibrary[activeScriptId] || {} : {};
       const enabledLabel = activeScriptId
         ? String(activeScript.label || activeScript.shortLabel || activeScriptId)
-        : "无";
+        : "未启用";
       if (isAsrmark) {
         return {
           scriptId: activeScriptId,
@@ -433,11 +451,8 @@
           url: url,
           statusText: platformEnabled && activeScriptId ? "已支持" : "未启用",
           statusTone: platformEnabled && activeScriptId ? "success" : "disabled",
-          title: "当前页面：Magic Data 标注单条页",
-          description:
-            "脚本状态：当前生效助手为 " +
-            enabledLabel +
-            "。请在页面说话内容表格下方查看对应助手结果区（仅 AI 辅助，不自动保存/提交）。",
+          title: activeScriptId ? enabledLabel : "当前页面：Magic Data 标注单条页",
+          description: platformEnabled && activeScriptId ? "运行状态：已支持" : "运行状态：未启用",
           openScriptSettings: Boolean(activeScriptId),
         };
       }

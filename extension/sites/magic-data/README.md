@@ -1,46 +1,30 @@
 # Magic Data ANNOTATOR 前端目录
 
-Magic Data 平台前端运行时代码已拆分为“平台共享 + 助手脚本”结构。
+Magic Data 平台运行时代码采用“平台共享 + 脚本专属目录”结构。
 
 ## 目录结构
 
-- `shared/`：同平台共享模块（页面识别、采集、network observer、共享 AI client 与 legacy 面板兼容模块）。
-- `hakka-helper/`：客家话助手新版入口（兼容旧脚本 ID：`magicDataAnnotatorAiReview`）。
-- `minnan-helper/`：闽南语助手入口（新脚本 ID：`magicDataMinnanAssistant`，AI 配置拆分为“模型方案 + 识别策略”）。
+- `shared/`：页面识别、数据采集、network observer、共享 AI client 等平台共用模块。
+- `hakka-helper/`：客家话助手入口。
+- `minnan-helper/`：闽南语助手入口。
+- `hangzhou-helper/`：杭州话脚本入口（隐藏 beta）。
 
 ## 运行边界
 
 - 平台：`https://work.magicdatatech.com/*`
 - 目标页面：
   - 客家话助手：`#/asrmark`、`#/asrmarkCheck`
-  - 闽南语助手：`#/asrmark`
-- 两个助手都只允许用户主动点击或快捷键触发 AI。
+  - 杭州话脚本：`#/asrmark`、`#/asrmarkCheck`
+  - 闽南语助手：按其现有入口运行
+- 所有脚本都只允许用户主动点击或快捷键触发 AI。
 - 不自动保存、不自动提交、不自动审核、不自动领取、不自动流转。
 
 ## 配置与入口
 
 - options 首页统一后端地址，不在脚本详情页新增独立后端地址。
-- 同平台两个助手互斥启用：同一时刻只允许一个助手处于启用状态；启用一个时会自动关闭另一个。
-- popup 会在 Magic Data 页面展示当前唯一生效助手；若未启用则显示未启用状态。
-- 两个助手共享后端地址入口，但配置互相独立；闽南语助手支持独立模型方案、识别策略、模型和 Prompt 参数。
-- Magic Data AI 面板统一配置项：模型方案、识别策略、听音模型、比较模型、单模型、Prompt 与生成参数；thinking 当前已全局固定关闭，不再作为有效可调参数。
-- 客家话助手默认已按 50 条评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
-- 客家话助手前端已切换到与闽南语助手一致的新面板体系（行内建议、三块独立折叠、全部填入、原始输出、差异对比）。
-- 客家话助手改为通过 AI prompt 约束普通中文输出简体；命中客家话词表统一用字时继续保留，不再依赖本地后端结果二次繁转简。
-- 客家话助手审核页（`#/asrmarkCheck`）已接入 AI 质检：
-  - 不再显示“审核页暂未接入填入”提示；
-  - 审核页默认只提供质检和风险提示，不自动保存、不自动提交；
-  - 审核页文本不可编辑时不展示填入动作。
-- Magic Data 双助手的“显示 AI 原始输出”按钮统一保持可点击；无结果时不再置灰，点击后只提示当前为空。
-- 客家话助手 `#/asrmark` 新增当前页临时“全自动”模式：
-  - 流程固定为 `等待加载 -> AI识别 -> 填入 -> 提交 -> 等待下一条`；
-  - 仅在标注单条页生效，默认关闭，刷新页面后不会保留开启状态；
-  - 通过可录制快捷键 `开启/关闭全自动` 控制，不再保留面板按钮；
-  - AI 四项都判定“正确”时，视为无需填入并继续直接提交；
-  - 任一步失败立即停机，手动关闭时会立刻中断未完成步骤；
-  - `#/asrmarkCheck` 审核页继续保持手动质检/手动填入，不参与自动提交。
-- 闽南语助手当前目标是“三项预测质检”（说话人书写、闽南语内容、普通话文本），面板左侧展示基础信息，右侧展示 AI 质检结果。
-- Magic Data 双助手的模型方案/识别策略/听音模型/比较模型/单模型改为显式保存，不再因“等于默认值”写空字符串，避免刷新后出现“未保存”的错觉。
-- `storage` 对 legacy `recognition_convert` 的迁移改为“显式字段优先”，避免已保存的模型方案/识别策略被回写覆盖；比较模型下拉新增独立联动更新。
-- Magic Data 双助手 options 不再展示“AI 质检模式”，统一以“模型方案 + 识别策略”控制 AI 行为；审核页文本可编辑时支持行内 `填入本行` 与文本项“全部填入AI推荐”（不自动保存/提交）。
-- `direct_dialect` 保存后不再被 legacy `recognition_convert` 回滚；保存时会同步覆盖 `aiReviewRecognitionMode/recognitionMode/pipelineMode`，并在平台脚本路径与 legacy 路径保持一致。
+- Magic Data 三脚本默认互斥启用；启用一个会自动关闭另外两个。
+- popup 在 Magic Data 页面只展示当前唯一生效脚本。
+- 杭州话脚本沿用现有 beta 解锁口径；未解锁时不在脚本列表显示，解锁后可启停和进入详情页。
+- 三脚本共享平台后端地址入口，但 `AI 设置`、`基础设置`、`快捷键` 仍按脚本独立保存。
+- 杭州话首版沿用客家话前端能力：右侧 AI 面板、行内填入、原始输出、快捷键、当前页临时全自动链路都保留。
+- Magic Data 详情页统一保存 `modelMode + recognitionStrategy + listenModel + compareModel + singleModel` 等显式字段，并同步维护 legacy 配置镜像，避免刷新后回退显示。

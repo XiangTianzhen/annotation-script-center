@@ -6,10 +6,13 @@
   const AISHELL_SCRIPT_ID = "aishellTechMinnanAssistant";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
+  const MAGIC_DATA_HANGZHOU_SCRIPT_ID = "magicDataHangzhouAssistant";
 
   function isMagicDataScript(scriptId) {
     return (
-      scriptId === MAGIC_DATA_ANNOTATOR_SCRIPT_ID || scriptId === MAGIC_DATA_MINNAN_SCRIPT_ID
+      scriptId === MAGIC_DATA_ANNOTATOR_SCRIPT_ID ||
+      scriptId === MAGIC_DATA_MINNAN_SCRIPT_ID ||
+      scriptId === MAGIC_DATA_HANGZHOU_SCRIPT_ID
     );
   }
 
