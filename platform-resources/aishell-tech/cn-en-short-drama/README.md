@@ -3,6 +3,7 @@
 ## 目录职责
 
 - `README.md`：脚本资料入口、当前状态与边界说明。
+- `network/README.md`：中英短剧脚本专属 Network 稳定参考索引。
 - `page-structure/README.md`：中英短剧脚本专属页面结构稳定参考。
 
 ## 当前状态
@@ -34,7 +35,10 @@
 
 ## 当前接口与边界
 
-- 当前脚本暂未补采脚本专属 Network 参考；平台共用初始化与公共请求结构继续以：
+- 当前脚本已补脚本专属 Network 参考：
+  - `platform-resources/aishell-tech/cn-en-short-drama/network/README.md`
+  - `platform-resources/aishell-tech/cn-en-short-drama/network/01-mytask-mark-whole-segment.md`
+- 平台共用初始化与公共请求结构继续以：
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/network/04-mytask-mark.md`
   为准。
@@ -43,7 +47,8 @@
   - 自动提交
   - 自动完成标注
   - 自动设置无效
-- `保存整段`、`完成标注`、`设置为无效` 当前统一视为人工触发写操作，后续如需接入，需先补独立 Network 采集。
+- `保存整段`、`完成标注`、`设置为无效 / 有效` 当前统一视为人工触发写操作。
+- 历史标注记录当前仅保留读操作结论；live 页面按钮测试时已观察到 `GetMarkHistoryList` 异常日志，后续真正接入前仍需补一次直接 Network 面板复核。
 
 ## 安全边界
 
