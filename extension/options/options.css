@@ -2021,11 +2021,7 @@ body {
 .detail-workbench .field-card input[type="number"],
 .detail-workbench .field-card input[type="password"],
 .detail-workbench .field-card input[type="date"],
-.detail-workbench .field-card select,
-.detail-workbench .field-card textarea,
-.detail-workbench .asr-ai-field input,
-.detail-workbench .asr-ai-field select,
-.detail-workbench .asr-ai-field textarea {
+.detail-workbench .asr-ai-field input {
   max-width: 100%;
   min-height: 50px;
   padding: 12px 16px;
@@ -2041,11 +2037,24 @@ body {
   transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
+.detail-workbench .field-card select,
+.detail-workbench .field-card textarea,
+.detail-workbench .asr-ai-field select,
+.detail-workbench .asr-ai-field textarea {
+  max-width: 100%;
+  min-height: 44px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  background: rgba(255, 255, 255, 0.98);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .detail-workbench .field-card textarea,
 .detail-workbench .asr-ai-field textarea {
-  min-height: 126px;
-  padding-top: 14px;
-  padding-bottom: 14px;
+  min-height: 120px;
   resize: vertical;
 }
 
@@ -2070,26 +2079,6 @@ body {
   outline: none;
 }
 
-.detail-workbench .field-card select,
-.detail-workbench .asr-ai-field select {
-  appearance: none;
-  padding-right: 46px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, #6b7d99 50%),
-    linear-gradient(135deg, #6b7d99 50%, transparent 50%);
-  background-position:
-    calc(100% - 22px) calc(50% - 2px),
-    calc(100% - 16px) calc(50% - 2px);
-  background-size: 6px 6px, 6px 6px;
-  background-repeat: no-repeat;
-}
-
-.detail-workbench .field-card select option,
-.detail-workbench .asr-ai-field select option {
-  color: var(--text-primary);
-  background: #ffffff;
-}
-
 .detail-ai-panel .aidp-ai-controls.aidp-ai-controls-two .asr-ai-field {
   padding: 18px;
   border-radius: 18px;
@@ -2102,10 +2091,6 @@ body {
 
 .detail-ai-panel .aidp-ai-stage-params .asr-ai-field {
   align-content: start;
-}
-
-.detail-ai-panel .aidp-ai-stage-params .asr-ai-field textarea {
-  min-height: 52px;
 }
 
 #aidp-ui-layer {
@@ -2392,14 +2377,6 @@ body {
 
 .detail-workbench .aidp-lined-textarea-compact textarea {
   min-height: 50px;
-}
-
-.detail-ai-panel .asr-ai-grid.one .asr-ai-field textarea {
-  min-height: 144px;
-}
-
-.detail-ai-panel .asr-ai-grid.three .asr-ai-field textarea {
-  min-height: 104px;
 }
 
 .detail-ai-panel .asr-ai-grid.one .asr-ai-field .aidp-lined-textarea-prompt textarea {

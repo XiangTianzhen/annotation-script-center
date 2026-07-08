@@ -1,3 +1,20 @@
+## 2026-07-08（回退 ByteDance AIDP 下拉框与多行输入框样式）
+- 更新 `extension/options/options.html`
+  - 移除 AIDP 基础设置下拉框上的局部自定义下拉标记，并删除详情页内的 `aidp-ui-layer` 占位节点
+- 更新 `extension/options/options.js`
+  - 将 AIDP 下拉框重新切回原生 `select` 渲染路径
+  - 将 AIDP Prompt 与 `stop sequences` 重新切回普通 `textarea` 标记，暂停行号 gutter 与竖向行数滑块挂载
+- 更新 `extension/options/options.css`
+  - 回退 AIDP 下拉框与多行输入框到较早的原生视觉样式，同时保留其它已确认的设置页布局与开关交互
+- 更新测试：
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - 回归固定 AIDP 设置页当前不再依赖自定义下拉属性和多行输入增强标记
+- 更新文档：
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
 ## 2026-07-07（统一 ByteDance AIDP 金华 / 苏州设置页布局与金华 AI 开关语义）
 - 更新 `extension/options/options.js`
   - 重构 AIDP 自定义下拉控制器，改为复用脚本详情页内的 `aidp-ui-layer` 局部门户层，不再把菜单节点散挂到 `body`

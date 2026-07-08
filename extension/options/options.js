@@ -6996,14 +6996,7 @@
     if (!(selectNode instanceof HTMLSelectElement)) {
       return;
     }
-    const placeholderText = normalizeText(config?.placeholder);
-    if (placeholderText) {
-      selectNode.setAttribute("data-aidp-placeholder", placeholderText);
-    } else {
-      selectNode.removeAttribute("data-aidp-placeholder");
-    }
     renderFixedModelOptions(selectId, options, selectedValue);
-    ensureAidpCustomSelect(selectNode);
   }
 
   function openAidpCustomSelect(wrapper) {
@@ -7196,16 +7189,7 @@
   }
 
   function syncAidpCustomSelects(scope) {
-    const root =
-      scope instanceof HTMLElement ||
-      (typeof Document === "function" && scope instanceof Document)
-        ? scope
-        : document;
-    Array.from(root.querySelectorAll("select[data-aidp-custom-select='true']")).forEach(function (
-      selectNode
-    ) {
-      ensureAidpCustomSelect(selectNode);
-    });
+    return scope;
   }
 
   function getAidpLineMeasureSeedCount(value) {
@@ -7455,16 +7439,7 @@
   }
 
   function syncAidpLineNumberTextareas(scope) {
-    const root =
-      scope instanceof HTMLElement ||
-      (typeof Document === "function" && scope instanceof Document)
-        ? scope
-        : document;
-    Array.from(root.querySelectorAll("textarea[data-aidp-lined-textarea]")).forEach(function (
-      textarea
-    ) {
-      ensureAidpLineNumberTextarea(textarea);
-    });
+    return scope;
   }
 
   function getBytedanceAidpSuzhouStageParamHelpElementId(stagePrefix, definition) {
@@ -7513,7 +7488,7 @@
           definition.type === "stop"
             ? '<textarea id="' +
               fieldId +
-              '" maxlength="960" data-aidp-lined-textarea="compact" data-aidp-default-rows="1"></textarea>'
+              '" maxlength="960"></textarea>'
             : '<input id="' +
               fieldId +
               '" type="number" min="' +
@@ -7797,14 +7772,14 @@
             resultLabel +
             "收口。"
         ) +
-        '</span><select id="bytedance-aidp-ai-listen-model-select" data-aidp-custom-select="true"></select></label>',
+        '</span><select id="bytedance-aidp-ai-listen-model-select"></select></label>',
       '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "听音 Prompt",
           "普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取。"
         ) +
-        '</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000" data-aidp-lined-textarea="prompt" data-aidp-default-rows="10"></textarea></label>',
+        '</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000"></textarea></label>',
       '</div><div class="asr-ai-grid two aidp-ai-stage-params">' +
         buildBytedanceAidpSuzhouStageParamFieldsMarkup("listen") +
         "</div></div>",
@@ -7813,14 +7788,14 @@
         '收口</strong><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup("收口模型", resultHelpText) +
-        '</span><select id="bytedance-aidp-ai-refine-model-select" data-aidp-custom-select="true"></select></label>',
+        '</span><select id="bytedance-aidp-ai-refine-model-select"></select></label>',
       '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "收口 Prompt",
           "限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字。"
         ) +
-        '</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000" data-aidp-lined-textarea="prompt" data-aidp-default-rows="10"></textarea></label>',
+        '</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000"></textarea></label>',
       '</div><div class="asr-ai-grid two aidp-ai-stage-params">' +
         buildBytedanceAidpSuzhouStageParamFieldsMarkup("refine") +
         "</div></div>",

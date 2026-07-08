@@ -254,19 +254,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function renderBytedanceAidpShortcutGrid\(/);
   assert.match(script, /function syncAidpCustomSelects\(/);
   assert.match(script, /function syncAidpLineNumberTextareas\(/);
-  assert.match(script, /function ensureAidpCustomSelect\(/);
-  assert.match(script, /function ensureAidpLineNumberTextarea\(/);
   assert.match(script, /function renderAidpCustomSelectOptions\(/);
-  assert.match(script, /function getAidpCustomSelectPlaceholder\(/);
-  assert.match(script, /function positionAidpCustomSelectMenu\(/);
-  assert.match(html, /id="aidp-ui-layer"/);
-  assert.match(script, /function ensureAidpUiLayer\(/);
-  assert.match(script, /aidp-ui-layer-select-menu/);
-  assert.doesNotMatch(script, /document\.body\.appendChild\(menu\)/);
-  assert.doesNotMatch(script, /__aidpCustomSelectMenu/);
-  assert.match(script, /menu\.style\.position = "absolute"/);
-  assert.match(css, /#aidp-ui-layer \{[\s\S]*position:\s*fixed;/);
-  assert.match(css, /\.aidp-ui-layer-menu \{[\s\S]*z-index:\s*4600;/);
   assert.match(script, /platformAiEnabled/);
   assert.match(script, /aiRecommendEnabled/);
   assert.match(script, /bytedance-aidp-ai-enabled/);
@@ -284,8 +272,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /bytedance-aidp-ai-timeout/);
   assert.match(script, /bytedance-aidp-ai-listen-model-select/);
   assert.match(script, /bytedance-aidp-ai-refine-model-select/);
-  assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"[\s\S]*data-aidp-custom-select="true"/);
-  assert.match(html, /<select\s+id="bytedance-aidp-fixed-wave-zoom"[\s\S]*data-aidp-custom-select="true"/);
+  assert.doesNotMatch(html, /data-aidp-custom-select="true"/);
   assert.doesNotMatch(html, /id="aidp-dropdown-demo"/);
   assert.doesNotMatch(script, /function ensureAidpDropdownDemo\(/);
   assert.doesNotMatch(css, /\.aidp-dropdown-demo \{/);
@@ -293,31 +280,16 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /placeholder:\s*"请选择固定缩放倍数"/);
   assert.match(script, /placeholder:\s*"请选择听音模型"/);
   assert.match(script, /placeholder:\s*"请选择收口模型"/);
-  assert.match(script, /<select id="bytedance-aidp-ai-listen-model-select" data-aidp-custom-select="true"><\/select>/);
-  assert.match(script, /<select id="bytedance-aidp-ai-refine-model-select" data-aidp-custom-select="true"><\/select>/);
-  assert.match(script, /aidp-custom-select/);
-  assert.match(script, /aidp-select-trigger/);
-  assert.match(script, /aidp-select-menu/);
-  assert.match(script, /aidp-select-option/);
-  assert.match(css, /\.detail-workbench \.aidp-select-trigger \{[\s\S]*border:\s*1px solid #d5d9e2;/);
-  assert.match(css, /\.detail-workbench \.aidp-select-option:hover,[\s\S]*background:\s*#f3f4f6;/);
+  assert.match(script, /<select id="bytedance-aidp-ai-listen-model-select"><\/select>/);
+  assert.match(script, /<select id="bytedance-aidp-ai-refine-model-select"><\/select>/);
   assert.match(script, /单段识别成功后直接填入对应输入框，不主动走平台暂存请求/);
   assert.match(script, /普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取/);
   assert.match(script, /限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字/);
   assert.doesNotMatch(script, /bytedance-aidp-ai-listen-prompt" maxlength="8000"><\/textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt/);
   assert.match(script, /听音 Prompt/);
   assert.match(script, /收口 Prompt/);
-  assert.match(script, /data-aidp-lined-textarea="prompt"/);
-  assert.match(script, /data-aidp-lined-textarea="compact"/);
-  assert.match(script, /data-aidp-default-rows="10"/);
-  assert.match(script, /data-aidp-default-rows="1"/);
-  assert.match(script, /aidp-lined-textarea-slider/);
-  assert.match(script, /window\.addEventListener\("resize", function \(\) \{\s*syncAidpLineNumberTextareas\(document\);/);
-  assert.match(script, /textarea\.addEventListener\("mouseup", function \(\) \{\s*syncAidpLineNumberTextarea\(textarea\);/);
-  assert.match(script, /aidp-lined-textarea-gutter/);
-  assert.match(script, /aidp-lined-textarea-shell/);
-  assert.doesNotMatch(script, /Math\.max\(1,\s*normalized\.split\("\\n"\)\.length\)/);
-  assert.match(script, /if \(value === ""\) \{\s*return 0;\s*\}/);
+  assert.doesNotMatch(script, /data-aidp-lined-textarea=/);
+  assert.doesNotMatch(script, /data-aidp-default-rows=/);
   assert.match(
     script,
     /listenPromptNode\.value = String\(\s*getAsrVoiceAiEffectiveText\(currentConfig\.aiRecommendListenPrompt,\s*stageDefaults\.listen\.prompt\)\s*\)/
