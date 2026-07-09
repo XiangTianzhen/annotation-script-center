@@ -1,6 +1,6 @@
 "use strict";
 
-const RULE_VERSION = "magic-data-hangzhou-helper-ai-review-v2-prompt-simplified-only";
+const RULE_VERSION = "magic-data-hangzhou-helper-ai-review-v3-loose-pure-dialect";
 const DEFAULT_LISTEN_TEMPLATE = [
   "你是杭州话音频辅助检查助手。",
   "听音结果只作为辅助证据，不作为平台文本自动替换依据。",
@@ -74,6 +74,8 @@ function buildListenPrompt(request, lexiconContext) {
     template,
     "请优先判断音频有效性与风险：无有效人声、噪音、方言区域错误、切音、多人重叠、听不清、非方言、敏感数据、机器合成音。",
     "请辅助判断说话人性别、年龄段，以及音频是否是纯方言；不确定时可输出 uncertain。",
+    "音频是否是纯方言的判断口径要明显从宽：只要实际发声里出现明确杭州话/方言字词、方言读法或方言表达，就优先判为 纯方言。",
+    "只有整段内容基本都是普通话表达、几乎没有方言字词或方言说法时，才判为 口音普通话。",
     "输出严格 JSON 字段：heardDialectText, heardMandarinMeaning, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, pureDialectGuess, confidence。",
     "validityDecision 只能是 valid|invalid|uncertain。",
     "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
@@ -134,6 +136,8 @@ function buildComparePrompt(request, listen, lexiconContext) {
     "不要默认推翻平台文本。没有明显问题时 suggestedValue 应保持与平台值一致。",
     "普通中文统一简体；禁止输出普通繁体字；命中词表建议用字优先保留。",
     "第二行普通话含义需与方言行含义一致；若无法确认请 shouldReview=true。",
+    "纯方言判断口径从宽：只要音频里存在明确杭州话/方言字词、方言说法或方言发音证据，就应建议为 纯方言。",
+    "只有整段几乎都在说普通话、没有明显方言表达时，才建议为 口音普通话。",
   ];
 
   if (lexiconText) {
@@ -170,6 +174,7 @@ function buildOmniSinglePrompt(request, lexiconContext) {
     template,
     "规则：",
     "1. 说话人书写需检查性别、年龄段、音频是否是纯方言；不确定时 isCorrect=null 且 shouldReview=true。",
+    "1.1 纯方言判断口径从宽：只要出现明确杭州话/方言字词、方言说法或方言读法，就优先视为 纯方言；只有整段基本都是普通话时才视为 口音普通话。",
     "2. 如果实际发声与平台方言行一致，优先保留平台方言行。",
     "3. 如果实际发声明显不同，方言建议按实际发声输出。",
     "4. 第二行普通话含义必须与方言行含义一致；不确定时 shouldReview=true。",
@@ -218,6 +223,7 @@ function buildRecognitionConvertListenPrompt(request, lexiconContext) {
     "validityDecision 只能是 valid|invalid|uncertain。",
     "genderGuess 只能是 男|女|uncertain。",
     "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
+    "纯方言判断口径从宽：只要音频里能听到明确方言表达、方言词或方言读法，就判为 纯方言；只有整段几乎都是普通话表达时才判为 口音普通话。",
     "pureDialectGuess 只能是 纯方言|口音普通话|uncertain。",
     "recognizedMandarinText 必须使用简体中文，禁止输出普通繁体字。",
   ];
@@ -265,6 +271,7 @@ function buildRecognitionConvertComparePrompt(request, context) {
     "所有普通中文字段必须使用简体中文，禁止输出普通繁体字；只有命中词表统一用字时才保留。",
     "词表找不到对应写法时不要编造冷门杭州字，保守输出并在 conversionWarnings 标记 needHumanReview=true。",
     "不要为了更像杭州话而无依据改写，普通话文本与杭州话文本必须语义一致。",
+    "纯方言判断口径从宽：只要音频证据里出现明确方言字词、方言说法或方言发音，就建议为 纯方言；只有整段几乎都是普通话时，才建议为 口音普通话。",
   ];
   if (lexiconText) {
     promptLines.push("杭州话词表上下文：", lexiconText);
