@@ -21,9 +21,9 @@
 
 ## 词表
 
-- `backend/lexicon/` 当前只预留目录和文件命名说明。
-- 本轮没有实际 `hangzhou-lexicon.json` / `hangzhou-lexicon.csv` / Excel 文件。
-- 词表缺失时：
+- `backend/lexicon/` 当前已接入用户维护的 `hangzhou-lexicon.json` 作为主读词表。
+- `hangzhou-lexicon.csv` 与 `杭州方言正字表0509.xlsx` 继续只作为后续参考源命名预留，当前不入库。
+- 词表文件缺失或 JSON 解析失败时：
   - `lexicon.status=missing`
   - `review-current` 继续按无词表模式运行
   - 不额外报错阻断请求

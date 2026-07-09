@@ -10,7 +10,7 @@
 - `backend/index.js`：后端注册入口。
 - `backend/ai-review-request.js`：请求归一化 helper。
 - `backend/ai-*.js`：杭州话 AI 能力实现（模型调用、Prompt、词表、日志、成本估算）。
-- `backend/lexicon/README.md`：词表预留目录说明。
+- `backend/lexicon/README.md`：词表目录与文件约定说明。
 - `network/.gitkeep`、`page-structure/.gitkeep`：当前无脚本专属差异，继续复用平台根级资料。
 
 ## 对外接口
@@ -34,9 +34,9 @@
 
 ## 词表边界
 
-- 本轮只预留 `backend/lexicon/` 目录与文件命名，不复制、不转换 `杭州方言正字表0509.xlsx`。
-- 当前没有实际词表文件时，后端返回 `lexicon.status=missing`，`review-current` 继续按无词表模式运行。
-- 后续词表 JSON 生成、内容维护与接入验证放到下一轮单独处理。
+- 当前已接入 `backend/lexicon/hangzhou-lexicon.json` 作为运行时主词表；JSON 内容按用户维护为主。
+- 源 Excel `杭州方言正字表0509.xlsx` 与参考 CSV 仍未入库；当前脚本继续只读 JSON 主词表。
+- 若词表文件缺失或 JSON 解析失败，后端返回 `lexicon.status=missing`，`review-current` 继续按无词表模式运行。
 
 ## 安全边界
 

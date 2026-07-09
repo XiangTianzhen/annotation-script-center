@@ -1,0 +1,3755 @@
+{
+  "schemaVersion": "1.0.0",
+  "language": "hangzhou",
+  "mode": "lexicon",
+  "sourceFiles": [
+    "杭州方言正字表0509.xlsx"
+  ],
+  "updatedAt": "2026-07-09T00:00:00+08:00",
+  "entries": [
+    {
+      "id": "hangzhou-0001",
+      "normalized": "你",
+      "display": "你",
+      "mandarin": "你",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ni"
+      }
+    },
+    {
+      "id": "hangzhou-0002",
+      "normalized": "伊",
+      "display": "他/伊",
+      "mandarin": "他",
+      "aliases": [
+        "他"
+      ],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ta/yi"
+      }
+    },
+    {
+      "id": "hangzhou-0003",
+      "normalized": "藕们",
+      "display": "藕们",
+      "mandarin": "我们",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ou men"
+      }
+    },
+    {
+      "id": "hangzhou-0004",
+      "normalized": "你们",
+      "display": "你们",
+      "mandarin": "你们",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ni men"
+      }
+    },
+    {
+      "id": "hangzhou-0005",
+      "normalized": "他们",
+      "display": "他们",
+      "mandarin": "他们",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ta men"
+      }
+    },
+    {
+      "id": "hangzhou-0006",
+      "normalized": "自家",
+      "display": "自家",
+      "mandarin": "自己",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "zi jia"
+      }
+    },
+    {
+      "id": "hangzhou-0007",
+      "normalized": "人家",
+      "display": "人家",
+      "mandarin": "别人",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ren jia"
+      }
+    },
+    {
+      "id": "hangzhou-0008",
+      "normalized": "哪个",
+      "display": "哪个",
+      "mandarin": "谁",
+      "aliases": [
+        "拉个"
+      ],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "na ge / la ge"
+      }
+    },
+    {
+      "id": "hangzhou-0009",
+      "normalized": "男人家",
+      "display": "男人家",
+      "mandarin": "男人",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "nan ren jia"
+      }
+    },
+    {
+      "id": "hangzhou-0010",
+      "normalized": "女人家",
+      "display": "女人家",
+      "mandarin": "女人",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "nu ren jia"
+      }
+    },
+    {
+      "id": "hangzhou-0011",
+      "normalized": "小伢儿",
+      "display": "小伢儿",
+      "mandarin": "小孩",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "xiao yaer"
+      }
+    },
+    {
+      "id": "hangzhou-0012",
+      "normalized": "老头儿",
+      "display": "老头儿",
+      "mandarin": "老人",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "lau deu er"
+      }
+    },
+    {
+      "id": "hangzhou-0013",
+      "normalized": "集美",
+      "display": "集美",
+      "mandarin": "姐妹",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ji mei"
+      }
+    },
+    {
+      "id": "hangzhou-0014",
+      "normalized": "姆妈",
+      "display": "姆妈",
+      "mandarin": "妈妈",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "mu ma"
+      }
+    },
+    {
+      "id": "hangzhou-0015",
+      "normalized": "囡囡",
+      "display": "囡囡",
+      "mandarin": "女儿",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "nan nan / nou nou"
+      }
+    },
+    {
+      "id": "hangzhou-0016",
+      "normalized": "腻子",
+      "display": "腻子",
+      "mandarin": "儿子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "ni zi"
+      }
+    },
+    {
+      "id": "hangzhou-0017",
+      "normalized": "陌生人",
+      "display": "陌生人",
+      "mandarin": "陌生人",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "人称·指代"
+      ],
+      "attributes": {
+        "phonetic": "mo sheng ren"
+      }
+    },
+    {
+      "id": "hangzhou-0018",
+      "normalized": "啥个",
+      "display": "啥个",
+      "mandarin": "什么",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "sa ge"
+      }
+    },
+    {
+      "id": "hangzhou-0019",
+      "normalized": "啥个事体",
+      "display": "啥个事体",
+      "mandarin": "什么事",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "sa ge shi ti"
+      }
+    },
+    {
+      "id": "hangzhou-0020",
+      "normalized": "设个地方",
+      "display": "设个地方",
+      "mandarin": "哪里",
+      "aliases": [],
+      "notes": [
+        "原表同时对应\"什么地方\""
+      ],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "sa ge di fang"
+      }
+    },
+    {
+      "id": "hangzhou-0021",
+      "normalized": "噶个",
+      "display": "噶个",
+      "mandarin": "怎么",
+      "aliases": [
+        "介个"
+      ],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "ga ge / jie ge"
+      }
+    },
+    {
+      "id": "hangzhou-0022",
+      "normalized": "介个套",
+      "display": "介个套",
+      "mandarin": "怎么样",
+      "aliases": [
+        "噶套",
+        "噶个套"
+      ],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "jie ge tao / ga tao / ga ge tao"
+      }
+    },
+    {
+      "id": "hangzhou-0023",
+      "normalized": "为啥啦",
+      "display": "为啥啦",
+      "mandarin": "为什么",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "wei sa la"
+      }
+    },
+    {
+      "id": "hangzhou-0024",
+      "normalized": "多少",
+      "display": "多少",
+      "mandarin": "多少",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "duo shao"
+      }
+    },
+    {
+      "id": "hangzhou-0025",
+      "normalized": "设个辰光",
+      "display": "设个辰光",
+      "mandarin": "什么时候",
+      "aliases": [
+        "设个神光"
+      ],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "sa ge zen guang / sa ge shen guang"
+      }
+    },
+    {
+      "id": "hangzhou-0026",
+      "normalized": "几个人",
+      "display": "几个人",
+      "mandarin": "几个人",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "疑问词"
+      ],
+      "attributes": {
+        "phonetic": "ji ge ren"
+      }
+    },
+    {
+      "id": "hangzhou-0027",
+      "normalized": "今朝",
+      "display": "今朝",
+      "mandarin": "今天",
+      "aliases": [
+        "跟早"
+      ],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "zen zao (jin zao) / gen zao"
+      }
+    },
+    {
+      "id": "hangzhou-0028",
+      "normalized": "明朝",
+      "display": "明朝",
+      "mandarin": "明天",
+      "aliases": [
+        "门朝"
+      ],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "men zao"
+      }
+    },
+    {
+      "id": "hangzhou-0029",
+      "normalized": "昨天",
+      "display": "昨天",
+      "mandarin": "昨天",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "zuo tian"
+      }
+    },
+    {
+      "id": "hangzhou-0030",
+      "normalized": "前天",
+      "display": "前天",
+      "mandarin": "前天",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "qian tian"
+      }
+    },
+    {
+      "id": "hangzhou-0031",
+      "normalized": "后天",
+      "display": "后天",
+      "mandarin": "后天",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "hou tian"
+      }
+    },
+    {
+      "id": "hangzhou-0032",
+      "normalized": "早盖头",
+      "display": "早盖头",
+      "mandarin": "早上",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "zao gai tou"
+      }
+    },
+    {
+      "id": "hangzhou-0033",
+      "normalized": "早上头",
+      "display": "早上头",
+      "mandarin": "上午",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "zao shang tou"
+      }
+    },
+    {
+      "id": "hangzhou-0034",
+      "normalized": "中午边",
+      "display": "中午边",
+      "mandarin": "中午",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "zhong wu bian"
+      }
+    },
+    {
+      "id": "hangzhou-0035",
+      "normalized": "下午",
+      "display": "下午",
+      "mandarin": "下午",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "ya wu"
+      }
+    },
+    {
+      "id": "hangzhou-0036",
+      "normalized": "晚快边",
+      "display": "晚快边",
+      "mandarin": "傍晚",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "wan kua bi"
+      }
+    },
+    {
+      "id": "hangzhou-0037",
+      "normalized": "夜里",
+      "display": "夜里",
+      "mandarin": "晚上",
+      "aliases": [
+        "夜到头"
+      ],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "ya li / ya dao tou"
+      }
+    },
+    {
+      "id": "hangzhou-0038",
+      "normalized": "日里",
+      "display": "日里",
+      "mandarin": "白天",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "re li"
+      }
+    },
+    {
+      "id": "hangzhou-0039",
+      "normalized": "葛毛",
+      "display": "葛毛",
+      "mandarin": "现在",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "ge mau"
+      }
+    },
+    {
+      "id": "hangzhou-0040",
+      "normalized": "头毛",
+      "display": "头毛",
+      "mandarin": "刚才",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "dou mau"
+      }
+    },
+    {
+      "id": "hangzhou-0041",
+      "normalized": "以前",
+      "display": "以前",
+      "mandarin": "以前",
+      "aliases": [
+        "从前",
+        "老底子",
+        "前毛子"
+      ],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "yi qian / cong qian / lao di zi / qian mao zi"
+      }
+    },
+    {
+      "id": "hangzhou-0042",
+      "normalized": "后头",
+      "display": "后头",
+      "mandarin": "以后",
+      "aliases": [
+        "下卯"
+      ],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "hou dou / ya mao"
+      }
+    },
+    {
+      "id": "hangzhou-0043",
+      "normalized": "长远",
+      "display": "长远",
+      "mandarin": "永远",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "chang yuan"
+      }
+    },
+    {
+      "id": "hangzhou-0044",
+      "normalized": "专门",
+      "display": "专门",
+      "mandarin": "经常",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "zhuan men"
+      }
+    },
+    {
+      "id": "hangzhou-0045",
+      "normalized": "有辰光",
+      "display": "有辰光",
+      "mandarin": "偶尔",
+      "aliases": [
+        "偶尔",
+        "有歇把儿"
+      ],
+      "notes": [],
+      "tags": [
+        "时间"
+      ],
+      "attributes": {
+        "phonetic": "you cheng guang / ou er / you xie ba er"
+      }
+    },
+    {
+      "id": "hangzhou-0046",
+      "normalized": "格哩",
+      "display": "格哩",
+      "mandarin": "这里",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "ge li"
+      }
+    },
+    {
+      "id": "hangzhou-0047",
+      "normalized": "拉里",
+      "display": "拉里",
+      "mandarin": "那里",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "la li"
+      }
+    },
+    {
+      "id": "hangzhou-0048",
+      "normalized": "左手边",
+      "display": "左手边",
+      "mandarin": "左边",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "tsoq sei bi"
+      }
+    },
+    {
+      "id": "hangzhou-0049",
+      "normalized": "右手边",
+      "display": "右手边",
+      "mandarin": "右边",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "hei sei bi"
+      }
+    },
+    {
+      "id": "hangzhou-0050",
+      "normalized": "高头",
+      "display": "高头",
+      "mandarin": "上面",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "gau deu"
+      }
+    },
+    {
+      "id": "hangzhou-0051",
+      "normalized": "下底",
+      "display": "下底",
+      "mandarin": "下面",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "xia di"
+      }
+    },
+    {
+      "id": "hangzhou-0052",
+      "normalized": "前头",
+      "display": "前头",
+      "mandarin": "前面",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "qian tou"
+      }
+    },
+    {
+      "id": "hangzhou-0053",
+      "normalized": "后头",
+      "display": "后头",
+      "mandarin": "后面",
+      "aliases": [],
+      "notes": [
+        "与\"以后\"同形，语义不同"
+      ],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "hei deu"
+      }
+    },
+    {
+      "id": "hangzhou-0054",
+      "normalized": "里向",
+      "display": "里向",
+      "mandarin": "里面",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "li shian"
+      }
+    },
+    {
+      "id": "hangzhou-0055",
+      "normalized": "外头",
+      "display": "外头",
+      "mandarin": "外面",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "wai tou"
+      }
+    },
+    {
+      "id": "hangzhou-0056",
+      "normalized": "屋里",
+      "display": "屋里",
+      "mandarin": "家里",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "u li"
+      }
+    },
+    {
+      "id": "hangzhou-0057",
+      "normalized": "屋里向",
+      "display": "屋里向",
+      "mandarin": "家里面",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "wu li xiang"
+      }
+    },
+    {
+      "id": "hangzhou-0058",
+      "normalized": "街高头",
+      "display": "街高头",
+      "mandarin": "街上",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "jie gao tou"
+      }
+    },
+    {
+      "id": "hangzhou-0059",
+      "normalized": "门外头",
+      "display": "门外头",
+      "mandarin": "屋外",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "men wai tou"
+      }
+    },
+    {
+      "id": "hangzhou-0060",
+      "normalized": "学校",
+      "display": "学校",
+      "mandarin": "学校",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "yue yao"
+      }
+    },
+    {
+      "id": "hangzhou-0061",
+      "normalized": "屋里头",
+      "display": "屋里头",
+      "mandarin": "家里头",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "方位·地点"
+      ],
+      "attributes": {
+        "phonetic": "u li deu"
+      }
+    },
+    {
+      "id": "hangzhou-0062",
+      "normalized": "面孔",
+      "display": "面孔",
+      "mandarin": "脸",
+      "aliases": [
+        "脸孔"
+      ],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "mian kong / lian kong"
+      }
+    },
+    {
+      "id": "hangzhou-0063",
+      "normalized": "眼乌珠",
+      "display": "眼乌珠",
+      "mandarin": "眼睛",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "yan wu zhu"
+      }
+    },
+    {
+      "id": "hangzhou-0064",
+      "normalized": "鼻头",
+      "display": "鼻头",
+      "mandarin": "鼻子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "bi tou"
+      }
+    },
+    {
+      "id": "hangzhou-0065",
+      "normalized": "头颈",
+      "display": "头颈",
+      "mandarin": "脖子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "dou jin"
+      }
+    },
+    {
+      "id": "hangzhou-0066",
+      "normalized": "手指头",
+      "display": "手指头",
+      "mandarin": "手指",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "shou zhi tou"
+      }
+    },
+    {
+      "id": "hangzhou-0067",
+      "normalized": "脚膀",
+      "display": "脚膀",
+      "mandarin": "腿",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "jie pang"
+      }
+    },
+    {
+      "id": "hangzhou-0068",
+      "normalized": "肚皮",
+      "display": "肚皮",
+      "mandarin": "肚子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "du bi"
+      }
+    },
+    {
+      "id": "hangzhou-0069",
+      "normalized": "背脊",
+      "display": "背脊",
+      "mandarin": "背",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "bei ji"
+      }
+    },
+    {
+      "id": "hangzhou-0070",
+      "normalized": "肩胛",
+      "display": "肩胛",
+      "mandarin": "肩膀",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "身体部位"
+      ],
+      "attributes": {
+        "phonetic": "jian jia"
+      }
+    },
+    {
+      "id": "hangzhou-0071",
+      "normalized": "话",
+      "display": "话",
+      "mandarin": "说",
+      "aliases": [
+        "窝",
+        "讲"
+      ],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "wa / wo / jiang"
+      }
+    },
+    {
+      "id": "hangzhou-0072",
+      "normalized": "吃",
+      "display": "吃",
+      "mandarin": "喝",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "chi"
+      }
+    },
+    {
+      "id": "hangzhou-0073",
+      "normalized": "拨",
+      "display": "拨",
+      "mandarin": "给",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "ba"
+      }
+    },
+    {
+      "id": "hangzhou-0074",
+      "normalized": "放",
+      "display": "放",
+      "mandarin": "放",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "fang"
+      }
+    },
+    {
+      "id": "hangzhou-0075",
+      "normalized": "跑",
+      "display": "跑",
+      "mandarin": "跑",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "pao"
+      }
+    },
+    {
+      "id": "hangzhou-0076",
+      "normalized": "立",
+      "display": "立",
+      "mandarin": "站",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "li"
+      }
+    },
+    {
+      "id": "hangzhou-0077",
+      "normalized": "睏",
+      "display": "睏",
+      "mandarin": "睡",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "kun"
+      }
+    },
+    {
+      "id": "hangzhou-0078",
+      "normalized": "汏",
+      "display": "汏",
+      "mandarin": "洗",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "da"
+      }
+    },
+    {
+      "id": "hangzhou-0079",
+      "normalized": "晓得",
+      "display": "晓得",
+      "mandarin": "知道",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "xiao de"
+      }
+    },
+    {
+      "id": "hangzhou-0080",
+      "normalized": "拔晓得",
+      "display": "拔晓得",
+      "mandarin": "不知道",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "ba xiao de"
+      }
+    },
+    {
+      "id": "hangzhou-0081",
+      "normalized": "回来",
+      "display": "回来",
+      "mandarin": "回来",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "hui lai"
+      }
+    },
+    {
+      "id": "hangzhou-0082",
+      "normalized": "搞搞儿",
+      "display": "搞搞儿",
+      "mandarin": "玩",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "gao gao er"
+      }
+    },
+    {
+      "id": "hangzhou-0083",
+      "normalized": "闹架儿",
+      "display": "闹架儿",
+      "mandarin": "吵架",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "nao jia er"
+      }
+    },
+    {
+      "id": "hangzhou-0084",
+      "normalized": "寻",
+      "display": "寻",
+      "mandarin": "找",
+      "aliases": [
+        "秦"
+      ],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "xun / qin"
+      }
+    },
+    {
+      "id": "hangzhou-0085",
+      "normalized": "窝话语",
+      "display": "窝话语",
+      "mandarin": "说话",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "wo hua yu"
+      }
+    },
+    {
+      "id": "hangzhou-0086",
+      "normalized": "打招呼",
+      "display": "打招呼",
+      "mandarin": "打招呼",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "da zhao hu"
+      }
+    },
+    {
+      "id": "hangzhou-0087",
+      "normalized": "帮忙",
+      "display": "帮忙",
+      "mandarin": "帮忙",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "bang mang"
+      }
+    },
+    {
+      "id": "hangzhou-0088",
+      "normalized": "歇",
+      "display": "歇",
+      "mandarin": "休息",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "xie"
+      }
+    },
+    {
+      "id": "hangzhou-0089",
+      "normalized": "歇一歇",
+      "display": "歇一歇",
+      "mandarin": "休息一下",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "xie yi xie"
+      }
+    },
+    {
+      "id": "hangzhou-0090",
+      "normalized": "做生活",
+      "display": "做生活",
+      "mandarin": "干活",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "zuo sheng huo"
+      }
+    },
+    {
+      "id": "hangzhou-0091",
+      "normalized": "做事体",
+      "display": "做事体",
+      "mandarin": "工作",
+      "aliases": [
+        "工作"
+      ],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "zuo shi ti / gong zuo"
+      }
+    },
+    {
+      "id": "hangzhou-0092",
+      "normalized": "收做",
+      "display": "收做",
+      "mandarin": "打扫",
+      "aliases": [],
+      "notes": [
+        "原表同时对应\"整理\""
+      ],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "shou zuo"
+      }
+    },
+    {
+      "id": "hangzhou-0093",
+      "normalized": "揩",
+      "display": "揩",
+      "mandarin": "擦",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "kai"
+      }
+    },
+    {
+      "id": "hangzhou-0094",
+      "normalized": "揩汗",
+      "display": "揩汗",
+      "mandarin": "擦汗",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "ka han"
+      }
+    },
+    {
+      "id": "hangzhou-0095",
+      "normalized": "强",
+      "display": "强",
+      "mandarin": "抢",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "qiang"
+      }
+    },
+    {
+      "id": "hangzhou-0096",
+      "normalized": "寄",
+      "display": "寄",
+      "mandarin": "借",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "ji"
+      }
+    },
+    {
+      "id": "hangzhou-0097",
+      "normalized": "汏东西",
+      "display": "汏东西",
+      "mandarin": "洗东西",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "动作·行为"
+      ],
+      "attributes": {
+        "phonetic": "da dong xi"
+      }
+    },
+    {
+      "id": "hangzhou-0098",
+      "normalized": "洋番薯",
+      "display": "洋番薯",
+      "mandarin": "土豆",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "yan fan ru"
+      }
+    },
+    {
+      "id": "hangzhou-0099",
+      "normalized": "馒头",
+      "display": "馒头",
+      "mandarin": "包子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "mo di (mo dou)"
+      }
+    },
+    {
+      "id": "hangzhou-0100",
+      "normalized": "面",
+      "display": "面",
+      "mandarin": "面条",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "mie"
+      }
+    },
+    {
+      "id": "hangzhou-0101",
+      "normalized": "水饺",
+      "display": "水饺",
+      "mandarin": "饺子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "shui jiao"
+      }
+    },
+    {
+      "id": "hangzhou-0102",
+      "normalized": "筷儿",
+      "display": "筷儿",
+      "mandarin": "筷子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "kuai r"
+      }
+    },
+    {
+      "id": "hangzhou-0103",
+      "normalized": "瓢羹儿",
+      "display": "瓢羹儿",
+      "mandarin": "勺子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "piao gen er"
+      }
+    },
+    {
+      "id": "hangzhou-0104",
+      "normalized": "饭落儿",
+      "display": "饭落儿",
+      "mandarin": "饭盒",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "fan luo er"
+      }
+    },
+    {
+      "id": "hangzhou-0105",
+      "normalized": "吃酒",
+      "display": "吃酒",
+      "mandarin": "喝酒",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "qie qiu"
+      }
+    },
+    {
+      "id": "hangzhou-0106",
+      "normalized": "吃茶",
+      "display": "吃茶",
+      "mandarin": "喝茶",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "qie cha (qiu)"
+      }
+    },
+    {
+      "id": "hangzhou-0107",
+      "normalized": "烧饭",
+      "display": "烧饭",
+      "mandarin": "做饭",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "sao fan"
+      }
+    },
+    {
+      "id": "hangzhou-0108",
+      "normalized": "烧菜",
+      "display": "烧菜",
+      "mandarin": "做菜",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "sao cai"
+      }
+    },
+    {
+      "id": "hangzhou-0109",
+      "normalized": "焖饭",
+      "display": "焖饭",
+      "mandarin": "煮饭",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "men fan"
+      }
+    },
+    {
+      "id": "hangzhou-0110",
+      "normalized": "捏饭",
+      "display": "捏饭",
+      "mandarin": "热饭",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "饮食"
+      ],
+      "attributes": {
+        "phonetic": "nie fan"
+      }
+    },
+    {
+      "id": "hangzhou-0111",
+      "normalized": "衣裳",
+      "display": "衣裳",
+      "mandarin": "衣服",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "yii shang"
+      }
+    },
+    {
+      "id": "hangzhou-0112",
+      "normalized": "裤子",
+      "display": "裤子",
+      "mandarin": "裤子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "ku zi"
+      }
+    },
+    {
+      "id": "hangzhou-0113",
+      "normalized": "毛线衫",
+      "display": "毛线衫",
+      "mandarin": "毛衣",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "mao xian shan"
+      }
+    },
+    {
+      "id": "hangzhou-0114",
+      "normalized": "鞋子",
+      "display": "鞋子",
+      "mandarin": "鞋子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "xie zi"
+      }
+    },
+    {
+      "id": "hangzhou-0115",
+      "normalized": "袜儿",
+      "display": "袜儿",
+      "mandarin": "袜子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "me er"
+      }
+    },
+    {
+      "id": "hangzhou-0116",
+      "normalized": "帽儿",
+      "display": "帽儿",
+      "mandarin": "帽子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "mao er"
+      }
+    },
+    {
+      "id": "hangzhou-0117",
+      "normalized": "皮革儿",
+      "display": "皮革儿",
+      "mandarin": "钱包",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "bi ge er"
+      }
+    },
+    {
+      "id": "hangzhou-0118",
+      "normalized": "毛纸",
+      "display": "毛纸",
+      "mandarin": "卫生纸",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "mao zhi"
+      }
+    },
+    {
+      "id": "hangzhou-0119",
+      "normalized": "棉皮",
+      "display": "棉皮",
+      "mandarin": "被子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "mian bi"
+      }
+    },
+    {
+      "id": "hangzhou-0120",
+      "normalized": "凳儿",
+      "display": "凳儿",
+      "mandarin": "凳子",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "衣物·日常"
+      ],
+      "attributes": {
+        "phonetic": "deng er"
+      }
+    },
+    {
+      "id": "hangzhou-0121",
+      "normalized": "拔好",
+      "display": "拔好",
+      "mandarin": "不好",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "ba hao"
+      }
+    },
+    {
+      "id": "hangzhou-0122",
+      "normalized": "小",
+      "display": "小",
+      "mandarin": "小",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "xiao"
+      }
+    },
+    {
+      "id": "hangzhou-0123",
+      "normalized": "清爽",
+      "display": "清爽",
+      "mandarin": "干净",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "qing sang"
+      }
+    },
+    {
+      "id": "hangzhou-0124",
+      "normalized": "奉",
+      "display": "奉",
+      "mandarin": "脏",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "fong"
+      }
+    },
+    {
+      "id": "hangzhou-0125",
+      "normalized": "好看",
+      "display": "好看",
+      "mandarin": "漂亮",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "hao kan"
+      }
+    },
+    {
+      "id": "hangzhou-0126",
+      "normalized": "惬意",
+      "display": "惬（音:夏）意",
+      "mandarin": "舒服",
+      "aliases": [],
+      "notes": [
+        "原表标注\"音:夏\""
+      ],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "xia yi"
+      }
+    },
+    {
+      "id": "hangzhou-0127",
+      "normalized": "吃力",
+      "display": "吃力",
+      "mandarin": "累",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "qie li"
+      }
+    },
+    {
+      "id": "hangzhou-0128",
+      "normalized": "蛮",
+      "display": "蛮",
+      "mandarin": "很",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "man"
+      }
+    },
+    {
+      "id": "hangzhou-0129",
+      "normalized": "木佬佬",
+      "display": "木佬佬",
+      "mandarin": "非常",
+      "aliases": [
+        "顶盖好",
+        "尽该好",
+        "毛多嘞"
+      ],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "mu lao lao / ding gai hao / mao duo lei"
+      }
+    },
+    {
+      "id": "hangzhou-0130",
+      "normalized": "真当",
+      "display": "真当",
+      "mandarin": "真的",
+      "aliases": [],
+      "notes": [
+        "原表同时对应\"真是\""
+      ],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "zhen dang"
+      }
+    },
+    {
+      "id": "hangzhou-0131",
+      "normalized": "假滴",
+      "display": "假滴",
+      "mandarin": "假的",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "jia di"
+      }
+    },
+    {
+      "id": "hangzhou-0132",
+      "normalized": "便当",
+      "display": "便当",
+      "mandarin": "容易",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "bian dang"
+      }
+    },
+    {
+      "id": "hangzhou-0133",
+      "normalized": "难",
+      "display": "难",
+      "mandarin": "困难",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "nan"
+      }
+    },
+    {
+      "id": "hangzhou-0134",
+      "normalized": "健旺",
+      "display": "健旺",
+      "mandarin": "健康",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "jian wang"
+      }
+    },
+    {
+      "id": "hangzhou-0135",
+      "normalized": "发火",
+      "display": "发火",
+      "mandarin": "生气",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "fa huo"
+      }
+    },
+    {
+      "id": "hangzhou-0136",
+      "normalized": "高兴",
+      "display": "高兴",
+      "mandarin": "高兴",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "gao xing"
+      }
+    },
+    {
+      "id": "hangzhou-0137",
+      "normalized": "难过",
+      "display": "难过",
+      "mandarin": "难过",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "nan gu"
+      }
+    },
+    {
+      "id": "hangzhou-0138",
+      "normalized": "笃定",
+      "display": "笃定",
+      "mandarin": "放心",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "du ding"
+      }
+    },
+    {
+      "id": "hangzhou-0139",
+      "normalized": "担心",
+      "display": "担心",
+      "mandarin": "担心",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "dan xin"
+      }
+    },
+    {
+      "id": "hangzhou-0140",
+      "normalized": "急",
+      "display": "急",
+      "mandarin": "着急",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "ji"
+      }
+    },
+    {
+      "id": "hangzhou-0141",
+      "normalized": "安静",
+      "display": "安静",
+      "mandarin": "安静",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "an jing"
+      }
+    },
+    {
+      "id": "hangzhou-0142",
+      "normalized": "闹热",
+      "display": "闹热",
+      "mandarin": "热闹",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "nao re"
+      }
+    },
+    {
+      "id": "hangzhou-0143",
+      "normalized": "清静",
+      "display": "清静",
+      "mandarin": "安静",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "qing jing"
+      }
+    },
+    {
+      "id": "hangzhou-0144",
+      "normalized": "齐整",
+      "display": "齐整",
+      "mandarin": "整齐",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "qi zheng"
+      }
+    },
+    {
+      "id": "hangzhou-0145",
+      "normalized": "平常",
+      "display": "平常",
+      "mandarin": "普通",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "ping chang"
+      }
+    },
+    {
+      "id": "hangzhou-0146",
+      "normalized": "眯道",
+      "display": "眯道",
+      "mandarin": "味道",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "mi dao"
+      }
+    },
+    {
+      "id": "hangzhou-0147",
+      "normalized": "硬福",
+      "display": "硬福",
+      "mandarin": "幸福",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "ying fu"
+      }
+    },
+    {
+      "id": "hangzhou-0148",
+      "normalized": "个么",
+      "display": "个么",
+      "mandarin": "这么",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "ge me"
+      }
+    },
+    {
+      "id": "hangzhou-0149",
+      "normalized": "搞七捻三",
+      "display": "搞七捻三",
+      "mandarin": "造谣生事",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "gao qi nian san"
+      }
+    },
+    {
+      "id": "hangzhou-0150",
+      "normalized": "厉害",
+      "display": "结棍",
+      "mandarin": "厉害",
+      "aliases": [
+        "结棍",
+        "闹猛"
+      ],
+      "notes": [
+        "原表\"结棍\"对应普通话\"厉害\"，\"闹猛\"也对应\"厉害\""
+      ],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "jie gun / lv / nao meng"
+      }
+    },
+    {
+      "id": "hangzhou-0151",
+      "normalized": "轧闹猛",
+      "display": "轧闹猛",
+      "mandarin": "凑热闹",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "za nao meng"
+      }
+    },
+    {
+      "id": "hangzhou-0152",
+      "normalized": "特别",
+      "display": "特别",
+      "mandarin": "特别",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "形容词"
+      ],
+      "attributes": {
+        "phonetic": "de bie"
+      }
+    },
+    {
+      "id": "hangzhou-0153",
+      "normalized": "不",
+      "display": "不",
+      "mandarin": "不",
+      "aliases": [
+        "弗"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "bu / fu/fa"
+      }
+    },
+    {
+      "id": "hangzhou-0154",
+      "normalized": "要弗要",
+      "display": "要弗要",
+      "mandarin": "要不要",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "yao fa yao"
+      }
+    },
+    {
+      "id": "hangzhou-0155",
+      "normalized": "么有",
+      "display": "么有",
+      "mandarin": "没有",
+      "aliases": [
+        "呒没"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "m you / me me"
+      }
+    },
+    {
+      "id": "hangzhou-0156",
+      "normalized": "表",
+      "display": "表",
+      "mandarin": "不要",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "biao"
+      }
+    },
+    {
+      "id": "hangzhou-0157",
+      "normalized": "表得",
+      "display": "表得",
+      "mandarin": "不用",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "biao de"
+      }
+    },
+    {
+      "id": "hangzhou-0158",
+      "normalized": "背得",
+      "display": "背得",
+      "mandarin": "不会",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "bei de"
+      }
+    },
+    {
+      "id": "hangzhou-0159",
+      "normalized": "都",
+      "display": "都",
+      "mandarin": "都",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "dou"
+      }
+    },
+    {
+      "id": "hangzhou-0160",
+      "normalized": "特为",
+      "display": "特为",
+      "mandarin": "故意",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "de wei"
+      }
+    },
+    {
+      "id": "hangzhou-0161",
+      "normalized": "估摸",
+      "display": "估摸",
+      "mandarin": "大概",
+      "aliases": [
+        "大概"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "gu mo / da gai"
+      }
+    },
+    {
+      "id": "hangzhou-0162",
+      "normalized": "好像",
+      "display": "好像",
+      "mandarin": "好像",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "hao xiang"
+      }
+    },
+    {
+      "id": "hangzhou-0163",
+      "normalized": "或许",
+      "display": "或许",
+      "mandarin": "也许",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "huo xu"
+      }
+    },
+    {
+      "id": "hangzhou-0164",
+      "normalized": "只好",
+      "display": "只好",
+      "mandarin": "只好",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "zhi hao"
+      }
+    },
+    {
+      "id": "hangzhou-0165",
+      "normalized": "嘦",
+      "display": "嘦",
+      "mandarin": "只要",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "jiao"
+      }
+    },
+    {
+      "id": "hangzhou-0166",
+      "normalized": "尽量",
+      "display": "尽量",
+      "mandarin": "尽量",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "jin liang"
+      }
+    },
+    {
+      "id": "hangzhou-0167",
+      "normalized": "差拔多",
+      "display": "差拔多",
+      "mandarin": "差不多",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "cha ba duo"
+      }
+    },
+    {
+      "id": "hangzhou-0168",
+      "normalized": "拔得了",
+      "display": "拔得了",
+      "mandarin": "不得了",
+      "aliases": [
+        "要命"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "ba de liao / yao min"
+      }
+    },
+    {
+      "id": "hangzhou-0169",
+      "normalized": "吧",
+      "display": "吧",
+      "mandarin": "吧",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "ba"
+      }
+    },
+    {
+      "id": "hangzhou-0170",
+      "normalized": "了",
+      "display": "了",
+      "mandarin": "了",
+      "aliases": [
+        "勒"
+      ],
+      "notes": [
+        "\"勒\"同时对应\"着\""
+      ],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "le / lei"
+      }
+    },
+    {
+      "id": "hangzhou-0171",
+      "normalized": "个",
+      "display": "个",
+      "mandarin": "的",
+      "aliases": [
+        "的",
+        "滴"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "ge / de / di"
+      }
+    },
+    {
+      "id": "hangzhou-0172",
+      "normalized": "啊",
+      "display": "啊",
+      "mandarin": "也",
+      "aliases": [],
+      "notes": [
+        "原表同时对应\"还\""
+      ],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "a"
+      }
+    },
+    {
+      "id": "hangzhou-0173",
+      "normalized": "语尾加语气助词",
+      "display": "语尾加了语气助词，就代表吗",
+      "mandarin": "吗",
+      "aliases": [],
+      "notes": [
+        "原表方言正字为整句说明"
+      ],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "va"
+      }
+    },
+    {
+      "id": "hangzhou-0174",
+      "normalized": "呐",
+      "display": "呐",
+      "mandarin": "呢",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "na"
+      }
+    },
+    {
+      "id": "hangzhou-0175",
+      "normalized": "嘞",
+      "display": "嘞",
+      "mandarin": "啦",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "lei"
+      }
+    },
+    {
+      "id": "hangzhou-0176",
+      "normalized": "唷",
+      "display": "唷",
+      "mandarin": "哟",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "you"
+      }
+    },
+    {
+      "id": "hangzhou-0177",
+      "normalized": "发靥",
+      "display": "发靥",
+      "mandarin": "可笑、有趣",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "fa yeah"
+      }
+    },
+    {
+      "id": "hangzhou-0178",
+      "normalized": "格个",
+      "display": "格个",
+      "mandarin": "这个",
+      "aliases": [
+        "就个",
+        "介个"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "ge ge / jiu ge / jie ge"
+      }
+    },
+    {
+      "id": "hangzhou-0179",
+      "normalized": "格样",
+      "display": "格样",
+      "mandarin": "这样",
+      "aliases": [
+        "噶个",
+        "噶样"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "ge yang / ga ge / ga yang"
+      }
+    },
+    {
+      "id": "hangzhou-0180",
+      "normalized": "设个套",
+      "display": "设个套",
+      "mandarin": "这样的话",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "she ge tao"
+      }
+    },
+    {
+      "id": "hangzhou-0181",
+      "normalized": "来动",
+      "display": "来动",
+      "mandarin": "在",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "lai dong"
+      }
+    },
+    {
+      "id": "hangzhou-0182",
+      "normalized": "介",
+      "display": "介",
+      "mandarin": "这",
+      "aliases": [
+        "格"
+      ],
+      "notes": [],
+      "tags": [
+        "常用副词·助词"
+      ],
+      "attributes": {
+        "phonetic": "jie / ge"
+      }
+    },
+    {
+      "id": "hangzhou-0183",
+      "normalized": "好了",
+      "display": "好了",
+      "mandarin": "好了",
+      "aliases": [
+        "好哉",
+        "好的"
+      ],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "hao le / hao zai / hao de"
+      }
+    },
+    {
+      "id": "hangzhou-0184",
+      "normalized": "没",
+      "display": "没",
+      "mandarin": "没有",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "me"
+      }
+    },
+    {
+      "id": "hangzhou-0185",
+      "normalized": "对不起",
+      "display": "对不起",
+      "mandarin": "对不起",
+      "aliases": [
+        "对勿起"
+      ],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "dui bu qi / dui wu qi"
+      }
+    },
+    {
+      "id": "hangzhou-0186",
+      "normalized": "表紧滴",
+      "display": "表紧滴",
+      "mandarin": "没关系",
+      "aliases": [
+        "勿要紧"
+      ],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao jin di / wu yao jin"
+      }
+    },
+    {
+      "id": "hangzhou-0187",
+      "normalized": "表得谢",
+      "display": "表得谢",
+      "mandarin": "不用谢",
+      "aliases": [
+        "勿用谢"
+      ],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao de jia / wu yong jia"
+      }
+    },
+    {
+      "id": "hangzhou-0188",
+      "normalized": "再会",
+      "display": "再会",
+      "mandarin": "再见",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "zai wei"
+      }
+    },
+    {
+      "id": "hangzhou-0189",
+      "normalized": "慢些儿走",
+      "display": "慢些儿走",
+      "mandarin": "慢走",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "man xie er zou"
+      }
+    },
+    {
+      "id": "hangzhou-0190",
+      "normalized": "当心",
+      "display": "当心",
+      "mandarin": "小心",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "dang xin"
+      }
+    },
+    {
+      "id": "hangzhou-0191",
+      "normalized": "慢点儿",
+      "display": "慢点儿",
+      "mandarin": "慢点",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "man dian er"
+      }
+    },
+    {
+      "id": "hangzhou-0192",
+      "normalized": "拔来噻",
+      "display": "拔来噻",
+      "mandarin": "不行",
+      "aliases": [
+        "不来事"
+      ],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "ba lai shi / bu lai shi"
+      }
+    },
+    {
+      "id": "hangzhou-0193",
+      "normalized": "来事",
+      "display": "来事",
+      "mandarin": "行",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "lai shi"
+      }
+    },
+    {
+      "id": "hangzhou-0194",
+      "normalized": "来不来事",
+      "display": "来不来事",
+      "mandarin": "行不行",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "lai bu lai shi"
+      }
+    },
+    {
+      "id": "hangzhou-0195",
+      "normalized": "好滴",
+      "display": "好滴",
+      "mandarin": "好的",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "hao di"
+      }
+    },
+    {
+      "id": "hangzhou-0196",
+      "normalized": "晓得的",
+      "display": "晓得的",
+      "mandarin": "知道了",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "xiao de di"
+      }
+    },
+    {
+      "id": "hangzhou-0197",
+      "normalized": "坐落来",
+      "display": "坐落来",
+      "mandarin": "坐下",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "zuo lao lai / zuo luo lai"
+      }
+    },
+    {
+      "id": "hangzhou-0198",
+      "normalized": "立起来",
+      "display": "立起来",
+      "mandarin": "站起来",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "li chi lei / li qi lai"
+      }
+    },
+    {
+      "id": "hangzhou-0199",
+      "normalized": "睏倒",
+      "display": "睏倒",
+      "mandarin": "躺下",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "kun dao"
+      }
+    },
+    {
+      "id": "hangzhou-0200",
+      "normalized": "回转去",
+      "display": "回转去",
+      "mandarin": "回去",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "hui zhuan qi"
+      }
+    },
+    {
+      "id": "hangzhou-0201",
+      "normalized": "回去",
+      "display": "回去",
+      "mandarin": "回家",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "hui qu qi / hui qi"
+      }
+    },
+    {
+      "id": "hangzhou-0202",
+      "normalized": "关电灯",
+      "display": "关电灯",
+      "mandarin": "关灯",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "guan dia deng"
+      }
+    },
+    {
+      "id": "hangzhou-0203",
+      "normalized": "吃好的",
+      "display": "吃好的",
+      "mandarin": "吃好了",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "chi hao de"
+      }
+    },
+    {
+      "id": "hangzhou-0204",
+      "normalized": "汏浴",
+      "display": "汏浴",
+      "mandarin": "洗澡",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "da yue"
+      }
+    },
+    {
+      "id": "hangzhou-0205",
+      "normalized": "睏觉",
+      "display": "睏觉",
+      "mandarin": "睡觉",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "kun kau"
+      }
+    },
+    {
+      "id": "hangzhou-0206",
+      "normalized": "睏醒",
+      "display": "睏醒",
+      "mandarin": "睡醒",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "kun xing"
+      }
+    },
+    {
+      "id": "hangzhou-0207",
+      "normalized": "爬起来",
+      "display": "爬起来",
+      "mandarin": "起床",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "pa qi lai"
+      }
+    },
+    {
+      "id": "hangzhou-0208",
+      "normalized": "没空",
+      "display": "没空",
+      "mandarin": "没空",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "men kon"
+      }
+    },
+    {
+      "id": "hangzhou-0209",
+      "normalized": "蛮好搞滴",
+      "display": "蛮好搞滴",
+      "mandarin": "好玩",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "man hao gao di"
+      }
+    },
+    {
+      "id": "hangzhou-0210",
+      "normalized": "拔好搞",
+      "display": "拔好搞",
+      "mandarin": "不好玩",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "ba hao gao"
+      }
+    },
+    {
+      "id": "hangzhou-0211",
+      "normalized": "多少钞票",
+      "display": "多少钞票",
+      "mandarin": "多少钱",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "duo shao chao piao"
+      }
+    },
+    {
+      "id": "hangzhou-0212",
+      "normalized": "行钿",
+      "display": "行钿",
+      "mandarin": "钱",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "hang nian"
+      }
+    },
+    {
+      "id": "hangzhou-0213",
+      "normalized": "便宜",
+      "display": "便宜",
+      "mandarin": "便宜",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "pian yi"
+      }
+    },
+    {
+      "id": "hangzhou-0214",
+      "normalized": "标致",
+      "display": "标致",
+      "mandarin": "好看",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao zhi"
+      }
+    },
+    {
+      "id": "hangzhou-0215",
+      "normalized": "漂亮",
+      "display": "漂亮",
+      "mandarin": "漂亮",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "pian liang"
+      }
+    },
+    {
+      "id": "hangzhou-0216",
+      "normalized": "闹",
+      "display": "闹",
+      "mandarin": "吵",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "nau"
+      }
+    },
+    {
+      "id": "hangzhou-0217",
+      "normalized": "吵煞的",
+      "display": "吵煞的",
+      "mandarin": "吵死了",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "chao sa di"
+      }
+    },
+    {
+      "id": "hangzhou-0218",
+      "normalized": "风凉",
+      "display": "风凉",
+      "mandarin": "凉快",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "fon lian"
+      }
+    },
+    {
+      "id": "hangzhou-0219",
+      "normalized": "暖捏",
+      "display": "暖捏",
+      "mandarin": "暖和",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "noe nie"
+      }
+    },
+    {
+      "id": "hangzhou-0220",
+      "normalized": "痛",
+      "display": "痛",
+      "mandarin": "疼",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "tong"
+      }
+    },
+    {
+      "id": "hangzhou-0221",
+      "normalized": "拔舒服",
+      "display": "拔舒服",
+      "mandarin": "不舒服",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "ba shu fu"
+      }
+    },
+    {
+      "id": "hangzhou-0222",
+      "normalized": "没事体",
+      "display": "没事体",
+      "mandarin": "没事",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "mei shi ti"
+      }
+    },
+    {
+      "id": "hangzhou-0223",
+      "normalized": "当心点儿",
+      "display": "当心点儿",
+      "mandarin": "小心点",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "dang xin dian er"
+      }
+    },
+    {
+      "id": "hangzhou-0224",
+      "normalized": "慢慢交",
+      "display": "慢慢交",
+      "mandarin": "慢慢来",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "man man jiao"
+      }
+    },
+    {
+      "id": "hangzhou-0225",
+      "normalized": "快点儿",
+      "display": "快点儿",
+      "mandarin": "快点",
+      "aliases": [
+        "快些"
+      ],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "kuai dian er / kuai xie"
+      }
+    },
+    {
+      "id": "hangzhou-0226",
+      "normalized": "安静点儿",
+      "display": "安静点儿",
+      "mandarin": "安静点",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "an jing dian er"
+      }
+    },
+    {
+      "id": "hangzhou-0227",
+      "normalized": "表吵",
+      "display": "表吵",
+      "mandarin": "别吵",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao chao"
+      }
+    },
+    {
+      "id": "hangzhou-0228",
+      "normalized": "表闹",
+      "display": "表闹",
+      "mandarin": "别闹",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao nao"
+      }
+    },
+    {
+      "id": "hangzhou-0229",
+      "normalized": "表窝",
+      "display": "表窝",
+      "mandarin": "别说",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao wo"
+      }
+    },
+    {
+      "id": "hangzhou-0230",
+      "normalized": "表做",
+      "display": "表做",
+      "mandarin": "别做",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao zuo"
+      }
+    },
+    {
+      "id": "hangzhou-0231",
+      "normalized": "表吃",
+      "display": "表吃",
+      "mandarin": "别吃",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao chi"
+      }
+    },
+    {
+      "id": "hangzhou-0232",
+      "normalized": "表看",
+      "display": "表看",
+      "mandarin": "别看",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao kan"
+      }
+    },
+    {
+      "id": "hangzhou-0233",
+      "normalized": "表听",
+      "display": "表听",
+      "mandarin": "别听",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao ting"
+      }
+    },
+    {
+      "id": "hangzhou-0234",
+      "normalized": "表走",
+      "display": "表走",
+      "mandarin": "别走",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao zou"
+      }
+    },
+    {
+      "id": "hangzhou-0235",
+      "normalized": "表去",
+      "display": "表去",
+      "mandarin": "别去",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "biao qi"
+      }
+    },
+    {
+      "id": "hangzhou-0236",
+      "normalized": "啥子儿",
+      "display": "啥子儿",
+      "mandarin": "游玩",
+      "aliases": [],
+      "notes": [],
+      "tags": [
+        "常用短句"
+      ],
+      "attributes": {
+        "phonetic": "sha zi er"
+      }
+    },
+    {
+      "id": "hangzhou-0237",
+      "normalized": "搦",
+      "display": "搦",
+      "mandarin": "拿",
+      "aliases": [
+        "驮"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "nuo / tuo"
+      }
+    },
+    {
+      "id": "hangzhou-0238",
+      "normalized": "呆咕咕",
+      "display": "呆咕咕",
+      "mandarin": "傻",
+      "aliases": [
+        "傻"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "ai gu gu / sa"
+      }
+    },
+    {
+      "id": "hangzhou-0239",
+      "normalized": "摔跤",
+      "display": "摔跤",
+      "mandarin": "摔跤",
+      "aliases": [
+        "掼跤"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "shuai jiao / guai jiao"
+      }
+    },
+    {
+      "id": "hangzhou-0240",
+      "normalized": "爷爷",
+      "display": "爷爷",
+      "mandarin": "爷爷",
+      "aliases": [
+        "嗲嗲"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "ya ya / dia dia"
+      }
+    },
+    {
+      "id": "hangzhou-0241",
+      "normalized": "坐垃垓",
+      "display": "坐垃垓",
+      "mandarin": "坐着",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "zuo la gai"
+      }
+    },
+    {
+      "id": "hangzhou-0242",
+      "normalized": "交关",
+      "display": "交关",
+      "mandarin": "非常",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "jiao guan"
+      }
+    },
+    {
+      "id": "hangzhou-0243",
+      "normalized": "哦",
+      "display": "哦",
+      "mandarin": "噢，哦，嗷",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "ao / ou"
+      }
+    },
+    {
+      "id": "hangzhou-0244",
+      "normalized": "啦",
+      "display": "啦",
+      "mandarin": "啦",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "la"
+      }
+    },
+    {
+      "id": "hangzhou-0245",
+      "normalized": "轧勿进去",
+      "display": "轧勿进去",
+      "mandarin": "挤不进去",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "ga wu jin qu"
+      }
+    },
+    {
+      "id": "hangzhou-0246",
+      "normalized": "挨一挨",
+      "display": "挨一挨",
+      "mandarin": "挤一挤",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "a yi a"
+      }
+    },
+    {
+      "id": "hangzhou-0247",
+      "normalized": "捏水",
+      "display": "捏水",
+      "mandarin": "热水",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "nie shui"
+      }
+    },
+    {
+      "id": "hangzhou-0248",
+      "normalized": "寒毛子骨逗起",
+      "display": "寒毛子骨逗起",
+      "mandarin": "汗毛竖起来了",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "han mao zi gu dou qi"
+      }
+    },
+    {
+      "id": "hangzhou-0249",
+      "normalized": "逗起",
+      "display": "逗起",
+      "mandarin": "竖起",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "dou qi"
+      }
+    },
+    {
+      "id": "hangzhou-0250",
+      "normalized": "两记",
+      "display": "两记",
+      "mandarin": "两下",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "liang ji"
+      }
+    },
+    {
+      "id": "hangzhou-0251",
+      "normalized": "趁",
+      "display": "趁",
+      "mandarin": "赚",
+      "aliases": [
+        "赚"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "cen / zhai"
+      }
+    },
+    {
+      "id": "hangzhou-0252",
+      "normalized": "盝儿",
+      "display": "盝儿",
+      "mandarin": "盒子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "lu er"
+      }
+    },
+    {
+      "id": "hangzhou-0253",
+      "normalized": "拷门",
+      "display": "拷门",
+      "mandarin": "敲门",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "kao men"
+      }
+    },
+    {
+      "id": "hangzhou-0254",
+      "normalized": "告了",
+      "display": "告了",
+      "mandarin": "完了",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "gao le"
+      }
+    },
+    {
+      "id": "hangzhou-0255",
+      "normalized": "揢出",
+      "display": "揢出",
+      "mandarin": "掐出",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "ke chu"
+      }
+    },
+    {
+      "id": "hangzhou-0256",
+      "normalized": "时光",
+      "display": "时光",
+      "mandarin": "时候",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": ""
+      }
+    },
+    {
+      "id": "hangzhou-0257",
+      "normalized": "囥",
+      "display": "囥",
+      "mandarin": "藏",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "kang"
+      }
+    },
+    {
+      "id": "hangzhou-0258",
+      "normalized": "格算",
+      "display": "格算",
+      "mandarin": "划算",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": ""
+      }
+    },
+    {
+      "id": "hangzhou-0259",
+      "normalized": "熬稍",
+      "display": "熬稍",
+      "mandarin": "赶紧",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "ao shao"
+      }
+    },
+    {
+      "id": "hangzhou-0260",
+      "normalized": "架",
+      "display": "架",
+      "mandarin": "借",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "jia"
+      }
+    },
+    {
+      "id": "hangzhou-0261",
+      "normalized": "囊",
+      "display": "囊",
+      "mandarin": "硬",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "nang"
+      }
+    },
+    {
+      "id": "hangzhou-0262",
+      "normalized": "范着",
+      "display": "范着",
+      "mandarin": "实惠",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "fanshi"
+      }
+    },
+    {
+      "id": "hangzhou-0263",
+      "normalized": "皋皋我",
+      "display": "皋皋我",
+      "mandarin": "教教我",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "gaogaowo"
+      }
+    },
+    {
+      "id": "hangzhou-0264",
+      "normalized": "捏",
+      "display": "捏",
+      "mandarin": "热",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "phonetic": "nie"
+      }
+    }
+  ]
+}

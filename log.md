@@ -1,3 +1,15 @@
+## 2026-07-09（接入 Magic Data 杭州话 JSON 词表）
+- 新增 `platform-resources/magic-data/hangzhou-helper/backend/lexicon/hangzhou-lexicon.json`
+  - 按用户提供内容接入杭州话运行时主词表
+  - 仅补齐会阻断 `JSON.parse` 的引号转义，未改动词条语义结构
+- 更新文档：
+  - `extension/sites/magic-data/hangzhou-helper/README.md`
+  - `platform-resources/magic-data/README.md`
+  - `platform-resources/magic-data/hangzhou-helper/README.md`
+  - `platform-resources/magic-data/hangzhou-helper/backend/README.md`
+  - `platform-resources/magic-data/hangzhou-helper/backend/lexicon/README.md`
+  - 同步杭州话词表已正式接入、主读 JSON 文件名与缺失时降级口径
+
 ## 2026-07-08（希尔贝壳中英短剧脚本正式接入并新增当前媒体信息面板）
 - 新增 `extension/sites/aishell-tech/cn-en-short-drama/`
   - 接入 `data-api.js`、`ui-panel.js`、`content.js`

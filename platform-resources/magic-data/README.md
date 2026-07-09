@@ -32,9 +32,9 @@
 
 ## 杭州话当前边界
 
-- 只预留 `backend/lexicon/` 目录与文件命名，不在本轮复制或转换 `杭州方言正字表0509.xlsx`。
-- 词表缺失时，杭州话后端继续按无词表模式运行，`review-current` 不被阻断。
-- 词表接入、JSON 生成和内容维护放到后续单独任务处理。
+- 当前已接入 `hangzhou-helper/backend/lexicon/hangzhou-lexicon.json` 作为杭州话运行时主词表；源 Excel `杭州方言正字表0509.xlsx` 仍不入库。
+- 词表文件缺失或 JSON 解析失败时，杭州话后端继续按无词表模式运行，`review-current` 不被阻断。
+- 词表 JSON 继续按用户维护为主；后续如需补 CSV / Excel 转换链路，再单独处理。
 
 ## 安全边界
 
