@@ -63,3 +63,4 @@ Thumbs.db
 .agent
 .playwright-mcp/
 .superpowers/
+/frontend/options-app/node_modules/
