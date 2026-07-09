@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const {
   buildShortcutGridMarkup,
-} = require("./options-shared-shortcut-panel");
+} = require("../runtime-modules/options-shared-shortcut-panel.cjs");
 
 function formatShortcut(value) {
   if (!value) {

@@ -7,7 +7,7 @@ export default defineConfig({
   base: "./",
   build: {
     outDir: path.resolve(__dirname, "../../extension/options"),
-    emptyOutDir: false,
+    emptyOutDir: true,
     assetsDir: "assets",
     sourcemap: false,
     rollupOptions: {

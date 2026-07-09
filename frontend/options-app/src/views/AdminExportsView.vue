@@ -1,8 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import BaseField from "@/components/base/BaseField.vue";
 import BaseSelect from "@/components/base/BaseSelect.vue";
-import SectionCard from "@/components/base/SectionCard.vue";
 import {
   loadAiCallLogOptions,
   loadProjectDataDownloadOptions,
@@ -115,56 +113,74 @@ onMounted(loadOptions);
 </script>
 
 <template>
-  <div class="page-stack">
-    <section class="page-hero">
-      <p class="page-eyebrow">Admin Exports</p>
-      <div class="page-title-row">
-        <div>
-          <h2>系统导出</h2>
-          <p class="page-subtitle">
-            迁移期先把项目数据导出和 AI 调用日志导出接回统一后台接口，继续保留旧 options 的下载链路语义。
-          </p>
-        </div>
+  <div class="admin-workspace admin-stage">
+    <section class="admin-stage-banner">
+      <div class="admin-stage-copy">
+        <strong>系统导出</strong>
+        <p>项目数据导出和 AI 调用日志导出继续走原有后台接口与下载链路。</p>
       </div>
     </section>
 
-    <SectionCard title="项目数据导出" description="供应商逻辑仍然复用现有共享 helper，不额外改动字段契约。">
-      <div class="field-stack">
-        <BaseField label="数据类型">
-          <BaseSelect v-model="projectDataset" :options="projectDatasets.map((item) => ({ value: item.id, label: item.label }))" />
-        </BaseField>
-        <BaseField v-if="supplierState.showRow" label="供应商">
-          <BaseSelect v-model="projectSupplier" :options="supplierState.options" />
-        </BaseField>
-        <BaseField label="获取人姓名">
-          <input v-model="projectOperator" class="base-input" type="text" />
-        </BaseField>
-        <div class="button-row">
-          <button type="button" class="button" @click="requestProjectExport">导出项目数据</button>
+    <div class="admin-download-grid">
+      <section class="admin-surface-card">
+        <div class="admin-card-head">
+          <strong>项目数据导出</strong>
+          <span>供应商逻辑仍然复用现有共享 helper，不额外改动字段契约。</span>
         </div>
-        <p v-if="projectStatus" class="field-note">{{ projectStatus }}</p>
-      </div>
-    </SectionCard>
 
-    <SectionCard title="AI 调用记录导出" description="日期范围与脚本类型继续走原有后台选项接口。">
-      <div class="field-stack">
-        <BaseField label="脚本类型">
-          <BaseSelect v-model="aiDataset" :options="aiDatasets.map((item) => ({ value: item.id, label: item.label }))" />
-        </BaseField>
-        <BaseField label="获取人姓名">
-          <input v-model="aiOperator" class="base-input" type="text" />
-        </BaseField>
-        <BaseField label="开始日期">
-          <input v-model="dateFrom" class="base-input" type="date" />
-        </BaseField>
-        <BaseField label="结束日期">
-          <input v-model="dateTo" class="base-input" type="date" />
-        </BaseField>
-        <div class="button-row">
-          <button type="button" class="button" @click="requestAiExport">导出 AI 调用记录</button>
+        <label class="field-card">
+          <strong>数据类型</strong>
+          <BaseSelect v-model="projectDataset" :options="projectDatasets.map((item) => ({ value: item.id, label: item.label }))" />
+        </label>
+
+        <label v-if="supplierState.showRow" class="field-card">
+          <strong>供应商</strong>
+          <BaseSelect v-model="projectSupplier" :options="supplierState.options" />
+        </label>
+
+        <label class="field-card">
+          <strong>获取人姓名</strong>
+          <input v-model="projectOperator" type="text" />
+        </label>
+
+        <div class="field-actions">
+          <button type="button" class="primary-button" @click="requestProjectExport">导出项目数据</button>
         </div>
-        <p v-if="aiStatus" class="field-note">{{ aiStatus }}</p>
-      </div>
-    </SectionCard>
+        <p v-if="projectStatus" class="status-text">{{ projectStatus }}</p>
+      </section>
+
+      <section class="admin-surface-card">
+        <div class="admin-card-head">
+          <strong>AI 调用记录导出</strong>
+          <span>日期范围与脚本类型继续走原有后台选项接口。</span>
+        </div>
+
+        <label class="field-card">
+          <strong>脚本类型</strong>
+          <BaseSelect v-model="aiDataset" :options="aiDatasets.map((item) => ({ value: item.id, label: item.label }))" />
+        </label>
+
+        <label class="field-card">
+          <strong>获取人姓名</strong>
+          <input v-model="aiOperator" type="text" />
+        </label>
+
+        <div class="detail-grid two">
+          <label class="field-card">
+            <strong>开始日期</strong>
+            <input v-model="dateFrom" type="date" />
+          </label>
+          <label class="field-card">
+            <strong>结束日期</strong>
+            <input v-model="dateTo" type="date" />
+          </label>
+        </div>
+
+        <div class="field-actions">
+          <button type="button" class="primary-button" @click="requestAiExport">导出 AI 调用记录</button>
+        </div>
+        <p v-if="aiStatus" class="status-text">{{ aiStatus }}</p>
+      </section>
+    </div>
   </div>
 </template>

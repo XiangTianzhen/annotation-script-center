@@ -1445,6 +1445,10 @@
 - 修复(haitian-utrans): 将下载桥接改为扩展脚本注入，避免 uTrans 页面 CSP 拦截内联脚本
 
 ## 2026-07-09
+- 重构(options): Vue options 页面样式改回旧版 `options.css` 视觉口径，继续复用原有品牌图、卡片、按钮与详情工作台样式
+- 补齐(options): 脚本详情 schema 补回 LabelX / Lightwheel / Haitian uTrans / Aishell 中英短剧等缺失映射，并增加“所有 `SCRIPT_LIBRARY` 脚本都必须可映射”的回归测试
+- 迁移(options): 共享 helper 与 runtime node 测试迁入 `frontend/options-app/public/`、`frontend/options-app/runtime-modules/`、`frontend/options-app/runtime-tests/`
+- 清理(options): 删除旧版 `extension/options/options.js`、`options.css`、`options-route-state.js`、`options-workbench-state.js` 及其 legacy UI 测试，`extension/options/` 现在只保留构建产物与 4 个运行时 helper
 - 重构(options): 脚本详情页下拉统一收口到 `extension/options/options-shared-select.js` 共享自定义组件，替换旧的 AIDP 专用命名和浮层接线
 - 调整(options): `?view=script` 下静态设置面板与动态 AI 面板的下拉统一改为 `data-options-custom-select="true"` 标记接管，保留原生 `select` 作为真实值源
 - 优化(options): 详情页下拉更新为白底、浅灰边、大圆角、浅灰选中态的统一样式，并限定下载中心与系统管理继续保持原生下拉

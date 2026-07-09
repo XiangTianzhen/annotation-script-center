@@ -17,7 +17,7 @@ node scripts/sync-local-build-meta.js
 - `manifest.json`
   - 扩展入口与权限声明
 - `options/`
-  - 扩展实际运行时使用的 options 构建产物目录
+  - 扩展实际运行时使用的 options 构建产物目录，不再维护旧版手写 `options.js / options.css`
 - `popup/`
   - 弹窗入口
 - `sites/`
@@ -31,6 +31,12 @@ node scripts/sync-local-build-meta.js
 
 - `frontend/options-app/`
   - Vue 3 + Vite + Vue Router + Pinia 的长期维护源码入口
+- `frontend/options-app/public/*.js`
+  - options 运行时仍需挂到页面上的共享 helper 源码入口；构建时会原样复制到 `extension/options/`
+- `frontend/options-app/runtime-tests/`
+  - 迁移后保留的 options runtime node 回归测试
+- `frontend/options-app/runtime-modules/`
+  - 给 `node --test` 使用的 CommonJS helper 镜像；页面运行仍以 `public/*.js` 复制到 `extension/options/` 为准
 - `extension/options/options.html`
   - 扩展仍然通过这个入口打开 options，但页面内容来自 `frontend/options-app` 的构建产物
 - `extension/options/assets/*`
@@ -45,6 +51,7 @@ npm run build
 ```
 
 - 当前 `scripts/package-crx-release.js` 会在打包前自动执行一次这套构建。
+- `frontend/options-app` 构建时会先清空旧 `extension/options/`，再只回填新的 `options.html`、打包后的 `assets/*` 和运行时 helper 文件。
 
 ## 当前运行契约
 

@@ -122,6 +122,54 @@ function getBranchDefinition(scriptId) {
   return SCRIPT_BRANCHES[text(scriptId)] || null;
 }
 
+function isProjectScriptId(scriptId) {
+  return text(scriptId) === "transcription" || text(scriptId) === "judgement";
+}
+
+function buildProjectShortcutDraft(scriptId, rawConfig) {
+  const source = rawConfig && typeof rawConfig === "object" ? rawConfig : {};
+  const shortcuts = {};
+  getScriptShortcutActions(scriptId).forEach((action) => {
+    const key = text(action?.key);
+    if (!key) {
+      return;
+    }
+    shortcuts[key] = clone(source[key] ?? null);
+  });
+  return shortcuts;
+}
+
+function normalizeProjectScriptConfig(scriptId, rawConfig) {
+  const nextConfig = clone(rawConfig || {}) || {};
+  const shortcutKeys = new Set();
+  getScriptShortcutActions(scriptId).forEach((action) => {
+    const key = text(action?.key);
+    if (!key) {
+      return;
+    }
+    shortcutKeys.add(key);
+  });
+  nextConfig.shortcuts = buildProjectShortcutDraft(scriptId, rawConfig);
+  shortcutKeys.forEach((key) => {
+    delete nextConfig[key];
+  });
+  return nextConfig;
+}
+
+function serializeProjectScriptConfig(scriptId, nextConfig) {
+  const source = clone(nextConfig || {}) || {};
+  const shortcuts = source.shortcuts && typeof source.shortcuts === "object" ? source.shortcuts : {};
+  delete source.shortcuts;
+  getScriptShortcutActions(scriptId).forEach((action) => {
+    const key = text(action?.key);
+    if (!key) {
+      return;
+    }
+    source[key] = clone(shortcuts[key] ?? null);
+  });
+  return source;
+}
+
 function getAishellShortcutActions(constants, scriptId) {
   if (scriptId === "aishellTechVietnameseAssistant") {
     return clone(constants.AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS || []);
@@ -141,13 +189,16 @@ export function getScriptConfig(settings, scriptId) {
     return {};
   }
   if (definition.type === "project") {
-    return clone(
+    const projectConfig = clone(
       deepGet(
         settings,
         `platforms.alibabaLabelx.scriptCenter.projects.${definition.projectId}.asrConfig`,
         {}
       ) || {}
     );
+    return isProjectScriptId(scriptId)
+      ? normalizeProjectScriptConfig(scriptId, projectConfig)
+      : projectConfig;
   }
   return clone(deepGet(settings, definition.jsonPath, {}) || {});
 }
@@ -162,7 +213,10 @@ export async function saveScriptConfig(settingsStore, scriptId, nextConfig) {
     throw new Error("当前脚本缺少可保存的配置映射。");
   }
   if (definition.type === "project") {
-    return settingsStore.persistProject(definition.projectId, clone(nextConfig || {}));
+    const payload = isProjectScriptId(scriptId)
+      ? serializeProjectScriptConfig(scriptId, nextConfig)
+      : clone(nextConfig || {});
+    return settingsStore.persistProject(definition.projectId, payload);
   }
   return settingsStore.persistPatch(buildPatchFromPath(definition.patchPath, nextConfig || {}));
 }
@@ -299,6 +353,41 @@ export function getScriptFieldGroups(scriptId) {
   const constants = getConstants();
   const dataBakerPageSizeOptions = listToOptions(constants.DATABAKER_PAGE_SIZE_OPTIONS || []);
   const dataBakerPipelineOptions = listToOptions(constants.DATABAKER_AI_PIPELINE_MODE_OPTIONS || []);
+  const transcriptionRateStepOptions = [
+    { value: "0.1", label: "0.1" },
+    { value: "0.25", label: "0.25" },
+    { value: "0.5", label: "0.5" },
+    { value: "1", label: "1" },
+  ];
+  const transcriptionSeekStepOptions = [
+    { value: "0.5", label: "0.5 秒" },
+    { value: "1", label: "1 秒" },
+    { value: "2", label: "2 秒" },
+    { value: "3", label: "3 秒" },
+    { value: "5", label: "5 秒" },
+  ];
+  const judgementSeekStepOptions = [
+    { value: "0.1", label: "0.1 秒" },
+    { value: "0.25", label: "0.25 秒" },
+    { value: "0.5", label: "0.5 秒" },
+    { value: "1", label: "1 秒" },
+  ];
+  const judgementItemsPerPageOptions = [
+    "1 条/页",
+    "2 条/页",
+    "3 条/页",
+    "4 条/页",
+    "5 条/页",
+    "10 条/页",
+    "20 条/页",
+    "30 条/页",
+    "40 条/页",
+    "50 条/页",
+    "400 条/页",
+  ].map((item) => ({
+    value: item,
+    label: item,
+  }));
   const magicModeOptions = listToOptions(constants.MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS || [
     { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
     { value: "omni_single", label: "单模型：Omni 单模型" },
@@ -325,6 +414,87 @@ export function getScriptFieldGroups(scriptId) {
   }));
 
   const schemas = {
+    transcription: [
+      {
+        title: "基础设置",
+        description: "保留旧版转写页的常用音频行为和页面辅助能力。",
+        layout: "two",
+        fields: [
+          { kind: "boolean", path: "autoPlay", label: "启用自动播放", help: "进入当前题时尝试自动播放当前音频。" },
+          { kind: "number", path: "volumeValue", label: "默认音量（0~1000%）", min: 0, max: 1000, step: 10, help: "重置音量和新音频默认使用此值。" },
+          { kind: "number", path: "playbackRateValue", label: "默认倍速", min: 0.25, max: 5, step: 0.05, help: "新音频和重置倍速时使用该值。" },
+          { kind: "number", path: "resetRateValue", label: "重置倍速", min: 0.25, max: 5, step: 0.05, help: "点击“重置倍速”时使用该值。" },
+          { kind: "select", path: "rateStepValue", label: "倍速步进", options: transcriptionRateStepOptions, help: "用于“提高倍速 / 降低倍速”。" },
+          { kind: "select", path: "seekStepSeconds", label: "前进 / 后退步长", options: transcriptionSeekStepOptions, help: "用于当前音频前进、后退。" },
+          { kind: "boolean", path: "defaultValid", label: "默认有效行为", help: "仅影响当前题动作。" },
+          { kind: "boolean", path: "fillOnValid", label: "标有效时自动填入当前题文本" },
+          { kind: "boolean", path: "clearOnInvalid", label: "标无效时清空当前题文本" },
+        ],
+      },
+      {
+        title: "AI 推荐",
+        description: "保留旧版转写当前题 AI 推荐所需的模型与提示词映射。",
+        layout: "two",
+        fields: [
+          { kind: "number", path: "aiSuggestionRequestTimeoutMs", label: "请求超时（毫秒）", min: 1000, max: 180000, step: 1000 },
+          { kind: "text", path: "aiSuggestionListenModel", label: "听音模型" },
+          { kind: "text", path: "aiSuggestionCompareModel", label: "比较模型" },
+          { kind: "textarea", path: "aiSuggestionListenPrompt", label: "听音 Prompt" },
+          { kind: "textarea", path: "aiSuggestionComparePrompt", label: "比较 Prompt" },
+        ],
+      },
+    ],
+    judgement: [
+      {
+        title: "基础设置",
+        description: "管理快判的播放、页面密度和差异展示规则。",
+        layout: "two",
+        fields: [
+          { kind: "number", path: "volumeValue", label: "默认音量（0~1000%）", min: 0, max: 1000, step: 50 },
+          { kind: "number", path: "resetRateValue", label: "默认倍速", min: 0.25, max: 5, step: 0.05 },
+          { kind: "select", path: "rateStepValue", label: "倍速步进", options: transcriptionRateStepOptions },
+          { kind: "select", path: "seekStepSeconds", label: "前进 / 后退步长", options: judgementSeekStepOptions },
+          { kind: "select", path: "itemsPerPage", label: "默认每页条数", options: judgementItemsPerPageOptions },
+          { kind: "boolean", path: "autoPlay", label: "启用自动播放" },
+          { kind: "boolean", path: "asrDiffViewEnabled", label: "启用 ASR 差异高亮" },
+          { kind: "color", path: "asrDiffColors.changeBackground", label: "替换 / 不同字高亮" },
+          { kind: "color", path: "asrDiffColors.gapBackground", label: "缺字 / 多字高亮" },
+          { kind: "color", path: "asrDiffColors.punctuationBackground", label: "标点差异高亮" },
+          { kind: "boolean", path: "compactCardEnabled", label: "紧凑卡片模式" },
+          { kind: "boolean", path: "thunderQuestionEnabled", label: "启用雷题提示" },
+          { kind: "boolean", path: "autoAdvanceAfterChoice", label: "选择后自动下一题" },
+        ],
+      },
+      {
+        title: "AI 分析",
+        description: "保留快判链路的模型、提示词与请求超时映射。",
+        layout: "two",
+        fields: [
+          { kind: "number", path: "aiSuggestionRequestTimeoutMs", label: "请求超时（毫秒）", min: 1000, max: 180000, step: 1000 },
+          { kind: "text", path: "aiSuggestionListenModel", label: "听音模型" },
+          { kind: "text", path: "aiSuggestionCompareModel", label: "比较模型" },
+          { kind: "textarea", path: "aiSuggestionListenPrompt", label: "听音 Prompt" },
+          { kind: "textarea", path: "aiSuggestionComparePrompt", label: "比较 Prompt" },
+        ],
+      },
+    ],
+    lightwheelViewPanel: [
+      {
+        title: "脚本说明",
+        description: "当前脚本仅保留最小启停态，没有额外表单配置。",
+        layout: "single",
+        fields: [
+          {
+            kind: "notice",
+            label: "Lightwheel 查看态面板",
+            lines: [
+              "启用后仅挂载查看态辅助面板。",
+              "当前版本没有额外可编辑参数。",
+            ],
+          },
+        ],
+      },
+    ],
     dataBakerRoundOneQuality: [
       {
         title: "识别与页面行为",
@@ -471,6 +641,23 @@ export function getScriptFieldGroups(scriptId) {
         ],
       },
     ],
+    aishellTechCnEnShortDrama: [
+      {
+        title: "脚本说明",
+        description: "第一版只接入当前媒体信息面板，不提供 AI、自动保存或自动提交能力。",
+        layout: "single",
+        fields: [
+          {
+            kind: "notice",
+            label: "中英短剧脚本",
+            lines: [
+              "启用后会在页面右侧标注表单区域顶部显示只读“当前媒体信息”面板。",
+              "当前版本无额外设置项，也不会自动写回或自动提交。",
+            ],
+          },
+        ],
+      },
+    ],
     magicDataAnnotatorAiReview: [
       {
         title: "Magic Data AI 质检",
@@ -535,6 +722,21 @@ export function getScriptFieldGroups(scriptId) {
           { kind: "text", path: "aiOcrModel", label: "OCR 模型" },
           { kind: "text", path: "aiReasoningModel", label: "推理模型" },
           { kind: "text", path: "aiSingleModel", label: "单模型方案模型" },
+        ],
+      },
+    ],
+    haitianUtransAudioDownloadHelper: [
+      {
+        title: "基础设置",
+        description: "当前只控制 uTrans 任务详情页是否显示悬浮下载按钮。",
+        layout: "single",
+        fields: [
+          {
+            kind: "boolean",
+            path: "enabled",
+            label: "开启悬浮窗下载功能",
+            help: "开启后，在 uTrans 任务详情页显示“下载当前音频”悬浮窗；关闭后不显示。",
+          },
         ],
       },
     ],

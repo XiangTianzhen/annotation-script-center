@@ -1,11 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import BaseField from "@/components/base/BaseField.vue";
 import BaseSelect from "@/components/base/BaseSelect.vue";
-import BaseSwitch from "@/components/base/BaseSwitch.vue";
-import BaseTextarea from "@/components/base/BaseTextarea.vue";
-import SectionCard from "@/components/base/SectionCard.vue";
 import ShortcutEditor from "@/components/script-detail/ShortcutEditor.vue";
 import { isScriptRuntimeAccessible } from "@/services/globals";
 import {
@@ -36,6 +32,9 @@ const shortcutActions = computed(() => getScriptShortcutActions(scriptId.value))
 const runtimeEnabled = computed(() =>
   isScriptRuntimeAccessible(scriptId.value, settingsStore.settings || {})
 );
+const runtimeStatusText = computed(() => (runtimeEnabled.value ? "当前启用" : "当前未启用"));
+const runtimeStatusTone = computed(() => (runtimeEnabled.value ? "enabled" : "disabled"));
+const workbenchSingle = computed(() => shortcutActions.value.length === 0);
 
 function syncDraftFromSettings() {
   const nextConfig = getScriptConfig(settingsStore.settings || {}, scriptId.value);
@@ -52,7 +51,10 @@ watch(
 );
 
 function getFieldValue(field) {
-  return deepGet(draftConfig.value || {}, field.path, field.kind === "boolean" ? false : "");
+  if (field.kind === "boolean") {
+    return Boolean(deepGet(draftConfig.value || {}, field.path, false));
+  }
+  return deepGet(draftConfig.value || {}, field.path, field.defaultValue ?? "");
 }
 
 function setFieldValue(field, value) {
@@ -63,7 +65,7 @@ function setFieldValue(field, value) {
 }
 
 function coerceValue(field, rawValue) {
-  if (field.kind === "number") {
+  if (field.kind === "number" || field.valueType === "number") {
     if (rawValue === "" || rawValue === null || rawValue === undefined) {
       return "";
     }
@@ -71,6 +73,16 @@ function coerceValue(field, rawValue) {
     return Number.isFinite(numeric) ? numeric : "";
   }
   return rawValue;
+}
+
+function resolveGroupGridClass(group) {
+  if (group.layout === "single") {
+    return "detail-grid single";
+  }
+  if (group.layout === "three") {
+    return "detail-grid three";
+  }
+  return "detail-grid two";
 }
 
 async function saveForm() {
@@ -106,133 +118,186 @@ async function toggleScriptEnabled() {
 </script>
 
 <template>
-  <div v-if="script" class="page-stack">
-    <section class="page-hero">
-      <p class="page-eyebrow">Script Detail</p>
-      <div class="page-title-row">
-        <div>
-          <h2>{{ script.label }}</h2>
-          <p class="page-subtitle">
-            {{ script.description }}
-          </p>
-        </div>
-        <span class="status-badge" :class="runtimeEnabled ? 'is-enabled' : 'is-warning'">
-          {{ runtimeEnabled ? "当前启用" : "当前未启用" }}
+  <section v-if="script" class="detail-shell">
+    <div class="detail-top">
+      <div class="detail-title">
+        <span class="hero-kicker">SCRIPT DETAIL</span>
+        <h2 id="detail-script-name">{{ script.label }}</h2>
+        <p id="detail-script-description" class="detail-copy">
+          {{ script.description }}
+        </p>
+      </div>
+      <div class="detail-meta">
+        <span id="detail-script-status" class="pill" :class="runtimeStatusTone">
+          {{ runtimeStatusText }}
+        </span>
+        <span id="detail-platform-pill" class="pill info">
+          {{ scriptsStore.platformMap?.[script.platformId]?.label || script.platformId }}
         </span>
       </div>
+    </div>
+
+    <section id="detail-actions-panel" class="detail-panel detail-actions-panel">
+      <div class="detail-actions">
+        <button id="detail-toggle-button" class="primary-button" type="button" @click="toggleScriptEnabled">
+          {{ runtimeEnabled ? "关闭脚本" : "启用脚本" }}
+        </button>
+        <button class="secondary-button" type="button" :disabled="saving" @click="saveForm">
+          {{ saving ? "保存中..." : "保存设置" }}
+        </button>
+      </div>
+      <p id="detail-script-note" class="detail-note">
+        {{ script.note || "脚本详情页继续沿用共享 storage 作为真实值源。" }}
+      </p>
     </section>
 
-    <div class="detail-grid two-column">
-      <div class="page-stack">
-        <SectionCard title="运行时状态" description="脚本启停仍然以共享 storage 为真实值源。">
-          <BaseSwitch
-            :model-value="runtimeEnabled"
-            label="启用当前脚本"
-            :help="runtimeEnabled ? '关闭后不再注入或展示对应脚本能力。' : '启用后会继续沿用旧版脚本的运行时逻辑。'"
-            @update:model-value="toggleScriptEnabled"
-          />
-        </SectionCard>
-
-        <SectionCard
+    <div class="detail-workbench" :class="{ 'is-single': workbenchSingle }">
+      <div class="detail-track detail-track-primary">
+        <section
           v-for="group in fieldGroups"
           :key="group.title"
-          :title="group.title"
+          class="detail-panel detail-panel-base"
         >
-          <div class="field-stack">
-            <template v-for="field in group.fields" :key="field.path">
-              <BaseSwitch
-                v-if="field.kind === 'boolean'"
-                :model-value="Boolean(getFieldValue(field))"
-                :label="field.label"
-                :help="field.help || ''"
-                @update:model-value="(value) => setFieldValue(field, value)"
-              />
+          <div class="detail-section-head">
+            <div>
+              <strong>{{ group.title }}</strong>
+              <span v-if="group.description">{{ group.description }}</span>
+            </div>
+          </div>
 
-              <BaseField v-else :label="field.label" :help="field.help || ''">
+          <div :class="resolveGroupGridClass(group)">
+            <template v-for="field in group.fields" :key="field.path || field.label">
+              <div v-if="field.kind === 'notice'" class="field-card">
+                <strong>{{ field.label }}</strong>
+                <span v-for="line in field.lines || []" :key="line">{{ line }}</span>
+              </div>
+
+              <label v-else-if="field.kind === 'boolean'" class="field-card">
+                <strong>{{ field.label }}</strong>
+                <span v-if="field.help">{{ field.help }}</span>
+                <span class="field-toggle">
+                  <input
+                    type="checkbox"
+                    :checked="Boolean(getFieldValue(field))"
+                    @change="(event) => setFieldValue(field, event.target.checked)"
+                  />
+                  <span>{{ Boolean(getFieldValue(field)) ? "已开启" : "未开启" }}</span>
+                </span>
+              </label>
+
+              <label v-else class="field-card">
+                <strong>{{ field.label }}</strong>
+                <span v-if="field.help">{{ field.help }}</span>
+
                 <BaseSelect
                   v-if="field.kind === 'select'"
                   :model-value="String(getFieldValue(field) ?? '')"
                   :options="field.options || []"
+                  :placeholder="field.placeholder || ''"
                   :custom="true"
-                  @update:model-value="(value) => setFieldValue(field, value)"
+                  @update:model-value="(value) => setFieldValue(field, coerceValue(field, value))"
                 />
-                <BaseTextarea
+
+                <textarea
                   v-else-if="field.kind === 'textarea'"
-                  :model-value="String(getFieldValue(field) ?? '')"
-                  @update:model-value="(value) => setFieldValue(field, value)"
+                  :rows="field.rows || 6"
+                  :placeholder="field.placeholder || ''"
+                  :value="String(getFieldValue(field) ?? '')"
+                  @input="(event) => setFieldValue(field, event.target.value)"
                 />
+
                 <input
                   v-else
-                  class="base-input"
-                  :type="field.kind === 'number' ? 'number' : 'text'"
+                  :type="field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : 'text'"
                   :min="field.min"
                   :max="field.max"
                   :step="field.step"
+                  :placeholder="field.placeholder || ''"
                   :value="getFieldValue(field)"
                   @input="(event) => setFieldValue(field, coerceValue(field, event.target.value))"
                 />
-              </BaseField>
+              </label>
             </template>
           </div>
-        </SectionCard>
+        </section>
+      </div>
 
-        <SectionCard
+      <div class="detail-track detail-track-secondary">
+        <section class="detail-panel detail-panel-base">
+          <div class="detail-section-head">
+            <div>
+              <strong>脚本说明</strong>
+              <span>{{ script.note || "暂无额外说明。" }}</span>
+            </div>
+          </div>
+          <div class="detail-grid single">
+            <div class="field-card">
+              <strong>脚本 ID</strong>
+              <span>{{ script.id }}</span>
+            </div>
+            <div class="field-card">
+              <strong>能力范围</strong>
+              <span>{{ script.capabilityScope || "未标注" }}</span>
+            </div>
+            <div class="field-card">
+              <strong>配置路径</strong>
+              <span>{{ getScriptJsonPathLabel(scriptId) || "当前脚本未配置 JSON 路径" }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section
           v-if="shortcutActions.length > 0"
-          title="快捷键"
-          description="录制逻辑已迁到 Vue 组件，保存时仍直接写回原有 shortcuts 字段。"
+          class="detail-panel detail-shortcut-panel"
         >
+          <div class="detail-section-head">
+            <div>
+              <strong>快捷键</strong>
+              <span>录制逻辑已经迁到 Vue 组件，但保存后的字段口径继续保持旧版结构。</span>
+            </div>
+          </div>
           <ShortcutEditor
             :model-value="draftConfig.shortcuts || {}"
             :actions="shortcutActions"
             @update:model-value="(value) => setFieldValue({ path: 'shortcuts' }, value)"
           />
-        </SectionCard>
-      </div>
+        </section>
 
-      <div class="page-stack">
-        <SectionCard title="脚本说明" :description="script.note || '暂无额外说明。'">
-          <div class="field-stack">
-            <div class="info-row">
-              <strong>脚本 ID</strong>
-              <span class="inline-meta">{{ script.id }}</span>
-            </div>
-            <div class="info-row">
-              <strong>能力范围</strong>
-              <span class="inline-meta">{{ script.capabilityScope || "未标注" }}</span>
-            </div>
-            <div class="info-row">
-              <strong>匹配路由</strong>
-              <span class="inline-meta">{{ script.matchUrl || "当前脚本没有显式 matchUrl" }}</span>
+        <section class="detail-panel detail-panel-base">
+          <div class="detail-section-head">
+            <div>
+              <strong>高级 JSON 编辑</strong>
+              <span>{{ getScriptJsonPathLabel(scriptId) }}</span>
             </div>
           </div>
-        </SectionCard>
-
-        <SectionCard
-          title="高级 JSON 编辑"
-          :description="getScriptJsonPathLabel(scriptId)"
-        >
-          <div class="json-editor-stack">
-            <BaseTextarea v-model="jsonText" :rows="18" placeholder="当前脚本配置 JSON" />
-            <div class="button-row wrap">
-              <button type="button" class="button" :disabled="saving" @click="saveForm">
-                {{ saving ? "保存中..." : "保存当前表单" }}
-              </button>
-              <button type="button" class="ghost-button" :disabled="saving" @click="saveJson">
-                从 JSON 覆盖保存
-              </button>
-            </div>
+          <div class="detail-grid single">
+            <label class="field-card">
+              <strong>当前脚本配置 JSON</strong>
+              <textarea
+                rows="18"
+                :value="jsonText"
+                @input="(event) => (jsonText = event.target.value)"
+              />
+            </label>
           </div>
-        </SectionCard>
+          <div class="field-actions">
+            <button type="button" class="primary-button" :disabled="saving" @click="saveForm">
+              {{ saving ? "保存中..." : "保存当前表单" }}
+            </button>
+            <button type="button" class="ghost-button" :disabled="saving" @click="saveJson">
+              从 JSON 覆盖保存
+            </button>
+          </div>
+        </section>
       </div>
     </div>
-  </div>
 
-  <div v-else class="page-stack">
-    <div class="empty-state">
-      <div class="empty-copy">
-        <strong>脚本不存在或当前版本不可见</strong>
-        <p>该脚本不会再停留在旧 query 路由里，当前会直接回到新的 hash 路由体系。</p>
-      </div>
+    <div id="detail-status" class="status-text">
+      脚本设置保存后仍直接写回原有 `chrome.storage` 结构；如已打开业务页面未立即生效，请刷新页面。
     </div>
+  </section>
+
+  <div v-else class="fallback-error">
+    脚本不存在或当前版本不可见，已从旧查询串路由切到新的 hash 路由体系。
   </div>
 </template>

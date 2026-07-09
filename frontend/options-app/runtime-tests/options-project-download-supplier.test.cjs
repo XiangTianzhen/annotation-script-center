@@ -7,7 +7,7 @@ const {
   ALL_SUPPLIERS_VALUE,
   buildProjectDownloadSupplierState,
   isProjectDownloadSupplierSelectionValid,
-} = require("./options-project-download-supplier");
+} = require("../runtime-modules/options-project-download-supplier.cjs");
 
 test("project download supplier helper exposes all option for a single supplier dataset", function () {
   const state = buildProjectDownloadSupplierState({

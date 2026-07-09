@@ -7,7 +7,7 @@ const {
   buildSharedAsrAiPanelSpec,
   buildSharedAsrAutofillConcurrencyHelp,
   renderSharedAsrAutofillConcurrencyField,
-} = require("./options-shared-asr-ai-panel");
+} = require("../runtime-modules/options-shared-asr-ai-panel.cjs");
 
 test("shared AI panel spec keeps DataBaker concurrency field in the fixed model section order", function () {
   const spec = buildSharedAsrAiPanelSpec("dataBakerRoundOneQuality");

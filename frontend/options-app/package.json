@@ -7,7 +7,8 @@
     "dev": "vite --host 127.0.0.1 --open /options.html",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:runtime": "node --test runtime-tests/options-project-download-supplier.test.cjs runtime-tests/options-shared-asr-ai-panel.test.cjs runtime-tests/options-shared-shortcut-panel.test.cjs runtime-tests/options-shared-select.test.cjs"
   },
   "dependencies": {
     "pinia": "^2.3.1",

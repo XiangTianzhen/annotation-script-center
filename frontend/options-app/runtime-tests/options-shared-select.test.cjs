@@ -5,9 +5,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const sharedSelectPath = path.resolve(__dirname, "options-shared-select.js");
-const htmlPath = path.resolve(__dirname, "options.html");
-const jsPath = path.resolve(__dirname, "options.js");
+const sharedSelectPath = path.resolve(__dirname, "../runtime-modules/options-shared-select.cjs");
+const htmlPath = path.resolve(__dirname, "../options.html");
+const baseSelectPath = path.resolve(__dirname, "../src/components/base/BaseSelect.vue");
+const scriptDetailViewPath = path.resolve(__dirname, "../src/views/ScriptDetailView.vue");
+const adminExportsViewPath = path.resolve(__dirname, "../src/views/AdminExportsView.vue");
+const adminBackendViewPath = path.resolve(__dirname, "../src/views/AdminBackendView.vue");
 
 class FakeEvent {
   constructor(type, init) {
@@ -750,34 +753,15 @@ test("shared select keeps menu open while the menu scrolls and closes on scroll-
 
 test("detail-page source wires shared custom-selects and leaves admin/download selects native", function () {
   const html = fs.readFileSync(htmlPath, "utf8");
-  const script = fs.readFileSync(jsPath, "utf8");
+  const baseSelect = fs.readFileSync(baseSelectPath, "utf8");
+  const scriptDetailView = fs.readFileSync(scriptDetailViewPath, "utf8");
+  const adminExportsView = fs.readFileSync(adminExportsViewPath, "utf8");
+  const adminBackendView = fs.readFileSync(adminBackendViewPath, "utf8");
 
   assert.match(html, /<script src="\.\/options-shared-select\.js"><\/script>/);
   assert.match(html, /id="detail-select-layer"/);
-  assert.match(html, /<select id="transcription-rate-step"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="transcription-seek-step"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="judgement-rate-step"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="judgement-seek-step"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="judgement-items-per-page"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="data-baker-default-page-size"[^>]*data-options-custom-select="true"/);
-  assert.match(
-    html,
-    /<select id="data-baker-cvpc-segment-silence-threshold-unit"[^>]*data-options-custom-select="true"/
-  );
-  assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"[\s\S]*data-options-custom-select="true"/);
-  assert.match(html, /<select\s+id="bytedance-aidp-fixed-wave-zoom"[\s\S]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="abaka-ai-analysis-mode"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="abaka-ai-vision-model"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="abaka-ai-ocr-model"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="abaka-ai-reasoning-model"[^>]*data-options-custom-select="true"/);
-  assert.match(html, /<select id="abaka-ai-single-model"[^>]*data-options-custom-select="true"/);
-  assert.doesNotMatch(html, /<select id="project-download-dataset"[^>]*data-options-custom-select="true"/);
-  assert.doesNotMatch(html, /<select id="project-download-supplier"[^>]*data-options-custom-select="true"/);
-  assert.doesNotMatch(html, /<select id="ai-call-log-dataset"[^>]*data-options-custom-select="true"/);
-  assert.doesNotMatch(html, /<select id="public-release-version-select"[^>]*data-options-custom-select="true"/);
-  assert.match(script, /data-options-custom-select="true"/);
-  assert.match(script, /data-options-placeholder="请选择听音模型"/);
-  assert.match(script, /data-options-placeholder="请选择收口模型"/);
-  assert.match(html, /data-options-placeholder="请选择默认播放倍数"/);
-  assert.match(html, /data-options-placeholder="请选择固定缩放倍数"/);
+  assert.match(baseSelect, /data-options-custom-select/);
+  assert.match(scriptDetailView, /:custom="true"/);
+  assert.doesNotMatch(adminExportsView, /:custom="true"/);
+  assert.doesNotMatch(adminBackendView, /:custom="true"/);
 });
