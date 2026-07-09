@@ -254,11 +254,66 @@
     return '<span class="md-tag md-tag-uncertain">待复核</span>';
   }
 
+  function isPureDialectLabel(labelText) {
+    return normalizeText(labelText) === "音频是否是纯方言";
+  }
+
+  function normalizePureDialectOptionValue(value) {
+    if (value === true) {
+      return "纯方言";
+    }
+    if (value === false) {
+      return "口音普通话";
+    }
+    const text = normalizeText(value);
+    const lowered = text.toLowerCase();
+    if (!lowered) {
+      return "";
+    }
+    if (
+      text === "纯方言" ||
+      text === "纯杭州话" ||
+      lowered === "true" ||
+      lowered === "yes" ||
+      lowered === "1"
+    ) {
+      return "纯方言";
+    }
+    if (
+      text === "口音普通话" ||
+      text === "普通话" ||
+      text === "带口音普通话" ||
+      lowered === "false" ||
+      lowered === "no" ||
+      lowered === "0"
+    ) {
+      return "口音普通话";
+    }
+    if (lowered === "uncertain" || lowered === "unknown" || lowered === "null") {
+      return "";
+    }
+    return text;
+  }
+
+  function normalizeSpeakerSuggestionValue(labelText, value) {
+    if (isPureDialectLabel(labelText)) {
+      return normalizePureDialectOptionValue(value);
+    }
+    return normalizeText(value);
+  }
+
+  function getSpeakerSuggestionButtonText(labelText) {
+    return isPureDialectLabel(labelText) ? "填入选项" : "填入" + labelText;
+  }
+
   function buildSpeakerDetailRows(speakerCheck) {
     const source = speakerCheck && typeof speakerCheck === "object" ? speakerCheck : {};
     const genderCheck = source.gender || {};
     const ageRangeCheck = source.ageRange || {};
     const pureDialectCheck = source.pureDialect || {};
+    const pureDialectPlatformValue = normalizePureDialectOptionValue(pureDialectCheck.platformValue) || "-";
+    const pureDialectSuggestedValue =
+      normalizePureDialectOptionValue(pureDialectCheck.suggestedValue) || "-";
     return [
       ["性别判断", renderCorrectTag(genderCheck.isCorrect), true],
       ["平台值", normalizeText(genderCheck.platformValue || "-")],
@@ -271,8 +326,8 @@
       ["原因", normalizeText(ageRangeCheck.reason || "-")],
       ["置信度", formatNumber(ageRangeCheck.confidence, 2)],
       ["纯方言判断", renderCorrectTag(pureDialectCheck.isCorrect), true],
-      ["平台值", normalizeText(pureDialectCheck.platformValue || "-")],
-      ["AI建议", normalizeText(pureDialectCheck.suggestedValue || "-")],
+      ["平台值", pureDialectPlatformValue],
+      ["AI建议", pureDialectSuggestedValue],
       ["原因", normalizeText(pureDialectCheck.reason || "-")],
       ["置信度", formatNumber(pureDialectCheck.confidence, 2)],
     ];
@@ -376,7 +431,8 @@
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-hangzhou-diff-insert{background:rgba(34,197,94,.22);color:#bbf7d0;padding:0 1px;border-radius:2px;}",
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-hangzhou-diff-delete{background:rgba(239,68,68,.24);color:#fecaca;padding:0 1px;border-radius:2px;text-decoration:line-through;}",
       "[" + SPEAKER_SUGGESTION_ATTR + "]{margin-top:4px;padding:4px 6px;border-radius:4px;border:1px solid rgba(100,116,139,.45);background:rgba(30,41,59,.48);}",
-      "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-hangzhou-speaker-text{font-size:12px;color:#e5e7eb;}",
+      "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-hangzhou-speaker-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:24px;}",
+      "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-hangzhou-speaker-text{font-size:12px;color:#e5e7eb;white-space:pre-wrap;word-break:break-word;flex:1;margin:0;}",
       "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-hangzhou-speaker-actions{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;}",
       "[" + ROOT_ATTR + "] .md-fold-section{border:1px solid #334155;border-radius:6px;background:#111827;margin-bottom:7px;overflow:hidden;}",
       "[" + ROOT_ATTR + "] .md-fold-toggle{width:100%;text-align:left;border:none;border-bottom:1px solid #334155;background:rgba(30,41,59,.62);color:#cbd5e1;font-weight:700;padding:8px 10px;cursor:pointer;}",
@@ -641,7 +697,7 @@
       if (!checkData || checkData.isCorrect === true) {
         return false;
       }
-      const suggestedValue = normalizeText(checkData.suggestedValue || "");
+      const suggestedValue = checkData.suggestedValue;
       return validateFn(suggestedValue);
     }
 
@@ -1130,7 +1186,7 @@
     }
 
     function isValidPureDialectValue(value) {
-      return ["纯方言", "口音普通话"].indexOf(normalizeText(value)) >= 0;
+      return ["纯方言", "口音普通话"].indexOf(normalizePureDialectOptionValue(value)) >= 0;
     }
 
     function findSpeakerFormItemByLabel(labelText) {
@@ -1177,8 +1233,11 @@
       return { ok: true, message: "已选择" + normalizedValue + "，未保存、未提交。" };
     }
 
-    function buildSpeakerSuggestionText(checkData) {
-      const suggestedValue = normalizeText(checkData?.suggestedValue || "");
+    function buildSpeakerSuggestionText(labelText, checkData) {
+      const suggestedValue = normalizeSpeakerSuggestionValue(labelText, checkData?.suggestedValue);
+      if (isPureDialectLabel(labelText)) {
+        return suggestedValue || (checkData?.isCorrect === true ? "正确" : "待复核");
+      }
       if (checkData?.isCorrect === true) {
         return "AI建议：正确";
       }
@@ -1226,26 +1285,24 @@
       if (!(wrapper instanceof HTMLElement)) {
         return;
       }
-      let text = wrapper.querySelector(".asc-md-hangzhou-speaker-text");
-      if (!(text instanceof HTMLElement)) {
-        text = document.createElement("div");
-        text.className = "asc-md-hangzhou-speaker-text";
-        wrapper.appendChild(text);
-      }
-      const suggestedValue = normalizeText(checkData?.suggestedValue || "");
+      wrapper.innerHTML = "";
+      const row = document.createElement("div");
+      row.className = "asc-md-hangzhou-speaker-row";
+      const text = document.createElement("div");
+      text.className = "asc-md-hangzhou-speaker-text";
+      row.appendChild(text);
+      wrapper.appendChild(row);
+      const suggestedValue = normalizeSpeakerSuggestionValue(labelText, checkData?.suggestedValue);
       wrapper.__ascSuggestedValue = suggestedValue;
-      text.textContent = buildSpeakerSuggestionText(checkData);
+      text.textContent = buildSpeakerSuggestionText(labelText, checkData);
       const canFill = !isCheckPageSnapshot() && checkData?.isCorrect !== true && validateFn(suggestedValue);
-      let actions = wrapper.querySelector(".asc-md-hangzhou-speaker-actions");
-      let fillBtn = actions?.querySelector("button");
+      let fillBtn = row.querySelector("button");
       if (canFill) {
-        if (!(actions instanceof HTMLElement)) {
-          actions = document.createElement("div");
-          actions.className = "asc-md-hangzhou-speaker-actions";
-          wrapper.appendChild(actions);
-        }
         if (!(fillBtn instanceof HTMLButtonElement)) {
-          fillBtn = createButton("填入" + labelText, "el-button--primary is-plain");
+          fillBtn = createButton(
+            getSpeakerSuggestionButtonText(labelText),
+            "el-button--primary is-plain"
+          );
           fillBtn.addEventListener("mousedown", function (event) {
             event.preventDefault();
           });
@@ -1260,11 +1317,10 @@
             }
             setMessage(result?.message || "已填入建议值。");
           });
-          actions.appendChild(fillBtn);
+          row.appendChild(fillBtn);
         }
-        actions.style.display = "";
-      } else if (actions) {
-        actions.style.display = "none";
+      } else if (fillBtn) {
+        fillBtn.remove();
       }
     }
 
@@ -1292,6 +1348,10 @@
       const genderCheck = source.gender || {};
       const ageRangeCheck = source.ageRange || {};
       const pureDialectCheck = source.pureDialect || {};
+      const pureDialectPlatformValue =
+        normalizePureDialectOptionValue(pureDialectCheck.platformValue) || "-";
+      const pureDialectSuggestedValue =
+        normalizePureDialectOptionValue(pureDialectCheck.suggestedValue) || "-";
       return [
         ["性别判断", renderCorrectTag(genderCheck.isCorrect), true],
         ["平台值", normalizeText(genderCheck.platformValue || "-")],
@@ -1304,8 +1364,8 @@
         ["原因", normalizeText(ageRangeCheck.reason || "-")],
         ["置信度", formatNumber(ageRangeCheck.confidence, 2)],
         ["纯方言判断", renderCorrectTag(pureDialectCheck.isCorrect), true],
-        ["平台值", normalizeText(pureDialectCheck.platformValue || "-")],
-        ["AI建议", normalizeText(pureDialectCheck.suggestedValue || "-")],
+        ["平台值", pureDialectPlatformValue],
+        ["AI建议", pureDialectSuggestedValue],
         ["原因", normalizeText(pureDialectCheck.reason || "-")],
         ["置信度", formatNumber(pureDialectCheck.confidence, 2)],
       ];
@@ -1862,7 +1922,7 @@
 
       if (!isCheckPage && hasActionableSpeakerSuggestion(pureDialectCheck, isValidPureDialectValue)) {
         const pureDialectItem = findSpeakerFormItemByLabel("音频是否是纯方言");
-        const suggestedValue = normalizeText(pureDialectCheck.suggestedValue || "");
+        const suggestedValue = normalizePureDialectOptionValue(pureDialectCheck.suggestedValue);
         let result = null;
         if (typeof options.selectSpeakerValue === "function") {
           result = options.selectSpeakerValue(suggestedValue);
@@ -2172,6 +2232,7 @@
     resolveFillAllSuggestionsOutcome: resolveFillAllSuggestionsOutcome,
     buildOverallRows: buildOverallRows,
     buildSpeakerDetailRows: buildSpeakerDetailRows,
+    normalizePureDialectOptionValue: normalizePureDialectOptionValue,
     unwrapResultEnvelope: unwrapResultEnvelope,
     shouldDisableShowRawOutput: function (isLoading) {
       return isLoading === true;

@@ -55,3 +55,31 @@ test("buildSpeakerDetailRows includes pure dialect judgement rows", function () 
   assert.equal(rows[13][1], "音频实际更接近纯方言发声。");
   assert.equal(rows[14][1], "0.77");
 });
+
+test("normalizePureDialectOptionValue maps boolean-like values to labels", function () {
+  const helper = panelModule.__test__?.normalizePureDialectOptionValue;
+  assert.equal(typeof helper, "function");
+
+  assert.equal(helper(true), "纯方言");
+  assert.equal(helper(false), "口音普通话");
+  assert.equal(helper("true"), "纯方言");
+  assert.equal(helper("false"), "口音普通话");
+});
+
+test("buildSpeakerDetailRows normalizes boolean pure dialect values for display", function () {
+  const helper = panelModule.__test__?.buildSpeakerDetailRows;
+  assert.equal(typeof helper, "function");
+
+  const rows = helper({
+    pureDialect: {
+      isCorrect: false,
+      platformValue: false,
+      suggestedValue: true,
+      reason: "音频更像纯方言。",
+      confidence: 0.63,
+    },
+  });
+
+  assert.equal(rows[11][1], "口音普通话");
+  assert.equal(rows[12][1], "纯方言");
+});
