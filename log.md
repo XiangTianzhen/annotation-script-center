@@ -1,3 +1,10 @@
+## 2026-07-09（启动 Options Vue 全量迁移骨架）
+- 新增(options): 启动 `frontend/options-app/` Vue 工作区，采用 `Vue 3 + Vite + Vue Router + Pinia` 作为 options 全量迁移源码入口
+- 调整(options): Vite 构建产物输出回 `extension/options/`，扩展继续复用 `manifest.json -> options/options.html` 入口
+- 新增(options): 接入新的 center / downloads / admin / script detail 路由骨架，以及 shared storage / admin session / 自定义下拉的基础 service/store 包装
+- 构建(options): `scripts/package-crx-release.js` 现在会在打包前自动执行 Vue options build
+- 文档(options): 更新根 `README.md` 与 `extension/README.md`，补充 Vue options 本地构建入口和新的 hash 路由口径
+
 ## 2026-07-09（接入 Magic Data 杭州话 JSON 词表）
 - 新增 `platform-resources/magic-data/hangzhou-helper/backend/lexicon/hangzhou-lexicon.json`
   - 按用户提供内容接入杭州话运行时主词表

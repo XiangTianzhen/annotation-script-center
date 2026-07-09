@@ -16,6 +16,15 @@
 
 - Edge：`edge://extensions/` -> 开启开发人员模式 -> 加载 `annotation-script-center/extension`
 - Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `annotation-script-center/extension`
+- 如果要使用新的 Vue options 工作区，先在仓库根目录执行一次：
+
+```powershell
+cd frontend/options-app
+npm install
+npm run build
+cd ../..
+```
+
 - 详细运行时说明：[`extension/README.md`](extension/README.md)
 - 如果需要本地 beta 入口元信息，同步一次：
 
@@ -70,6 +79,8 @@ node scripts/sync-local-build-meta.js
 ```powershell
 node scripts/package-crx-release.js
 ```
+
+- 如果存在 `frontend/options-app/`，打包脚本会先自动执行一次 Vue options 构建，再继续现有 CRX / ZIP 打包流程。
 
 - 默认同时生成 `public + beta`
 - 只生成 public：

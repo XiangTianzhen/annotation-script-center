@@ -17,7 +17,7 @@ node scripts/sync-local-build-meta.js
 - `manifest.json`
   - 扩展入口与权限声明
 - `options/`
-  - options 工作台、系统管理入口、脚本详情页
+  - 扩展实际运行时使用的 options 构建产物目录
 - `popup/`
   - 弹窗入口
 - `sites/`
@@ -26,6 +26,25 @@ node scripts/sync-local-build-meta.js
   - 跨平台共享模块
 - `assets/`
   - 图标与品牌资源
+
+## Options Vue 迁移结构
+
+- `frontend/options-app/`
+  - Vue 3 + Vite + Vue Router + Pinia 的长期维护源码入口
+- `extension/options/options.html`
+  - 扩展仍然通过这个入口打开 options，但页面内容来自 `frontend/options-app` 的构建产物
+- `extension/options/assets/*`
+  - Vue options 打包后的 JS / CSS 资源
+
+本地开发 Vue options 的最小命令：
+
+```powershell
+cd frontend/options-app
+npm install
+npm run build
+```
+
+- 当前 `scripts/package-crx-release.js` 会在打包前自动执行一次这套构建。
 
 ## 当前运行契约
 
@@ -43,19 +62,22 @@ node scripts/sync-local-build-meta.js
 
 ## Options 当前结构
 
-- 路由固定为：
-  - `?view=center`
-  - `?view=downloads`
-  - `?view=script&script=<scriptId>`
-  - `?view=admin&tab=overview|backend|exports`
+- 迁移中的 Vue 路由固定为：
+  - `#/center`
+  - `#/downloads`
+  - `#/script/:scriptId`
+  - `#/admin/unlock`
+  - `#/admin/overview`
+  - `#/admin/backend`
+  - `#/admin/exports`
 - `功能面板`
   - 平台概览、脚本启停、脚本详情入口
 - `脚本下载中心`
   - 扩展版本分发入口
 - `系统管理`
   - 后端地址、AI 调用使用人、导出与系统概况
-- `?view=admin` 进入时要求密码。
-- `?view=downloads` 只负责扩展包下载，不承担后台配置职责。
+- `/admin/*` 进入时要求密码，未解锁会统一回到 `#/admin/unlock`。
+- `#/downloads` 只负责扩展包下载，不承担后台配置职责。
 - beta 通道继续走隐藏入口与口令解锁，不默认展示 beta 平台、beta 脚本与 beta 服务器地址。
 
 ## 当前站点脚本

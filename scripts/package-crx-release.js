@@ -18,6 +18,7 @@ const { buildEmptyLocalBuildMetaContent } = require("./build-meta-local");
 const APP_NAME = "annotation-script-center";
 const REPO_ROOT = path.resolve(__dirname, "..");
 const SOURCE_EXTENSION_DIR = path.join(REPO_ROOT, "extension");
+const OPTIONS_APP_DIR = path.join(REPO_ROOT, "frontend", "options-app");
 const MANIFEST_PATH = path.join(SOURCE_EXTENSION_DIR, "manifest.json");
 const DIST_DIR = path.join(REPO_ROOT, "dist");
 const KEY_PATH = path.join(REPO_ROOT, "config", "secrets", `${APP_NAME}.pem`);
@@ -259,6 +260,22 @@ function runCommand(command, args, options) {
     throw new Error(`执行命令失败：${command} ${args.join(" ")} | ${result.error.message}`);
   }
   return result;
+}
+
+function buildVueOptionsAppIfPresent() {
+  const packageJsonPath = path.join(OPTIONS_APP_DIR, "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    return;
+  }
+  const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
+  const result = runCommand(npmExecutable, ["run", "build"], {
+    cwd: OPTIONS_APP_DIR,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `Vue options 构建失败：${(result.stderr || result.stdout || "").trim() || "无额外输出"}`
+    );
+  }
 }
 
 function createZipArchive(zipOutputPath, extensionDir) {
@@ -537,6 +554,7 @@ function packageReleaseProfile(options) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const releaseConfig = loadReleaseConfig();
+  buildVueOptionsAppIfPresent();
   const { version } = readManifestMeta();
   const downloadBaseUrl = normalizeBaseUrl(
     args.downloadBaseUrl || process.env.ASC_DOWNLOAD_BASE_URL || releaseConfig.downloadBaseUrl
