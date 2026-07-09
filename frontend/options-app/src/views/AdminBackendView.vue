@@ -11,12 +11,11 @@ const adminStore = useAdminStore();
 const appStore = useAppStore();
 const settingsStore = useSettingsStore();
 const scriptsStore = useScriptsStore();
-const configExpanded = ref(false);
+const configExpanded = ref(true);
 
 const draft = computed(() => adminStore.backendDraft || {
   backendEndpointMode: "server",
   backendBaseUrls: { server: "", local: "", beta: "" },
-  aiUsageOperatorName: "",
 });
 
 const betaVisible = computed(() => canUseBetaFeatures(settingsStore.settings || {}));
@@ -58,7 +57,7 @@ async function save() {
   >
       <section class="admin-surface-card">
         <div class="admin-card-head">
-          <strong>后端根地址</strong>
+          <strong>后端地址</strong>
           <span>保存后所有运行时 API 与下载入口都会跟随当前模式切换</span>
         </div>
 
@@ -105,7 +104,7 @@ async function save() {
                 class="ghost-button"
                 @click="configExpanded = !configExpanded"
               >
-                {{ configExpanded ? "收起根地址配置" : "展开根地址配置" }}
+                {{ configExpanded ? "折叠根地址配置" : "展开根地址配置" }}
               </button>
             </div>
 
@@ -122,14 +121,10 @@ async function save() {
                 <span>Beta 根地址</span>
                 <input v-model="draft.backendBaseUrls.beta" type="text" />
               </label>
-              <label class="home-endpoint-row">
-                <span>AI 调用使用人</span>
-                <input v-model="draft.aiUsageOperatorName" type="text" />
-              </label>
             </div>
 
             <div class="field-actions">
-              <button type="button" class="primary-button" @click="save">保存后端设置</button>
+              <button type="button" class="primary-button" @click="save">保存后端根地址</button>
             </div>
           </section>
         </div>

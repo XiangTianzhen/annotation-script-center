@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted } from "vue";
+import BaseSelect from "@/components/base/BaseSelect.vue";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useSettingsStore } from "@/stores/settings";
 
@@ -20,6 +21,20 @@ const selectedRelease = computed(() => {
 
 const latestRelease = computed(() => {
   return releaseItems.value.find((item) => item.isLatest) || releaseItems.value[0] || null;
+});
+const releaseOptions = computed(() =>
+  releaseItems.value.map((item) => ({
+    value: item.version,
+    label: item.isLatest ? `v${item.version}（最新版）` : `v${item.version}`,
+  }))
+);
+const selectedVersionModel = computed({
+  get() {
+    return String(downloadsStore.selectedVersion || releaseItems.value[0]?.version || "");
+  },
+  set(value) {
+    downloadsStore.selectVersion(String(value || ""));
+  },
 });
 
 const historyCount = computed(() =>
@@ -112,19 +127,12 @@ onMounted(async () => {
               <div class="download-release-selector">
                 <label class="project-download-row" for="public-release-version-select">
                   <span>选择下载版本</span>
-                  <select
+                  <BaseSelect
                     id="public-release-version-select"
-                    :value="downloadsStore.selectedVersion"
-                    @change="downloadsStore.selectVersion($event.target.value)"
-                  >
-                    <option
-                      v-for="item in releaseItems"
-                      :key="item.version"
-                      :value="item.version"
-                    >
-                      {{ item.isLatest ? `v${item.version}（最新版）` : `v${item.version}` }}
-                    </option>
-                  </select>
+                    v-model="selectedVersionModel"
+                    :options="releaseOptions"
+                    :custom="true"
+                  />
                 </label>
 
                 <div class="download-release-current">

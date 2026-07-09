@@ -11,6 +11,7 @@ const baseSelectPath = path.resolve(__dirname, "../src/components/base/BaseSelec
 const scriptDetailViewPath = path.resolve(__dirname, "../src/views/ScriptDetailView.vue");
 const adminExportsViewPath = path.resolve(__dirname, "../src/views/AdminExportsView.vue");
 const adminBackendViewPath = path.resolve(__dirname, "../src/views/AdminBackendView.vue");
+const downloadsViewPath = path.resolve(__dirname, "../src/views/DownloadsView.vue");
 
 class FakeEvent {
   constructor(type, init) {
@@ -751,17 +752,19 @@ test("shared select keeps menu open while the menu scrolls and closes on scroll-
   });
 });
 
-test("detail-page source wires shared custom-selects and leaves admin/download selects native", function () {
+test("options source wires shared custom-selects for detail, admin exports, and downloads", function () {
   const html = fs.readFileSync(htmlPath, "utf8");
   const baseSelect = fs.readFileSync(baseSelectPath, "utf8");
   const scriptDetailView = fs.readFileSync(scriptDetailViewPath, "utf8");
   const adminExportsView = fs.readFileSync(adminExportsViewPath, "utf8");
   const adminBackendView = fs.readFileSync(adminBackendViewPath, "utf8");
+  const downloadsView = fs.readFileSync(downloadsViewPath, "utf8");
 
   assert.match(html, /<script src="\.\/options-shared-select\.js"><\/script>/);
   assert.match(html, /id="detail-select-layer"/);
   assert.match(baseSelect, /data-options-custom-select/);
   assert.match(scriptDetailView, /:custom="true"/);
-  assert.doesNotMatch(adminExportsView, /:custom="true"/);
+  assert.match(adminExportsView, /:custom="true"/);
+  assert.match(downloadsView, /:custom="true"/);
   assert.doesNotMatch(adminBackendView, /:custom="true"/);
 });

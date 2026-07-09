@@ -2,22 +2,17 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { useAdminStore } from "@/stores/admin";
 import { useSettingsStore } from "@/stores/settings";
 
 const router = useRouter();
 const authStore = useAuthStore();
-const adminStore = useAdminStore();
 const settingsStore = useSettingsStore();
 
 const password = ref("");
 const remember = ref(false);
 
 async function submit() {
-  const operatorName =
-    adminStore.backendDraft?.aiUsageOperatorName ||
-    settingsStore.settings?.meta?.aiUsageOperatorName ||
-    "";
+  const operatorName = settingsStore.settings?.meta?.aiUsageOperatorName || "";
   const success = await authStore.unlock(
     settingsStore.settings || {},
     password.value,

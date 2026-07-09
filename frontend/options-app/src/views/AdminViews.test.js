@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import AdminUnlockView from "@/views/AdminUnlockView.vue";
 import AdminOverviewView from "@/views/AdminOverviewView.vue";
@@ -25,7 +25,17 @@ vi.mock("@/services/admin-service", async () => {
         response: { ok: true },
         body: {
           success: true,
-          data: [],
+          data: [
+            {
+              id: "project-dataset-a",
+              label: "ASR 快判统计数据",
+              suppliers: [
+                "__all__",
+                "全部",
+                "供应商 A",
+              ],
+            },
+          ],
         },
       };
     },
@@ -34,7 +44,13 @@ vi.mock("@/services/admin-service", async () => {
         response: { ok: true },
         body: {
           success: true,
-          data: [],
+          data: [
+            {
+              id: "ai-dataset-a",
+              label: "DataBaker 一检 AI 调用记录",
+              hasData: true,
+            },
+          ],
         },
       };
     },
@@ -64,6 +80,12 @@ vi.mock("vue-router", async () => {
 describe("Admin legacy shells", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    globalThis.ASREdgeConstants = {
+      RELEASE_CHANNEL: "beta",
+      canUseBetaFeatures() {
+        return true;
+      },
+    };
 
     const settingsStore = useSettingsStore();
     settingsStore.settings = {
@@ -91,7 +113,6 @@ describe("Admin legacy shells", () => {
         local: "http://127.0.0.1:3333",
         beta: "https://beta.example.com",
       },
-      aiUsageOperatorName: "测试员",
     };
     adminStore.dashboardLoading = false;
     adminStore.dashboardError = "";
@@ -140,16 +161,25 @@ describe("Admin legacy shells", () => {
     expect(wrapper.find("#admin-overview-status").exists()).toBe(true);
   });
 
-  test("backend and exports views keep the legacy form anchors", () => {
+  test("backend and exports views keep the legacy form anchors", async () => {
     routeState.path = "/admin/backend";
     const backendWrapper = mount(AdminBackendView);
     routeState.path = "/admin/exports";
     const exportsWrapper = mount(AdminExportsView);
+    await flushPromises();
 
     expect(backendWrapper.find(".admin-tab-strip").exists()).toBe(true);
     expect(backendWrapper.find("#admin-backend-card-slot").exists()).toBe(true);
+    expect(backendWrapper.text()).toContain("服务器");
+    expect(backendWrapper.text()).toContain("本机");
+    expect(backendWrapper.text()).toContain("Beta");
+    expect(backendWrapper.text()).toContain("折叠根地址配置");
+    expect(backendWrapper.text()).toContain("保存后端根地址");
+    expect(backendWrapper.text()).toContain("当前生效：");
+    expect(backendWrapper.findAll(".home-endpoint-row input")).toHaveLength(3);
     expect(exportsWrapper.find("#admin-download-summary").exists()).toBe(true);
     expect(exportsWrapper.find("#project-data-download-panel").exists()).toBe(true);
     expect(exportsWrapper.find("#ai-call-log-download-panel").exists()).toBe(true);
+    expect(exportsWrapper.findAll("select[data-options-custom-select='true']")).toHaveLength(3);
   });
 });

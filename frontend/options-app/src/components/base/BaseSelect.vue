@@ -8,6 +8,10 @@ const model = defineModel({
 });
 
 const props = defineProps({
+  id: {
+    type: String,
+    default: "",
+  },
   options: {
     type: Array,
     default: () => [],
@@ -17,6 +21,10 @@ const props = defineProps({
     default: "",
   },
   custom: {
+    type: Boolean,
+    default: false,
+  },
+  disabled: {
     type: Boolean,
     default: false,
   },
@@ -55,7 +63,7 @@ async function syncCustomState() {
 
 onMounted(syncCustomState);
 watch(
-  () => [model.value, props.options, props.custom],
+  () => [model.value, props.options, props.custom, props.disabled],
   () => {
     void syncCustomState();
   },
@@ -65,9 +73,11 @@ watch(
 
 <template>
   <select
+    :id="id || null"
     ref="selectRef"
     v-model="model"
     class="base-native-select"
+    :disabled="disabled"
     :data-options-custom-select="custom ? 'true' : null"
     :data-options-placeholder="custom && placeholder ? placeholder : null"
   >

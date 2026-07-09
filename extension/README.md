@@ -65,7 +65,7 @@ node scripts/build-options-app.js
 - `Lightwheel` 已从当前可用脚本库、popup 入口、manifest host 权限和共享默认映射中移除，不再作为可维护脚本保留。
 - `AI 设置`、`基础设置`、`快捷键` 保持脚本级独立保存。
 - 快捷键面板统一复用 `extension/options/options-shared-shortcut-panel.js`。
-- `#/script/:scriptId` 详情页里标记了 `data-options-custom-select="true"` 的下拉统一复用 `extension/options/options-shared-select.js`；该共享组件只接管脚本详情页，不影响下载中心和系统管理页的原生下拉，并在菜单展开时只监听真实页面滚动与 `resize`，不再因为菜单内部滚动而自动关闭。
+- Options 页面内标记了 `data-options-custom-select="true"` 的可见下拉统一复用 `extension/options/options-shared-select.js`；当前已覆盖脚本详情页、脚本下载中心和系统管理数据导出页，只有 `input[type="date"]` 继续保留原生控件，并在菜单展开时只监听真实页面滚动与 `resize`，不再因为菜单内部滚动而自动关闭。
 - 默认快捷键统一为空；只有用户显式保存后才生效。
 - TTS 自动清除默认时间统一为 `60000ms`；AI / 模型请求默认超时时间统一为 `60000ms`。
 - 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。
@@ -81,12 +81,14 @@ node scripts/build-options-app.js
   - `#/admin/backend`
   - `#/admin/exports`
 - `功能面板`
-  - 恢复旧版首页单舞台壳层、平台分组卡片和脚本启停 / 设置入口
+  - 恢复旧版左侧边栏主壳层、首页单舞台布局、平台分组卡片和脚本启停 / 设置入口
   - 保留旧版“编辑顺序”模式，只支持平台区块上下拖动排序，并继续写回 `settings.meta.publicCenterPlatformOrder`
 - `脚本下载中心`
   - 按旧版下载中心的 summary、版本选择和操作按钮布局展示扩展版本分发入口
+  - 版本选择下拉统一走共享自定义下拉
 - `系统管理`
   - 按旧版 overview / backend / exports 壳层展示后端地址、AI 调用使用人、导出与系统概况
+  - `后端设置` 恢复 `服务器 / 本机 / Beta` 模式按钮、三地址输入框和默认展开的根地址配置卡
 - `脚本详情`
   - 按旧版“金华话脚本”母版展示顶部信息区、启停/保存操作区和 `基础设置 / AI 设置 / 快捷键` 三段结构
   - 所有可见字段默认补齐 `?` 问号帮助，并使用全局单例浮层统一承载说明

@@ -50,5 +50,6 @@ describe("DownloadsView legacy shell", () => {
     expect(wrapper.text()).toContain("默认展示最新版，历史版本可通过下拉框切换");
     expect(wrapper.text()).toContain("当前可分发最新版");
     expect(wrapper.text()).toContain("查看外部目录");
+    expect(wrapper.find("select[data-options-custom-select='true']").exists()).toBe(true);
   });
 });

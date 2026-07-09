@@ -26,7 +26,7 @@ node scripts/build-options-app.js
 ```
 
 - `frontend/options-app/` 是 options 的长期维护源码入口；`extension/options/` 现在只保留扩展实际加载的构建产物与少量运行时 helper，不再作为手写源码目录直接修改。
-- 当前 Vue options 已把 `功能面板 / 脚本下载中心 / 系统管理 / 脚本详情` 的壳层、控件语言和关键交互回收到 pre-Vue 旧版 options 口径；后续 UI 调整统一在 `frontend/options-app/` 维护，再通过构建回填到 `extension/options/`。
+- 当前 Vue options 已把 `功能面板 / 脚本下载中心 / 系统管理 / 脚本详情` 回收到 pre-Vue 旧版 options 口径：全站恢复左侧边栏主壳层，可见 `select` 统一复用共享自定义下拉，只有日期输入继续保留原生控件；后续 UI 调整统一在 `frontend/options-app/` 维护，再通过构建回填到 `extension/options/`。
 - 之后日常只需要在仓库根目录执行 `node scripts/build-options-app.js`，构建产物会直接回填到 `extension/options/`。
 
 - 详细运行时说明：[`extension/README.md`](extension/README.md)

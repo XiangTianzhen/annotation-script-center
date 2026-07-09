@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import AdminPageFrame from "@/components/admin/AdminPageFrame.vue";
+import BaseSelect from "@/components/base/BaseSelect.vue";
 import {
   loadAiCallLogOptions,
   loadProjectDataDownloadOptions,
@@ -29,6 +30,24 @@ const aiStatus = ref("");
 
 const currentProjectDataset = computed(
   () => projectDatasets.value.find((item) => item.id === projectDataset.value) || null
+);
+const projectDatasetOptions = computed(() =>
+  projectDatasets.value.map((item) => ({
+    value: item.id,
+    label: item.label,
+  }))
+);
+const supplierOptions = computed(() =>
+  (supplierState.value.options || []).map((item) => ({
+    value: item.value,
+    label: item.label,
+  }))
+);
+const aiDatasetOptions = computed(() =>
+  aiDatasets.value.map((item) => ({
+    value: item.id,
+    label: item.label,
+  }))
 );
 
 const supplierState = computed(() => {
@@ -156,16 +175,13 @@ onMounted(loadOptions);
 
           <label class="project-download-row">
             <span>数据类型</span>
-            <select v-model="projectDataset">
-              <option value="">请选择数据类型</option>
-              <option
-                v-for="item in projectDatasets"
-                :key="item.id"
-                :value="item.id"
-              >
-                {{ item.label }}
-              </option>
-            </select>
+            <BaseSelect
+              id="project-download-dataset-select"
+              v-model="projectDataset"
+              :options="projectDatasetOptions"
+              placeholder="请选择数据类型"
+              :custom="true"
+            />
           </label>
 
           <label
@@ -174,15 +190,12 @@ onMounted(loadOptions);
             class="project-download-row"
           >
             <span>供应商</span>
-            <select v-model="projectSupplier">
-              <option
-                v-for="item in supplierState.options"
-                :key="item.value"
-                :value="item.value"
-              >
-                {{ item.label }}
-              </option>
-            </select>
+            <BaseSelect
+              id="project-download-supplier-select"
+              v-model="projectSupplier"
+              :options="supplierOptions"
+              :custom="true"
+            />
           </label>
 
           <label class="project-download-row">
@@ -204,16 +217,13 @@ onMounted(loadOptions);
 
           <label class="project-download-row">
             <span>脚本类型</span>
-            <select v-model="aiDataset">
-              <option value="">请选择脚本类型</option>
-              <option
-                v-for="item in aiDatasets"
-                :key="item.id"
-                :value="item.id"
-              >
-                {{ item.label }}
-              </option>
-            </select>
+            <BaseSelect
+              id="ai-call-log-dataset-select"
+              v-model="aiDataset"
+              :options="aiDatasetOptions"
+              placeholder="请选择脚本类型"
+              :custom="true"
+            />
           </label>
 
           <label class="project-download-row">

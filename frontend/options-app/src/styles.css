@@ -2232,12 +2232,12 @@ body.is-platform-reordering {
   pointer-events: auto;
 }
 
-.detail-workbench .options-custom-select {
+.options-custom-select {
   position: relative;
   width: 100%;
 }
 
-.detail-workbench .options-select-native {
+.options-select-native {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2248,7 +2248,7 @@ body.is-platform-reordering {
   pointer-events: none;
 }
 
-.detail-workbench .options-select-trigger {
+.options-select-trigger {
   width: 100%;
   min-height: 50px;
   margin: 0;
@@ -2280,7 +2280,7 @@ body.is-platform-reordering {
     background 140ms ease;
 }
 
-.detail-workbench .options-select-trigger:hover {
+.options-select-trigger:hover {
   border-color: rgba(191, 203, 220, 0.98);
   background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(247, 250, 255, 1));
   box-shadow:
@@ -2289,8 +2289,8 @@ body.is-platform-reordering {
   transform: none;
 }
 
-.detail-workbench .options-select-trigger:focus-visible,
-.detail-workbench .options-custom-select[data-open="true"] .options-select-trigger {
+.options-select-trigger:focus-visible,
+.options-custom-select[data-open="true"] .options-select-trigger {
   border-color: rgba(147, 197, 253, 0.96);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
@@ -2299,14 +2299,14 @@ body.is-platform-reordering {
   outline: none;
 }
 
-.detail-workbench .options-select-trigger:disabled {
+.options-select-trigger:disabled {
   cursor: not-allowed;
   opacity: 0.72;
   background: rgba(248, 250, 252, 0.94);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94);
 }
 
-.detail-workbench .options-select-trigger-label {
+.options-select-trigger-label {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
@@ -2316,18 +2316,18 @@ body.is-platform-reordering {
   font-weight: inherit;
 }
 
-.detail-workbench .options-select-trigger-label.is-placeholder {
+.options-select-trigger-label.is-placeholder {
   color: #94a3b8;
 }
 
-.detail-workbench .options-select-trigger-icon {
+.options-select-trigger-icon {
   position: relative;
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
 }
 
-.detail-workbench .options-select-trigger-icon::before {
+.options-select-trigger-icon::before {
   content: "";
   position: absolute;
   top: 4px;
@@ -2340,7 +2340,7 @@ body.is-platform-reordering {
   transition: transform 140ms ease;
 }
 
-.detail-workbench .options-custom-select[data-open="true"] .options-select-trigger-icon::before {
+.options-custom-select[data-open="true"] .options-select-trigger-icon::before {
   transform: rotate(225deg) translate(-1px, -1px);
 }
 

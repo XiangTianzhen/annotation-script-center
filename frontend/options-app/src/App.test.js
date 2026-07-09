@@ -5,6 +5,7 @@ import App from "@/App.vue";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
 import { useScriptsStore } from "@/stores/scripts";
+import { useSettingsStore } from "@/stores/settings";
 
 vi.mock("vue-router", () => ({
   RouterLink: {
@@ -45,6 +46,14 @@ describe("App legacy layout shell", () => {
     const authStore = useAuthStore();
     authStore.session = null;
 
+    const settingsStore = useSettingsStore();
+    settingsStore.settings = {
+      meta: {
+        aiUsageOperatorName: "测试员",
+        backendEndpointMode: "server",
+      },
+    };
+
     const scriptsStore = useScriptsStore();
     scriptsStore.platformLibrary = {
       alpha: {
@@ -64,13 +73,16 @@ describe("App legacy layout shell", () => {
     scriptsStore.visibleScripts = ["alphaScript"];
   });
 
-  test("renders the no-sidebar stage shell and top workspace header", () => {
+  test("renders the legacy sidebar shell instead of the top workspace header", () => {
     const wrapper = mount(App);
 
-    expect(wrapper.find(".workspace-shell").exists()).toBe(false);
-    expect(wrapper.find(".workspace-sidebar").exists()).toBe(false);
-    expect(wrapper.find(".workspace-stage-shell").exists()).toBe(true);
-    expect(wrapper.find(".workspace-topbar").exists()).toBe(true);
+    expect(wrapper.find(".workspace-shell").exists()).toBe(true);
+    expect(wrapper.find(".workspace-sidebar").exists()).toBe(true);
+    expect(wrapper.find(".workspace-stage-shell").exists()).toBe(false);
+    expect(wrapper.find(".workspace-topbar").exists()).toBe(false);
     expect(wrapper.find("#workspace-brand-title").text()).toContain("标注脚本中心");
+    expect(wrapper.find("#workspace-view-name").text()).toContain("功能面板");
+    expect(wrapper.find("#workspace-ai-usage-operator-input").exists()).toBe(true);
+    expect(wrapper.find("#workspace-library-count").text()).toContain("1 / 1");
   });
 });

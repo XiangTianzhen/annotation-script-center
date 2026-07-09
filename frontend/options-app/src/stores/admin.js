@@ -7,10 +7,6 @@ function normalizeText(value) {
   return String(value || "").trim();
 }
 
-function getAiUsageOperatorName(settings) {
-  return normalizeText(settings?.meta?.aiUsageOperatorName);
-}
-
 function getDownloadClientInfo() {
   return {
     userAgent: normalizeText(globalThis.navigator?.userAgent || ""),
@@ -45,7 +41,6 @@ export const useAdminStore = defineStore("admin", {
       this.backendDraft = {
         backendEndpointMode: getMode(settings || {}),
         backendBaseUrls: clone(getBaseUrls(settings || {})),
-        aiUsageOperatorName: getAiUsageOperatorName(settings || {}),
       };
     },
     async loadDashboard(settings, session) {
@@ -91,7 +86,6 @@ export const useAdminStore = defineStore("admin", {
         meta: {
           backendEndpointMode: this.backendDraft.backendEndpointMode,
           backendBaseUrls: clone(this.backendDraft.backendBaseUrls || {}),
-          aiUsageOperatorName: normalizeText(this.backendDraft.aiUsageOperatorName || ""),
         },
       };
       await settingsStore.persistPatch(nextPatch);
