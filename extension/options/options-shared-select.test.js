@@ -152,7 +152,10 @@ class FakeElement {
     this.id = "";
     this.value = "";
     this.scrollHeight = 160;
+    this.scrollWidth = 240;
     this.offsetHeight = 160;
+    this.clientHeight = 160;
+    this.clientWidth = 240;
     this.focused = false;
     this.lastScrollIntoView = null;
     this._rect = {
@@ -295,6 +298,17 @@ class FakeElement {
     this.eventListeners.get(key).push(listener);
   }
 
+  removeEventListener(type, listener) {
+    const key = String(type);
+    const listeners = this.eventListeners.get(key) || [];
+    const nextListeners = listeners.filter((item) => item !== listener);
+    if (nextListeners.length > 0) {
+      this.eventListeners.set(key, nextListeners);
+      return;
+    }
+    this.eventListeners.delete(key);
+  }
+
   dispatchEvent(event) {
     const currentEvent = event instanceof FakeEvent ? event : new FakeEvent(String(event?.type || ""));
     if (!currentEvent.target) {
@@ -435,6 +449,17 @@ class FakeDocument extends FakeElement {
     this.eventListeners.get(key).push(listener);
   }
 
+  removeEventListener(type, listener) {
+    const key = String(type);
+    const listeners = this.eventListeners.get(key) || [];
+    const nextListeners = listeners.filter((item) => item !== listener);
+    if (nextListeners.length > 0) {
+      this.eventListeners.set(key, nextListeners);
+      return;
+    }
+    this.eventListeners.delete(key);
+  }
+
   dispatchEvent(event) {
     const currentEvent = event instanceof FakeEvent ? event : new FakeEvent(String(event?.type || ""));
     currentEvent.currentTarget = this;
@@ -460,6 +485,17 @@ class FakeWindow {
       this.eventListeners.set(key, []);
     }
     this.eventListeners.get(key).push(listener);
+  }
+
+  removeEventListener(type, listener) {
+    const key = String(type);
+    const listeners = this.eventListeners.get(key) || [];
+    const nextListeners = listeners.filter((item) => item !== listener);
+    if (nextListeners.length > 0) {
+      this.eventListeners.set(key, nextListeners);
+      return;
+    }
+    this.eventListeners.delete(key);
   }
 
   dispatchEvent(event) {
@@ -490,14 +526,25 @@ function withFakeDom(callback) {
     HTMLSelectElement: global.HTMLSelectElement,
     HTMLButtonElement: global.HTMLButtonElement,
     Event: global.Event,
+    getComputedStyle: global.getComputedStyle,
   };
   const { documentNode, windowNode } = createDomEnvironment();
+  const getComputedStyle = function (node) {
+    const style = node && typeof node.style === "object" ? node.style : {};
+    return {
+      overflow: String(style.overflow || "visible"),
+      overflowX: String(style.overflowX || style.overflow || "visible"),
+      overflowY: String(style.overflowY || style.overflow || "visible"),
+    };
+  };
   global.window = windowNode;
   global.document = documentNode;
   global.HTMLElement = FakeElement;
   global.HTMLSelectElement = FakeSelectElement;
   global.HTMLButtonElement = FakeButtonElement;
   global.Event = FakeEvent;
+  global.getComputedStyle = getComputedStyle;
+  windowNode.getComputedStyle = getComputedStyle;
 
   delete require.cache[sharedSelectPath];
   const api = require(sharedSelectPath);
@@ -516,6 +563,7 @@ function withFakeDom(callback) {
     global.HTMLSelectElement = previous.HTMLSelectElement;
     global.HTMLButtonElement = previous.HTMLButtonElement;
     global.Event = previous.Event;
+    global.getComputedStyle = previous.getComputedStyle;
   }
 }
 
@@ -611,7 +659,7 @@ test("shared select supports keyboard open, highlight, choose, and escape close"
   });
 });
 
-test("shared select closes on outside click, window resize, and scroll", function () {
+test("shared select closes on outside click, window resize, and window scroll", function () {
   withFakeDom(function ({ api, documentNode, windowNode }) {
     const layer = documentNode.createElement("div");
     layer.id = "detail-select-layer";
@@ -651,6 +699,51 @@ test("shared select closes on outside click, window resize, and scroll", functio
     trigger.dispatchEvent(new FakeEvent("click"));
     assert.equal(wrapper.getAttribute("data-open"), "true");
     windowNode.dispatchEvent(new FakeEvent("scroll"));
+    assert.equal(wrapper.getAttribute("data-open"), "");
+  });
+});
+
+test("shared select keeps menu open while the menu scrolls and closes on scroll-container scroll", function () {
+  withFakeDom(function ({ api, documentNode }) {
+    const layer = documentNode.createElement("div");
+    layer.id = "detail-select-layer";
+    documentNode.body.appendChild(layer);
+
+    const scrollContainer = documentNode.createElement("div");
+    scrollContainer.style.overflowY = "auto";
+    scrollContainer.clientHeight = 120;
+    scrollContainer.scrollHeight = 360;
+    documentNode.body.appendChild(scrollContainer);
+
+    const scope = documentNode.createElement("section");
+    scrollContainer.appendChild(scope);
+
+    const selectNode = documentNode.createElement("select");
+    selectNode.id = "scroll-detail-select";
+    selectNode.setAttribute("data-options-custom-select", "true");
+    for (let index = 1; index <= 8; index += 1) {
+      appendOption(selectNode, String(index), String(index));
+    }
+    selectNode.value = "2";
+    scope.appendChild(selectNode);
+
+    api.syncCustomSelects(scope);
+
+    const wrapper = scope.querySelector(".options-custom-select");
+    const trigger = scope.querySelector(".options-select-trigger");
+    assert.ok(wrapper);
+    assert.ok(trigger);
+
+    trigger.dispatchEvent(new FakeEvent("click"));
+    assert.equal(wrapper.getAttribute("data-open"), "true");
+
+    const menu = documentNode.querySelector("#detail-select-menu");
+    assert.ok(menu);
+
+    menu.dispatchEvent(new FakeEvent("scroll"));
+    assert.equal(wrapper.getAttribute("data-open"), "true");
+
+    scrollContainer.dispatchEvent(new FakeEvent("scroll"));
     assert.equal(wrapper.getAttribute("data-open"), "");
   });
 });

@@ -5,7 +5,8 @@
   let activeWrapper = null;
   let layerNode = null;
   let menuNode = null;
-  let listenersBound = false;
+  let documentListenersBound = false;
+  let activeViewportListenerCleanup = null;
 
   function isElement(node) {
     return typeof globalObject.HTMLElement !== "undefined" && node instanceof globalObject.HTMLElement;
@@ -27,6 +28,20 @@
     return globalObject.window && typeof globalObject.window === "object"
       ? globalObject.window
       : globalObject;
+  }
+
+  function getComputedStyleObject(node) {
+    if (!isElement(node)) {
+      return null;
+    }
+    if (typeof globalObject.getComputedStyle === "function") {
+      return globalObject.getComputedStyle(node);
+    }
+    const windowObject = getWindowObject();
+    if (windowObject && typeof windowObject.getComputedStyle === "function") {
+      return windowObject.getComputedStyle(node);
+    }
+    return null;
   }
 
   function clearChildren(node) {
@@ -109,6 +124,91 @@
     return normalizeText(selectNode.getAttribute("data-options-placeholder"));
   }
 
+  function clearActiveViewportListeners() {
+    if (typeof activeViewportListenerCleanup === "function") {
+      activeViewportListenerCleanup();
+    }
+    activeViewportListenerCleanup = null;
+  }
+
+  function isScrollableElement(node) {
+    if (!isElement(node)) {
+      return false;
+    }
+    if (node.getAttribute("data-options-scroll-container") === "true") {
+      return true;
+    }
+    const computedStyle = getComputedStyleObject(node);
+    const overflowX = String(
+      computedStyle?.overflowX || computedStyle?.overflow || ""
+    ).toLowerCase();
+    const overflowY = String(
+      computedStyle?.overflowY || computedStyle?.overflow || ""
+    ).toLowerCase();
+    const canScrollByStyle =
+      /(auto|scroll|overlay)/.test(overflowX) || /(auto|scroll|overlay)/.test(overflowY);
+    if (!canScrollByStyle) {
+      return false;
+    }
+    const clientHeight = Number(node.clientHeight || node.offsetHeight || 0);
+    const clientWidth = Number(node.clientWidth || node.offsetWidth || 0);
+    const scrollHeight = Number(node.scrollHeight || 0);
+    const scrollWidth = Number(node.scrollWidth || 0);
+    return scrollHeight > clientHeight + 1 || scrollWidth > clientWidth + 1;
+  }
+
+  function getScrollContainerNodes(node) {
+    const containers = [];
+    const seen = new Set();
+    let current = isElement(node) ? node.parentElement : null;
+    while (isElement(current)) {
+      if (isScrollableElement(current) && !seen.has(current)) {
+        seen.add(current);
+        containers.push(current);
+      }
+      current = current.parentElement;
+    }
+    return containers;
+  }
+
+  function bindViewportCloseListeners(controller) {
+    clearActiveViewportListeners();
+    if (!controller || !isElement(controller.wrapper)) {
+      return;
+    }
+    const cleanupTasks = [];
+    const addScopedListener = function (target, type, listener) {
+      if (!target || typeof target.addEventListener !== "function") {
+        return;
+      }
+      target.addEventListener(type, listener);
+      cleanupTasks.push(function () {
+        if (typeof target.removeEventListener === "function") {
+          target.removeEventListener(type, listener);
+        }
+      });
+    };
+    const handleViewportChange = function () {
+      if (activeWrapper === controller.wrapper) {
+        closeCustomSelect(controller.wrapper);
+      }
+    };
+    const windowObject = getWindowObject();
+    addScopedListener(windowObject, "resize", handleViewportChange);
+    addScopedListener(windowObject, "scroll", handleViewportChange);
+    getScrollContainerNodes(controller.wrapper).forEach(function (node) {
+      addScopedListener(node, "scroll", handleViewportChange);
+    });
+    activeViewportListenerCleanup = function () {
+      while (cleanupTasks.length > 0) {
+        const cleanup = cleanupTasks.pop();
+        if (typeof cleanup === "function") {
+          cleanup();
+        }
+      }
+    };
+  }
+
   function closeCustomSelect(target) {
     const controller = getController(target);
     if (!controller) {
@@ -123,6 +223,7 @@
     controller.trigger.setAttribute("aria-expanded", "false");
     if (activeWrapper === controller.wrapper) {
       activeWrapper = null;
+      clearActiveViewportListeners();
       if (isElement(menuNode)) {
         menuNode.hidden = true;
         clearChildren(menuNode);
@@ -307,6 +408,7 @@
     activeWrapper = controller.wrapper;
     renderMenu(controller);
     positionMenu(controller.wrapper);
+    bindViewportCloseListeners(controller);
   }
 
   function chooseSelectValue(selectNode, value) {
@@ -349,7 +451,7 @@
   }
 
   function bindGlobalListeners() {
-    if (listenersBound) {
+    if (documentListenersBound) {
       return;
     }
     const documentNode = globalObject.document;
@@ -365,20 +467,7 @@
         closeOpenCustomSelects(null);
       });
     }
-    const windowObject = getWindowObject();
-    if (windowObject && typeof windowObject.addEventListener === "function") {
-      windowObject.addEventListener("resize", function () {
-        closeOpenCustomSelects(null);
-      });
-      windowObject.addEventListener(
-        "scroll",
-        function () {
-          closeOpenCustomSelects(null);
-        },
-        true
-      );
-    }
-    listenersBound = true;
+    documentListenersBound = true;
   }
 
   function ensureCustomSelect(selectNode) {
