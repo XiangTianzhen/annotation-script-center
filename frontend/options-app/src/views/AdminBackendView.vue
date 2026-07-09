@@ -1,7 +1,6 @@
 <script setup>
-import { computed } from "vue";
-import AdminTabStrip from "@/components/admin/AdminTabStrip.vue";
-import AdminToolbar from "@/components/admin/AdminToolbar.vue";
+import { computed, ref } from "vue";
+import AdminPageFrame from "@/components/admin/AdminPageFrame.vue";
 import { canUseBetaFeatures } from "@/services/globals";
 import { useAdminStore } from "@/stores/admin";
 import { useAppStore } from "@/stores/app";
@@ -12,6 +11,7 @@ const adminStore = useAdminStore();
 const appStore = useAppStore();
 const settingsStore = useSettingsStore();
 const scriptsStore = useScriptsStore();
+const configExpanded = ref(false);
 
 const draft = computed(() => adminStore.backendDraft || {
   backendEndpointMode: "server",
@@ -20,6 +20,30 @@ const draft = computed(() => adminStore.backendDraft || {
 });
 
 const betaVisible = computed(() => canUseBetaFeatures(settingsStore.settings || {}));
+const currentModeLabel = computed(() => {
+  const mode = String(draft.value.backendEndpointMode || "server").trim().toLowerCase();
+  if (mode === "local") {
+    return "本机";
+  }
+  if (mode === "beta") {
+    return "Beta";
+  }
+  return "服务器";
+});
+const effectiveBaseUrl = computed(() => {
+  const mode = String(draft.value.backendEndpointMode || "server").trim().toLowerCase();
+  if (mode === "local") {
+    return String(draft.value.backendBaseUrls?.local || "").trim();
+  }
+  if (mode === "beta") {
+    return String(draft.value.backendBaseUrls?.beta || "").trim();
+  }
+  return String(draft.value.backendBaseUrls?.server || "").trim();
+});
+
+function setMode(mode) {
+  draft.value.backendEndpointMode = mode;
+}
 
 async function save() {
   await adminStore.saveBackendDraft(settingsStore, appStore);
@@ -28,25 +52,10 @@ async function save() {
 </script>
 
 <template>
-  <div class="admin-workspace admin-stage">
-    <section class="admin-stage-banner">
-      <div class="admin-stage-copy">
-        <strong>后端与操作人配置</strong>
-        <p>系统管理统一维护 server / local / beta 三套后端根地址；AI 调用使用人继续保留在左侧侧栏统一保存。</p>
-      </div>
-    </section>
-
-    <section class="admin-tab-panel admin-content">
-      <AdminToolbar />
-      <AdminTabStrip />
-
-      <div class="admin-panel-head">
-        <div>
-          <h3>后端设置</h3>
-          <p>这里统一维护 server / local / beta 三套后端根地址；保存后所有运行时 API 与下载入口都会跟随当前模式切换。</p>
-        </div>
-      </div>
-
+  <AdminPageFrame
+    title="后端设置"
+    description="这些统一维护 server / local / beta 三套后端根地址；AI 调用使用人与全局摘要统一放在左侧侧栏中管理。"
+  >
       <section class="admin-surface-card">
         <div class="admin-card-head">
           <strong>后端根地址</strong>
@@ -55,19 +64,52 @@ async function save() {
 
         <div id="admin-backend-card-slot">
           <section class="home-endpoint-card hero-command-card">
-            <strong>后端入口模式</strong>
-            <span class="home-endpoint-help">继续沿用共享 settings 里的 `meta.backendEndpointMode` 和 `meta.backendBaseUrls`，不改已有存储字段。</span>
+            <strong>后端根地址</strong>
+            <span class="home-endpoint-help">该设置统一控制所有脚本的后端请求和下载入口；前端只保存三套根地址，再从当前模式派生 `/api/...` 与 `/downloads/...`。</span>
 
-            <label class="project-download-row">
-              <span>当前模式</span>
-              <select v-model="draft.backendEndpointMode">
-                <option value="server">Server</option>
-                <option value="local">Local</option>
-                <option v-if="betaVisible" value="beta">Beta</option>
-              </select>
-            </label>
+            <div class="segmented-control" role="tablist" aria-label="后端模式切换">
+              <button
+                type="button"
+                class="segmented-button"
+                :class="{ active: draft.backendEndpointMode === 'server' }"
+                @click="setMode('server')"
+              >
+                服务器
+              </button>
+              <button
+                type="button"
+                class="segmented-button"
+                :class="{ active: draft.backendEndpointMode === 'local' }"
+                @click="setMode('local')"
+              >
+                本机
+              </button>
+              <button
+                v-if="betaVisible"
+                type="button"
+                class="segmented-button"
+                :class="{ active: draft.backendEndpointMode === 'beta' }"
+                @click="setMode('beta')"
+              >
+                Beta
+              </button>
+            </div>
 
-            <div class="home-endpoint-config-panel">
+            <div class="status-text">
+              当前生效：{{ currentModeLabel }}{{ effectiveBaseUrl ? `（${effectiveBaseUrl}）` : "" }}
+            </div>
+
+            <div class="field-actions">
+              <button
+                type="button"
+                class="ghost-button"
+                @click="configExpanded = !configExpanded"
+              >
+                {{ configExpanded ? "收起根地址配置" : "展开根地址配置" }}
+              </button>
+            </div>
+
+            <div v-if="configExpanded" class="home-endpoint-config-panel">
               <label class="home-endpoint-row">
                 <span>Server 根地址</span>
                 <input v-model="draft.backendBaseUrls.server" type="text" />
@@ -92,6 +134,5 @@ async function save() {
           </section>
         </div>
       </section>
-    </section>
-  </div>
+  </AdminPageFrame>
 </template>

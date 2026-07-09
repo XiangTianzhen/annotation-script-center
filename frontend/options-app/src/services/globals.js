@@ -1,5 +1,34 @@
 import { clone } from "@/utils/clone";
 
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function buildOrderedIds(sourceIds, savedOrder) {
+  const nextIds = [];
+  const seen = new Set();
+
+  (Array.isArray(savedOrder) ? savedOrder : []).forEach((id) => {
+    const normalized = normalizeText(id);
+    if (!normalized || seen.has(normalized) || sourceIds.includes(normalized) === false) {
+      return;
+    }
+    seen.add(normalized);
+    nextIds.push(normalized);
+  });
+
+  (Array.isArray(sourceIds) ? sourceIds : []).forEach((id) => {
+    const normalized = normalizeText(id);
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    nextIds.push(normalized);
+  });
+
+  return nextIds;
+}
+
 export function getConstants() {
   return globalThis.ASREdgeConstants || {};
 }
@@ -77,17 +106,31 @@ export function getVisiblePlatformLibrary(settings) {
       : function () {
           return true;
         };
-  const visiblePlatforms = Object.values(platformLibrary)
-    .filter((platform) => isPlatformVisible(platform.id, settings || {}))
-    .map((platform) => platform.id);
-  const visibleScripts = Object.values(scriptLibrary)
-    .filter((script) => isScriptVisible(script.id, settings || {}))
-    .map((script) => script.id);
+  const visiblePlatforms = buildOrderedIds(
+    Object.values(platformLibrary)
+      .filter((platform) => isPlatformVisible(platform.id, settings || {}))
+      .map((platform) => platform.id),
+    settings?.meta?.publicCenterPlatformOrder
+  );
+  const visibleScriptSet = new Set(
+    Object.values(scriptLibrary)
+      .filter((script) => isScriptVisible(script.id, settings || {}))
+      .map((script) => script.id)
+  );
+  const orderedVisibleScripts = visiblePlatforms
+    .flatMap((platformId) =>
+      Object.values(scriptLibrary)
+        .filter((script) => script?.platformId === platformId && visibleScriptSet.has(script.id))
+        .map((script) => script.id)
+    );
+  const remainingVisibleScripts = Array.from(visibleScriptSet).filter(
+    (scriptId) => orderedVisibleScripts.includes(scriptId) === false
+  );
   return {
     platformLibrary,
     scriptLibrary,
     visiblePlatforms,
-    visibleScripts,
+    visibleScripts: orderedVisibleScripts.concat(remainingVisibleScripts),
   };
 }
 

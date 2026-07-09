@@ -28,6 +28,21 @@ const script = computed(() => scriptsStore.getScript(scriptId.value));
 const detailSections = computed(() =>
   getScriptDetailSections(scriptId.value, draftConfig.value || {})
 );
+const basicSection = computed(() =>
+  detailSections.value.find((section) => section.key === "basic") || null
+);
+const aiSection = computed(() =>
+  detailSections.value.find((section) => section.key === "ai") || null
+);
+const shortcutsSection = computed(() =>
+  detailSections.value.find((section) => section.key === "shortcuts") || null
+);
+const primarySections = computed(() =>
+  [basicSection.value, shortcutsSection.value].filter(Boolean)
+);
+const secondarySections = computed(() =>
+  [aiSection.value].filter(Boolean)
+);
 const runtimeEnabled = computed(() =>
   isScriptRuntimeAccessible(scriptId.value, settingsStore.settings || {})
 );
@@ -105,6 +120,7 @@ async function toggleScriptEnabled() {
     <div class="detail-top">
       <div class="detail-title">
         <a id="back-to-center" class="ghost-button detail-back-link" href="#/center">返回功能面板</a>
+        <span class="hero-kicker">SCRIPT DETAIL</span>
         <h2 id="detail-script-name">{{ script.label }}</h2>
         <p id="detail-script-description" class="detail-copy">
           {{ script.description }}
@@ -122,7 +138,12 @@ async function toggleScriptEnabled() {
 
     <section id="detail-actions-panel" class="detail-panel detail-actions-panel">
       <div class="detail-actions">
-        <button id="detail-toggle-button" class="primary-button" type="button" @click="toggleScriptEnabled">
+        <button
+          id="detail-toggle-button"
+          :class="runtimeEnabled ? 'danger-button' : 'primary-button'"
+          type="button"
+          @click="toggleScriptEnabled"
+        >
           {{ runtimeEnabled ? "关闭脚本" : "启用脚本" }}
         </button>
         <button class="secondary-button" type="button" :disabled="saving" @click="saveForm">
@@ -134,91 +155,172 @@ async function toggleScriptEnabled() {
       </p>
     </section>
 
-    <div class="detail-workbench detail-workbench-legacy">
-      <section
-        v-for="section in detailSections"
-        :key="section.key"
-        class="detail-panel"
-        :class="section.key === 'ai' ? 'detail-ai-panel' : section.key === 'shortcuts' ? 'detail-shortcut-panel' : 'detail-panel-base'"
-      >
-        <div class="detail-section-head">
-          <div>
-            <strong class="field-title-row">
-              <span>{{ section.title }}</span>
-              <InlineHelpDot :text="section.help" />
-            </strong>
-          </div>
-        </div>
-
-        <ShortcutEditor
-          v-if="section.key === 'shortcuts'"
-          :model-value="draftConfig.shortcuts || {}"
-          :actions="section.actions || []"
-          @update:model-value="(value) => setFieldValue({ path: 'shortcuts' }, value)"
-        />
-
-        <div v-else :class="resolveGridClass(section)">
-          <template v-for="field in section.fields" :key="field.path || field.label">
-            <div v-if="field.kind === 'notice'" class="field-card field-card-notice">
+    <div class="detail-workbench detail-workbench-legacy" :class="{ 'is-single': secondarySections.length <= 0 }">
+      <div class="detail-track detail-track-primary">
+        <section
+          v-for="section in primarySections"
+          :key="section.key"
+          class="detail-panel"
+          :class="section.key === 'shortcuts' ? 'detail-shortcut-panel' : 'detail-panel-base'"
+        >
+          <div class="detail-section-head">
+            <div>
               <strong class="field-title-row">
-                <span>{{ field.label }}</span>
+                <span>{{ section.title }}</span>
+                <InlineHelpDot :text="section.help" />
               </strong>
-              <span v-for="line in field.lines || []" :key="line">{{ line }}</span>
             </div>
+          </div>
 
-            <label v-else-if="field.kind === 'boolean'" class="field-card">
-              <strong class="field-title-row">
-                <span>{{ field.label }}</span>
-                <InlineHelpDot :text="field.help" />
-              </strong>
-              <span class="field-toggle switch-field">
-                <input
-                  type="checkbox"
-                  :checked="Boolean(getFieldValue(field))"
-                  @change="(event) => setFieldValue(field, event.target.checked)"
+          <ShortcutEditor
+            v-if="section.key === 'shortcuts'"
+            :model-value="draftConfig.shortcuts || {}"
+            :actions="section.actions || []"
+            @update:model-value="(value) => setFieldValue({ path: 'shortcuts' }, value)"
+          />
+
+          <div v-else :class="resolveGridClass(section)">
+            <template v-for="field in section.fields" :key="field.path || field.label">
+              <div v-if="field.kind === 'notice'" class="field-card field-card-notice">
+                <strong class="field-title-row">
+                  <span>{{ field.label }}</span>
+                </strong>
+                <span v-for="line in field.lines || []" :key="line">{{ line }}</span>
+              </div>
+
+              <label v-else-if="field.kind === 'boolean'" class="field-card">
+                <strong class="field-title-row">
+                  <span>{{ field.label }}</span>
+                  <InlineHelpDot :text="field.help" />
+                </strong>
+                <span class="field-toggle switch-field">
+                  <input
+                    type="checkbox"
+                    :checked="Boolean(getFieldValue(field))"
+                    @change="(event) => setFieldValue(field, event.target.checked)"
+                  />
+                  <span class="switch-slider" aria-hidden="true"></span>
+                  <span class="switch-text">{{ Boolean(getFieldValue(field)) ? "开启" : "关闭" }}</span>
+                </span>
+              </label>
+
+              <label v-else class="field-card">
+                <strong class="field-title-row">
+                  <span>{{ field.label }}</span>
+                  <InlineHelpDot :text="field.help" />
+                </strong>
+
+                <BaseSelect
+                  v-if="field.kind === 'select'"
+                  :model-value="String(getFieldValue(field) ?? '')"
+                  :options="field.options || []"
+                  :placeholder="field.placeholder || ''"
+                  :custom="true"
+                  @update:model-value="(value) => setFieldValue(field, coerceValue(field, value))"
                 />
-                <span class="switch-slider" aria-hidden="true"></span>
-                <span class="switch-text">{{ Boolean(getFieldValue(field)) ? "开启" : "关闭" }}</span>
-              </span>
-            </label>
 
-            <label v-else class="field-card">
+                <textarea
+                  v-else-if="field.kind === 'textarea'"
+                  :rows="field.rows || 8"
+                  :placeholder="field.placeholder || ''"
+                  :value="String(getFieldValue(field) ?? '')"
+                  @input="(event) => setFieldValue(field, event.target.value)"
+                />
+
+                <input
+                  v-else
+                  :type="field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : 'text'"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step"
+                  :placeholder="field.placeholder || ''"
+                  :value="getFieldValue(field)"
+                  @input="(event) => setFieldValue(field, coerceValue(field, event.target.value))"
+                />
+              </label>
+            </template>
+          </div>
+        </section>
+      </div>
+
+      <div class="detail-track detail-track-secondary" :class="{ 'is-empty': secondarySections.length <= 0 }">
+        <section
+          v-for="section in secondarySections"
+          :key="section.key"
+          class="detail-panel detail-ai-panel"
+        >
+          <div class="detail-section-head">
+            <div>
               <strong class="field-title-row">
-                <span>{{ field.label }}</span>
-                <InlineHelpDot :text="field.help" />
+                <span>{{ section.title }}</span>
+                <InlineHelpDot :text="section.help" />
               </strong>
+            </div>
+          </div>
 
-              <BaseSelect
-                v-if="field.kind === 'select'"
-                :model-value="String(getFieldValue(field) ?? '')"
-                :options="field.options || []"
-                :placeholder="field.placeholder || ''"
-                :custom="true"
-                @update:model-value="(value) => setFieldValue(field, coerceValue(field, value))"
-              />
+          <div :class="resolveGridClass(section)">
+            <template v-for="field in section.fields" :key="field.path || field.label">
+              <div v-if="field.kind === 'notice'" class="field-card field-card-notice">
+                <strong class="field-title-row">
+                  <span>{{ field.label }}</span>
+                </strong>
+                <span v-for="line in field.lines || []" :key="line">{{ line }}</span>
+              </div>
 
-              <textarea
-                v-else-if="field.kind === 'textarea'"
-                :rows="field.rows || 8"
-                :placeholder="field.placeholder || ''"
-                :value="String(getFieldValue(field) ?? '')"
-                @input="(event) => setFieldValue(field, event.target.value)"
-              />
+              <label v-else-if="field.kind === 'boolean'" class="field-card">
+                <strong class="field-title-row">
+                  <span>{{ field.label }}</span>
+                  <InlineHelpDot :text="field.help" />
+                </strong>
+                <span class="field-toggle switch-field">
+                  <input
+                    type="checkbox"
+                    :checked="Boolean(getFieldValue(field))"
+                    @change="(event) => setFieldValue(field, event.target.checked)"
+                  />
+                  <span class="switch-slider" aria-hidden="true"></span>
+                  <span class="switch-text">{{ Boolean(getFieldValue(field)) ? "开启" : "关闭" }}</span>
+                </span>
+              </label>
 
-              <input
-                v-else
-                :type="field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : 'text'"
-                :min="field.min"
-                :max="field.max"
-                :step="field.step"
-                :placeholder="field.placeholder || ''"
-                :value="getFieldValue(field)"
-                @input="(event) => setFieldValue(field, coerceValue(field, event.target.value))"
-              />
-            </label>
-          </template>
-        </div>
-      </section>
+              <label v-else class="field-card">
+                <strong class="field-title-row">
+                  <span>{{ field.label }}</span>
+                  <InlineHelpDot :text="field.help" />
+                </strong>
+
+                <BaseSelect
+                  v-if="field.kind === 'select'"
+                  :model-value="String(getFieldValue(field) ?? '')"
+                  :options="field.options || []"
+                  :placeholder="field.placeholder || ''"
+                  :custom="true"
+                  @update:model-value="(value) => setFieldValue(field, coerceValue(field, value))"
+                />
+
+                <textarea
+                  v-else-if="field.kind === 'textarea'"
+                  :rows="field.rows || 8"
+                  :placeholder="field.placeholder || ''"
+                  :value="String(getFieldValue(field) ?? '')"
+                  @input="(event) => setFieldValue(field, event.target.value)"
+                />
+
+                <input
+                  v-else
+                  :type="field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : 'text'"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step"
+                  :placeholder="field.placeholder || ''"
+                  :value="getFieldValue(field)"
+                  @input="(event) => setFieldValue(field, coerceValue(field, event.target.value))"
+                />
+              </label>
+            </template>
+          </div>
+        </section>
+      </div>
     </div>
 
     <div id="detail-status" class="status-text">

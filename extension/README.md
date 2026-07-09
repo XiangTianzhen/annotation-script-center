@@ -41,6 +41,7 @@ node scripts/sync-local-build-meta.js
   - 扩展仍然通过这个入口打开 options，但页面内容来自 `frontend/options-app` 的构建产物
 - `extension/options/assets/*`
   - Vue options 打包后的 JS / CSS 资源
+- 当前运行中的 Vue options 已回收到 pre-Vue 旧版 options 的页面壳层、按钮、开关、下拉和详情工作台交互；需要调整 UI 时只改 `frontend/options-app/`，不要直接改 `extension/options/` 构建产物。
 
 本地开发 Vue options 的最小命令：
 
@@ -80,14 +81,18 @@ node scripts/build-options-app.js
   - `#/admin/backend`
   - `#/admin/exports`
 - `功能面板`
-  - 平台概览、脚本启停、脚本详情入口
+  - 恢复旧版首页单舞台壳层、平台分组卡片和脚本启停 / 设置入口
+  - 保留旧版“编辑顺序”模式，只支持平台区块上下拖动排序，并继续写回 `settings.meta.publicCenterPlatformOrder`
 - `脚本下载中心`
-  - 扩展版本分发入口
+  - 按旧版下载中心的 summary、版本选择和操作按钮布局展示扩展版本分发入口
 - `系统管理`
-  - 后端地址、AI 调用使用人、导出与系统概况
+  - 按旧版 overview / backend / exports 壳层展示后端地址、AI 调用使用人、导出与系统概况
+- `脚本详情`
+  - 按旧版“金华话脚本”母版展示顶部信息区、启停/保存操作区和 `基础设置 / AI 设置 / 快捷键` 三段结构
+  - 所有可见字段默认补齐 `?` 问号帮助，并使用全局单例浮层统一承载说明
 - `/admin/*` 进入时要求密码，未解锁会统一回到 `#/admin/unlock`。
 - `#/downloads` 只负责扩展包下载，不承担后台配置职责。
-- beta 通道继续走隐藏入口与口令解锁，不默认展示 beta 平台、beta 脚本与 beta 服务器地址。
+- beta 通道继续走隐藏入口与口令解锁，不默认展示 beta 平台、beta 脚本与 beta 服务器地址；public build 即使本地残留 unlock 状态也不会开放 beta 能力。
 
 ## 当前站点脚本
 

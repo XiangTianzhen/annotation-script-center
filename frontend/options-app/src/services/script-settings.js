@@ -401,6 +401,37 @@ function normalizeFieldOrder(fields) {
     .map((item) => clone(item.field));
 }
 
+function buildFieldHelpFallback(sectionTitle, field) {
+  const label = text(field?.label) || "当前设置";
+  const section = text(sectionTitle) || "当前脚本";
+  switch (text(field?.kind)) {
+    case "boolean":
+      return `控制“${label}”是否生效；保存后会按${section}的当前配置立即写回。`;
+    case "select":
+      return `用于选择“${label}”的预设方案；保存后会按${section}的当前配置生效。`;
+    case "textarea":
+      return `这里用于填写“${label}”的长文本内容；保存后仅作用于当前脚本。`;
+    case "number":
+      return `这里用于调整“${label}”的数值参数；保存后仅作用于当前脚本。`;
+    case "color":
+      return `这里用于调整“${label}”的颜色表现；保存后仅作用于当前脚本。`;
+    default:
+      return `这里用于配置“${label}”；保存后仅作用于当前脚本。`;
+  }
+}
+
+function normalizeSectionFields(sectionTitle, fields) {
+  return normalizeFieldOrder(fields).map((field) => {
+    if (!field || typeof field !== "object" || field.kind === "notice") {
+      return clone(field);
+    }
+    return {
+      ...clone(field),
+      help: text(field.help) || buildFieldHelpFallback(sectionTitle, field),
+    };
+  });
+}
+
 function isAiGroup(group) {
   const title = text(group?.title);
   if (!title) {
@@ -473,7 +504,7 @@ export function getScriptDetailSections(scriptId, config) {
       title: DETAIL_SECTION_TITLE_MAP.basic,
       help: resolveDetailSectionHelp(scriptId, "basic", basicDescription),
       layout: resolveDetailSectionLayout(basicFields),
-      fields: normalizeFieldOrder(basicFields),
+      fields: normalizeSectionFields(DETAIL_SECTION_TITLE_MAP.basic, basicFields),
     });
   }
 
@@ -483,7 +514,7 @@ export function getScriptDetailSections(scriptId, config) {
       title: DETAIL_SECTION_TITLE_MAP.ai,
       help: resolveDetailSectionHelp(scriptId, "ai", aiDescription),
       layout: resolveDetailSectionLayout(aiFields),
-      fields: normalizeFieldOrder(aiFields),
+      fields: normalizeSectionFields(DETAIL_SECTION_TITLE_MAP.ai, aiFields),
     });
   }
 

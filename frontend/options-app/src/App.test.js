@@ -64,12 +64,13 @@ describe("App legacy layout shell", () => {
     scriptsStore.visibleScripts = ["alphaScript"];
   });
 
-  test("renders the legacy workspace shell class contract", () => {
+  test("renders the no-sidebar stage shell and top workspace header", () => {
     const wrapper = mount(App);
 
-    expect(wrapper.find(".workspace-shell").exists()).toBe(true);
-    expect(wrapper.find(".workspace-sidebar").exists()).toBe(true);
-    expect(wrapper.find(".workspace-stage").exists()).toBe(true);
+    expect(wrapper.find(".workspace-shell").exists()).toBe(false);
+    expect(wrapper.find(".workspace-sidebar").exists()).toBe(false);
+    expect(wrapper.find(".workspace-stage-shell").exists()).toBe(true);
+    expect(wrapper.find(".workspace-topbar").exists()).toBe(true);
     expect(wrapper.find("#workspace-brand-title").text()).toContain("标注脚本中心");
   });
 });

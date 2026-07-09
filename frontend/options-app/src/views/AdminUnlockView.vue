@@ -33,10 +33,14 @@ async function submit() {
 
 <template>
   <div class="admin-workspace">
-    <section class="admin-stage-banner">
-      <div class="admin-stage-copy">
-        <strong>系统管理解锁</strong>
-        <p>进入系统管理前需要先输入密码。登录后当前浏览器会话内可直接查看仪表盘和发起导出。</p>
+    <section class="hero hero-compact hero-mode-admin admin-page-hero">
+      <div class="hero-top">
+        <div>
+          <span class="hero-kicker">SYSTEM MANAGEMENT</span>
+          <h1>标注脚本中心</h1>
+          <p class="summary-note">系统管理解锁</p>
+          <p>系统管理统一承载后端设置、数据导出与系统仪表盘；进入前需要管理员密码验证。</p>
+        </div>
       </div>
     </section>
 

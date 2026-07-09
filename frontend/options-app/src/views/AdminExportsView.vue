@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import AdminTabStrip from "@/components/admin/AdminTabStrip.vue";
-import AdminToolbar from "@/components/admin/AdminToolbar.vue";
+import AdminPageFrame from "@/components/admin/AdminPageFrame.vue";
 import {
   loadAiCallLogOptions,
   loadProjectDataDownloadOptions,
@@ -132,25 +131,10 @@ onMounted(loadOptions);
 </script>
 
 <template>
-  <div class="admin-workspace admin-stage">
-    <section class="admin-stage-banner">
-      <div class="admin-stage-copy">
-        <strong>系统导出</strong>
-        <p>这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已移到公开脚本下载中心。</p>
-      </div>
-    </section>
-
-    <section class="admin-tab-panel admin-content">
-      <AdminToolbar />
-      <AdminTabStrip />
-
-      <div class="admin-panel-head">
-        <div>
-          <h3>数据导出</h3>
-          <p>这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已移到公开脚本下载中心。</p>
-        </div>
-      </div>
-
+  <AdminPageFrame
+    title="数据导出"
+    description="这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已经移到公开脚本下载中心。"
+  >
       <div id="admin-download-summary" class="admin-summary-grid">
         <article
           v-for="item in exportSummaryCards"
@@ -207,7 +191,7 @@ onMounted(loadOptions);
           </label>
 
           <div class="field-actions">
-            <button type="button" class="primary-button" @click="requestProjectExport">导出项目数据</button>
+            <button type="button" class="primary-button" @click="requestProjectExport">导出</button>
           </div>
           <p v-if="projectStatus" class="status-text">{{ projectStatus }}</p>
         </section>
@@ -249,11 +233,10 @@ onMounted(loadOptions);
           </div>
 
           <div class="field-actions">
-            <button type="button" class="primary-button" @click="requestAiExport">导出 AI 调用记录</button>
+            <button type="button" class="primary-button" @click="requestAiExport">导出记录</button>
           </div>
           <p v-if="aiStatus" class="status-text">{{ aiStatus }}</p>
         </section>
       </div>
-    </section>
-  </div>
+  </AdminPageFrame>
 </template>

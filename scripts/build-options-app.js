@@ -35,6 +35,14 @@ function ensureExists(targetPath, description) {
   }
 }
 
+function normalizeFileLineEndings(targetPath) {
+  const content = fs.readFileSync(targetPath, "utf8");
+  const normalizedContent = content.replace(/\r\n/g, "\n");
+  if (normalizedContent !== content) {
+    fs.writeFileSync(targetPath, normalizedContent, "utf8");
+  }
+}
+
 function buildOptionsApp() {
   const packageJsonPath = path.join(OPTIONS_APP_DIR, "package.json");
   ensureExists(packageJsonPath, "options-app package.json");
@@ -49,12 +57,14 @@ function buildOptionsApp() {
     });
   }
 
-  ensureExists(path.join(OPTIONS_OUTPUT_DIR, "options.html"), "options 构建产物 options.html");
+  const optionsHtmlPath = path.join(OPTIONS_OUTPUT_DIR, "options.html");
+  ensureExists(optionsHtmlPath, "options 构建产物 options.html");
   ensureExists(path.join(OPTIONS_OUTPUT_DIR, "assets"), "options 构建产物 assets");
   ensureExists(
     path.join(OPTIONS_OUTPUT_DIR, "options-shared-select.js"),
     "options 运行时 helper"
   );
+  normalizeFileLineEndings(optionsHtmlPath);
 }
 
 module.exports = {
