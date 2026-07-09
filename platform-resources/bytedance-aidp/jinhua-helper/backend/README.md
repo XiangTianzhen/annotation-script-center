@@ -75,16 +75,6 @@
   - 纯静音或完全听不清时返回空字符串
   - 即使判断为 `唱歌` 或 `非金华话`，也仍然尽量返回可识别文本，只是默认 `blockAutoFill=true`
 
-## AI 资产
-
-- `../ai/assets/jinhua-lexicon.json`
-  - 金华话单字、词汇、语法全量初版词义转化表
-  - 当前包含 `3655` 条 entry，使用统一 `business-lexicon` schema
-- `../ai/assets/jinhua-pronunciation-reference.csv`
-  - 金华话单字、词汇、语法全量发音参考表
-  - 当前包含 `3655` 行数据，不合并多读音、多写法或多句式
-- 以上资产已在 `../ai/adapter.js` 注册，当前仅作为后续 AI 听音和普通话翻译收口参考资产；当前版本不把全量词表直接展开进 prompt。
-
 ## 日志与导出
 
 - 金华话脚本独立 AI 调用日志当前已接入后台 `AI 调用记录` 数据集选项

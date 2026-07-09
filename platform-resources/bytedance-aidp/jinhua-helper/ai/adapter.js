@@ -35,14 +35,6 @@ module.exports = {
       path: "assets/jinhua-rules.md",
       optional: true,
     },
-    lexiconJson: {
-      jsonPath: "assets/jinhua-lexicon.json",
-      optional: true,
-    },
-    lexiconReferenceCsv: {
-      path: "assets/jinhua-pronunciation-reference.csv",
-      optional: true,
-    },
   },
   normalizeInput,
   buildAssetsContext,
