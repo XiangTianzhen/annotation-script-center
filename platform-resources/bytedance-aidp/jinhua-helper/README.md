@@ -50,8 +50,8 @@
 | `page-structure/README.md` | `mark-v3` 详情页结构索引 |
 | `page-structure/01-mark-v3-detail.md` | `mark-v3` 详情页语义分区、锚点和挂载边界 |
 | `backend/README.md` | 金华话脚本分段建议与 AI 推荐后端入口 |
-| `ai/assets/jinhua-lexicon.json` | 金华话单字、词汇、语法全量初版词义转化表 |
-| `ai/assets/jinhua-pronunciation-reference.csv` | 金华话单字、词汇、语法全量发音参考表 |
+| `ai/assets/jinhua-lexicon.json` | 金华话单字、词汇、语法全量精简词义转化表，仅保留转换所需读音、含义与复核字段 |
+| `ai/assets/jinhua-pronunciation-reference.csv` | 金华话单字、词汇、语法全量精简发音参考表，不保留原始音频路径 |
 
 运行时代码入口：
 
@@ -98,6 +98,7 @@
   - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-lexicon.json`
   - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.csv`
   - 资产已在 `ai/adapter.js` 注册；当前不把全量词表直接展开进 AI prompt。
+  - 词义与读音资产已清理掉原始音频路径、视频编号、采集索引和原始资料路径，只保留词义转换需要的字段。
 - 当前 AI 调用记录已纳入后台导出数据集：
   - `ByteDance AIDP 金华话脚本 AI 调用记录`
 

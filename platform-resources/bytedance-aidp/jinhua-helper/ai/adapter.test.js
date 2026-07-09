@@ -24,3 +24,34 @@ test("ByteDance AIDP Jinhua adapter exposes full lexicon and pronunciation asset
   assert.match(pronunciationCsv.split(/\r?\n/)[0], /来源类型,发音人,编号,金华话读音/);
   assert.ok(pronunciationCsv.split(/\r?\n/).length >= 3000);
 });
+
+test("ByteDance AIDP Jinhua lexicon assets only expose meaning conversion fields", function () {
+  const assets = loadProjectAssets(adapter);
+  const lexicon = validateBusinessLexiconDocument(assets.lexiconJson);
+  const pronunciationCsv = String(assets.lexiconReferenceCsv || "");
+  const forbiddenAttributeKeys = [
+    "audio",
+    "video",
+    "iid",
+    "oid",
+    "sourceType",
+    "sourceSection",
+    "sourceResourceIndex",
+    "sourceItemIndex",
+    "sourceRecordIndex",
+  ];
+
+  for (const entry of lexicon.entries) {
+    for (const key of forbiddenAttributeKeys) {
+      assert.equal(
+        Object.hasOwn(entry.attributes || {}, key),
+        false,
+        `${entry.id} should not expose ${key}`
+      );
+    }
+  }
+
+  const csvHeader = pronunciationCsv.split(/\r?\n/)[0] || "";
+  assert.doesNotMatch(csvHeader, /音频路径|audio|video|iid|oid/i);
+  assert.doesNotMatch(pronunciationCsv, /浙江\/金华需交文件电子版|\.wav/i);
+});

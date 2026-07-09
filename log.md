@@ -1477,3 +1477,15 @@
 - 优化(ByteDance AIDP): 行内识别与底部 `AI信息` 面板新增 `唱歌 / 非金华话` 风险提示与 `强制填入当前段`
 - 优化(ByteDance AIDP): 批量识别拆分“可直接写回”与“待复核强制填入”两组，新增 `待复核` 计数，并将主按钮扩展为 `强制填入`
 - 测试(ByteDance AIDP): 补充金华话后端、行内识别与 UI 面板关于新字段、默认拦截和强制填入的回归测试
+
+## 2026-07-09（清理 ByteDance AIDP 金华话词义资产冗余字段）
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-lexicon.json`
+  - 删除 `attributes` 中的 `audio / video / iid / oid / source*` 等音视频路径、视频编号和采集溯源字段
+  - 顶层 `sourceFiles` 改为通用资产来源说明，不再保留原始资料路径
+  - 继续保留 `3655` 条词义 entry，以及读音、声韵调、发音人、英文释义和复核标记等转换辅助字段
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.csv`
+  - 删除 `音频路径` 列，不再保留 `.wav` 原始录音路径
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/adapter.test.js`
+  - 新增资产瘦身回归测试，防止后续再次把音视频路径和采集索引暴露给 AI 资产
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - 明确金华话词义与读音资产只保留转换需要字段
