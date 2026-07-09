@@ -47,10 +47,11 @@ node scripts/sync-local-build-meta.js
 ```powershell
 cd frontend/options-app
 npm install
-npm run build
+cd ../..
+node scripts/build-options-app.js
 ```
 
-- 当前 `scripts/package-crx-release.js` 会在打包前自动执行一次这套构建。
+- 当前 `scripts/build-options-app.js` 是 options 的统一正式构建入口；`scripts/package-crx-release.js` 会在打包前自动复用这一个入口。
 - `frontend/options-app` 构建时会先清空旧 `extension/options/`，再只回填新的 `options.html`、打包后的 `assets/*` 和运行时 helper 文件。
 
 ## 当前运行契约
@@ -60,9 +61,10 @@ npm run build
 - 后端地址统一从 options 首页 / 系统管理入口配置；脚本详情页不新增独立后端地址。
 - 同平台多个脚本默认互斥启用；需要并行启用必须由当前任务明确授权。
 - Magic Data 当前包含客家话、闽南语、杭州话三套脚本；杭州话脚本沿用现有 beta 解锁口径，未解锁时不在脚本列表展示。
+- `Lightwheel` 已从当前可用脚本库、popup 入口、manifest host 权限和共享默认映射中移除，不再作为可维护脚本保留。
 - `AI 设置`、`基础设置`、`快捷键` 保持脚本级独立保存。
 - 快捷键面板统一复用 `extension/options/options-shared-shortcut-panel.js`。
-- `?view=script` 详情页里标记了 `data-options-custom-select="true"` 的下拉统一复用 `extension/options/options-shared-select.js`；该共享组件只接管脚本详情页，不影响下载中心和系统管理页的原生下拉，并在菜单展开时只监听真实页面滚动与 `resize`，不再因为菜单内部滚动而自动关闭。
+- `#/script/:scriptId` 详情页里标记了 `data-options-custom-select="true"` 的下拉统一复用 `extension/options/options-shared-select.js`；该共享组件只接管脚本详情页，不影响下载中心和系统管理页的原生下拉，并在菜单展开时只监听真实页面滚动与 `resize`，不再因为菜单内部滚动而自动关闭。
 - 默认快捷键统一为空；只有用户显式保存后才生效。
 - TTS 自动清除默认时间统一为 `60000ms`；AI / 模型请求默认超时时间统一为 `60000ms`。
 - 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。

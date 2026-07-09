@@ -6,7 +6,6 @@
   const platformLibrary = constants.PLATFORM_LIBRARY || {};
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
   const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
-  const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   const dataBakerCvpcHost =
@@ -93,11 +92,6 @@
         return (
           settings?.platforms?.alibabaLabelx?.enabled === true &&
           settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId === scriptId
-        );
-      case lightwheelScriptId:
-        return Boolean(
-          settings?.platforms?.lightwheel?.enabled &&
-            settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
         );
       case dataBakerRoundOneQualityScriptId:
         return (
@@ -213,19 +207,12 @@
     };
   }
 
-  function isLightwheelEnabled(settings) {
-    return Boolean(
-      settings?.platforms?.lightwheel?.enabled &&
-        settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
-    );
-  }
-
   function openScriptCenter(scriptId) {
     const targetUrl = scriptId
       ? chrome.runtime.getURL(
-          "options/options.html?view=script&script=" + encodeURIComponent(scriptId)
+          "options/options.html#/script/" + encodeURIComponent(scriptId)
         )
-      : chrome.runtime.getURL("options/options.html");
+      : chrome.runtime.getURL("options/options.html#/center");
     chrome.tabs.create({ url: targetUrl });
     window.close();
   }
@@ -291,54 +278,6 @@
         description: platformEnabled
           ? "当前会尝试触发 " + String(activeScript.label || activeScriptId) + "。"
           : "当前页面属于 LabelX，但该平台脚本目前未启用。",
-      };
-    }
-
-    if (url.hostname === (constants.LIGHTWHEEL_PLATFORM || {}).host) {
-      const scriptVisible =
-        typeof constants.isScriptVisible === "function"
-          ? constants.isScriptVisible(lightwheelScriptId, settings || {})
-          : true;
-      const scriptRuntimeAccessible =
-        typeof constants.isScriptRuntimeAccessible === "function"
-          ? constants.isScriptRuntimeAccessible(lightwheelScriptId, settings || {})
-          : isLightwheelEnabled(settings);
-      if (!scriptVisible || !scriptRuntimeAccessible) {
-        return {
-          scriptId: null,
-          platformId: null,
-          url: url,
-          statusText: "未触发",
-          statusTone: "pending",
-          title: "当前页面未命中已启用脚本",
-          description: "当前页面没有可对外显示的已启用脚本。",
-        };
-      }
-      const access = url.searchParams.get("access") || "";
-      const enabled = isLightwheelEnabled(settings);
-
-      if (url.pathname === "/w/video3/index.html" && access === "1") {
-        return {
-          scriptId: lightwheelScriptId,
-          platformId: "lightwheel",
-          url: url,
-          platformEnabled: enabled,
-          title: "当前页面命中 Lightwheel 查看态面板",
-          description: enabled
-            ? "当前 URL 满足 access=1，可命中 Lightwheel 查看态面板脚本。"
-            : "当前 URL 满足 access=1，但 Lightwheel 查看态面板未启用。",
-        };
-      }
-
-      return {
-        scriptId: lightwheelScriptId,
-        platformId: "lightwheel",
-        url: url,
-        platformEnabled: enabled,
-        title: "当前页面属于 Lightwheel",
-        description: "但当前 URL 不满足查看态面板脚本的 access=1 触发条件。",
-        statusText: "未触发",
-        statusTone: "pending",
       };
     }
 
@@ -760,19 +699,6 @@
       context.statusText = "注入失败";
       context.statusTone = "error";
       context.description += " 该页面未响应扩展运行时，请刷新页面或重新加载扩展。";
-      return context;
-    }
-
-    if (context.platformId === "lightwheel") {
-      if (!context.platformEnabled) {
-        context.statusText = context.statusText || "未启用";
-        context.statusTone = context.statusTone || "disabled";
-        return context;
-      }
-
-      context.statusText = context.statusText || "待迁移";
-      context.statusTone = context.statusTone || "pending";
-      context.description += " 当前扩展版还没有把运行时逻辑迁过来。";
       return context;
     }
 

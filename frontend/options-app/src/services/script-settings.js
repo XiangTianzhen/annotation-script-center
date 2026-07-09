@@ -12,11 +12,6 @@ const SCRIPT_BRANCHES = {
     projectId: "judgement",
     jsonPath: "platforms.alibabaLabelx.scriptCenter.projects.judgement.asrConfig",
   },
-  lightwheelViewPanel: {
-    type: "patch",
-    patchPath: ["platforms", "lightwheel", "scripts", "viewPanel"],
-    jsonPath: "platforms.lightwheel.scripts.viewPanel",
-  },
   dataBakerRoundOneQuality: {
     type: "patch",
     patchPath: ["platforms", "dataBaker", "scripts", "roundOneQuality"],
@@ -87,6 +82,47 @@ const SCRIPT_BRANCHES = {
 function text(value) {
   return String(value || "").trim();
 }
+
+const DETAIL_SECTION_TITLE_MAP = {
+  basic: "基础设置",
+  ai: "AI 设置",
+  shortcuts: "快捷键",
+};
+
+const DETAIL_SECTION_HELP_MAP = {
+  bytedanceAidpSuzhouHelper: {
+    basic: "当前支持分段建议、波形控件、快捷键和平台 AI 显隐。",
+    ai: "调试听音、修正与超时参数，仅影响当前脚本 AI 辅助链路。",
+    shortcuts: "默认全部未设置；录制时按 Esc 取消，输入框聚焦时不会触发。",
+  },
+  bytedanceAidpJinhuaHelper: {
+    basic: "当前支持分段建议、波形控件、快捷键和平台 AI 显隐。",
+    ai: "调试听音、修正与超时参数，仅影响当前脚本 AI 辅助链路。",
+    shortcuts: "默认全部未设置；录制时按 Esc 取消，输入框聚焦时不会触发。",
+  },
+  transcription: {
+    basic: "保留旧版转写页的常用音频行为和页面辅助能力。",
+    ai: "继续沿用旧版当前题 AI 推荐的模型、超时和提示词设置。",
+    shortcuts: "默认全部未设置；录制成功后保存即可生效。",
+  },
+  judgement: {
+    basic: "保留旧版快判页的播放、列表密度和差异展示能力。",
+    ai: "继续沿用旧版 AI 分析模型、超时和提示词设置。",
+    shortcuts: "默认全部未设置；录制成功后保存即可生效。",
+  },
+};
+
+const AI_GROUP_TITLE_PATTERN = /(AI 配置|AI 分析|AI 推荐|模型|Prompt|Task21)/;
+
+const FIELD_KIND_PRIORITY = {
+  boolean: 0,
+  select: 1,
+  number: 2,
+  text: 2,
+  color: 2,
+  textarea: 3,
+  notice: 4,
+};
 
 function listToOptions(list) {
   return (Array.isArray(list) ? list : []).map((item) => {
@@ -349,6 +385,121 @@ export function getShortcutFromMouseEvent(event) {
   };
 }
 
+function normalizeFieldOrder(fields) {
+  return (Array.isArray(fields) ? fields : [])
+    .map((field, index) => ({
+      field,
+      index,
+      priority: FIELD_KIND_PRIORITY[field?.kind] ?? 9,
+    }))
+    .sort((left, right) => {
+      if (left.priority !== right.priority) {
+        return left.priority - right.priority;
+      }
+      return left.index - right.index;
+    })
+    .map((item) => clone(item.field));
+}
+
+function isAiGroup(group) {
+  const title = text(group?.title);
+  if (!title) {
+    return false;
+  }
+  if (/页面行为|行为与并发|基础设置|脚本说明|段落建议|识别与页面行为/.test(title)) {
+    return false;
+  }
+  return AI_GROUP_TITLE_PATTERN.test(title);
+}
+
+function resolveDetailSectionHelp(scriptId, sectionKey, fallbackDescription) {
+  return (
+    DETAIL_SECTION_HELP_MAP[scriptId]?.[sectionKey] ||
+    text(fallbackDescription)
+  );
+}
+
+function resolveDetailSectionLayout(fields) {
+  const normalizedFields = Array.isArray(fields) ? fields : [];
+  if (
+    normalizedFields.length <= 1 ||
+    normalizedFields.every((field) => field?.kind === "notice")
+  ) {
+    return "single";
+  }
+  return "two";
+}
+
+function shouldShowAiDetailSection(scriptId, config, fields) {
+  if (!Array.isArray(fields) || fields.length <= 0) {
+    return false;
+  }
+  if (scriptId === "bytedanceAidpJinhuaHelper") {
+    return Boolean(config?.aiRecommendEnabled);
+  }
+  return true;
+}
+
+export function getScriptDetailSections(scriptId, config) {
+  const groups = getScriptFieldGroups(scriptId);
+  if (!Array.isArray(groups) || groups.length <= 0) {
+    return [];
+  }
+
+  const basicFields = [];
+  const aiFields = [];
+  let basicDescription = "";
+  let aiDescription = "";
+
+  groups.forEach((group) => {
+    if (isAiGroup(group)) {
+      aiFields.push(...(group.fields || []));
+      if (!aiDescription) {
+        aiDescription = text(group.description);
+      }
+      return;
+    }
+    basicFields.push(...(group.fields || []));
+    if (!basicDescription) {
+      basicDescription = text(group.description);
+    }
+  });
+
+  const sections = [];
+
+  if (basicFields.length > 0) {
+    sections.push({
+      key: "basic",
+      title: DETAIL_SECTION_TITLE_MAP.basic,
+      help: resolveDetailSectionHelp(scriptId, "basic", basicDescription),
+      layout: resolveDetailSectionLayout(basicFields),
+      fields: normalizeFieldOrder(basicFields),
+    });
+  }
+
+  if (shouldShowAiDetailSection(scriptId, config, aiFields)) {
+    sections.push({
+      key: "ai",
+      title: DETAIL_SECTION_TITLE_MAP.ai,
+      help: resolveDetailSectionHelp(scriptId, "ai", aiDescription),
+      layout: resolveDetailSectionLayout(aiFields),
+      fields: normalizeFieldOrder(aiFields),
+    });
+  }
+
+  const shortcutActions = getScriptShortcutActions(scriptId);
+  if (shortcutActions.length > 0) {
+    sections.push({
+      key: "shortcuts",
+      title: DETAIL_SECTION_TITLE_MAP.shortcuts,
+      help: resolveDetailSectionHelp(scriptId, "shortcuts", ""),
+      actions: clone(shortcutActions),
+    });
+  }
+
+  return sections;
+}
+
 export function getScriptFieldGroups(scriptId) {
   const constants = getConstants();
   const dataBakerPageSizeOptions = listToOptions(constants.DATABAKER_PAGE_SIZE_OPTIONS || []);
@@ -475,23 +626,6 @@ export function getScriptFieldGroups(scriptId) {
           { kind: "text", path: "aiSuggestionCompareModel", label: "比较模型" },
           { kind: "textarea", path: "aiSuggestionListenPrompt", label: "听音 Prompt" },
           { kind: "textarea", path: "aiSuggestionComparePrompt", label: "比较 Prompt" },
-        ],
-      },
-    ],
-    lightwheelViewPanel: [
-      {
-        title: "脚本说明",
-        description: "当前脚本仅保留最小启停态，没有额外表单配置。",
-        layout: "single",
-        fields: [
-          {
-            kind: "notice",
-            label: "Lightwheel 查看态面板",
-            lines: [
-              "启用后仅挂载查看态辅助面板。",
-              "当前版本没有额外可编辑参数。",
-            ],
-          },
         ],
       },
     ],

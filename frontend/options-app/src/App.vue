@@ -60,7 +60,7 @@ const currentViewMeta = computed(() => {
   if (route.path.startsWith("/script/")) {
     return {
       name: "脚本详情",
-      note: "当前页面只处理单个脚本设置、快捷键和高级 JSON。",
+      note: "当前页面用于编辑脚本专属设置；公共后端地址与数据导出仍统一走系统管理。",
     };
   }
   return {

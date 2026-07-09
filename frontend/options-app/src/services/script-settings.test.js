@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   formatShortcut,
   getScriptConfig,
+  getScriptDetailSections,
   getScriptFieldGroups,
   getScriptJsonPathLabel,
   getShortcutFromKeyboardEvent,
@@ -34,13 +35,11 @@ describe("script-settings helpers", () => {
   test("covers the legacy script detail groups that are still visible in Vue options", () => {
     const transcriptionGroups = getScriptFieldGroups("transcription");
     const judgementGroups = getScriptFieldGroups("judgement");
-    const lightwheelGroups = getScriptFieldGroups("lightwheelViewPanel");
     const cnEnShortDramaGroups = getScriptFieldGroups("aishellTechCnEnShortDrama");
     const haitianUtransGroups = getScriptFieldGroups("haitianUtransAudioDownloadHelper");
 
     expect(transcriptionGroups.length).toBeGreaterThan(0);
     expect(judgementGroups.length).toBeGreaterThan(0);
-    expect(lightwheelGroups.length).toBeGreaterThan(0);
     expect(cnEnShortDramaGroups.length).toBeGreaterThan(0);
     expect(haitianUtransGroups.length).toBeGreaterThan(0);
   });
@@ -52,6 +51,46 @@ describe("script-settings helpers", () => {
       expect(getScriptJsonPathLabel(scriptId)).toBeTruthy();
       expect(getScriptFieldGroups(scriptId).length).toBeGreaterThan(0);
     });
+  });
+
+  test("builds jinhua detail sections in the legacy panel order", () => {
+    globalThis.ASREdgeConstants = sharedConstants;
+
+    const sections = getScriptDetailSections(
+      "bytedanceAidpJinhuaHelper",
+      {
+        aiRecommendEnabled: true,
+      }
+    );
+
+    expect(sections.map((section) => section.key)).toEqual([
+      "basic",
+      "ai",
+      "shortcuts",
+    ]);
+    expect(sections[0].title).toBe("基础设置");
+    expect(sections[0].help).toContain("分段建议");
+    expect(sections[0].fields[0].kind).toBe("boolean");
+    expect(sections[0].fields.at(-1).kind).toBe("number");
+    expect(sections[1].title).toBe("AI 设置");
+    expect(sections[2].title).toBe("快捷键");
+  });
+
+  test("hides empty panels instead of rendering forced placeholders", () => {
+    globalThis.ASREdgeConstants = sharedConstants;
+
+    const sections = getScriptDetailSections(
+      "aishellTechCnEnShortDrama",
+      {}
+    );
+
+    expect(sections.map((section) => section.key)).toEqual(["basic"]);
+  });
+
+  test("no longer exposes lightwheel detail mapping in the vue schema", () => {
+    expect(getScriptJsonPathLabel("lightwheelViewPanel")).toBe("");
+    expect(getScriptFieldGroups("lightwheelViewPanel")).toEqual([]);
+    expect(getScriptDetailSections("lightwheelViewPanel", {})).toEqual([]);
   });
 
   test("normalizes project shortcuts into a nested shortcuts draft", () => {

@@ -29,15 +29,6 @@
             legacyServer: {},
             reporting: {},
           },
-          lightwheel: {
-            enabled: false,
-            scripts: {
-              viewPanel: {
-                id: "lightwheelViewPanel",
-                enabled: false,
-              },
-            },
-          },
           dataBaker: {
             enabled: true,
             scripts: {
@@ -276,7 +267,6 @@
       },
       DEFAULT_ASR_CONFIG: {},
       DEFAULT_JUDGEMENT_ASR_CONFIG: {},
-      DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: {},
       DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS: {},
       DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS: {},
       DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: {},
@@ -286,7 +276,6 @@
       SCRIPT_LIBRARY: {},
       TRANSCRIPTION_PROJECT_ID: "transcription",
       JUDGEMENT_PROJECT_ID: "judgement",
-      LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: "lightwheelViewPanel",
       DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: "dataBakerRoundOneQuality",
       DATA_BAKER_CVPC_PLATFORM_ID: "dataBakerCvpc",
       DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID: "dataBakerCvpcLiuzhouAssistant",
@@ -1328,22 +1317,6 @@
     }
 
     return settings.platforms.alibabaLabelx;
-  }
-
-  function ensureLightwheelRoot(settings) {
-    const constants = getConstants();
-    const defaults = clone(constants.DEFAULT_SETTINGS || {});
-
-    if (!isPlainObject(settings.platforms)) {
-      settings.platforms = {};
-    }
-
-    settings.platforms.lightwheel = deepMerge(
-      defaults?.platforms?.lightwheel || constants.DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS || {},
-      settings.platforms.lightwheel || {}
-    );
-
-    return settings.platforms.lightwheel;
   }
 
   function normalizeDataBakerAiEndpoint(value, fallback) {
@@ -4658,7 +4631,6 @@
     const currentSchemaVersion = Number(input?.meta?.schemaVersion || 0);
 
     ensureScriptCenter(settings);
-    ensureLightwheelRoot(settings);
     ensureDataBakerCvpcRoot(settings, input || {});
     ensureBytedanceAidpRoot(settings, input || {});
     ensureDataBakerRoot(settings);
@@ -4855,11 +4827,6 @@
       );
     }
 
-    if (preservePlatformEnabled && current?.platforms?.lightwheel) {
-      nextSettings.platforms.lightwheel.enabled = Boolean(current.platforms.lightwheel.enabled);
-      nextSettings.platforms.lightwheel.scripts = clone(current.platforms.lightwheel.scripts || {});
-    }
-
     if (preservePlatformEnabled && current?.platforms?.dataBaker) {
       nextSettings.platforms.dataBaker.enabled = Boolean(current.platforms.dataBaker.enabled);
       nextSettings.platforms.dataBaker.scripts = clone(current.platforms.dataBaker.scripts || {});
@@ -4957,21 +4924,6 @@
             enabled: nextEnabled,
             scriptCenter: {
               activeProjectId: scriptId,
-            },
-          },
-        },
-      });
-    }
-
-    if (scriptId === constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID) {
-      return patchSettings({
-        platforms: {
-          lightwheel: {
-            enabled: nextEnabled,
-            scripts: {
-              viewPanel: {
-                enabled: nextEnabled,
-              },
             },
           },
         },

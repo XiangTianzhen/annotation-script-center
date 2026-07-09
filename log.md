@@ -1445,6 +1445,9 @@
 - 修复(haitian-utrans): 将下载桥接改为扩展脚本注入，避免 uTrans 页面 CSP 拦截内联脚本
 
 ## 2026-07-09
+- 重构(options): 将脚本下载中心、系统管理和脚本详情页按旧版壳层回收，恢复旧版问号浮层、管理页页签、工具条、下载中心版本卡片和金华话风格排版
+- 清理(options): 新增仓库根级 `scripts/build-options-app.js` 作为 options 唯一正式构建入口，并让 `scripts/package-crx-release.js` 复用该入口回填 `extension/options/`
+- 下线(lightwheel): 从脚本库、popup 跳转、manifest host 权限、shared 默认设置映射和相关构建测试中移除 Lightwheel，旧缓存键保持自然失效
 - 重构(options): Vue options 页面样式改回旧版 `options.css` 视觉口径，继续复用原有品牌图、卡片、按钮与详情工作台样式
 - 补齐(options): 脚本详情 schema 补回 LabelX / Lightwheel / Haitian uTrans / Aishell 中英短剧等缺失映射，并增加“所有 `SCRIPT_LIBRARY` 脚本都必须可映射”的回归测试
 - 迁移(options): 共享 helper 与 runtime node 测试迁入 `frontend/options-app/public/`、`frontend/options-app/runtime-modules/`、`frontend/options-app/runtime-tests/`

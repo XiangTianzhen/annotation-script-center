@@ -21,11 +21,12 @@
 ```powershell
 cd frontend/options-app
 npm install
-npm run build
 cd ../..
+node scripts/build-options-app.js
 ```
 
 - `frontend/options-app/` 是 options 的长期维护源码入口；`extension/options/` 现在只保留扩展实际加载的构建产物与少量运行时 helper，不再作为手写源码目录直接修改。
+- 之后日常只需要在仓库根目录执行 `node scripts/build-options-app.js`，构建产物会直接回填到 `extension/options/`。
 
 - 详细运行时说明：[`extension/README.md`](extension/README.md)
 - 如果需要本地 beta 入口元信息，同步一次：

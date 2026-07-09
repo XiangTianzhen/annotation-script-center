@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import BaseSelect from "@/components/base/BaseSelect.vue";
+import AdminTabStrip from "@/components/admin/AdminTabStrip.vue";
+import AdminToolbar from "@/components/admin/AdminToolbar.vue";
 import {
   loadAiCallLogOptions,
   loadProjectDataDownloadOptions,
@@ -41,6 +42,24 @@ const supplierState = computed(() => {
         });
   return builder(currentProjectDataset.value || {});
 });
+
+const exportSummaryCards = computed(() => [
+  {
+    label: "项目数据类型",
+    value: String(projectDatasets.value.length),
+    note: "按数据集类型导出标注项目数据，必要时可继续按供应商筛选。",
+  },
+  {
+    label: "AI 日志类型",
+    value: String(aiDatasets.value.length),
+    note: "按脚本类型和日期范围导出 AI 请求记录，便于排查和复盘。",
+  },
+  {
+    label: "导出范围",
+    value: "项目数据 / AI 日志",
+    note: "扩展版本下载已移到公开脚本下载中心，这里只保留后台导出能力。",
+  },
+]);
 
 async function loadOptions() {
   const [projectResult, aiResult] = await Promise.all([
@@ -117,70 +136,124 @@ onMounted(loadOptions);
     <section class="admin-stage-banner">
       <div class="admin-stage-copy">
         <strong>系统导出</strong>
-        <p>项目数据导出和 AI 调用日志导出继续走原有后台接口与下载链路。</p>
+        <p>这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已移到公开脚本下载中心。</p>
       </div>
     </section>
 
-    <div class="admin-download-grid">
-      <section class="admin-surface-card">
-        <div class="admin-card-head">
-          <strong>项目数据导出</strong>
-          <span>供应商逻辑仍然复用现有共享 helper，不额外改动字段契约。</span>
+    <section class="admin-tab-panel admin-content">
+      <AdminToolbar />
+      <AdminTabStrip />
+
+      <div class="admin-panel-head">
+        <div>
+          <h3>数据导出</h3>
+          <p>这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已移到公开脚本下载中心。</p>
         </div>
+      </div>
 
-        <label class="field-card">
-          <strong>数据类型</strong>
-          <BaseSelect v-model="projectDataset" :options="projectDatasets.map((item) => ({ value: item.id, label: item.label }))" />
-        </label>
+      <div id="admin-download-summary" class="admin-summary-grid">
+        <article
+          v-for="item in exportSummaryCards"
+          :key="item.label"
+          class="public-summary-card"
+        >
+          <span class="summary-label">{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <span class="summary-note">{{ item.note }}</span>
+        </article>
+      </div>
 
-        <label v-if="supplierState.showRow" class="field-card">
-          <strong>供应商</strong>
-          <BaseSelect v-model="projectSupplier" :options="supplierState.options" />
-        </label>
+      <div id="admin-download-grid" class="admin-download-grid">
+        <section id="project-data-download-panel" class="home-endpoint-card">
+          <div class="admin-card-head">
+            <strong>项目数据导出</strong>
+            <span>供应商逻辑仍然复用现有共享 helper，不额外改动字段契约。</span>
+          </div>
 
-        <label class="field-card">
-          <strong>获取人姓名</strong>
-          <input v-model="projectOperator" type="text" />
-        </label>
-
-        <div class="field-actions">
-          <button type="button" class="primary-button" @click="requestProjectExport">导出项目数据</button>
-        </div>
-        <p v-if="projectStatus" class="status-text">{{ projectStatus }}</p>
-      </section>
-
-      <section class="admin-surface-card">
-        <div class="admin-card-head">
-          <strong>AI 调用记录导出</strong>
-          <span>日期范围与脚本类型继续走原有后台选项接口。</span>
-        </div>
-
-        <label class="field-card">
-          <strong>脚本类型</strong>
-          <BaseSelect v-model="aiDataset" :options="aiDatasets.map((item) => ({ value: item.id, label: item.label }))" />
-        </label>
-
-        <label class="field-card">
-          <strong>获取人姓名</strong>
-          <input v-model="aiOperator" type="text" />
-        </label>
-
-        <div class="detail-grid two">
-          <label class="field-card">
-            <strong>开始日期</strong>
-            <input v-model="dateFrom" type="date" />
+          <label class="project-download-row">
+            <span>数据类型</span>
+            <select v-model="projectDataset">
+              <option value="">请选择数据类型</option>
+              <option
+                v-for="item in projectDatasets"
+                :key="item.id"
+                :value="item.id"
+              >
+                {{ item.label }}
+              </option>
+            </select>
           </label>
-          <label class="field-card">
-            <strong>结束日期</strong>
-            <input v-model="dateTo" type="date" />
-          </label>
-        </div>
 
-        <div class="field-actions">
-          <button type="button" class="primary-button" @click="requestAiExport">导出 AI 调用记录</button>
-        </div>
-        <p v-if="aiStatus" class="status-text">{{ aiStatus }}</p>
-      </section>
-    </div>
+          <label
+            v-if="supplierState.showRow"
+            id="project-download-supplier-row"
+            class="project-download-row"
+          >
+            <span>供应商</span>
+            <select v-model="projectSupplier">
+              <option
+                v-for="item in supplierState.options"
+                :key="item.value"
+                :value="item.value"
+              >
+                {{ item.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="project-download-row">
+            <span>获取人姓名</span>
+            <input v-model="projectOperator" type="text" maxlength="60" placeholder="请输入获取人姓名" />
+          </label>
+
+          <div class="field-actions">
+            <button type="button" class="primary-button" @click="requestProjectExport">导出项目数据</button>
+          </div>
+          <p v-if="projectStatus" class="status-text">{{ projectStatus }}</p>
+        </section>
+
+        <section id="ai-call-log-download-panel" class="home-endpoint-card">
+          <div class="admin-card-head">
+            <strong>AI 调用记录导出</strong>
+            <span>日期范围与脚本类型继续走原有后台选项接口。</span>
+          </div>
+
+          <label class="project-download-row">
+            <span>脚本类型</span>
+            <select v-model="aiDataset">
+              <option value="">请选择脚本类型</option>
+              <option
+                v-for="item in aiDatasets"
+                :key="item.id"
+                :value="item.id"
+              >
+                {{ item.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="project-download-row">
+            <span>获取人姓名</span>
+            <input v-model="aiOperator" type="text" maxlength="60" placeholder="请输入获取人姓名" />
+          </label>
+
+          <div class="detail-grid two">
+            <label class="field-card">
+              <strong>开始日期</strong>
+              <input v-model="dateFrom" type="date" />
+            </label>
+            <label class="field-card">
+              <strong>结束日期</strong>
+              <input v-model="dateTo" type="date" />
+            </label>
+          </div>
+
+          <div class="field-actions">
+            <button type="button" class="primary-button" @click="requestAiExport">导出 AI 调用记录</button>
+          </div>
+          <p v-if="aiStatus" class="status-text">{{ aiStatus }}</p>
+        </section>
+      </div>
+    </section>
   </div>
 </template>

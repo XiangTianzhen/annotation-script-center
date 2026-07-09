@@ -26,23 +26,16 @@ test("public build never enables beta visibility or beta backend mode", function
       backendEndpointMode: "beta",
       betaBackendBaseUrl: "https://beta.example.test",
     },
-    platforms: {
-      lightwheel: {
-        enabled: true,
-        scripts: {
-          viewPanel: {
-            enabled: true,
-          },
-        },
-      },
-    },
   };
 
   assert.equal(constants.RELEASE_CHANNEL, "public");
   assert.equal(constants.canUseBetaFeatures(settings), false);
   assert.equal(constants.getBackendEndpointModeFromSettings(settings), "server");
-  assert.equal(constants.isPlatformVisible("lightwheel", settings), false);
-  assert.equal(constants.isScriptVisible("lightwheelViewPanel", settings), false);
+  assert.equal(constants.isPlatformVisible("dataBakerCvpc", settings), false);
+  assert.equal(
+    constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", settings),
+    false
+  );
 });
 
 test("beta build keeps beta platform hidden until unlock", function () {
@@ -66,14 +59,6 @@ test("beta build keeps beta platform hidden until unlock", function () {
       betaBackendBaseUrl: "https://beta.example.test",
     },
     platforms: {
-      lightwheel: {
-        enabled: true,
-        scripts: {
-          viewPanel: {
-            enabled: true,
-          },
-        },
-      },
       dataBakerCvpc: {
         enabled: true,
         scripts: {
@@ -102,8 +87,6 @@ test("beta build keeps beta platform hidden until unlock", function () {
   };
 
   assert.equal(constants.canUseBetaFeatures(lockedSettings), false);
-  assert.equal(constants.isPlatformVisible("lightwheel", lockedSettings), false);
-  assert.equal(constants.isScriptVisible("lightwheelViewPanel", lockedSettings), false);
   assert.equal(constants.isPlatformVisible("dataBakerCvpc", lockedSettings), false);
   assert.equal(
     constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", lockedSettings),
@@ -116,8 +99,6 @@ test("beta build keeps beta platform hidden until unlock", function () {
   );
 
   assert.equal(constants.canUseBetaFeatures(unlockedSettings), true);
-  assert.equal(constants.isPlatformVisible("lightwheel", unlockedSettings), true);
-  assert.equal(constants.isScriptVisible("lightwheelViewPanel", unlockedSettings), true);
   assert.equal(constants.isPlatformVisible("dataBakerCvpc", unlockedSettings), true);
   assert.equal(
     constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", unlockedSettings),
@@ -158,14 +139,6 @@ test("beta build hides disabled beta script from effective runtime access", func
       betaBackendBaseUrl: "https://beta.example.test",
     },
     platforms: {
-      lightwheel: {
-        enabled: false,
-        scripts: {
-          viewPanel: {
-            enabled: false,
-          },
-        },
-      },
       dataBakerCvpc: {
         enabled: false,
         scripts: {
@@ -193,9 +166,6 @@ test("beta build hides disabled beta script from effective runtime access", func
     },
   };
 
-  assert.equal(constants.isPlatformVisible("lightwheel", settings), true);
-  assert.equal(constants.isScriptVisible("lightwheelViewPanel", settings), true);
-  assert.equal(constants.isScriptRuntimeAccessible("lightwheelViewPanel", settings), false);
   assert.equal(constants.isPlatformVisible("dataBakerCvpc", settings), true);
   assert.equal(constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", settings), true);
   assert.equal(

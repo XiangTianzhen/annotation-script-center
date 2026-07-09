@@ -1,6 +1,6 @@
 "use strict";
 
-const BETA_HOST_PERMISSIONS = ["https://label-cloud.lightwheel.net/*"];
+const BETA_HOST_PERMISSIONS = [];
 
 function normalizeReleaseChannel(value) {
   return String(value || "").trim().toLowerCase() === "beta" ? "beta" : "public";

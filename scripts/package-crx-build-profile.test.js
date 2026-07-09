@@ -53,7 +53,6 @@ test("public manifest strips beta marker and beta hosts", function () {
     {
       name: "标注脚本中心",
       host_permissions: [
-        "https://label-cloud.lightwheel.net/*",
         "https://script.xiangtianzhen.store/*",
       ],
     },
@@ -69,7 +68,6 @@ test("beta manifest keeps beta marker and beta host permissions", function () {
     {
       name: "标注脚本中心",
       host_permissions: [
-        "https://label-cloud.lightwheel.net/*",
         "https://script.xiangtianzhen.store/*",
       ],
     },
@@ -77,10 +75,7 @@ test("beta manifest keeps beta marker and beta host permissions", function () {
   );
 
   assert.equal(manifest.version_name, "beta");
-  assert.deepEqual(manifest.host_permissions, [
-    "https://label-cloud.lightwheel.net/*",
-    "https://script.xiangtianzhen.store/*",
-  ]);
+  assert.deepEqual(manifest.host_permissions, ["https://script.xiangtianzhen.store/*"]);
 });
 
 test("beta build meta content keeps hidden beta features by default", function () {

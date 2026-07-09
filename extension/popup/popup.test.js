@@ -248,8 +248,8 @@ test("popup shows the detected Suzhou script and toggles enable state via setScr
   documentLike.getElementById("open-script-settings").click();
 
   assert.deepEqual(chromeLike.createdUrls, [
-    "chrome-extension://test/options/options.html",
-    "chrome-extension://test/options/options.html?view=script&script=bytedanceAidpSuzhouHelper",
+    "chrome-extension://test/options/options.html#/center",
+    "chrome-extension://test/options/options.html#/script/bytedanceAidpSuzhouHelper",
   ]);
 });
 
@@ -325,7 +325,7 @@ test("popup shows the detected Jinhua script when AIDP activeScriptId switches t
 
   assert.deepEqual(toggleCalls, []);
   assert.deepEqual(chromeLike.createdUrls, [
-    "chrome-extension://test/options/options.html?view=script&script=bytedanceAidpJinhuaHelper",
+    "chrome-extension://test/options/options.html#/script/bytedanceAidpJinhuaHelper",
   ]);
 });
 
@@ -395,7 +395,7 @@ test("popup shows the detected Hangzhou script when Magic Data activeScriptId sw
   documentLike.getElementById("open-script-settings").click();
 
   assert.deepEqual(chromeLike.createdUrls, [
-    "chrome-extension://test/options/options.html?view=script&script=magicDataHangzhouAssistant",
+    "chrome-extension://test/options/options.html#/script/magicDataHangzhouAssistant",
   ]);
 });
 

@@ -47,7 +47,6 @@
   const RELEASE_VISIBILITY_PUBLIC = "public";
   const RELEASE_VISIBILITY_BETA = "beta";
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
-  const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
   const DATA_BAKER_CVPC_PLATFORM_ID = "dataBakerCvpc";
   const BYTEDANCE_AIDP_PLATFORM_ID = "bytedanceAidp";
@@ -57,7 +56,6 @@
   const AISHELL_TECH_PLATFORM_ID = "aishellTech";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
   const JUDGEMENT_PROJECT_ID = "judgement";
-  const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
   const DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
   const BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID = "bytedanceAidpSuzhouHelper";
@@ -790,13 +788,6 @@
     matches: ["https://labelx.alibaba-inc.com/*"],
   };
 
-  const LIGHTWHEEL_PLATFORM = {
-    id: "lightwheel",
-    label: "Lightwheel",
-    host: "label-cloud.lightwheel.net",
-    matches: ["https://label-cloud.lightwheel.net/*"],
-  };
-
   const DATA_BAKER_PLATFORM = {
     id: "data-baker",
     label: "标贝易采",
@@ -1277,15 +1268,6 @@
       runtimeBridge: "labelx-content",
       description: "阿里内部 LabelX 标注/审核平台。",
     },
-    lightwheel: {
-      id: LIGHTWHEEL_PLATFORM_ID,
-      label: "Lightwheel",
-      host: LIGHTWHEEL_PLATFORM.host,
-      matches: clone(LIGHTWHEEL_PLATFORM.matches),
-      visibility: RELEASE_VISIBILITY_BETA,
-      runtimeBridge: "none",
-      description: "Lightwheel 视频标注查看态平台。",
-    },
     dataBaker: {
       id: DATA_BAKER_PLATFORM_ID,
       label: "标贝易采",
@@ -1378,24 +1360,6 @@
       capabilityScope: SCRIPT_PROJECTS.judgement.capabilityScope,
       statusLabel: "已接入音频基础能力",
       detailView: "labelx-judgement",
-    },
-    lightwheelViewPanel: {
-      id: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
-      platformId: LIGHTWHEEL_PLATFORM_ID,
-      visibility: RELEASE_VISIBILITY_BETA,
-      label: "Lightwheel 查看态面板",
-      shortLabel: "查看态面板",
-      description:
-        "access=1 查看态面板：状态筛选、名称列表、上下条跳转、编辑回退与 access-key 处理。",
-      note: "当前扩展版先纳入脚本中心管理与 URL 检测，运行时迁移待继续接入。",
-      capabilityScope: "legacy-reference-only",
-      statusLabel: "待迁移",
-      detailView: "lightwheel-view-panel",
-      host: LIGHTWHEEL_PLATFORM.host,
-      pathPattern: "^/w/video3/index\\.html$",
-      requiredQuery: {
-        access: "1",
-      },
     },
     dataBakerRoundOneQuality: {
       id: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
@@ -1811,21 +1775,6 @@
       reporting: {
         itemsPerPage: asr.itemsPerPage,
         exportUploadEnabled: true,
-      },
-    };
-  }
-
-  function createDefaultLightwheelPlatformSettings() {
-    return {
-      enabled: false,
-      scripts: {
-        viewPanel: {
-          id: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
-          enabled: false,
-          migrationStatus: "legacy-reference-only",
-          note:
-            "legacy-reference/Lightwheel 查看态面板.js 已纳入参考，扩展版运行时待迁移。",
-        },
       },
     };
   }
@@ -2325,7 +2274,6 @@
     },
     platforms: {
       alibabaLabelx: createDefaultPlatformSettings(),
-      lightwheel: createDefaultLightwheelPlatformSettings(),
       dataBaker: createDefaultDataBakerPlatformSettings(),
       dataBakerCvpc: createDefaultDataBakerCvpcPlatformSettings(),
       bytedanceAidp: createDefaultBytedanceAidpPlatformSettings(),
@@ -2472,13 +2420,6 @@
       return false;
     }
 
-    if (script.id === LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID) {
-      return Boolean(
-        settings?.platforms?.lightwheel?.enabled &&
-          settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
-      );
-    }
-
     if (script.platformId === ALIBABA_LABELX_PLATFORM_ID) {
       return Boolean(
         settings?.platforms?.alibabaLabelx?.enabled &&
@@ -2573,7 +2514,7 @@
     STAGE_DESCRIPTION:
       "脚本中心统一管理多平台脚本，options 页负责启停与必要配置，运行时功能由各脚本独立维护。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理、DataBaker 与 Aishell 语言助手 AI 推荐文本。",
+      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、DataBaker 与 Aishell 语言助手 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     RELEASE_CHANNEL_PUBLIC: RELEASE_CHANNEL_PUBLIC,
     RELEASE_CHANNEL_BETA: RELEASE_CHANNEL_BETA,
@@ -2587,7 +2528,6 @@
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",
     TARGET_PLATFORM: TARGET_PLATFORM,
-    LIGHTWHEEL_PLATFORM: LIGHTWHEEL_PLATFORM,
     DATA_BAKER_PLATFORM: DATA_BAKER_PLATFORM,
     DATA_BAKER_CVPC_PLATFORM: DATA_BAKER_CVPC_PLATFORM,
     BYTEDANCE_AIDP_PLATFORM: BYTEDANCE_AIDP_PLATFORM,
@@ -2608,7 +2548,6 @@
     SHORTCUT_COMPATIBILITY_MAP: SHORTCUT_COMPATIBILITY_MAP,
     TRANSCRIPTION_PROJECT_ID: TRANSCRIPTION_PROJECT_ID,
     JUDGEMENT_PROJECT_ID: JUDGEMENT_PROJECT_ID,
-    LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
     DATA_BAKER_PLATFORM_ID: DATA_BAKER_PLATFORM_ID,
     DATA_BAKER_CVPC_PLATFORM_ID: DATA_BAKER_CVPC_PLATFORM_ID,
     BYTEDANCE_AIDP_PLATFORM_ID: BYTEDANCE_AIDP_PLATFORM_ID,
@@ -2766,7 +2705,6 @@
     DEFAULT_JUDGEMENT_ASR_CONFIG: clone(DEFAULT_JUDGEMENT_ASR_CONFIG),
     DEFAULT_CACHE: clone(DEFAULT_CACHE),
     DEFAULT_PLATFORM_SETTINGS: createDefaultPlatformSettings(),
-    DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: createDefaultLightwheelPlatformSettings(),
     DEFAULT_DATA_BAKER_PLATFORM_SETTINGS: createDefaultDataBakerPlatformSettings(),
     DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS: createDefaultDataBakerCvpcPlatformSettings(),
     DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS: createDefaultBytedanceAidpPlatformSettings(),

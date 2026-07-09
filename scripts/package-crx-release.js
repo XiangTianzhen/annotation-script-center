@@ -5,6 +5,7 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const childProcess = require("child_process");
+const { buildOptionsApp } = require("./build-options-app");
 const {
   buildBuildMetaContent,
   buildManifestForChannel,
@@ -267,15 +268,7 @@ function buildVueOptionsAppIfPresent() {
   if (!fs.existsSync(packageJsonPath)) {
     return;
   }
-  const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = runCommand(npmExecutable, ["run", "build"], {
-    cwd: OPTIONS_APP_DIR,
-  });
-  if (result.status !== 0) {
-    throw new Error(
-      `Vue options 构建失败：${(result.stderr || result.stdout || "").trim() || "无额外输出"}`
-    );
-  }
+  buildOptionsApp();
 }
 
 function createZipArchive(zipOutputPath, extensionDir) {
