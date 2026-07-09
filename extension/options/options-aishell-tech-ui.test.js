@@ -11,6 +11,10 @@ test("Aishell options source uses standalone convert/listen/compare cards", func
   assert.match(script, /aishell-tech-ai-convert-model-select/);
   assert.match(script, /aishell-tech-ai-listen-model-select/);
   assert.match(script, /aishell-tech-ai-compare-family-select/);
+  assert.match(script, /aishell-tech-ai-convert-model-select" data-options-custom-select="true"/);
+  assert.match(script, /aishell-tech-ai-listen-model-select" data-options-custom-select="true"/);
+  assert.match(script, /aishell-tech-ai-compare-family-select" data-options-custom-select="true"/);
+  assert.match(script, /aishell-tech-ai-compare-model-select" data-options-custom-select="true"/);
   assert.match(script, /aishell-tech-ai-compare-qwen-prompt/);
   assert.match(script, /aishell-tech-ai-compare-omni-prompt/);
   assert.match(script, /Qwen 文本比较/);

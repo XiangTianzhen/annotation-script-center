@@ -1437,6 +1437,12 @@
 - 新增(haitian-utrans): 在平台设置中接入音频下载助手，并增加“是否开启悬浮窗下载功能”单开关
 - 修复(haitian-utrans): 将下载桥接改为扩展脚本注入，避免 uTrans 页面 CSP 拦截内联脚本
 
+## 2026-07-09
+- 重构(options): 脚本详情页下拉统一收口到 `extension/options/options-shared-select.js` 共享自定义组件，替换旧的 AIDP 专用命名和浮层接线
+- 调整(options): `?view=script` 下静态设置面板与动态 AI 面板的下拉统一改为 `data-options-custom-select="true"` 标记接管，保留原生 `select` 作为真实值源
+- 优化(options): 详情页下拉更新为白底、浅灰边、大圆角、浅灰选中态的统一样式，并限定下载中心与系统管理继续保持原生下拉
+- 测试(options): 新增共享下拉回归测试，补齐 ByteDance AIDP、Aishell、CVPC 与共享 AI 面板的接线断言
+
 ## 2026-07-08
 - 调整(Magic Data): 杭州话脚本的说话人属性新增“音频是否是纯方言”判断，并接入共享采集、AI 输出与前端结果面板
 - 新增(Magic Data): 接入隐藏 beta 的杭州话脚本，前端运行时与后端接口首版按客家话助手能力复制

@@ -11,6 +11,8 @@ test("CVPC options source uses standalone listen/refine AI cards", function () {
 
   assert.match(script, /data-baker-cvpc-ai-listen-model-select/);
   assert.match(script, /data-baker-cvpc-ai-refine-model-select/);
+  assert.match(script, /data-baker-cvpc-ai-listen-model-select" data-options-custom-select="true"/);
+  assert.match(script, /data-baker-cvpc-ai-refine-model-select" data-options-custom-select="true"/);
   assert.match(script, /data-baker-cvpc-ai-listen-prompt/);
   assert.match(script, /data-baker-cvpc-ai-listen-include-lexicon-reference/);
   assert.match(script, /data-baker-cvpc-ai-refine-prompt/);
@@ -20,6 +22,7 @@ test("CVPC options source uses standalone listen/refine AI cards", function () {
   assert.match(script, /data-baker-cvpc-segment-preview-auto-apply-enabled/);
   assert.match(script, /data-baker-cvpc-ai-recommend-auto-fill-enabled/);
   assert.match(script, /data-baker-cvpc-recommendation-validity-auto-correct-enabled/);
+  assert.match(html, /<select id="data-baker-cvpc-segment-silence-threshold-unit"[^>]*data-options-custom-select="true"/);
   assert.match(html, /静音阈值/);
   assert.match(html, /前后补偿时长/);
   assert.match(html, /生成后自动应用当前建议/);

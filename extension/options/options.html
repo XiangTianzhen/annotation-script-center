@@ -285,7 +285,7 @@
               <label class="field-card">
                 <strong>倍速步进</strong>
                 <span>用于“提高倍速 / 降低倍速”。</span>
-                <select id="transcription-rate-step">
+                <select id="transcription-rate-step" data-options-custom-select="true">
                   <option value="0.1">0.1</option>
                   <option value="0.25">0.25</option>
                   <option value="0.5">0.5</option>
@@ -296,7 +296,7 @@
               <label class="field-card">
                 <strong>前进 / 后退步长</strong>
                 <span>用于当前音频前进、后退。</span>
-                <select id="transcription-seek-step">
+                <select id="transcription-seek-step" data-options-custom-select="true">
                   <option value="0.5">0.5 秒</option>
                   <option value="1">1 秒</option>
                   <option value="2">2 秒</option>
@@ -366,7 +366,7 @@
               <label class="field-card">
                 <strong>倍速步进</strong>
                 <span>用于“提高倍速 / 降低倍速”快捷键，只影响当前音频。</span>
-                <select id="judgement-rate-step">
+                <select id="judgement-rate-step" data-options-custom-select="true">
                   <option value="0.1">0.1</option>
                   <option value="0.25">0.25</option>
                   <option value="0.5">0.5</option>
@@ -377,7 +377,7 @@
               <label class="field-card">
                 <strong>前进 / 后退步长</strong>
                 <span>用于当前音频的快进和快退快捷键，默认 0.5 秒。</span>
-                <select id="judgement-seek-step">
+                <select id="judgement-seek-step" data-options-custom-select="true">
                   <option value="0.1">0.1 秒</option>
                   <option value="0.25">0.25 秒</option>
                   <option value="0.5">0.5 秒</option>
@@ -388,7 +388,7 @@
               <label class="field-card">
                 <strong>默认每页条数</strong>
                 <span>进入快判详情页后自动尝试切换每页条数；400 条/页会通过请求改写加载全量题卡。</span>
-                <select id="judgement-items-per-page">
+                <select id="judgement-items-per-page" data-options-custom-select="true">
                   <option value="1 条/页">1 条/页</option>
                   <option value="2 条/页">2 条/页</option>
                   <option value="3 条/页">3 条/页</option>
@@ -524,7 +524,7 @@
               <label class="field-card">
                 <strong>默认每页条数</strong>
                 <span>默认 50 条/页；可按标贝易采页面原生选项调整。</span>
-                <select id="data-baker-default-page-size">
+                <select id="data-baker-default-page-size" data-options-custom-select="true">
                   <option value="5条/页">5条/页</option>
                   <option value="10条/页">10条/页</option>
                   <option value="20条/页">20条/页</option>
@@ -613,7 +613,7 @@
                 <span>默认按 dB；也可切换成平台常见的 % / Val。连续 0.4 秒低于该阈值视为静音。</span>
                 <label class="project-download-row">
                   <span>单位</span>
-                  <select id="data-baker-cvpc-segment-silence-threshold-unit">
+                  <select id="data-baker-cvpc-segment-silence-threshold-unit" data-options-custom-select="true">
                     <option value="db">dB</option>
                     <option value="ratio">%</option>
                     <option value="value">Val</option>
@@ -808,6 +808,8 @@
                 </strong>
                 <select
                   id="bytedance-aidp-default-playback-rate"
+                  data-options-custom-select="true"
+                  data-options-placeholder="请选择默认播放倍数"
                 >
                   <option value="0.5">0.50倍速</option>
                   <option value="0.75">0.75倍速</option>
@@ -831,6 +833,8 @@
                 </strong>
                 <select
                   id="bytedance-aidp-fixed-wave-zoom"
+                  data-options-custom-select="true"
+                  data-options-placeholder="请选择固定缩放倍数"
                 >
                   <option value="1">1</option>
                   <option value="2">2</option>
@@ -1106,12 +1110,12 @@
 
               <label class="field-card">
                 <strong>分析方案</strong>
-                <select id="abaka-ai-analysis-mode"></select>
+                <select id="abaka-ai-analysis-mode" data-options-custom-select="true"></select>
               </label>
 
               <label class="field-card">
                 <strong>视觉模型（阶段一）</strong>
-                <select id="abaka-ai-vision-model"></select>
+                <select id="abaka-ai-vision-model" data-options-custom-select="true"></select>
               </label>
 
               <label class="field-toggle">
@@ -1121,17 +1125,17 @@
 
               <label class="field-card">
                 <strong>OCR 模型（可选）</strong>
-                <select id="abaka-ai-ocr-model"></select>
+                <select id="abaka-ai-ocr-model" data-options-custom-select="true"></select>
               </label>
 
               <label class="field-card">
                 <strong>推理模型（阶段二）</strong>
-                <select id="abaka-ai-reasoning-model"></select>
+                <select id="abaka-ai-reasoning-model" data-options-custom-select="true"></select>
               </label>
 
               <label class="field-card">
                 <strong>单模型（single_model）</strong>
-                <select id="abaka-ai-single-model"></select>
+                <select id="abaka-ai-single-model" data-options-custom-select="true"></select>
               </label>
 
               <label class="field-toggle">
@@ -1257,6 +1261,8 @@
       </div>
     </main>
 
+    <div id="detail-select-layer" class="hidden" aria-hidden="true"></div>
+
     <script src="../shared/build-meta.js"></script>
     <script src="../shared/build-meta.local.js"></script>
     <script src="../shared/constants.js"></script>
@@ -1267,6 +1273,7 @@
     <script src="./options-project-download-supplier.js"></script>
     <script src="./options-shared-asr-ai-panel.js"></script>
     <script src="./options-shared-shortcut-panel.js"></script>
+    <script src="./options-shared-select.js"></script>
     <script src="./options.js"></script>
   </body>
 </html>

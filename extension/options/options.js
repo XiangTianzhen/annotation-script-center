@@ -93,12 +93,7 @@
   let hoveredInlineHelpAnchor = null;
   let inlineHelpPopoverNode = null;
   let inlineHelpListenersBound = false;
-  let activeAidpCustomSelectNode = null;
-  let aidpUiLayerNode = null;
-  let aidpUiLayerSelectMenuNode = null;
-  let aidpCustomSelectListenersBound = false;
   let aidpLineNumberWindowListenerBound = false;
-  const aidpCustomSelectControllers = new WeakMap();
   const aidpLineNumberTextareaControllers = new WeakMap();
   const betaFeaturesVisibleByDefault = constants.BETA_FEATURES_VISIBLE_BY_DEFAULT === true;
   const getBackendModeFromSettings =
@@ -301,6 +296,7 @@
   const optionsWorkbenchState = globalThis.ASREdgeOptionsWorkbenchState || {};
   const sharedAsrAiPanel = globalThis.ASREdgeOptionsSharedAsrAiPanel || {};
   const sharedShortcutPanel = globalThis.ASREdgeOptionsSharedShortcutPanel || {};
+  const sharedSelect = globalThis.ASREdgeOptionsSharedSelect || {};
   const buildPlatformEntryDescriptor =
     typeof optionsWorkbenchState.buildPlatformEntryDescriptor === "function"
       ? optionsWorkbenchState.buildPlatformEntryDescriptor
@@ -2132,6 +2128,7 @@
     selectNode.value = isJudgementPresetModel(normalizedModel, models)
       ? normalizedModel
       : "custom";
+    syncOptionsCustomSelectState(selectNode);
   }
 
   function applyJudgementModelField(selectId, customInputId, modelName, presetList, role) {
@@ -2144,6 +2141,7 @@
     renderJudgementAiModelOptions(selectId, presetList, normalizedModel, role);
     const useCustom = !normalizedModel || !isJudgementPresetModel(normalizedModel, presetList);
     selectNode.value = useCustom ? "custom" : normalizedModel;
+    syncOptionsCustomSelectState(selectNode);
     customNode.value = useCustom ? normalizedModel : "";
     customNode.classList.toggle("hidden", !useCustom);
   }
@@ -2161,6 +2159,39 @@
       return normalizeJudgementAiModelText(selectNode.value, fallback);
     }
     return normalizeJudgementAiModelText(fallback, fallback);
+  }
+
+  function syncOptionsCustomSelects(scope) {
+    if (typeof sharedSelect.syncCustomSelects === "function") {
+      return sharedSelect.syncCustomSelects(scope);
+    }
+    return scope;
+  }
+
+  function syncOptionsCustomSelectState(selectNode) {
+    if (typeof sharedSelect.syncCustomSelectState === "function") {
+      sharedSelect.syncCustomSelectState(selectNode);
+    }
+  }
+
+  function closeOptionsCustomSelects(exceptNode) {
+    if (typeof sharedSelect.closeAllCustomSelects === "function") {
+      sharedSelect.closeAllCustomSelects(exceptNode);
+    }
+  }
+
+  function renderDetailCustomSelectOptions(selectId, options, selectedValue, config) {
+    const selectNode = getElement(selectId);
+    if (!(selectNode instanceof HTMLSelectElement)) {
+      return;
+    }
+    const placeholder = normalizeText(config?.placeholder || "");
+    if (placeholder) {
+      selectNode.setAttribute("data-options-placeholder", placeholder);
+    } else {
+      selectNode.removeAttribute("data-options-placeholder");
+    }
+    renderFixedModelOptions(selectId, options, selectedValue);
   }
 
   function renderFixedModelOptions(selectId, models, selectedModel) {
@@ -2188,9 +2219,11 @@
       .filter(Boolean);
     if (allowedValues.indexOf(normalizedSelected) >= 0) {
       selectNode.value = normalizedSelected;
+      syncOptionsCustomSelectState(selectNode);
       return;
     }
     selectNode.value = allowedValues[0] || "";
+    syncOptionsCustomSelectState(selectNode);
   }
 
   function setFieldVisibility(elementId, visible) {
@@ -3608,7 +3641,7 @@
       listenModel,
       stageDefaults.listen.model
     );
-    renderAidpCustomSelectOptions(
+    renderDetailCustomSelectOptions(
       "bytedance-aidp-ai-listen-model-select",
       stageDefaults.listen.modelOptions,
       currentListenModel,
@@ -3639,7 +3672,7 @@
       stageDefaults.listen
     );
 
-    renderAidpCustomSelectOptions(
+    renderDetailCustomSelectOptions(
       "bytedance-aidp-ai-refine-model-select",
       stageDefaults.refine.modelOptions,
       normalizeDataBakerCompareModel(
@@ -5488,6 +5521,7 @@
       })
       .join("");
     selectNode.value = normalizedSelected;
+    syncOptionsCustomSelectState(selectNode);
   }
 
   function isMagicDataPresetModel(modelName, presetList) {
@@ -6833,433 +6867,6 @@
     });
   }
 
-  function ensureAidpUiLayer() {
-    const layer = getElement("aidp-ui-layer");
-    if (!(layer instanceof HTMLElement)) {
-      return null;
-    }
-    aidpUiLayerNode = layer;
-    if (
-      !(aidpUiLayerSelectMenuNode instanceof HTMLElement) ||
-      !aidpUiLayerNode.contains(aidpUiLayerSelectMenuNode)
-    ) {
-      const menu = document.createElement("div");
-      menu.id = "aidp-ui-layer-select-menu";
-      menu.className = "aidp-select-menu aidp-ui-layer-menu";
-      menu.setAttribute("role", "listbox");
-      menu.hidden = true;
-      menu.setAttribute("data-open", "");
-      aidpUiLayerNode.appendChild(menu);
-      aidpUiLayerSelectMenuNode = menu;
-    }
-    const hasVisibleMenu =
-      aidpUiLayerSelectMenuNode instanceof HTMLElement && !aidpUiLayerSelectMenuNode.hidden;
-    aidpUiLayerNode.classList.toggle("hidden", !hasVisibleMenu);
-    aidpUiLayerNode.setAttribute("aria-hidden", hasVisibleMenu ? "false" : "true");
-    return aidpUiLayerNode;
-  }
-
-  function getAidpCustomSelectController(target) {
-    if (target instanceof HTMLSelectElement) {
-      return aidpCustomSelectControllers.get(target) || null;
-    }
-    if (!(target instanceof HTMLElement)) {
-      return null;
-    }
-    const selectNode = target.querySelector("select[data-aidp-custom-select='true']");
-    return selectNode instanceof HTMLSelectElement
-      ? aidpCustomSelectControllers.get(selectNode) || null
-      : null;
-  }
-
-  function getAidpCustomSelectPlaceholder(selectNode) {
-    if (!(selectNode instanceof HTMLSelectElement)) {
-      return "";
-    }
-    return normalizeText(selectNode.getAttribute("data-aidp-placeholder"));
-  }
-
-  function getAidpCustomSelectItems() {
-    if (!(aidpUiLayerSelectMenuNode instanceof HTMLElement)) {
-      return [];
-    }
-    return Array.from(aidpUiLayerSelectMenuNode.querySelectorAll(".aidp-select-option")).filter(
-      function (node) {
-        return node instanceof HTMLButtonElement;
-      }
-    );
-  }
-
-  function closeAidpCustomSelect(wrapper) {
-    const controller = getAidpCustomSelectController(wrapper);
-    if (!controller) {
-      if (wrapper instanceof HTMLElement) {
-        wrapper.setAttribute("data-open", "");
-        wrapper.setAttribute("data-highlight-index", "");
-      }
-      return;
-    }
-    controller.wrapper.setAttribute("data-open", "");
-    controller.wrapper.setAttribute("data-highlight-index", "");
-    controller.trigger.setAttribute("aria-expanded", "false");
-    if (activeAidpCustomSelectNode === controller.wrapper) {
-      activeAidpCustomSelectNode = null;
-      if (aidpUiLayerSelectMenuNode instanceof HTMLElement) {
-        aidpUiLayerSelectMenuNode.hidden = true;
-        aidpUiLayerSelectMenuNode.innerHTML = "";
-        aidpUiLayerSelectMenuNode.setAttribute("data-open", "");
-        aidpUiLayerSelectMenuNode.setAttribute("data-placement", "");
-      }
-      ensureAidpUiLayer();
-    }
-  }
-
-  function closeAllAidpCustomSelects(exceptWrapper) {
-    Array.from(document.querySelectorAll(".aidp-custom-select[data-open='true']")).forEach(function (
-      node
-    ) {
-      if (!(node instanceof HTMLElement) || node === exceptWrapper) {
-        return;
-      }
-      closeAidpCustomSelect(node);
-    });
-  }
-
-  function setAidpCustomSelectHighlight(wrapper, nextIndex) {
-    const controller = getAidpCustomSelectController(wrapper);
-    if (!controller) {
-      return;
-    }
-    const items = getAidpCustomSelectItems();
-    if (!items.length) {
-      controller.wrapper.setAttribute("data-highlight-index", "");
-      return;
-    }
-    const safeIndex = Math.max(0, Math.min(Number(nextIndex) || 0, items.length - 1));
-    controller.wrapper.setAttribute("data-highlight-index", String(safeIndex));
-    items.forEach(function (item, index) {
-      const active = index === safeIndex;
-      item.classList.toggle("is-highlighted", active);
-      if (active) {
-        item.scrollIntoView({ block: "nearest" });
-      }
-    });
-  }
-
-  function renderAidpCustomSelectMenu(controller) {
-    if (!controller) {
-      return;
-    }
-    const layer = ensureAidpUiLayer();
-    const menu = aidpUiLayerSelectMenuNode;
-    if (!(layer instanceof HTMLElement) || !(menu instanceof HTMLElement)) {
-      return;
-    }
-    menu.innerHTML = "";
-    let selectedIndex = Math.max(0, controller.selectNode.selectedIndex);
-    Array.from(controller.selectNode.options).forEach(function (option, index) {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "aidp-select-option";
-      item.setAttribute("role", "option");
-      item.setAttribute("data-value", option.value);
-      item.setAttribute("data-index", String(index));
-      item.textContent = normalizeText(option.textContent || "");
-      if (option.disabled) {
-        item.disabled = true;
-      }
-      const selected = option.value === controller.selectNode.value;
-      item.classList.toggle("is-selected", selected);
-      item.setAttribute("aria-selected", selected ? "true" : "false");
-      if (selected) {
-        selectedIndex = index;
-      }
-      item.addEventListener("mouseenter", function () {
-        setAidpCustomSelectHighlight(controller.wrapper, index);
-      });
-      item.addEventListener("click", function () {
-        if (item.disabled) {
-          return;
-        }
-        chooseAidpCustomSelectValue(controller.selectNode, option.value);
-      });
-      menu.appendChild(item);
-    });
-    setAidpCustomSelectHighlight(controller.wrapper, selectedIndex);
-  }
-
-  function positionAidpCustomSelectMenu(wrapper) {
-    const controller = getAidpCustomSelectController(wrapper);
-    const layer = ensureAidpUiLayer();
-    const menu = aidpUiLayerSelectMenuNode;
-    if (!controller || !(layer instanceof HTMLElement) || !(menu instanceof HTMLElement)) {
-      return;
-    }
-    const triggerRect = controller.trigger.getBoundingClientRect();
-    const viewportPadding = 12;
-    const gap = 8;
-    const menuMaxHeight = 280;
-    const measuredWidth = Math.max(Math.round(triggerRect.width), 180);
-    menu.style.position = "absolute";
-    menu.style.width = measuredWidth + "px";
-    menu.style.minWidth = measuredWidth + "px";
-    menu.style.left = "0px";
-    menu.style.top = "0px";
-    menu.style.maxHeight = menuMaxHeight + "px";
-    menu.hidden = false;
-    menu.style.visibility = "hidden";
-    const menuHeight = Math.min(menu.scrollHeight || menu.offsetHeight || 0, menuMaxHeight);
-    const spaceBelow = window.innerHeight - triggerRect.bottom - gap - viewportPadding;
-    const spaceAbove = triggerRect.top - gap - viewportPadding;
-    const shouldFlipUp =
-      spaceBelow < Math.min(menuHeight || menuMaxHeight, 180) && spaceAbove > spaceBelow;
-    const availableHeight = shouldFlipUp ? spaceAbove : spaceBelow;
-    const safeMaxHeight = Math.max(
-      96,
-      Math.min(menuMaxHeight, availableHeight > 0 ? availableHeight : menuMaxHeight)
-    );
-    const maxLeft = Math.max(viewportPadding, window.innerWidth - viewportPadding - measuredWidth);
-    const left = Math.min(Math.max(viewportPadding, triggerRect.left), maxLeft);
-    let top = shouldFlipUp
-      ? triggerRect.top - gap - Math.min(menuHeight || safeMaxHeight, safeMaxHeight)
-      : triggerRect.bottom + gap;
-    top = Math.max(
-      viewportPadding,
-      Math.min(top, window.innerHeight - viewportPadding - safeMaxHeight)
-    );
-    menu.style.left = Math.round(left) + "px";
-    menu.style.top = Math.round(top) + "px";
-    menu.style.maxHeight = Math.round(safeMaxHeight) + "px";
-    menu.style.visibility = "";
-    menu.setAttribute("data-placement", shouldFlipUp ? "top" : "bottom");
-    menu.setAttribute("data-open", "true");
-  }
-
-  function syncAidpCustomSelectState(selectNode) {
-    if (!(selectNode instanceof HTMLSelectElement)) {
-      return;
-    }
-    const controller = getAidpCustomSelectController(selectNode);
-    if (!controller) {
-      return;
-    }
-    const placeholderText = getAidpCustomSelectPlaceholder(selectNode);
-    const selectedOption =
-      selectNode.options[selectNode.selectedIndex >= 0 ? selectNode.selectedIndex : 0] || null;
-    const selectedValue = normalizeText(selectNode.value);
-    const usePlaceholder = Boolean(placeholderText) && !selectedValue;
-    controller.trigger.disabled = selectNode.disabled;
-    controller.label.textContent =
-      (usePlaceholder ? placeholderText : normalizeText(selectedOption?.textContent || "")) ||
-      "请选择";
-    controller.label.classList.toggle("is-placeholder", usePlaceholder);
-    if (activeAidpCustomSelectNode === controller.wrapper) {
-      renderAidpCustomSelectMenu(controller);
-      positionAidpCustomSelectMenu(controller.wrapper);
-    }
-  }
-
-  function renderAidpCustomSelectOptions(selectId, options, selectedValue, config) {
-    const selectNode = getElement(selectId);
-    if (!(selectNode instanceof HTMLSelectElement)) {
-      return;
-    }
-    renderFixedModelOptions(selectId, options, selectedValue);
-  }
-
-  function openAidpCustomSelect(wrapper) {
-    const controller = getAidpCustomSelectController(wrapper);
-    if (!controller || controller.trigger.disabled) {
-      return;
-    }
-    closeAllAidpCustomSelects(controller.wrapper);
-    controller.wrapper.setAttribute("data-open", "true");
-    controller.trigger.setAttribute("aria-expanded", "true");
-    activeAidpCustomSelectNode = controller.wrapper;
-    renderAidpCustomSelectMenu(controller);
-    positionAidpCustomSelectMenu(controller.wrapper);
-    ensureAidpUiLayer();
-  }
-
-  function chooseAidpCustomSelectValue(selectNode, value) {
-    if (!(selectNode instanceof HTMLSelectElement)) {
-      return;
-    }
-    const controller = getAidpCustomSelectController(selectNode);
-    if (selectNode.value === value) {
-      syncAidpCustomSelectState(selectNode);
-      if (controller) {
-        closeAidpCustomSelect(controller.wrapper);
-      }
-      return;
-    }
-    selectNode.value = value;
-    syncAidpCustomSelectState(selectNode);
-    selectNode.dispatchEvent(new Event("change", { bubbles: true }));
-    if (controller) {
-      closeAidpCustomSelect(controller.wrapper);
-      controller.trigger.focus();
-    }
-  }
-
-  function moveAidpCustomSelectHighlight(wrapper, direction) {
-    const controller = getAidpCustomSelectController(wrapper);
-    if (!controller) {
-      return;
-    }
-    const items = getAidpCustomSelectItems();
-    if (!items.length) {
-      return;
-    }
-    const currentIndex = Math.max(
-      0,
-      Number(controller.wrapper.getAttribute("data-highlight-index") || 0)
-    );
-    const nextIndex = currentIndex + (direction < 0 ? -1 : 1);
-    const normalizedIndex =
-      nextIndex < 0 ? items.length - 1 : nextIndex >= items.length ? 0 : nextIndex;
-    setAidpCustomSelectHighlight(controller.wrapper, normalizedIndex);
-  }
-
-  function ensureAidpCustomSelect(selectNode) {
-    if (!(selectNode instanceof HTMLSelectElement)) {
-      return;
-    }
-    let controller = aidpCustomSelectControllers.get(selectNode) || null;
-    if (
-      controller &&
-      (!(controller.wrapper instanceof HTMLElement) ||
-        !(controller.trigger instanceof HTMLButtonElement) ||
-        !(controller.label instanceof HTMLElement) ||
-        !controller.wrapper.isConnected ||
-        !controller.wrapper.contains(selectNode))
-    ) {
-      controller = null;
-      aidpCustomSelectControllers.delete(selectNode);
-    }
-    if (!controller) {
-      let wrapper = selectNode.closest(".aidp-custom-select");
-      if (!(wrapper instanceof HTMLElement)) {
-        const parent = selectNode.parentElement;
-        if (!(parent instanceof HTMLElement)) {
-          return;
-        }
-        wrapper = document.createElement("div");
-        wrapper.className = "aidp-custom-select";
-        wrapper.setAttribute("data-open", "");
-        wrapper.setAttribute("data-highlight-index", "");
-        parent.insertBefore(wrapper, selectNode);
-        wrapper.appendChild(selectNode);
-      }
-      selectNode.classList.add("aidp-select-native");
-      let trigger = wrapper.querySelector(".aidp-select-trigger");
-      if (!(trigger instanceof HTMLButtonElement)) {
-        trigger = document.createElement("button");
-        trigger.type = "button";
-        trigger.className = "aidp-select-trigger";
-        trigger.setAttribute("aria-haspopup", "listbox");
-        trigger.setAttribute("aria-expanded", "false");
-        trigger.innerHTML =
-          '<span class="aidp-select-trigger-label"></span><span class="aidp-select-trigger-icon" aria-hidden="true"></span>';
-        wrapper.appendChild(trigger);
-      }
-      const label = trigger.querySelector(".aidp-select-trigger-label");
-      if (!(label instanceof HTMLElement)) {
-        return;
-      }
-      controller = {
-        selectNode,
-        wrapper,
-        trigger,
-        label,
-      };
-      aidpCustomSelectControllers.set(selectNode, controller);
-      trigger.addEventListener("click", function () {
-        const isOpen = wrapper.getAttribute("data-open") === "true";
-        if (isOpen) {
-          closeAidpCustomSelect(wrapper);
-          return;
-        }
-        openAidpCustomSelect(wrapper);
-      });
-      trigger.addEventListener("keydown", function (event) {
-        const key = normalizeText(event?.key);
-        if (key === "ArrowDown" || key === "Down") {
-          event.preventDefault();
-          if (wrapper.getAttribute("data-open") !== "true") {
-            openAidpCustomSelect(wrapper);
-            return;
-          }
-          moveAidpCustomSelectHighlight(wrapper, 1);
-          return;
-        }
-        if (key === "ArrowUp" || key === "Up") {
-          event.preventDefault();
-          if (wrapper.getAttribute("data-open") !== "true") {
-            openAidpCustomSelect(wrapper);
-            return;
-          }
-          moveAidpCustomSelectHighlight(wrapper, -1);
-          return;
-        }
-        if (key === "Enter" || key === " ") {
-          event.preventDefault();
-          if (wrapper.getAttribute("data-open") !== "true") {
-            openAidpCustomSelect(wrapper);
-            return;
-          }
-          const items = getAidpCustomSelectItems();
-          const highlightIndex = Math.max(
-            0,
-            Number(wrapper.getAttribute("data-highlight-index") || 0)
-          );
-          const targetItem = items[highlightIndex];
-          if (targetItem instanceof HTMLButtonElement && !targetItem.disabled) {
-            chooseAidpCustomSelectValue(selectNode, targetItem.getAttribute("data-value") || "");
-          }
-          return;
-        }
-        if (key === "Escape" || key === "Esc") {
-          event.preventDefault();
-          closeAidpCustomSelect(wrapper);
-        }
-      });
-      selectNode.addEventListener("change", function () {
-        syncAidpCustomSelectState(selectNode);
-      });
-    }
-
-    syncAidpCustomSelectState(selectNode);
-
-    if (!aidpCustomSelectListenersBound) {
-      document.addEventListener("click", function (event) {
-        const target = event.target instanceof Element ? event.target : null;
-        if (
-          target instanceof Element &&
-          (target.closest(".aidp-custom-select") || target.closest(".aidp-ui-layer-menu"))
-        ) {
-          return;
-        }
-        closeAllAidpCustomSelects(null);
-      });
-      window.addEventListener("resize", function () {
-        closeAllAidpCustomSelects(null);
-      });
-      window.addEventListener(
-        "scroll",
-        function () {
-          closeAllAidpCustomSelects(null);
-        },
-        true
-      );
-      aidpCustomSelectListenersBound = true;
-    }
-  }
-
-  function syncAidpCustomSelects(scope) {
-    return scope;
-  }
-
   function getAidpLineMeasureSeedCount(value) {
     if (value === "") {
       return 0;
@@ -7658,21 +7265,21 @@
       '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
       "</div></div>",
       '<div class="asr-ai-block"><strong>转换</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>转换模型</span><select id="aishell-tech-ai-convert-model-select"></select><span class="asr-ai-help">默认先走词表规则替换；只有命中歧义词或切分冲突时，才会调用这里的模型兜底。</span></label>',
+      '<label class="asr-ai-field"><span>转换模型</span><select id="aishell-tech-ai-convert-model-select" data-options-custom-select="true"></select><span class="asr-ai-help">默认先走词表规则替换；只有命中歧义词或切分冲突时，才会调用这里的模型兜底。</span></label>',
       '<label class="asr-ai-field"><span>转换 Prompt（可选）</span><textarea id="aishell-tech-ai-convert-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildAishellTechStageParamFieldsMarkup("convert", false) +
         "</div></div>",
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>听音模型</span><select id="aishell-tech-ai-listen-model-select"></select><span class="asr-ai-help" id="aishell-tech-ai-listen-model-help"></span></label>',
+      '<label class="asr-ai-field"><span>听音模型</span><select id="aishell-tech-ai-listen-model-select" data-options-custom-select="true"></select><span class="asr-ai-help" id="aishell-tech-ai-listen-model-help"></span></label>',
       '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="aishell-tech-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
       '<div class="asr-ai-field" id="aishell-tech-ai-listen-model-note"><span class="asr-ai-help"></span></div>',
       '</div><div class="asr-ai-grid three">' +
         buildAishellTechStageParamFieldsMarkup("listen", false) +
         "</div></div>",
       '<div class="asr-ai-block"><strong>比较</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>比较方式</span><select id="aishell-tech-ai-compare-family-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-family-help">Qwen 只做文本比较；Omni 会在比较阶段再次听音频。</span></label>',
-      '<label class="asr-ai-field"><span>比较模型</span><select id="aishell-tech-ai-compare-model-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-model-help"></span></label>',
+      '<label class="asr-ai-field"><span>比较方式</span><select id="aishell-tech-ai-compare-family-select" data-options-custom-select="true"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-family-help">Qwen 只做文本比较；Omni 会在比较阶段再次听音频。</span></label>',
+      '<label class="asr-ai-field"><span>比较模型</span><select id="aishell-tech-ai-compare-model-select" data-options-custom-select="true"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-model-help"></span></label>',
       '<label class="asr-ai-field" id="aishell-tech-ai-compare-qwen-prompt-field"><span>Qwen 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-qwen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于纯文本比对，不再二次听音。</span></label>',
       '<label class="asr-ai-field" id="aishell-tech-ai-compare-omni-prompt-field"><span>Omni 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-omni-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于比较阶段再次听音并综合判断。</span></label>',
       '</div><div class="asr-ai-grid three">' +
@@ -7693,6 +7300,7 @@
         updateAishellTechCompareFamilyFields(event?.target?.value);
       });
     }
+    syncOptionsCustomSelects(panel);
     panel.classList.remove("hidden");
   }
 
@@ -7708,13 +7316,14 @@
       '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
       "</div></div>",
       '<div class="asr-ai-block"><strong>单阶段 Omni 识别</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>识别模型</span><select id="aishell-tech-ai-single-model-select"></select><span class="asr-ai-help">默认 `qwen3.5-omni-flash`，可在 Omni 模型列表中切换。</span></label>',
+      '<label class="asr-ai-field"><span>识别模型</span><select id="aishell-tech-ai-single-model-select" data-options-custom-select="true"></select><span class="asr-ai-help">默认 `qwen3.5-omni-flash`，可在 Omni 模型列表中切换。</span></label>',
       '<label class="asr-ai-field"><span>识别 Prompt（可选）</span><textarea id="aishell-tech-ai-single-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildAishellTechStageParamFieldsMarkup("single", false) +
         "</div></div>",
       "</div>",
     ].join("");
+    syncOptionsCustomSelects(panel);
     panel.classList.remove("hidden");
   }
 
@@ -7730,13 +7339,14 @@
       '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
       "</div></div>",
       '<div class="asr-ai-block"><strong>单阶段 Omni 识别</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>识别模型</span><select id="aishell-tech-ai-single-model-select"></select><span class="asr-ai-help">默认 `qwen3.5-omni-flash`，同时输出泰语文本与语速建议。</span></label>',
+      '<label class="asr-ai-field"><span>识别模型</span><select id="aishell-tech-ai-single-model-select" data-options-custom-select="true"></select><span class="asr-ai-help">默认 `qwen3.5-omni-flash`，同时输出泰语文本与语速建议。</span></label>',
       '<label class="asr-ai-field"><span>识别 Prompt（可选）</span><textarea id="aishell-tech-ai-single-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildAishellTechStageParamFieldsMarkup("single", false) +
         "</div></div>",
       "</div>",
     ].join("");
+    syncOptionsCustomSelects(panel);
     panel.classList.remove("hidden");
   }
 
@@ -7751,14 +7361,14 @@
       '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="data-baker-cvpc-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
       "</div></div>",
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>听音模型</span><select id="data-baker-cvpc-ai-listen-model-select"></select><span class="asr-ai-help" id="data-baker-cvpc-ai-listen-model-help"></span></label>',
+      '<label class="asr-ai-field"><span>听音模型</span><select id="data-baker-cvpc-ai-listen-model-select" data-options-custom-select="true"></select><span class="asr-ai-help" id="data-baker-cvpc-ai-listen-model-help"></span></label>',
       '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="data-baker-cvpc-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
       '<label class="asr-ai-field"><span>附带词表参考（听音辅助）</span><label class="asr-ai-boolean"><input id="data-baker-cvpc-ai-listen-include-lexicon-reference" type="checkbox" /><span>默认关闭。关闭后 listen 只按当前段音频听写；开启后才附带词表参考片段。</span></label></label>',
       '</div><div class="asr-ai-grid three">' +
         buildDataBakerCvpcStageParamFieldsMarkup("listen") +
         "</div></div>",
       '<div class="asr-ai-block"><strong>文本修正</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>文本修正模型</span><select id="data-baker-cvpc-ai-refine-model-select"></select><span class="asr-ai-help">结合听音结果、普通话文本和字词表修正柳州话文本。</span></label>',
+      '<label class="asr-ai-field"><span>文本修正模型</span><select id="data-baker-cvpc-ai-refine-model-select" data-options-custom-select="true"></select><span class="asr-ai-help">结合听音结果、普通话文本和字词表修正柳州话文本。</span></label>',
       '<label class="asr-ai-field"><span>文本修正 Prompt（可选）</span><textarea id="data-baker-cvpc-ai-refine-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildDataBakerCvpcStageParamFieldsMarkup("refine") +
@@ -7779,6 +7389,7 @@
       });
     }
 
+    syncOptionsCustomSelects(panel);
     panel.classList.remove("hidden");
   }
 
@@ -7788,7 +7399,7 @@
     defaultsTipId,
     scriptId
   ) {
-    closeAllAidpCustomSelects(null);
+    closeOptionsCustomSelects(null);
     const activeScriptId =
       scriptId === bytedanceAidpJinhuaScriptId
         ? bytedanceAidpJinhuaScriptId
@@ -7840,7 +7451,7 @@
             resultLabel +
             "收口。"
         ) +
-        '</span><select id="bytedance-aidp-ai-listen-model-select"></select></label>',
+        '</span><select id="bytedance-aidp-ai-listen-model-select" data-options-custom-select="true" data-options-placeholder="请选择听音模型"></select></label>',
       '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
@@ -7856,7 +7467,7 @@
         '收口</strong><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup("收口模型", resultHelpText) +
-        '</span><select id="bytedance-aidp-ai-refine-model-select"></select></label>',
+        '</span><select id="bytedance-aidp-ai-refine-model-select" data-options-custom-select="true" data-options-placeholder="请选择收口模型"></select></label>',
       '</div><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
@@ -7888,7 +7499,7 @@
       });
     }
 
-    syncAidpCustomSelects(panel);
+    syncOptionsCustomSelects(panel);
     syncAidpLineNumberTextareas(panel);
     bindSwitchFieldText(panel);
     panel.classList.remove("hidden");
@@ -7918,8 +7529,8 @@
         headerHtml,
         '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
         '<div class="asr-ai-block"><strong>基础模型</strong><div class="asr-ai-grid two">',
-        '<label class="asr-ai-field"><span>听音模型</span><select id="' + prefix + '-listen-model-select"></select></label>',
-        '<label class="asr-ai-field"><span>比较模型</span><select id="' + prefix + '-compare-model-select"></select></label>',
+        '<label class="asr-ai-field"><span>听音模型</span><select id="' + prefix + '-listen-model-select" data-options-custom-select="true"></select></label>',
+        '<label class="asr-ai-field"><span>比较模型</span><select id="' + prefix + '-compare-model-select" data-options-custom-select="true"></select></label>',
         '<label class="asr-ai-field"><span>听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>比较模型自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="180000" step="1000" /></label>',
@@ -7944,6 +7555,7 @@
         "</div></div>",
         "</div>",
       ].join("");
+      syncOptionsCustomSelects(panel);
       panel.classList.remove("hidden");
       return;
     }
@@ -8002,7 +7614,7 @@
           prefix +
           '-pipeline-mode-field"><span>模型方案</span><select id="' +
           prefix +
-          '-pipeline-mode-select"></select><span class="asr-ai-help">模型方案：双模型或单模型。</span></label>',
+          '-pipeline-mode-select" data-options-custom-select="true"></select><span class="asr-ai-help">模型方案：双模型或单模型。</span></label>',
         recognitionStrategy:
           '<label class="asr-ai-field' +
           (useRecognitionStrategy ? "" : " hidden") +
@@ -8010,7 +7622,7 @@
           prefix +
           '-recognition-strategy-field"><span>识别策略</span><select id="' +
           prefix +
-          '-recognition-strategy-select"></select><span class="asr-ai-help">直接识别方言文本，或先识别普通话再按字词表转换为方言文本。</span></label>',
+          '-recognition-strategy-select" data-options-custom-select="true"></select><span class="asr-ai-help">直接识别方言文本，或先识别普通话再按字词表转换为方言文本。</span></label>',
         listenModel:
           '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
@@ -8020,7 +7632,7 @@
           prefix +
           '-listen-model-label">听音模型</span><select id="' +
           prefix +
-          '-listen-model-select"></select><span class="asr-ai-help" id="' +
+          '-listen-model-select" data-options-custom-select="true"></select><span class="asr-ai-help" id="' +
           prefix +
           '-listen-model-help"></span></label>',
         listenModelNote:
@@ -8034,7 +7646,7 @@
           prefix +
           '-single-model-field"><span>AI 模型</span><select id="' +
           prefix +
-          '-single-model-select"></select><span class="asr-ai-help">单模型只支持当前 Omni 模型列表，不调用 compare。</span></label>',
+          '-single-model-select" data-options-custom-select="true"></select><span class="asr-ai-help">单模型只支持当前 Omni 模型列表，不调用 compare。</span></label>',
         compareModel:
           '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
@@ -8046,7 +7658,7 @@
           modelLabel +
           '</span><select id="' +
           prefix +
-          '-compare-model-select"></select></label>',
+          '-compare-model-select" data-options-custom-select="true"></select></label>',
         autofillConcurrency: renderSharedAsrAutofillConcurrencyField(scriptId),
         timeout:
           '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' +
@@ -8154,6 +7766,7 @@
         bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
         bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
       }
+      syncOptionsCustomSelects(panel);
       panel.classList.remove("hidden");
       return;
     }
@@ -9588,6 +9201,7 @@
     }
     stopMagicDataShortcutRecording("");
     renderMagicDataShortcutGrid();
+    syncOptionsCustomSelects(getElement("detail-view"));
     setStatus(
       "magic-data-status",
       "当前后端地址由首页统一控制：" + formatBackendModeLabel(settings)
@@ -10067,6 +9681,7 @@
     }
     stopAbakaAiShortcutRecording("");
     renderAbakaAiShortcutGrid();
+    syncOptionsCustomSelects(getElement("detail-view"));
   }
 
   function applyHaitianUtransAudioDownloadHelperForm(settings) {
@@ -10324,6 +9939,7 @@
     renderJudgementAiAdvancedPanel();
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
+    syncOptionsCustomSelects(getElement("detail-view"));
     setStatus(
       "judgement-status",
       "当前后端地址由首页统一控制：" +
@@ -10519,6 +10135,7 @@
 
     stopTranscriptionShortcutRecording("");
     renderTranscriptionShortcutGrid();
+    syncOptionsCustomSelects(getElement("detail-view"));
     const backendLabel = formatBackendModeLabel(settings);
     setStatus(
       "transcription-status",
@@ -13122,6 +12739,7 @@
   }
 
   function renderDetail(settings, scriptId) {
+    closeOptionsCustomSelects(null);
     renderDetailHeader(settings, scriptId);
     showDetailPanel(scriptId);
     renderAsrVoiceAiSettingsSection(settings, scriptId);
@@ -13313,6 +12931,7 @@
     );
     stopDataBakerShortcutRecording("");
     renderDataBakerShortcutGrid();
+    syncOptionsCustomSelects(getElement("detail-view"));
   }
 
   function applyDataBakerCvpcForm(settings) {
@@ -13408,6 +13027,7 @@
           : String(config.contractMode || "dom-guarded");
     }
     renderDataBakerCvpcShortcutGrid();
+    syncOptionsCustomSelects(getElement("detail-view"));
   }
 
   function applyBytedanceAidpRenderedAiFields(config, aiDefaults, activeScriptId) {
@@ -13437,7 +13057,7 @@
           : "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
       );
     }
-    syncAidpCustomSelects(getElement("detail-shared-asr-ai-panel"));
+    syncOptionsCustomSelects(getElement("detail-shared-asr-ai-panel"));
     syncAidpLineNumberTextareas(getElement("detail-shared-asr-ai-panel"));
     bindSwitchFieldText(getElement("detail-shared-asr-ai-panel"));
   }
@@ -13487,7 +13107,7 @@
     if (panel instanceof HTMLElement) {
       panel.classList.toggle("hidden", !enabled);
       if (!enabled) {
-        closeAllAidpCustomSelects(null);
+        closeOptionsCustomSelects(null);
         panel.innerHTML = "";
       }
     }
@@ -13542,7 +13162,7 @@
         config.mergeContiguousSuggestedSegmentsEnabled !== false;
     }
     if (defaultPlaybackRateNode instanceof HTMLSelectElement) {
-      renderAidpCustomSelectOptions(
+      renderDetailCustomSelectOptions(
         "bytedance-aidp-default-playback-rate",
         bytedanceAidpPlaybackRatePresets.map(function (value) {
           const label = Number(value).toFixed(2) + "倍速";
@@ -13558,7 +13178,7 @@
       );
     }
     if (fixedWaveZoomNode instanceof HTMLSelectElement) {
-      renderAidpCustomSelectOptions(
+      renderDetailCustomSelectOptions(
         "bytedance-aidp-fixed-wave-zoom",
         bytedanceAidpFixedWaveZoomPresets.map(function (value) {
           return {
@@ -13572,7 +13192,7 @@
         }
       );
     }
-    syncAidpCustomSelects(getElement("detail-bytedance-aidp-suzhou-panel"));
+    syncOptionsCustomSelects(getElement("detail-bytedance-aidp-suzhou-panel"));
     if (contractNode) {
       contractNode.textContent =
         config.contractMode === "dom-guarded"

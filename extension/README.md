@@ -36,6 +36,7 @@ node scripts/sync-local-build-meta.js
 - Magic Data 当前包含客家话、闽南语、杭州话三套脚本；杭州话脚本沿用现有 beta 解锁口径，未解锁时不在脚本列表展示。
 - `AI 设置`、`基础设置`、`快捷键` 保持脚本级独立保存。
 - 快捷键面板统一复用 `extension/options/options-shared-shortcut-panel.js`。
+- `?view=script` 详情页里标记了 `data-options-custom-select="true"` 的下拉统一复用 `extension/options/options-shared-select.js`；该共享组件只接管脚本详情页，不影响下载中心和系统管理页的原生下拉。
 - 默认快捷键统一为空；只有用户显式保存后才生效。
 - TTS 自动清除默认时间统一为 `60000ms`；AI / 模型请求默认超时时间统一为 `60000ms`。
 - 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。
