@@ -1489,3 +1489,11 @@
   - 新增资产瘦身回归测试，防止后续再次把音视频路径和采集索引暴露给 AI 资产
 - 更新 `platform-resources/bytedance-aidp/jinhua-helper/README.md`
   - 明确金华话词义与读音资产只保留转换需要字段
+
+## 2026-07-09（修复 beta ZIP 内脚本路径分隔符）
+- 更新 `scripts/package-crx-release.js`
+  - Windows 打包不再使用 `Compress-Archive -Path *`
+  - 改为逐文件写入 ZIP entry，并统一使用 `/` 作为包内路径分隔符
+  - 修复 Edge / Chrome 加载解压后的 beta ZIP 时无法匹配 manifest 引用脚本的问题
+- 更新 `scripts/package-crx-release-source.test.js`
+  - 新增打包脚本源码回归测试，防止 Windows ZIP entry 再次写成反斜杠路径

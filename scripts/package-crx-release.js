@@ -265,8 +265,22 @@ function createZipArchive(zipOutputPath, extensionDir) {
   safeUnlink(zipOutputPath);
   if (process.platform === "win32") {
     const commandText = [
-      `Set-Location -LiteralPath '${escapeSingleQuotes(extensionDir)}'`,
-      `Compress-Archive -Path * -DestinationPath '${escapeSingleQuotes(zipOutputPath)}' -Force`
+      "$ErrorActionPreference='Stop'",
+      "Add-Type -AssemblyName System.IO.Compression",
+      "Add-Type -AssemblyName System.IO.Compression.FileSystem",
+      `$source='${escapeSingleQuotes(extensionDir)}'`,
+      `$destination='${escapeSingleQuotes(zipOutputPath)}'`,
+      "if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Force }",
+      "$zip=[System.IO.Compression.ZipFile]::Open($destination,[System.IO.Compression.ZipArchiveMode]::Create)",
+      "try {",
+      "  Get-ChildItem -LiteralPath $source -Recurse -File | ForEach-Object {",
+      "    $relative=$_.FullName.Substring($source.Length).TrimStart('\\')",
+      "    $entryName=$relative.Replace('\\','/')",
+      "    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$_.FullName,$entryName) | Out-Null",
+      "  }",
+      "} finally {",
+      "  $zip.Dispose()",
+      "}"
     ].join("; ");
     const result = runCommand("powershell.exe", ["-NoProfile", "-Command", commandText], {
       cwd: REPO_ROOT
