@@ -87,12 +87,15 @@
 ## AI 资产
 
 - `../ai/assets/jinhua-lexicon.json`
-  - 金华话单字、词汇、语法全量初版词义转化表
-  - 当前包含 `3655` 条 entry，使用统一 `business-lexicon` schema
+  - 金华话差异词义转化表，使用统一 `business-lexicon` schema
+  - 当前包含 `991` 条 entry，只保留方言正字与普通话不同、且带方言发音的记录
 - `../ai/assets/jinhua-pronunciation-reference.csv`
-  - 金华话单字、词汇、语法全量发音参考表
-  - 当前包含 `3655` 行数据，不合并多读音、多写法或多句式
-- 以上资产已在 `../ai/adapter.js` 注册，当前仅作为后续 AI 听音和普通话翻译收口参考资产；当前版本不把全量词表直接展开进 prompt。
+  - 金华话差异发音参考 CSV
+  - 当前包含 `991` 行数据，固定为 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列
+- `../ai/assets/jinhua-pronunciation-reference.xlsx`
+  - 金华话差异发音参考 XLSX，供人工按表格形式验收
+- JSON 与 CSV 已在 `../ai/adapter.js` 注册，当前仅作为后续 AI 听音和普通话翻译收口参考资产；XLSX 仅供人工验收，不进入运行时 asset loader。
+- 当前版本不把全量词表直接展开进 prompt。
 
 ## 日志与导出
 

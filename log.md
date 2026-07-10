@@ -1,3 +1,18 @@
+## 2026-07-10（生成 ByteDance AIDP 金华话差异词义参考表）
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-lexicon.json`
+  - 按“方言正字与普通话不同，且保留方言发音”规则筛选金华话词义资产
+  - 当前保留 `991` 条差异 entry，继续使用统一 `business-lexicon` schema
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.csv`
+  - 改为 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列结构
+  - CSV 只保留差异记录，发音列保留金华话方言发音
+- 新增 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.xlsx`
+  - 按用户提供的杭州方言正字表风格生成同结构验收表
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/adapter.test.js`
+  - 回归覆盖差异 entry 数量、CSV 表头、差异规则、方言发音保留和 XLSX 产物存在
+- 更新文档：
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/backend/README.md`
+
 ## 2026-07-09（金华话 AI 新增专家模型模式）
 - 更新 `platform-resources/bytedance-aidp/jinhua-helper/backend/ai-service.js`
   - 新增 `two_stage / expert_omni_plus` 模型模式归一化
