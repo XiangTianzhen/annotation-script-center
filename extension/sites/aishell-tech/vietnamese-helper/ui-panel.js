@@ -159,6 +159,67 @@
     return /[.!?…]$/.test(normalized) ? normalized : normalized + ".";
   }
 
+  function normalizeSpeedText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function hasRecommendedText(result) {
+    return Boolean(normalizeCompareText(result?.recommendedText));
+  }
+
+  function hasRecommendedSpeed(result) {
+    return Boolean(normalizeSpeedText(result?.recommendedSpeed));
+  }
+
+  function hasFillableRecommendation(result) {
+    return hasRecommendedText(result) || hasRecommendedSpeed(result);
+  }
+
+  function isSameAsCurrentText(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const recommendedText = normalizeCompareText(source.recommendedText);
+    const currentText = normalizeCompareText(
+      source.currentDisplayText || source.currentText || source.referenceText
+    );
+    return Boolean(recommendedText) && Boolean(currentText) && recommendedText === currentText;
+  }
+
+  function isSameAsCurrentSpeed(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const recommendedSpeed = normalizeSpeedText(source.recommendedSpeed);
+    const currentSpeed = normalizeSpeedText(source.currentDisplaySpeed || source.currentSpeed);
+    return Boolean(recommendedSpeed) && Boolean(currentSpeed) && recommendedSpeed === currentSpeed;
+  }
+
+  function isSameAsDisplayedCurrent(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const textComparable = hasRecommendedText(source) && Boolean(
+      normalizeCompareText(source.currentDisplayText || source.currentText || source.referenceText)
+    );
+    const speedComparable = hasRecommendedSpeed(source) && Boolean(
+      normalizeSpeedText(source.currentDisplaySpeed || source.currentSpeed)
+    );
+    if (!textComparable && !speedComparable) {
+      return false;
+    }
+    return (!textComparable || isSameAsCurrentText(source)) &&
+      (!speedComparable || isSameAsCurrentSpeed(source));
+  }
+
+  function buildResultRows(result) {
+    const source = result && typeof result === "object" ? result : {};
+    return [
+      ["原始文本", String(source.referenceText || "")],
+      ["识别文本", String(source.recommendedText || "")],
+      ["当前语速", String(source.currentSpeed || "") || "未填写"],
+      ["语速建议", String(source.recommendedSpeed || "") || "未给出"],
+    ];
+  }
+
+  function canFillCurrentResult(result) {
+    return hasFillableRecommendation(result);
+  }
+
   function sanitizeButtonClassName(className, fallback) {
     const tokens = String(className || "")
       .split(/\s+/)
@@ -213,6 +274,7 @@
     let advancedSectionNode = null;
     let toggleBtnNode = null;
     let recommendTextDisplay = null;
+    let recommendSpeedDisplay = null;
     let fillRecommendBtn = null;
     let resultHintNode = null;
     let errorJsonNode = null;
@@ -279,18 +341,6 @@
       return currentResult;
     }
 
-    function isSameAsReferenceText(result) {
-      const source = result && typeof result === "object" ? result : {};
-      const recommendedText = normalizeCompareText(source.recommendedText);
-      const referenceText = normalizeCompareText(source.referenceText);
-      return Boolean(recommendedText) && Boolean(referenceText) && recommendedText === referenceText;
-    }
-
-    function canFillCurrentResult(result) {
-      const source = result && typeof result === "object" ? result : {};
-      return Boolean(String(source.recommendedText || "")) && !isSameAsReferenceText(source);
-    }
-
     function copyCurrentRecommendedText() {
       const result = requireCurrentResult();
       return copyText(result.recommendedText || "").then(function () {
@@ -301,14 +351,16 @@
 
     function fillCurrentRecommendedText() {
       const result = requireCurrentResult();
-      if (!canFillCurrentResult(result)) {
-        return Promise.reject(new Error("识别文本与源文本一致，无需填入。"));
-      }
       if (typeof deps.fillAndSaveCurrent !== "function") {
         return Promise.reject(new Error("当前运行时没有填入并保存能力。"));
       }
       setStatus("正在填入并保存当前条...", "info");
-      return Promise.resolve(deps.fillAndSaveCurrent(result.recommendedText || "")).then(
+      return Promise.resolve(
+        deps.fillAndSaveCurrent({
+          text: result.recommendedText || "",
+          speed: result.recommendedSpeed || "",
+        })
+      ).then(
         function (fillResult) {
           setStatus(
             fillResult?.message || "已填入并保存当前条。",
@@ -391,11 +443,30 @@
       resultHintNode.className = "asc-result-label";
       resultHintNode.style.display = "none";
       resultHintNode.style.color = "#047857";
-      resultHintNode.textContent = "与源文本一致，无需处理。";
+      resultHintNode.textContent = "当前与页面一致，仍可重新填入保存。";
       recommendContent.appendChild(resultHintNode);
 
       recommendRow.appendChild(recommendContent);
       resultsSection.appendChild(recommendRow);
+
+      const speedRow = document.createElement("div");
+      speedRow.className = "asc-result-row";
+
+      const speedLabel = document.createElement("div");
+      speedLabel.className = "asc-result-label";
+      speedLabel.textContent = "语速建议";
+      speedRow.appendChild(speedLabel);
+
+      const speedContent = document.createElement("div");
+      speedContent.className = "asc-result-content";
+
+      recommendSpeedDisplay = document.createElement("div");
+      recommendSpeedDisplay.className = "asc-result-text-box";
+      recommendSpeedDisplay.textContent = "暂无语速建议";
+      speedContent.appendChild(recommendSpeedDisplay);
+
+      speedRow.appendChild(speedContent);
+      resultsSection.appendChild(speedRow);
 
       statusNode = document.createElement("div");
       statusNode.className = "asc-status";
@@ -473,9 +544,16 @@
         recommendTextDisplay.style.fontStyle = "normal";
         recommendTextDisplay.style.fontWeight = "700";
       }
+      if (recommendSpeedDisplay) {
+        recommendSpeedDisplay.textContent = "暂无语速建议";
+        recommendSpeedDisplay.style.backgroundColor = "#ffffff";
+        recommendSpeedDisplay.style.borderColor = "#cbd5e1";
+        recommendSpeedDisplay.style.color = "#1f2937";
+        recommendSpeedDisplay.style.fontStyle = "normal";
+        recommendSpeedDisplay.style.fontWeight = "400";
+      }
       if (fillRecommendBtn) {
         fillRecommendBtn.disabled = true;
-        fillRecommendBtn.style.display = "";
       }
       if (resultHintNode) {
         resultHintNode.style.display = "none";
@@ -717,8 +795,8 @@
       currentResult = source;
 
       const recommendedText = String(source.recommendedText || "");
-      const referenceText = String(source.referenceText || "");
-      const matchesReferenceText = isSameAsReferenceText(source);
+      const recommendedSpeed = String(source.recommendedSpeed || "");
+      const sameAsDisplayedCurrent = isSameAsDisplayedCurrent(source);
       if (recommendTextDisplay) {
         recommendTextDisplay.textContent = recommendedText || "暂无识别结果";
         recommendTextDisplay.style.backgroundColor = "#f0fdf4";
@@ -727,12 +805,19 @@
         recommendTextDisplay.style.fontStyle = "normal";
         recommendTextDisplay.style.fontWeight = "700";
       }
+      if (recommendSpeedDisplay) {
+        recommendSpeedDisplay.textContent = recommendedSpeed || "暂无语速建议";
+        recommendSpeedDisplay.style.backgroundColor = recommendedSpeed ? "#fff7ed" : "#ffffff";
+        recommendSpeedDisplay.style.borderColor = recommendedSpeed ? "#fdba74" : "#cbd5e1";
+        recommendSpeedDisplay.style.color = recommendedSpeed ? "#9a3412" : "#1f2937";
+        recommendSpeedDisplay.style.fontStyle = "normal";
+        recommendSpeedDisplay.style.fontWeight = recommendedSpeed ? "700" : "400";
+      }
       if (fillRecommendBtn) {
         fillRecommendBtn.disabled = !canFillCurrentResult(source);
-        fillRecommendBtn.style.display = matchesReferenceText ? "none" : "";
       }
       if (resultHintNode) {
-        resultHintNode.style.display = matchesReferenceText ? "" : "none";
+        resultHintNode.style.display = sameAsDisplayedCurrent ? "" : "none";
       }
 
       resultNode = document.createElement("div");
@@ -743,10 +828,7 @@
       title.textContent = "当前识别结果";
       resultNode.appendChild(title);
 
-      renderKeyValueRows(resultNode, [
-        ["原始文本", referenceText],
-        ["识别文本", recommendedText],
-      ]);
+      renderKeyValueRows(resultNode, buildResultRows(source));
       const diagnostics = buildCurrentResultDiagnostics(source, {
         fallbackFrontConcurrency: source.debug?.frontConcurrencyNormalized,
       });
@@ -756,7 +838,8 @@
 
       advancedSectionNode.appendChild(resultNode);
       return {
-        matchesReferenceText: matchesReferenceText,
+        canApply: canFillCurrentResult(source),
+        sameAsDisplayedCurrent: sameAsDisplayedCurrent,
       };
     }
 
@@ -886,6 +969,7 @@
       advancedSectionNode = null;
       toggleBtnNode = null;
       recommendTextDisplay = null;
+      recommendSpeedDisplay = null;
       fillRecommendBtn = null;
       resultHintNode = null;
       errorJsonNode = null;
@@ -911,6 +995,10 @@
 
   api.__test__ = {
     buildBatchRows,
+    buildResultRows,
+    canFillCurrentResult,
+    hasFillableRecommendation,
+    isSameAsDisplayedCurrent,
   };
 
   globalThis.__ASREdgeAishellTechVietnameseUiPanel = api;

@@ -33,6 +33,13 @@ test("Aishell Vietnamese fallback defaults keep wrapped single-stage config", fu
   assert.match(block, /recognize:/);
   assert.match(block, /prompt: aishellTechVietnameseDefaultSinglePrompt/);
   assert.match(block, /return \{\s*defaults: baseDefaults,\s*supportedParams: supportedParams,\s*loadedFromBackend: false,\s*error: "",\s*\}/s);
+
+  const promptStart = script.indexOf("const aishellTechVietnameseDefaultSinglePrompt = [");
+  const promptEnd = script.indexOf("  ].join(\"\\n\");", promptStart);
+  const promptBlock = promptStart >= 0 && promptEnd > promptStart
+    ? script.slice(promptStart, promptEnd)
+    : "";
+  assert.match(promptBlock, /text.*speed.*slow\|normal\|fast/s);
 });
 
 test("Aishell Thai fallback defaults keep wrapped single-stage config", function () {

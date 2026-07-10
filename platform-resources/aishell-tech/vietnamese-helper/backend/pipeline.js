@@ -9,6 +9,14 @@ function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function createStageResultError(statusCode, code, message, requestId) {
+  const error = new Error(String(message || "模型返回结果无效。"));
+  error.statusCode = Number(statusCode) || 502;
+  error.code = normalizeText(code) || "invalid-model-result";
+  error.requestId = normalizeText(requestId);
+  return error;
+}
+
 function normalizeQueueMeta(queueMeta) {
   const source = queueMeta && typeof queueMeta === "object" ? queueMeta : {};
   return {
@@ -62,6 +70,79 @@ function normalizeVietnameseTranscriptionText(text) {
   return /[.!?…]$/.test(normalized) ? normalized : normalized + ".";
 }
 
+function parseModelJsonText(rawText, requestId) {
+  const text = String(rawText || "").trim();
+  if (!text) {
+    throw createStageResultError(502, "empty-provider-response", "AI 模型未返回文本内容。", requestId);
+  }
+  const blockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const maybeJson = blockMatch ? blockMatch[1].trim() : text;
+  try {
+    return JSON.parse(maybeJson);
+  } catch (_error) {
+    const fallbackStart = maybeJson.indexOf("{");
+    const fallbackEnd = maybeJson.lastIndexOf("}");
+    if (fallbackStart >= 0 && fallbackEnd > fallbackStart) {
+      try {
+        return JSON.parse(maybeJson.slice(fallbackStart, fallbackEnd + 1));
+      } catch (_innerError) {
+        // fall through
+      }
+    }
+  }
+  throw createStageResultError(502, "invalid-model-json", "AI 模型输出不是有效 JSON。", requestId);
+}
+
+function normalizeVietnameseRecommendedSpeed(value) {
+  const text = normalizeText(value)
+    .replace(/^语速[:：]?\s*/i, "")
+    .replace(/^speed[:：]?\s*/i, "")
+    .toLowerCase();
+  if (!text) {
+    throw createStageResultError(502, "missing-recommended-speed", "模型未返回有效语速。");
+  }
+  if (text === "slow" || text === "慢" || text === "慢速") {
+    return "slow";
+  }
+  if (text === "normal" || text === "正常" || text === "中速" || text === "适中") {
+    return "normal";
+  }
+  if (text === "fast" || text === "快" || text === "快速") {
+    return "fast";
+  }
+  throw createStageResultError(502, "invalid-recommended-speed", "模型返回的语速值无效: " + text);
+}
+
+function extractRecommendedFields(rawText, requestId) {
+  const parsed = parseModelJsonText(rawText, requestId);
+  const source = parsed && typeof parsed === "object" ? parsed : {};
+  const recommendedText = normalizeVietnameseTranscriptionText(
+    source.text ||
+      source.recommendedText ||
+      source.recommended_text ||
+      source.transcription ||
+      source.finalText ||
+      source.final_text
+  );
+  if (!recommendedText) {
+    throw createStageResultError(
+      502,
+      "empty-transcription",
+      "Omni 未返回可用的越南语转写文本。",
+      requestId
+    );
+  }
+  const recommendedSpeed = normalizeVietnameseRecommendedSpeed(
+    source.speed ||
+      source.recommendedSpeed ||
+      source.recommended_speed ||
+      source.speechRate ||
+      source.speech_rate ||
+      source.rate
+  );
+  return { recommendedText, recommendedSpeed };
+}
+
 function createPromptObject(systemPrompt, userPrompt) {
   return {
     systemPrompt: String(systemPrompt || "").trim(),
@@ -78,7 +159,10 @@ function buildRecognizePrompt(request) {
   const existingMarkText = normalizeText(request?.existingMarkText);
   const lines = [
     "你正在处理越南语音频转写。",
-    "只输出最终越南语转写文本，不要输出 JSON、Markdown、解释、前缀或引号。",
+    "你必须同时返回最终越南语文本和语速建议。",
+    "只输出 JSON，不要输出 Markdown、解释、前缀或引号。",
+    'JSON 固定字段：{"text":"...","speed":"slow|normal|fast"}。',
+    'speed 只能填写 "slow"、"normal"、"fast" 三个值之一。',
     "保留越南语重音字符和正常单词空格。",
     "按越南语书写习惯处理标点与空格：去掉标点前多余空格，标点后保持单个空格。",
     "不要翻译成中文，不要改写成其他语言，不要补充词表写法。",
@@ -173,26 +257,19 @@ function createRecommendPipeline(overrides) {
         recognizeEntry.value && typeof recognizeEntry.value === "object" ? recognizeEntry.value : {};
       const queueMeta = recognizeEntry.queueMeta;
       const recognizeDurationMs = Date.now() - recognizeStartedAt;
-      const recommendedText = normalizeVietnameseTranscriptionText(recognizeResult.rawText);
-      if (!recommendedText) {
-        throw deps.createStageError("recognize", {
-          code: "empty-transcription",
-          statusCode: 502,
-          message: "Omni 未返回可用的越南语转写文本。",
-        }, {
-          requestId,
-        });
-      }
+      const recommended = extractRecommendedFields(recognizeResult.rawText, requestId);
 
       const usageMeta = buildUsageMeta(normalizedRequest.singleModel, recognizeResult.usage);
       return {
-        recommendedText,
+        recommendedText: recommended.recommendedText,
+        recommendedSpeed: recommended.recommendedSpeed,
         referenceText: normalizedRequest.referenceText,
         meta: {
           requestId,
           stage: "complete",
           models: {
             pipelineMode: "omni_single",
+            recognitionStrategy: "vietnamese_transcription_speed",
             recognizeModel: normalizedRequest.singleModel,
             singleModel: normalizedRequest.singleModel,
           },
@@ -228,5 +305,7 @@ function createRecommendPipeline(overrides) {
 
 module.exports = {
   createRecommendPipeline,
+  extractRecommendedFields,
+  normalizeVietnameseRecommendedSpeed,
   normalizeVietnameseTranscriptionText,
 };

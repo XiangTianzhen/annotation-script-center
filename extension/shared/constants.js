@@ -1557,10 +1557,10 @@
       platformId: AISHELL_TECH_PLATFORM_ID,
       label: "越南语助手",
       shortLabel: "越南语助手",
-      description: "希尔贝壳 /mytask/mark 越南语单模型识别与批量串行保存助手。",
+      description: "希尔贝壳 /mytask/mark 越南语单模型识别、语速建议与批量串行保存助手。",
       note:
-        "批量模式只处理当前分包；AI 请求并发预取，页面保存严格串行；不自动提交任务。",
-      capabilityScope: "ai-recommend-text-with-real-save",
+        "批量模式只处理当前分包；AI 请求并发预取，页面填入文本与语速并点击真实保存按钮严格串行；不自动提交任务。",
+      capabilityScope: "ai-recommend-text-and-speed-with-real-save",
       statusLabel: "越南语助手",
       detailView: "aishell-tech-vietnamese-helper",
       host: AISHELL_TECH_PLATFORM.host,

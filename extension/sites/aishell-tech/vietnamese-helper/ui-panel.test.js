@@ -37,6 +37,62 @@ test("Aishell Vietnamese batch rows include aggregated token and estimated RMB r
   );
 });
 
+test("Aishell Vietnamese result stays actionable when text and speed already match", function () {
+  const helper = panelModule.__test__?.canFillCurrentResult;
+  assert.equal(typeof helper, "function");
+  assert.equal(
+    helper({
+      recommendedText: "Xin chào.",
+      recommendedSpeed: "normal",
+      currentDisplayText: "Xin chào.",
+      currentDisplaySpeed: "normal",
+    }),
+    true
+  );
+});
+
+test("Aishell Vietnamese same-state hint compares displayed speed without normalization", function () {
+  const helper = panelModule.__test__?.isSameAsDisplayedCurrent;
+  assert.equal(typeof helper, "function");
+  assert.equal(
+    helper({
+      recommendedText: "Xin chào.",
+      recommendedSpeed: "normal",
+      currentDisplayText: "Xin chào.",
+      currentDisplaySpeed: "正常",
+    }),
+    false
+  );
+  assert.equal(
+    helper({
+      recommendedText: "Xin chào.",
+      recommendedSpeed: "normal",
+      currentDisplayText: "Xin chào.",
+      currentDisplaySpeed: "normal",
+    }),
+    true
+  );
+});
+
+test("Aishell Vietnamese result rows include current and recommended speed", function () {
+  const helper = panelModule.__test__?.buildResultRows;
+  assert.equal(typeof helper, "function");
+  assert.deepEqual(
+    helper({
+      referenceText: "Xin chào",
+      recommendedText: "Xin chào.",
+      currentSpeed: "slow",
+      recommendedSpeed: "normal",
+    }),
+    [
+      ["原始文本", "Xin chào"],
+      ["识别文本", "Xin chào."],
+      ["当前语速", "slow"],
+      ["语速建议", "normal"],
+    ]
+  );
+});
+
 class FakeClassList {
   constructor(node) {
     this.node = node;
@@ -347,7 +403,7 @@ function createPageSkeleton(document) {
   };
 }
 
-test("Aishell Vietnamese panel hides fill action when recommended text matches source", function () {
+test("Aishell Vietnamese panel keeps fill action when text and speed match the page", function () {
   const previousDocument = globalThis.document;
   const previousNavigator = globalThis.navigator;
   const previousNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -387,20 +443,24 @@ test("Aishell Vietnamese panel hides fill action when recommended text matches s
     const renderMeta = runtime.renderResult({
       referenceText: "Máy chiếu hiển thị slide mới.",
       recommendedText: "Máy chiếu hiển thị slide mới.",
+      recommendedSpeed: "normal",
+      currentDisplayText: "Máy chiếu hiển thị slide mới.",
+      currentDisplaySpeed: "normal",
       meta: {},
     });
 
-    assert.equal(renderMeta.matchesReferenceText, true);
+    assert.equal(renderMeta.sameAsDisplayedCurrent, true);
     const allButtons = document.querySelectorAll("button");
     const fillButton = allButtons.find(function (node) {
       return node.textContent === "填入并保存";
     });
     const hintNode = collectDescendants(document.documentElement).find(function (node) {
-      return node.textContent === "与源文本一致，无需处理。";
+      return node.textContent === "当前与页面一致，仍可重新填入保存。";
     });
 
     assert.ok(fillButton);
-    assert.equal(fillButton.style.display, "none");
+    assert.equal(fillButton.style.display || "", "");
+    assert.equal(fillButton.disabled, false);
     assert.ok(hintNode);
   } finally {
     globalThis.document = previousDocument;

@@ -6,6 +6,8 @@
 
   const API_ORIGIN = "https://markapi.aishelltech.com";
   const DEFAULT_AUDIO_ROOT = "https://bpp-collect.oss-cn-hangzhou.aliyuncs.com";
+  const SCENE_MARK = "mark";
+  const SCENE_CHECK = "check";
   const TOKEN_PATTERN = /^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$/;
   const PRIORITY_TOKEN_KEYS = [
     "authorization",
@@ -19,6 +21,30 @@
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeVietnameseSpeedValue(value) {
+    const text = normalizeText(value)
+      .replace(/^语速[:：]?\s*/i, "")
+      .replace(/^speed[:：]?\s*/i, "");
+    if (!text) {
+      return "";
+    }
+    const lowered = text.toLowerCase();
+    if (lowered === "slow" || text === "慢" || text === "慢速") {
+      return "slow";
+    }
+    if (lowered === "normal" || text === "正常" || text === "中速" || text === "适中") {
+      return "normal";
+    }
+    if (lowered === "fast" || text === "快" || text === "快速") {
+      return "fast";
+    }
+    return lowered === text ? text : lowered;
+  }
+
+  function normalizeScene(value) {
+    return normalizeText(value).toLowerCase() === SCENE_CHECK ? SCENE_CHECK : SCENE_MARK;
   }
 
   function normalizeMarkCompareText(text) {
@@ -57,6 +83,7 @@
     return {
       taskId: normalizeText(params.get("taskId")),
       packageId: normalizeText(params.get("packageId")),
+      scene: normalizeScene(params.get("scene")),
     };
   }
 
@@ -247,6 +274,17 @@
     return API_ORIGIN + String(path || "");
   }
 
+  function buildPackageItemsPath(packageId, scene) {
+    const key = normalizeText(packageId);
+    const resource =
+      normalizeScene(scene) === SCENE_CHECK ? "checkPackageItemList" : "packageItemList";
+    return "/api/taskItem/" + resource + "/" + encodeURIComponent(key);
+  }
+
+  function resolveAudioRoot(itemDataRoot, taskDataRoot) {
+    return normalizeText(itemDataRoot) || normalizeText(taskDataRoot) || DEFAULT_AUDIO_ROOT;
+  }
+
   function buildAudioUrl(dataRoot, relativeUrl) {
     const root = normalizeText(dataRoot || DEFAULT_AUDIO_ROOT).replace(/\/+$/, "");
     const path = String(relativeUrl || "").trim();
@@ -254,19 +292,113 @@
       return "";
     }
     if (/^https?:\/\//i.test(path)) {
-      return path;
+      try {
+        return new URL(path).toString();
+      } catch (_error) {
+        return path;
+      }
     }
-    return root + (path.charAt(0) === "/" ? path : "/" + path);
+    try {
+      return new URL(path.charAt(0) === "/" ? path : "/" + path, root + "/").toString();
+    } catch (_error) {
+      return root + (path.charAt(0) === "/" ? path : "/" + path);
+    }
+  }
+
+  function resolveReferenceText(responseText, renderedText) {
+    return normalizeText(responseText) || normalizeText(renderedText);
+  }
+
+  function isInputElement(node) {
+    if (!node || typeof node !== "object") {
+      return false;
+    }
+    if (typeof HTMLInputElement !== "undefined" && node instanceof HTMLInputElement) {
+      return true;
+    }
+    return String(node.tagName || "").toUpperCase() === "INPUT" || typeof node.value === "string";
+  }
+
+  function findMarkFieldInputs(documentLike) {
+    const source =
+      documentLike && typeof documentLike.querySelectorAll === "function" ? documentLike : null;
+    const result = { text: null, speed: null };
+    if (!source) {
+      return result;
+    }
+    const rows = Array.from(source.querySelectorAll(".mark-area .el-form-item"));
+    rows.forEach(function (row) {
+      if (result.text && result.speed) {
+        return;
+      }
+      const label = row && typeof row.querySelector === "function" ? row.querySelector("label[for]") : null;
+      const input =
+        row && typeof row.querySelector === "function"
+          ? row.querySelector("input.el-input__inner[type='text']")
+          : null;
+      if (!input) {
+        return;
+      }
+      const labelFor = normalizeText(label?.getAttribute?.("for"));
+      const labelText = normalizeText(label?.textContent || row?.textContent || "");
+      if (!result.text && (labelFor === "text" || labelText.indexOf("文本") >= 0)) {
+        result.text = input;
+        return;
+      }
+      if (!result.speed && (labelFor === "speed" || labelText.indexOf("语速") >= 0)) {
+        result.speed = input;
+      }
+    });
+    if (!result.text || !result.speed) {
+      const inputs = rows
+        .map(function (row) {
+          return row && typeof row.querySelector === "function"
+            ? row.querySelector("input.el-input__inner[type='text']")
+            : null;
+        })
+        .filter(Boolean);
+      if (!result.text) {
+        result.text = inputs[0] || null;
+      }
+      if (!result.speed) {
+        result.speed = inputs[1] || null;
+      }
+    }
+    return result;
+  }
+
+  function readDisplayedMarkFieldValues(documentLike) {
+    const inputs = findMarkFieldInputs(documentLike);
+    return {
+      text: isInputElement(inputs.text) ? normalizeText(inputs.text.value) : "",
+      speed: isInputElement(inputs.speed) ? normalizeText(inputs.speed.value) : "",
+    };
   }
 
   function getCurrentInputValue() {
-    const input = document.querySelector(".mark-area input.el-input__inner[type='text']");
-    return input instanceof HTMLInputElement ? normalizeText(input.value) : "";
+    return readDisplayedMarkFieldValues(document).text;
+  }
+
+  function getCurrentSpeedValue() {
+    return normalizeVietnameseSpeedValue(readDisplayedMarkFieldValues(document).speed);
+  }
+
+  function getCurrentInputDisplayValue() {
+    return readDisplayedMarkFieldValues(document).text;
+  }
+
+  function getCurrentSpeedDisplayValue() {
+    return readDisplayedMarkFieldValues(document).speed;
   }
 
   function getTextInput() {
-    const input = document.querySelector(".mark-area input.el-input__inner[type='text']");
-    return input instanceof HTMLInputElement ? input : null;
+    const input = findMarkFieldInputs(document).text;
+    return isInputElement(input) ? input : null;
+  }
+
+  function getSpeedInput() {
+    const input = findMarkFieldInputs(document).speed;
+    return isInputElement(input) ? input : null;
   }
 
   function getReferenceTextFromDom() {
@@ -410,14 +542,24 @@
     return selectedIndex >= 0 ? selectedIndex : items.length > 0 ? 0 : -1;
   }
 
-  function getSaveButton() {
+  function findMarkSaveButton(documentLike) {
+    const source =
+      documentLike && typeof documentLike.querySelectorAll === "function" ? documentLike : null;
+    if (!source) {
+      return null;
+    }
     return (
-      Array.from(document.querySelectorAll(".mark-area button.el-button--primary")).find(
+      Array.from(source.querySelectorAll(".mark-area button.el-button--primary")).find(
         function (button) {
-          return button instanceof HTMLButtonElement && normalizeText(button.textContent || "") === "保存";
+          return normalizeText(button?.textContent || "") === "保存";
         }
       ) || null
     );
+  }
+
+  function getSaveButton() {
+    const button = findMarkSaveButton(document);
+    return button instanceof HTMLButtonElement ? button : null;
   }
 
   function getToastMessageNodes() {
@@ -561,25 +703,39 @@
     };
   }
 
-  function extractSavedMarkText(result) {
+  function extractSavedMarkFields(result) {
     const source = result && typeof result === "object" ? result : null;
     if (!source) {
-      return "";
+      return { text: "", speed: "" };
     }
     if (source.mark && typeof source.mark === "object") {
-      return normalizeText(source.mark.text || "");
+      return {
+        text: normalizeText(source.mark.text || ""),
+        speed: normalizeVietnameseSpeedValue(source.mark.speed || ""),
+      };
     }
     if (typeof source.mark === "string") {
       const parsed = safeJsonParse(source.mark);
       if (parsed && typeof parsed === "object") {
-        return normalizeText(parsed.text || "");
+        return {
+          text: normalizeText(parsed.text || ""),
+          speed: normalizeVietnameseSpeedValue(parsed.speed || ""),
+        };
       }
-      return normalizeText(source.mark);
+      return { text: normalizeText(source.mark), speed: "" };
     }
-    if (typeof source.text === "string") {
-      return normalizeText(source.text);
-    }
-    return "";
+    return {
+      text: normalizeText(source.text || ""),
+      speed: normalizeVietnameseSpeedValue(source.speed || ""),
+    };
+  }
+
+  function extractSavedMarkText(result) {
+    return extractSavedMarkFields(result).text;
+  }
+
+  function extractSavedMarkSpeed(result) {
+    return extractSavedMarkFields(result).speed;
   }
 
   function normalizeSaveSpendTime(value) {
@@ -592,12 +748,17 @@
     return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
   }
 
-  function buildSaveShortMarkPayload(item, text, options) {
+  function buildSaveShortMarkPayload(item, value, options) {
     const source = item && typeof item === "object" ? item : {};
-      const normalizedText = normalizeVietnameseTranscriptionText(text || "");
+    const payloadValue = value && typeof value === "object"
+      ? value
+      : { text: value, speed: options?.speed };
+    const normalizedText = normalizeVietnameseTranscriptionText(payloadValue.text || "");
+    const normalizedSpeed = normalizeVietnameseSpeedValue(payloadValue.speed || "");
     return {
       mark: JSON.stringify({
         text: normalizedText,
+        speed: normalizedSpeed,
       }),
       taskItemId: normalizeText(source.taskItemId),
       spendTime: normalizeSaveSpendTime(options?.spendTime ?? source.spendTime),
@@ -644,10 +805,36 @@
     return String(value || "").trim().toLowerCase() === "all" ? "all" : "pending";
   }
 
+  function normalizePackageItemRecord(item, index, scene) {
+    const source = item && typeof item === "object" ? item : {};
+    const normalizedScene = normalizeScene(scene);
+    const sourceItemId = normalizeText(source.id);
+    const markTaskItemId = normalizeText(source.markTaskItemId);
+    const taskItemId = normalizedScene === SCENE_CHECK ? markTaskItemId : sourceItemId;
+    return {
+      id: taskItemId,
+      taskItemId: taskItemId,
+      sourceItemId: sourceItemId,
+      markTaskItemId: markTaskItemId,
+      scene: normalizedScene,
+      number: Number(source.number || index + 1) || index + 1,
+      fileName: normalizeText(source.fileName),
+      url: normalizeText(source.url),
+      dataRoot: normalizeText(source.dataRoot),
+      text: normalizeText(source.text),
+      spendTime: Number(source.spendTime || 0) || 0,
+      dataStatus: Number(source.dataStatus || 0) || 0,
+      checkStatus: Number(source.checkStatus || 0) || 0,
+    };
+  }
+
   function shouldSkipBatchRecord(record, options) {
     const mode = normalizeBatchTaskMode(options?.mode);
     if (mode === "all") {
       return false;
+    }
+    if (normalizeScene(record?.scene) === SCENE_CHECK) {
+      return Number(record?.checkStatus || 0) > 0;
     }
     return Number(record?.dataStatus || 0) === 2;
   }
@@ -667,7 +854,7 @@
       .map(function (entry) {
         return {
           index: entry.index,
-          taskItemId: normalizeText(entry.record.id),
+          taskItemId: normalizeText(entry.record.taskItemId || entry.record.id),
           number: Number(entry.record.number || entry.index + 1) || entry.index + 1,
           fileName: normalizeText(entry.record.fileName),
           displayName: getRecordDisplayName(entry.record),
@@ -703,7 +890,7 @@
 
     function syncRouteKey() {
       const routeParams = parseRouteParams();
-      const nextKey = [routeParams.taskId, routeParams.packageId].join("|");
+      const nextKey = [routeParams.taskId, routeParams.packageId, routeParams.scene].join("|");
       if (nextKey !== state.routeKey) {
         state.routeKey = nextKey;
         clearRouteCache();
@@ -822,33 +1009,22 @@
     }
 
     async function ensurePackageItems(packageId) {
-      const key = normalizeText(packageId || parseRouteParams().packageId);
+      const routeParams = parseRouteParams();
+      const key = normalizeText(packageId || routeParams.packageId);
       if (!key) {
         throw createRequestError("当前页面缺少 packageId。");
       }
       if (state.packageItemsByPackageId[key]) {
         return state.packageItemsByPackageId[key];
       }
-      const payload = await requestJson(
-        "/api/taskItem/packageItemList/" + encodeURIComponent(key)
-      );
+      const payload = await requestJson(buildPackageItemsPath(key, routeParams.scene));
       const result = payload?.data?.result || {};
       const entry = {
         packageId: key,
         totalCount: Number(result.totalCount || 0) || 0,
         items: Array.isArray(result.items)
           ? result.items.map(function (item, index) {
-              const source = item && typeof item === "object" ? item : {};
-              return {
-                id: normalizeText(source.id),
-                number: Number(source.number || index + 1) || index + 1,
-                fileName: normalizeText(source.fileName),
-                url: normalizeText(source.url),
-                text: normalizeText(source.text),
-                spendTime: Number(source.spendTime || 0) || 0,
-                dataStatus: Number(source.dataStatus || 0) || 0,
-                checkStatus: Number(source.checkStatus || 0) || 0,
-              };
+              return normalizePackageItemRecord(item, index, routeParams.scene);
             })
           : [],
       };
@@ -974,20 +1150,38 @@
     function buildItemFromRecord(record, routeParams, taskDetail, options, fallbackIndex) {
       const source = options && typeof options === "object" ? options : {};
       const selectedIndex = Number(fallbackIndex);
+      const taskItemId = normalizeText(record.taskItemId || record.id);
+      if (normalizeScene(record.scene || routeParams.scene) === SCENE_CHECK && !taskItemId) {
+        throw createRequestError("当前质检条目缺少 markTaskItemId，已停止识别与保存。");
+      }
       const existingMarkText =
         source.includeCurrentInput === true ? getCurrentInputValue() : "";
-      const referenceText = normalizeText(record.text) || getReferenceTextFromDom();
-      const audioUrl = buildAudioUrl(taskDetail.dataRoot, record.url);
+      const existingMarkSpeed =
+        source.includeCurrentInput === true ? getCurrentSpeedValue() : "";
+      const existingDisplayText =
+        source.includeCurrentInput === true ? getCurrentInputDisplayValue() : "";
+      const existingDisplaySpeed =
+        source.includeCurrentInput === true ? getCurrentSpeedDisplayValue() : "";
+      const referenceText = resolveReferenceText(record.text, getReferenceTextFromDom());
+      const audioUrl = buildAudioUrl(
+        resolveAudioRoot(record.dataRoot, taskDetail.dataRoot),
+        record.url
+      );
       const userMeta = getPlatformUserMetaFromPage();
       return {
         taskId: routeParams.taskId,
         packageId: routeParams.packageId,
-        taskItemId: normalizeText(record.id),
+        taskItemId: taskItemId,
+        sourceItemId: normalizeText(record.sourceItemId),
+        scene: normalizeScene(record.scene || routeParams.scene),
         number: Number(record.number || selectedIndex + 1) || selectedIndex + 1,
         fileName: normalizeText(record.fileName),
         audioUrl: audioUrl,
         referenceText: referenceText,
         existingMarkText: existingMarkText,
+        existingMarkSpeed: existingMarkSpeed,
+        existingDisplayText: existingDisplayText,
+        existingDisplaySpeed: existingDisplaySpeed,
         duration: null,
         spendTime: Number(record.spendTime || 0) || 0,
         dataStatus: Number(record.dataStatus || 0) || 0,
@@ -1157,36 +1351,63 @@
     }
 
     function canFillPageText() {
-      return getTextInput() instanceof HTMLInputElement;
+      return isInputElement(getTextInput());
     }
 
-    function fillPageText(text) {
+    function setInputValue(input, value) {
+      if (!isInputElement(input)) {
+        return false;
+      }
+      input.focus?.();
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+
+    function fillPageFields(value) {
+      const source = value && typeof value === "object" ? value : { text: value, speed: "" };
       const input = getTextInput();
-      if (!(input instanceof HTMLInputElement)) {
+      if (!isInputElement(input)) {
         return {
           ok: false,
           message: "当前页面没有定位到可编辑文本框。",
         };
       }
-      const nextValue = normalizeVietnameseTranscriptionText(text);
-      if (!nextValue) {
+      const nextText = normalizeVietnameseTranscriptionText(source.text);
+      const nextSpeed = normalizeVietnameseSpeedValue(source.speed);
+      if (!nextText && !nextSpeed) {
         return {
           ok: false,
-          message: "没有可填入的推荐文本。",
+          message: "没有可填入的识别结果。",
         };
       }
-      input.focus();
-      input.value = nextValue;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      if (nextText) {
+        setInputValue(input, nextText);
+      }
+      if (nextSpeed) {
+        const speedInput = getSpeedInput();
+        if (!isInputElement(speedInput)) {
+          return {
+            ok: false,
+            message: "当前页面没有定位到可编辑语速框。",
+          };
+        }
+        setInputValue(speedInput, nextSpeed);
+      }
       return {
         ok: true,
-        message: "已填入当前条文本框，请人工复核后决定是否保存。",
+        message: "已填入当前条文本与语速，请人工复核后决定是否保存。",
       };
+    }
+
+    function fillPageText(text) {
+      return fillPageFields({ text: text });
     }
 
     async function clickSaveAndWait(options) {
       const expectedText = normalizeMarkCompareText(options?.expectedText || "");
+      const expectedSpeed = normalizeVietnameseSpeedValue(options?.expectedSpeed || "");
       const taskItemId = normalizeText(options?.taskItemId);
       const packageId = normalizeText(options?.packageId);
       const previousIndex = Number.isInteger(Number(options?.selectedIndex))
@@ -1246,11 +1467,14 @@
           networkCheckAt = now;
           try {
             const shortMarkResult = await getShortMarkResult(taskItemId);
-            const savedText = extractSavedMarkText(shortMarkResult);
-            if (savedText && normalizeMarkCompareText(savedText) === expectedText) {
+            const savedFields = extractSavedMarkFields(shortMarkResult);
+            const textMatched = !expectedText || normalizeMarkCompareText(savedFields.text) === expectedText;
+            const speedMatched =
+              !expectedSpeed || normalizeVietnameseSpeedValue(savedFields.speed) === expectedSpeed;
+            if ((expectedText || expectedSpeed) && textMatched && speedMatched) {
               return {
                 ok: true,
-                message: "已触发平台真实保存按钮，并确认平台已保存当前文本。",
+                message: "已触发平台真实保存按钮，并确认平台已保存当前文本与语速。",
               };
             }
           } catch (_error) {}
@@ -1277,7 +1501,7 @@
       };
     }
 
-    async function fillAndSaveCurrent(text, options) {
+    async function fillAndSaveCurrent(value, options) {
       const currentItem = await getCurrentItem();
       if (!currentItem?.taskItemId) {
         return {
@@ -1285,15 +1509,18 @@
           message: "当前没有可保存的条目上下文。",
         };
       }
-      const fillResult = fillPageText(text);
+      const payloadValue = value && typeof value === "object" ? value : { text: value, speed: "" };
+      const fillResult = fillPageFields(payloadValue);
       if (fillResult?.ok === false) {
         return fillResult;
       }
-      const normalizedText = normalizeMarkCompareText(text);
+      const normalizedText = normalizeMarkCompareText(payloadValue.text);
+      const normalizedSpeed = normalizeVietnameseSpeedValue(payloadValue.speed);
       await sleep(Number(options?.postFillDelayMs || 120) || 120);
       return clickSaveAndWait({
         timeoutMs: options?.timeoutMs || 15000,
         expectedText: normalizedText,
+        expectedSpeed: normalizedSpeed,
         taskItemId: currentItem.taskItemId,
         packageId: currentItem.packageId,
         selectedIndex: getSelectedIndex(),
@@ -1311,11 +1538,17 @@
       createRateLimitedTaskScheduler,
       buildSaveShortMarkPayload,
       doesRenderedItemMatch,
+      fillPageFields,
       extractSavedMarkText,
+      extractSavedMarkSpeed,
       fillPageText,
       fillAndSaveCurrent,
       getBatchTasksForPackage,
       getCurrentItem,
+      getCurrentInputValue,
+      getCurrentInputDisplayValue,
+      getCurrentSpeedValue,
+      getCurrentSpeedDisplayValue,
       getItemByIndex,
       getItemByTask,
       getRecordDisplayName,
@@ -1330,6 +1563,8 @@
   }
 
   const api = {
+    buildAudioUrl,
+    buildPackageItemsPath,
     createRateLimitedTaskScheduler,
     createRuntime,
     buildSaveShortMarkPayload,
@@ -1338,17 +1573,26 @@
     doesListFileHintMatch,
     doesRenderedItemMatch,
     normalizeVietnameseTranscriptionText,
+    normalizeVietnameseSpeedValue,
     extractPlatformAccountName,
     extractFileNameLineText,
     extractSavedMarkText,
+    extractSavedMarkFields,
+    extractSavedMarkSpeed,
     extractAuthTokenFromUnknown,
     findPlatformAccountNameFromDocument,
     findAuthTokenInEntries,
+    findMarkFieldInputs,
+    findMarkSaveButton,
     isSaveCompletionState,
     isMarkPage,
+    normalizePackageItemRecord,
     parseRouteParams,
     parseListItemLabel,
     readStorageEntries,
+    readDisplayedMarkFieldValues,
+    resolveAudioRoot,
+    resolveReferenceText,
   };
 
   if (typeof module !== "undefined" && module.exports) {

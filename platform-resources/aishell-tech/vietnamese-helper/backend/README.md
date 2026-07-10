@@ -14,12 +14,14 @@
 
 - 只保留单阶段 `recognize`。
 - 默认模型：`qwen3.5-omni-flash`。
-- 默认 Prompt 只约束：
-  - 输出最终越南语转写文本
+- 默认 Prompt 固定约束：
+  - 同时输出最终越南语转写文本与语速建议
+  - 返回严格 JSON：`{"text":"...","speed":"slow|normal|fast"}`
   - 保留重音字符与词间空格
   - 使用越南语标点与空格
   - 不翻译成中文
   - 不补词表写法
+  - `speed` 只能是 `slow / normal / fast`
 - 不再存在：
   - 词表读取
   - `convert / listen / compare` 三阶段
@@ -35,6 +37,7 @@
 - 成功响应固定：
   - `success`
   - `data.recommendedText`
+  - `data.recommendedSpeed`
   - `data.referenceText`
   - `meta`
 - `meta` 当前会同时返回：
@@ -45,6 +48,7 @@
   - `error.code / error.message / error.stage / error.retryable`
   - `meta`
 - `stage error` 当前会保留 plain object 里的 `message / code / statusCode`，不再把结构化错误折叠成 `[object Object]`。
+- 模型返回空语速或非法语速时显式返回 `missing-recommended-speed / invalid-recommended-speed`，不静默猜测。
 
 ## 队列与日志
 
@@ -52,7 +56,7 @@
 - 同步 `recommend` 当前会正确解包统一 provider queue 返回的 `{ value, queueMeta }`，识别成功结果不会再被误判为空文本。
 - Omni usage 当前会保留 `raw prompt_tokens_details / completion_tokens_details`，用于单阶段费用估算与 CSV 导出。
 - 默认继续走 `POST /jobs` + 轮询 `GET /jobs/:jobId`。
-- 日志只记录单阶段 `recognize` 的 token、耗时、模型与人民币估算。
+- 日志只记录单阶段 `recognize` 的 token、耗时、模型与人民币估算；结果口径对应 `text + speed` 双字段。
 
 ## 安全边界
 

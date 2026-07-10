@@ -330,13 +330,15 @@
         }
         panel.updateCurrentItemKey(item.key);
         const result = await aiClient.recommend(item);
-        const renderMeta = panel.renderResult(result) || {};
-        panel.setStatus(
-          renderMeta.matchesReferenceText === true
-            ? "当前条识别完成，与源文本一致，无需处理。"
-            : "当前条识别完成。",
-          "success"
+        panel.renderResult(
+          Object.assign({}, result, {
+            currentText: item.existingDisplayText || item.existingMarkText,
+            currentSpeed: item.existingDisplaySpeed || item.existingMarkSpeed,
+            currentDisplayText: item.existingDisplayText || item.existingMarkText,
+            currentDisplaySpeed: item.existingDisplaySpeed || item.existingMarkSpeed,
+          })
         );
+        panel.setStatus("当前条识别完成。", "success");
       } catch (error) {
         panel.setStatus(error?.message || String(error), "error", error?.rawResponse || null);
       } finally {
@@ -516,7 +518,6 @@
             let saveResult = null;
             let failureStage = "select_task";
             try {
-              panel.renderResult(entry.value);
               switchResult = await dataApi.selectTask(task, {
                 timeoutMs: 12000,
                 maxAttempts: 4,
@@ -524,9 +525,24 @@
               if (switchResult?.ok === false) {
                 throw new Error(switchResult.message || "切换批量条目失败。");
               }
+              panel.renderResult(
+                Object.assign({}, entry.value, {
+                  currentText:
+                    dataApi.getCurrentInputDisplayValue?.() || dataApi.getCurrentInputValue?.() || "",
+                  currentSpeed:
+                    dataApi.getCurrentSpeedDisplayValue?.() || dataApi.getCurrentSpeedValue?.() || "",
+                  currentDisplayText:
+                    dataApi.getCurrentInputDisplayValue?.() || dataApi.getCurrentInputValue?.() || "",
+                  currentDisplaySpeed:
+                    dataApi.getCurrentSpeedDisplayValue?.() || dataApi.getCurrentSpeedValue?.() || "",
+                })
+              );
               failureStage = "save_current";
               saveResult = await dataApi.fillAndSaveCurrent(
-                entry.value.recommendedText || "",
+                {
+                  text: entry.value.recommendedText || "",
+                  speed: entry.value.recommendedSpeed || "",
+                },
                 {
                   timeoutMs: 15000,
                 }

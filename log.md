@@ -1,3 +1,14 @@
+## 2026-07-10（支持希尔贝壳越南语助手质检页与语速判断）
+- 更新 `extension/sites/aishell-tech/vietnamese-helper/data-api.js`
+  - 根据路由 `scene` 区分标注 `packageItemList` 与质检 `checkPackageItemList`
+  - 质检记录通过 `markTaskItemId` 对齐原标注条目，并保留稀疏序号的数组顺序映射
+  - 音频地址按条目、任务、默认 OSS 根地址顺序回退并标准编码
+  - 保存按钮严格限定在 `.mark-area`，不操作 `.check-area` 的质检控件
+- 越南语单阶段 Omni 改为严格输出 `text + speed`，语速统一收口为 `slow / normal / fast`
+- 单条与批量均回填文本和语速；页面值一致时仍保留“填入并保存”，只显示非阻塞提示
+- 扩充 `data-api / ui-panel / content` 长期测试，覆盖场景路由、双字段 DOM/保存、结果卡与批量数据流
+- 更新越南语助手 README、Aishell 平台 README 及共享 Network / DOM 稳定参考
+
 ## 2026-07-10（接入 ByteDance AIDP 金华话 JSON 词表上下文）
 - 更新 `platform-resources/bytedance-aidp/jinhua-helper/backend/ai-service.js`
   - 运行时以 `jinhua-lexicon.json` 为主词表，构建 `lexiconRows / lexiconStatus / lexiconRowCount`

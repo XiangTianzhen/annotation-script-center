@@ -15,7 +15,10 @@ const SCRIPT_ID = "aishellTechVietnameseAssistant";
 const COMPONENT_NAME = "asr-voice-ai";
 const DEFAULT_SINGLE_PROMPT = [
   "你正在处理越南语音频转写。",
-  "只输出最终越南语转写文本，不要输出 JSON、Markdown、解释、前缀或引号。",
+  "请同时输出越南语文本和语速建议。",
+  "只输出 JSON，不要输出 Markdown、解释、前缀或引号。",
+  'JSON 固定字段：{"text":"...","speed":"slow|normal|fast"}。',
+  'speed 只能返回 "slow"、"normal"、"fast" 三个值之一。',
   "保留越南语重音字符和正常单词空格。",
   "按越南语书写习惯处理标点与空格：去掉标点前多余空格，标点后保持单个空格。",
   "不要翻译成中文，不要改写成其他语言，不要补充词表写法。",
@@ -186,7 +189,7 @@ function normalizeRecommendRequest(input) {
     platformUserId: normalizeText(source.platformUserId),
     modelMode: "omni_single",
     pipelineMode: "omni_single",
-    recognitionStrategy: "vietnamese_transcription",
+    recognitionStrategy: "vietnamese_transcription_speed",
     singleModel,
     singlePrompt,
     requestParams,
@@ -208,6 +211,7 @@ function buildRecommendSuccessBody(result) {
     data: {
       taskItemId: normalizeText(source.taskItemId || meta.taskItemId),
       recommendedText: normalizeText(source.recommendedText),
+      recommendedSpeed: normalizeText(source.recommendedSpeed),
       referenceText: normalizeText(source.referenceText),
     },
     meta,
