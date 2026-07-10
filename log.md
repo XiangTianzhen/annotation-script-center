@@ -1,3 +1,20 @@
+## 2026-07-09（金华话 AI 新增专家模型模式）
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/backend/ai-service.js`
+  - 新增 `two_stage / expert_omni_plus` 模型模式归一化
+  - 默认继续使用听音 `qwen3.5-omni-flash` + 收口 `qwen3.5-plus`
+  - 专家模式保留两阶段调用，但听音与收口实际都强制使用 `qwen3.5-omni-plus`
+  - `health / defaults / recommend` 返回模式信息，`models` 中补齐 `modelMode`
+- 更新扩展配置与运行时
+  - `extension/shared/constants.js`、`extension/shared/storage.js` 增加金华话 `aiRecommendModelMode`
+  - `extension/options/options.js` 在金华话 AI 设置中新增模型模式选择，并保留普通双模型配置
+  - `extension/sites/bytedance-aidp/jinhua-helper/content.js` 与 `ai-recommendation.js` 将 `modelMode` 传给后端
+- 更新测试
+  - 增加后端、存储、运行时请求体回归覆盖，固定专家模式强制模型与旧配置兼容
+- 更新文档
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/backend/README.md`
+
 ## 2026-07-09（新增 ByteDance AIDP 金华话词义与发音参考资产）
 - 新增 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-lexicon.json`
   - 基于用户提供的金华话 JSON 文档生成完整初版词义转化表

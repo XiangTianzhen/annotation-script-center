@@ -210,6 +210,10 @@
     { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
     { value: "omni_single", label: "单模型：Omni 单模型" },
   ];
+  const BYTEDANCE_AIDP_JINHUA_MODEL_MODE_OPTIONS = [
+    { value: "two_stage", label: "普通模式：听音模型 + 收口模型" },
+    { value: "expert_omni_plus", label: "专家模式：qwen3.5-omni-plus" },
+  ];
   const MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS = [
     { value: "direct_dialect", label: "直接识别方言文本" },
     {
@@ -2201,6 +2205,7 @@
           aiRecommendAutoFillEnabled: true,
           aiRecommendEndpoint: BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiRecommendModelMode: "two_stage",
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendListenPrompt: "",
           aiRecommendListenTemperature: "",
@@ -2716,6 +2721,9 @@
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
     DATABAKER_AI_PIPELINE_MODE_OPTIONS: clone(DATABAKER_AI_PIPELINE_MODE_OPTIONS),
     MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS: clone(MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS),
+    BYTEDANCE_AIDP_JINHUA_MODEL_MODE_OPTIONS: clone(
+      BYTEDANCE_AIDP_JINHUA_MODEL_MODE_OPTIONS
+    ),
     MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS: clone(
       MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS
     ),

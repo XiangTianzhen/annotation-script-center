@@ -16,10 +16,14 @@ const {
 
 const SCRIPT_ID = "bytedanceAidpJinhuaHelper";
 const DEFAULT_TIMEOUT_MS = 60000;
+const DEFAULT_MODEL_MODE = "two_stage";
+const EXPERT_MODEL_MODE = "expert_omni_plus";
+const EXPERT_OMNI_PLUS_MODEL = "qwen3.5-omni-plus";
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_REFINE_MODEL = "qwen3.5-plus";
+const SUPPORTED_MODEL_MODES = [DEFAULT_MODEL_MODE, EXPERT_MODEL_MODE];
 const SUPPORTED_LISTEN_MODELS = ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
-const SUPPORTED_REFINE_MODELS = ["qwen3.5-plus", "qwen3.5-flash"];
+const SUPPORTED_REFINE_MODELS = ["qwen3.5-plus", "qwen3.5-flash", EXPERT_OMNI_PLUS_MODEL];
 const DEFAULT_STAGE_PARAMS = {
   temperature: 0.1,
   top_p: 0.8,
@@ -281,6 +285,15 @@ function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supported
   };
 }
 
+function normalizeModelMode(value, fallback) {
+  const fallbackMode =
+    SUPPORTED_MODEL_MODES.indexOf(normalizeText(fallback).toLowerCase()) >= 0
+      ? normalizeText(fallback).toLowerCase()
+      : DEFAULT_MODEL_MODE;
+  const text = normalizeText(value).toLowerCase();
+  return SUPPORTED_MODEL_MODES.indexOf(text) >= 0 ? text : fallbackMode;
+}
+
 function normalizeRecommendRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const audioUrl = normalizeText(source.audioUrl);
@@ -295,6 +308,7 @@ function normalizeRecommendRequest(body) {
   );
   const stageDefaults = buildStageDefaults();
   const aiStages = source.aiStages && typeof source.aiStages === "object" ? source.aiStages : {};
+  const modelMode = normalizeModelMode(source.modelMode || source.aiRecommendModelMode);
   const listenStage = normalizeStageConfig(
     aiStages.listen,
     source.listenModel || stageDefaults.listen.model,
@@ -307,6 +321,10 @@ function normalizeRecommendRequest(body) {
     stageDefaults.refine.prompt,
     SUPPORTED_REFINE_MODELS
   );
+  if (modelMode === EXPERT_MODEL_MODE) {
+    listenStage.model = EXPERT_OMNI_PLUS_MODEL;
+    refineStage.model = EXPERT_OMNI_PLUS_MODEL;
+  }
   return {
     audioUrl,
     audioDataUrl,
@@ -327,6 +345,7 @@ function normalizeRecommendRequest(body) {
       1000,
       Math.min(300000, Math.round(toFiniteNumber(source.timeoutMs, DEFAULT_TIMEOUT_MS)))
     ),
+    modelMode,
     listenModel: listenStage.model,
     refineModel: refineStage.model,
     aiStages: {
@@ -603,6 +622,7 @@ async function recommend(request, assetsContext, overrides) {
   const listenResult = await runListenStage(request, normalizedAssetsContext, deps);
   const refineResult = await runRefineStage(request, normalizedAssetsContext, listenResult, deps);
   const models = Object.assign({}, listenResult.models || {}, refineResult.models || {});
+  models.modelMode = request.modelMode || DEFAULT_MODEL_MODE;
   const usage = Object.assign({}, listenResult.usage || {}, refineResult.usage || {});
   const isSinging = listenResult.isSinging === true || refineResult.isSinging === true;
   const isNonJinhuaDialect =
@@ -644,8 +664,10 @@ function createHealthPayload(assetsContext) {
     scriptId: SCRIPT_ID,
     defaults: {
       timeoutMs: DEFAULT_TIMEOUT_MS,
+      modelMode: DEFAULT_MODEL_MODE,
       stages: buildStageDefaults(),
     },
+    supportedModelModes: SUPPORTED_MODEL_MODES.slice(),
     supportedModels: {
       listen: SUPPORTED_LISTEN_MODELS.slice(),
       refine: SUPPORTED_REFINE_MODELS.slice(),
@@ -669,8 +691,10 @@ function createDefaultsPayload() {
     scriptId: SCRIPT_ID,
     defaults: {
       timeoutMs: DEFAULT_TIMEOUT_MS,
+      modelMode: DEFAULT_MODEL_MODE,
       stages: buildStageDefaults(),
     },
+    supportedModelModes: SUPPORTED_MODEL_MODES.slice(),
     supportedModels: {
       listen: SUPPORTED_LISTEN_MODELS.slice(),
       refine: SUPPORTED_REFINE_MODELS.slice(),
@@ -761,10 +785,14 @@ function buildRecommendErrorBody(context) {
 }
 
 module.exports = {
+  DEFAULT_MODEL_MODE,
+  EXPERT_MODEL_MODE,
+  EXPERT_OMNI_PLUS_MODEL,
   DEFAULT_LISTEN_MODEL,
   DEFAULT_REFINE_MODEL,
   DEFAULT_TIMEOUT_MS,
   SCRIPT_ID,
+  SUPPORTED_MODEL_MODES,
   SUPPORTED_LISTEN_MODELS,
   SUPPORTED_REFINE_MODELS,
   __testOnly: {

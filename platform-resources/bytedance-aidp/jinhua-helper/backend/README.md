@@ -73,7 +73,16 @@
   - 正常有语义的重复内容不压缩
   - 不使用阿拉伯数字，统一改写为汉字数字
   - 纯静音或完全听不清时返回空字符串
-  - 即使判断为 `唱歌` 或 `非金华话`，也仍然尽量返回可识别文本，只是默认 `blockAutoFill=true`
+- 即使判断为 `唱歌` 或 `非金华话`，也仍然尽量返回可识别文本，只是默认 `blockAutoFill=true`
+
+## AI 模型模式
+
+- `normalizeRecommendRequest` 接收 `modelMode`：
+  - 缺省或非法值按 `two_stage` 处理。
+  - `two_stage` 保持原双模型行为，听音默认 `qwen3.5-omni-flash`，收口默认 `qwen3.5-plus`。
+  - `expert_omni_plus` 仍执行 `listen -> refine` 两次调用，但归一化后两阶段模型都强制为 `qwen3.5-omni-plus`。
+- `health / defaults` 返回 `supportedModelModes`，成功响应的 `models` 返回 `modelMode / listenModel / refineModel`，便于前端和 AI 调用日志确认实际生效模式。
+- 专家模式不改变 prompt、参数白名单、usage/cost 聚合或 `blockAutoFill` 判定口径。
 
 ## AI 资产
 

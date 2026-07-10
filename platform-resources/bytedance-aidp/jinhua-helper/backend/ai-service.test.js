@@ -76,8 +76,52 @@ test("Jinhua ai service defaults split listen-stage judgement fields from refine
   assert.match(refinePrompt, /前日/);
 });
 
+test("Jinhua ai service keeps two-stage models as the default mode", function () {
+  const request = aiService.normalizeRecommendRequest({
+    audioDataUrl: "data:audio/wav;base64,ZmFrZQ==",
+    startMs: 0,
+    endMs: 1000,
+  });
+
+  assert.equal(request.modelMode, "two_stage");
+  assert.equal(request.listenModel, "qwen3.5-omni-flash");
+  assert.equal(request.refineModel, "qwen3.5-plus");
+});
+
+test("Jinhua ai service expert mode forces both stages to qwen3.5-omni-plus", function () {
+  const request = aiService.normalizeRecommendRequest({
+    modelMode: "expert_omni_plus",
+    audioDataUrl: "data:audio/wav;base64,ZmFrZQ==",
+    aiStages: {
+      listen: {
+        model: "qwen3.5-omni-flash",
+      },
+      refine: {
+        model: "qwen3.5-plus",
+      },
+    },
+    startMs: 0,
+    endMs: 1000,
+  });
+
+  assert.equal(request.modelMode, "expert_omni_plus");
+  assert.equal(request.listenModel, "qwen3.5-omni-plus");
+  assert.equal(request.refineModel, "qwen3.5-omni-plus");
+  assert.equal(request.aiStages.listen.model, "qwen3.5-omni-plus");
+  assert.equal(request.aiStages.refine.model, "qwen3.5-omni-plus");
+});
+
+test("Jinhua ai service defaults expose supported model modes", function () {
+  const payload = aiService.createDefaultsPayload();
+
+  assert.equal(payload.defaults.modelMode, "two_stage");
+  assert.deepEqual(payload.supportedModelModes, ["two_stage", "expert_omni_plus"]);
+  assert.ok(payload.supportedModels.refine.includes("qwen3.5-omni-plus"));
+});
+
 test("Jinhua ai service keeps transcript text while blocking auto-fill for singing results", async function () {
   const request = aiService.normalizeRecommendRequest({
+    modelMode: "expert_omni_plus",
     requestId: "req-jinhua-singing",
     audioDataUrl: "data:audio/wav;base64,ZmFrZQ==",
     startMs: 0,
@@ -106,9 +150,9 @@ test("Jinhua ai service keeps transcript text while blocking auto-fill for singi
       normalizeUsage: function (usage) {
         return usage || {};
       },
-      requestOmniInputAudio: async function () {
+      requestOmniInputAudio: async function (_payload, _prompt, options) {
         return {
-          model: "qwen3.5-omni-flash",
+          model: options.model,
           rawText: JSON.stringify({
             listenText: "这一段像在唱歌。",
             isSinging: true,
@@ -121,9 +165,9 @@ test("Jinhua ai service keeps transcript text while blocking auto-fill for singi
           },
         };
       },
-      requestTextCompareJson: async function () {
+      requestTextCompareJson: async function (_payload, _prompt, options) {
         return {
-          model: "qwen3.5-plus",
+          model: options.model,
           rawText: JSON.stringify({
             finalMandarinText: "这一段像在唱歌，但是还是能听出歌词。",
             isSinging: true,
@@ -146,5 +190,8 @@ test("Jinhua ai service keeps transcript text while blocking auto-fill for singi
   assert.equal(result.isNonJinhuaDialect, false);
   assert.equal(result.blockAutoFill, true);
   assert.equal(result.needHumanReview, true);
+  assert.equal(result.models.modelMode, "expert_omni_plus");
+  assert.equal(result.models.listenModel, "qwen3.5-omni-plus");
+  assert.equal(result.models.refineModel, "qwen3.5-omni-plus");
   assert.deepEqual(result.notes, ["听音阶段识别为唱歌", "收口阶段要求人工复核"]);
 });

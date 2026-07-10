@@ -113,10 +113,70 @@ test("ByteDance AIDP storage defaults expose beta suzhou helper settings", async
       harness.constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT
     );
     assert.equal(jinhuaScript.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(jinhuaScript.aiRecommendModelMode, "two_stage");
     assert.equal(jinhuaScript.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(jinhuaScript.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(jinhuaScript.contractMode, "dom-guarded");
     assert.equal(jinhuaScript.shortcuts.togglePlayPause, null);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage normalizes legacy jinhua helper model mode to two_stage", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      bytedanceAidp: {
+        scripts: {
+          jinhuaHelper: {
+            enabled: false,
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendRefineModel: "qwen3.5-plus",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
+
+    assert.equal(script.aiRecommendModelMode, "two_stage");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage preserves jinhua expert mode while switching active scripts", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      bytedanceAidp: {
+        enabled: true,
+        activeScriptId: "bytedanceAidpSuzhouHelper",
+        scripts: {
+          suzhouHelper: {
+            enabled: true,
+            platformAiEnabled: false,
+            aiRecommendEnabled: true,
+          },
+          jinhuaHelper: {
+            enabled: false,
+            platformAiEnabled: false,
+            aiRecommendEnabled: false,
+            aiRecommendModelMode: "expert_omni_plus",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.setScriptEnabled("bytedanceAidpJinhuaHelper", true);
+    const script = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
+
+    assert.equal(script.enabled, true);
+    assert.equal(script.aiRecommendModelMode, "expert_omni_plus");
   } finally {
     harness.cleanup();
   }

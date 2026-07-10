@@ -581,6 +581,29 @@
         { value: "qwen3.6-flash", label: "qwen3.6-flash" },
         { value: "qwen3.5-flash", label: "qwen3.5-flash" },
       ];
+  const bytedanceAidpJinhuaModelModeOptions = Array.isArray(
+    constants.BYTEDANCE_AIDP_JINHUA_MODEL_MODE_OPTIONS
+  )
+    ? constants.BYTEDANCE_AIDP_JINHUA_MODEL_MODE_OPTIONS
+    : [
+        { value: "two_stage", label: "普通模式：听音模型 + 收口模型" },
+        { value: "expert_omni_plus", label: "专家模式：qwen3.5-omni-plus" },
+      ];
+  const bytedanceAidpJinhuaRefineModelOptions = dataBakerCompareModelOptions
+    .concat([{ value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" }])
+    .filter(function (item, index, source) {
+      const value = getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+      return (
+        value &&
+        source.findIndex(function (candidate) {
+          return (
+            getDataBakerModelText(
+              candidate && typeof candidate === "object" ? candidate.value : candidate
+            ) === value
+          );
+        }) === index
+      );
+    });
   const dataBakerDefaultListenPrompt = [
     "你只负责听音转写，不负责生成最终推荐文本。",
     "页面候选文本、朗读要求和有效时间只用于辅助你更稳定地识别音频内容。",
@@ -3450,11 +3473,15 @@
     return draft;
   }
 
-  function getBytedanceAidpSuzhouStageDefaults(aiDefaults) {
+  function getBytedanceAidpSuzhouStageDefaults(aiDefaults, scriptId) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
     const stages = defaults.stages && typeof defaults.stages === "object" ? defaults.stages : {};
     const listen = stages.listen && typeof stages.listen === "object" ? stages.listen : {};
     const refine = stages.refine && typeof stages.refine === "object" ? stages.refine : {};
+    const isJinhua = scriptId === bytedanceAidpJinhuaScriptId;
+    const refineModelOptions = isJinhua
+      ? bytedanceAidpJinhuaRefineModelOptions
+      : dataBakerCompareModelOptions;
     return {
       listen: {
         model: normalizeDataBakerCvpcListenModel(
@@ -3478,13 +3505,13 @@
         stop: listen.stop ?? listen.stopSequences ?? defaults.stop ?? "",
       },
       refine: {
-        model: normalizeDataBakerCompareModel(
+        model: (isJinhua ? normalizeBytedanceAidpJinhuaRefineModel : normalizeDataBakerCompareModel)(
           refine.model || defaults.refineModel || defaults.compareModel,
           "qwen3.5-plus"
         ),
         modelOptions: buildMergedModelOptions(
           refine.modelOptions,
-          defaults.refineModelOptions || defaults.compareModelOptions || dataBakerCompareModelOptions,
+          defaults.refineModelOptions || defaults.compareModelOptions || refineModelOptions,
           [refine.model, defaults.refineModel, defaults.compareModel]
         ),
         prompt: String(refine.prompt || defaults.refinePrompt || defaults.comparePrompt || ""),
@@ -3635,8 +3662,8 @@
     return draft;
   }
 
-  function applyBytedanceAidpSuzhouListenModelFields(listenModel, aiDefaults) {
-    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+  function applyBytedanceAidpSuzhouListenModelFields(listenModel, aiDefaults, scriptId) {
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults, scriptId);
     const currentListenModel = normalizeDataBakerCvpcListenModel(
       listenModel,
       stageDefaults.listen.model
@@ -3651,12 +3678,29 @@
     );
   }
 
-  function applyBytedanceAidpSuzhouStageFields(config, aiDefaults) {
+  function applyBytedanceAidpSuzhouStageFields(config, aiDefaults, scriptId) {
     const currentConfig = Object.assign({}, config || {});
-    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults, scriptId);
+    const currentModelMode =
+      scriptId === bytedanceAidpJinhuaScriptId
+        ? normalizeBytedanceAidpJinhuaModelMode(currentConfig.aiRecommendModelMode, "two_stage")
+        : "two_stage";
+    const isExpertMode = currentModelMode === "expert_omni_plus";
+    const modelModeNode = getElement("bytedance-aidp-jinhua-model-mode-select");
+    if (modelModeNode instanceof HTMLSelectElement) {
+      renderDetailCustomSelectOptions(
+        "bytedance-aidp-jinhua-model-mode-select",
+        bytedanceAidpJinhuaModelModeOptions,
+        currentModelMode,
+        {
+          placeholder: "请选择模型模式",
+        }
+      );
+    }
     applyBytedanceAidpSuzhouListenModelFields(
       currentConfig.aiRecommendListenModel,
-      aiDefaults
+      aiDefaults,
+      scriptId
     );
     const listenPromptNode = getElement("bytedance-aidp-ai-listen-prompt");
     if (listenPromptNode instanceof HTMLTextAreaElement) {
@@ -3675,12 +3719,21 @@
     renderDetailCustomSelectOptions(
       "bytedance-aidp-ai-refine-model-select",
       stageDefaults.refine.modelOptions,
-      normalizeDataBakerCompareModel(
-        currentConfig.aiRecommendRefineModel,
-        stageDefaults.refine.model
-      ),
+      (scriptId === bytedanceAidpJinhuaScriptId
+        ? normalizeBytedanceAidpJinhuaRefineModel
+        : normalizeDataBakerCompareModel)(currentConfig.aiRecommendRefineModel, stageDefaults.refine.model),
       {
         placeholder: "请选择收口模型",
+      }
+    );
+    [getElement("bytedance-aidp-ai-listen-model-select"), getElement("bytedance-aidp-ai-refine-model-select")].forEach(
+      function (node) {
+        if (node instanceof HTMLSelectElement) {
+          node.disabled = isExpertMode;
+          node.title = isExpertMode
+            ? "专家模式下听音与收口实际都使用 qwen3.5-omni-plus；原双模型配置会保留。"
+            : "";
+        }
       }
     );
     const refinePromptNode = getElement("bytedance-aidp-ai-refine-prompt");
@@ -3698,13 +3751,21 @@
     );
   }
 
-  function getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults) {
-    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+  function getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults, scriptId, currentConfig) {
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults, scriptId);
+    const currentSource = currentConfig && typeof currentConfig === "object" ? currentConfig : {};
+    const modelModeNode = getElement("bytedance-aidp-jinhua-model-mode-select");
     const listenModelNode = getElement("bytedance-aidp-ai-listen-model-select");
     const listenPromptNode = getElement("bytedance-aidp-ai-listen-prompt");
     const refineModelNode = getElement("bytedance-aidp-ai-refine-model-select");
     const refinePromptNode = getElement("bytedance-aidp-ai-refine-prompt");
     const draft = {
+      aiRecommendModelMode:
+        scriptId === bytedanceAidpJinhuaScriptId
+          ? modelModeNode instanceof HTMLSelectElement
+            ? normalizeBytedanceAidpJinhuaModelMode(modelModeNode.value, "two_stage")
+            : normalizeBytedanceAidpJinhuaModelMode(currentSource.aiRecommendModelMode, "two_stage")
+          : undefined,
       aiRecommendListenModel:
         listenModelNode instanceof HTMLSelectElement
           ? normalizeDataBakerCvpcListenModel(listenModelNode.value, stageDefaults.listen.model)
@@ -3715,7 +3776,9 @@
           : "",
       aiRecommendRefineModel:
         refineModelNode instanceof HTMLSelectElement
-          ? normalizeDataBakerCompareModel(refineModelNode.value, stageDefaults.refine.model)
+          ? (scriptId === bytedanceAidpJinhuaScriptId
+              ? normalizeBytedanceAidpJinhuaRefineModel
+              : normalizeDataBakerCompareModel)(refineModelNode.value, stageDefaults.refine.model)
           : stageDefaults.refine.model,
       aiRecommendRefinePrompt:
         refinePromptNode instanceof HTMLTextAreaElement
@@ -5269,6 +5332,29 @@
     return fallbackValue;
   }
 
+  function normalizeBytedanceAidpJinhuaRefineModel(value, fallback) {
+    const allowed = bytedanceAidpJinhuaRefineModelOptions
+      .map(function (item) {
+        return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+      })
+      .filter(Boolean);
+    const normalizedFallback = getDataBakerModelText(fallback || "qwen3.5-plus");
+    const fallbackValue =
+      allowed.indexOf(normalizedFallback) >= 0 ? normalizedFallback : "qwen3.5-plus";
+    const normalizedValue = getDataBakerModelText(value);
+    if (allowed.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    return fallbackValue;
+  }
+
+  function normalizeBytedanceAidpJinhuaModelMode(value, fallback) {
+    const fallbackText = String(fallback || "two_stage").trim().toLowerCase();
+    const normalizedFallback = fallbackText === "expert_omni_plus" ? "expert_omni_plus" : "two_stage";
+    const text = String(value || "").trim().toLowerCase();
+    return text === "expert_omni_plus" ? "expert_omni_plus" : normalizedFallback;
+  }
+
   function dataBakerTimeoutMsToSeconds(value) {
     return Math.round(normalizeDataBakerTimeoutMs(value) / 1000);
   }
@@ -6022,6 +6108,8 @@
           currentSettings || settings || {}
         ),
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+        aiRecommendModelMode:
+          meta.scriptId === bytedanceAidpJinhuaScriptId ? "two_stage" : undefined,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendListenPrompt: "",
         aiRecommendListenTemperature: "",
@@ -6077,6 +6165,12 @@
         defaults.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
       )
     );
+    if (meta.scriptId === bytedanceAidpJinhuaScriptId) {
+      config.aiRecommendModelMode = normalizeBytedanceAidpJinhuaModelMode(
+        config.aiRecommendModelMode,
+        defaults.aiRecommendModelMode || "two_stage"
+      );
+    }
     config.aiRecommendListenModel = normalizeDataBakerCvpcListenModel(
       config.aiRecommendListenModel,
       defaults.aiRecommendListenModel || "qwen3.5-omni-flash"
@@ -7442,6 +7536,14 @@
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup("请求超时时间（秒）", "最小精度 0.001 秒，即 1ms。留空时使用后端默认值。") +
         '</span><input id="bytedance-aidp-ai-timeout" type="number" min="0.001" max="60" step="0.001" /></label>',
+      activeScriptId === bytedanceAidpJinhuaScriptId
+        ? '<label class="asr-ai-field"><span>' +
+            buildAsrAiLabelMarkup(
+              "模型模式",
+              "普通模式沿用听音模型 + 收口模型；专家模式实际调用时两阶段都使用 qwen3.5-omni-plus。"
+            ) +
+            '</span><select id="bytedance-aidp-jinhua-model-mode-select" data-options-custom-select="true" data-options-placeholder="请选择模型模式"></select></label>'
+        : "",
       "</div></div>",
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid one">',
       '<label class="asr-ai-field"><span>' +
@@ -7482,20 +7584,39 @@
     ].join("");
 
     const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
-    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults, activeScriptId);
     bindBytedanceAidpSuzhouStageParamHelp("listen", stageDefaults.listen);
     bindBytedanceAidpSuzhouStageParamHelp("refine", stageDefaults.refine);
+
+    const modelModeNode = getElement("bytedance-aidp-jinhua-model-mode-select");
+    if (modelModeNode instanceof HTMLSelectElement) {
+      modelModeNode.addEventListener("change", function () {
+        const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
+        const draftConfig = getBytedanceAidpSuzhouSettingsDraftConfig(
+          aiDefaults,
+          activeScriptId,
+          getBytedanceAidpJinhuaConfig(currentSettings || {})
+        );
+        applyBytedanceAidpSuzhouStageFields(draftConfig, aiDefaults, activeScriptId);
+      });
+    }
 
     const listenNode = getElement("bytedance-aidp-ai-listen-model-select");
     if (listenNode instanceof HTMLSelectElement) {
       listenNode.addEventListener("change", function (event) {
         const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
-        const draftConfig = getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults);
+        const draftConfig = getBytedanceAidpSuzhouSettingsDraftConfig(
+          aiDefaults,
+          activeScriptId,
+          activeScriptId === bytedanceAidpJinhuaScriptId
+            ? getBytedanceAidpJinhuaConfig(currentSettings || {})
+            : getBytedanceAidpSuzhouConfig(currentSettings || {})
+        );
         draftConfig.aiRecommendListenModel = normalizeDataBakerCvpcListenModel(
           event?.target?.value,
-          getBytedanceAidpSuzhouStageDefaults(aiDefaults).listen.model
+          getBytedanceAidpSuzhouStageDefaults(aiDefaults, activeScriptId).listen.model
         );
-        applyBytedanceAidpSuzhouStageFields(draftConfig, aiDefaults);
+        applyBytedanceAidpSuzhouStageFields(draftConfig, aiDefaults, activeScriptId);
       });
     }
 
@@ -13049,7 +13170,7 @@
       timeoutNode.placeholder = formatBytedanceAidpTimeoutSecondsValue(defaultTimeoutMs);
     }
     if (getElement("bytedance-aidp-ai-listen-model-select")) {
-      applyBytedanceAidpSuzhouStageFields(config, aiDefaults);
+      applyBytedanceAidpSuzhouStageFields(config, aiDefaults, activeScriptId);
       applyForcedThinkingToggle(
         "bytedance-aidp-ai-enable-thinking",
         activeScriptId === bytedanceAidpJinhuaScriptId
@@ -13792,7 +13913,7 @@
         ? getBytedanceAidpJinhuaConfig(currentSettings || {})
         : getBytedanceAidpSuzhouConfig(currentSettings || {});
     const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
-    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults, activeScriptId);
     const hasAiSettingsPanel = Boolean(getElement("bytedance-aidp-ai-timeout"));
     ensureBytedanceAidpShortcutDraft();
     const shortcuts = {};
@@ -13837,8 +13958,9 @@
           normalizeDataBakerTimeoutMs(timeoutInput)
         );
     const draftConfig = hasAiSettingsPanel
-      ? getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults)
+      ? getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults, activeScriptId, currentConfig)
       : {
+          aiRecommendModelMode: currentConfig.aiRecommendModelMode,
           aiRecommendListenModel: currentConfig.aiRecommendListenModel,
           aiRecommendListenPrompt: currentConfig.aiRecommendListenPrompt,
           aiRecommendRefineModel: currentConfig.aiRecommendRefineModel,
@@ -13930,6 +14052,10 @@
         aiRecommendEnabled: aiRecommendEnabled,
         aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),
         aiRecommendRequestTimeoutMs: timeoutMs,
+        aiRecommendModelMode:
+          activeScriptId === bytedanceAidpJinhuaScriptId
+            ? normalizeBytedanceAidpJinhuaModelMode(draftConfig.aiRecommendModelMode, "two_stage")
+            : undefined,
         aiRecommendListenModel:
           draftConfig.aiRecommendListenModel !== stageDefaults.listen.model
             ? draftConfig.aiRecommendListenModel
@@ -13973,6 +14099,9 @@
         contractMode: "dom-guarded",
         shortcuts: shortcuts,
       };
+      if (activeScriptId !== bytedanceAidpJinhuaScriptId) {
+        delete nextScriptPatch[meta.scriptKey].aiRecommendModelMode;
+      }
       currentSettings = await storage.patchSettings({
         platforms: {
           bytedanceAidp: {

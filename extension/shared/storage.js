@@ -157,6 +157,7 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/bytedance-aidp/jinhua-helper/ai/recommend",
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+                aiRecommendModelMode: "two_stage",
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendListenPrompt: "",
                 aiRecommendRefineModel: "qwen3.5-plus",
@@ -328,10 +329,14 @@
         beta: "",
       },
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
-        DATABAKER_AI_PIPELINE_MODE_OPTIONS: [
+      DATABAKER_AI_PIPELINE_MODE_OPTIONS: [
           { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
           { value: "omni_single", label: "单模型：Omni 单模型" },
         ],
+      BYTEDANCE_AIDP_JINHUA_MODEL_MODE_OPTIONS: [
+        { value: "two_stage", label: "普通模式：听音模型 + 收口模型" },
+        { value: "expert_omni_plus", label: "专家模式：qwen3.5-omni-plus" },
+      ],
       DATABAKER_AI_LISTEN_MODEL_OPTIONS: [
         { value: "fun-asr", label: "fun-asr" },
         { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
@@ -1752,6 +1757,13 @@
     return rounded;
   }
 
+  function normalizeBytedanceAidpJinhuaModelMode(value, fallback) {
+    const fallbackText = String(fallback || "two_stage").trim().toLowerCase();
+    const normalizedFallback = fallbackText === "expert_omni_plus" ? "expert_omni_plus" : "two_stage";
+    const text = String(value || "").trim().toLowerCase();
+    return text === "expert_omni_plus" ? "expert_omni_plus" : normalizedFallback;
+  }
+
   function resolveDataBakerListenModel(value, pipelineMode, fallback, constants) {
     const normalizedValue = getDataBakerModelText(value);
     if (normalizedValue) {
@@ -2738,6 +2750,17 @@
       1000,
       Math.min(DEFAULT_AI_REQUEST_TIMEOUT_MS, result.aiRecommendRequestTimeoutMs)
     );
+    if (
+      normalizedOptions.scriptId ===
+        (constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper") ||
+      rawSource.aiRecommendModelMode !== undefined ||
+      defaultConfig.aiRecommendModelMode !== undefined
+    ) {
+      result.aiRecommendModelMode = normalizeBytedanceAidpJinhuaModelMode(
+        rawSource.aiRecommendModelMode || result.aiRecommendModelMode,
+        defaultConfig.aiRecommendModelMode || "two_stage"
+      );
+    }
     result.aiRecommendListenModel = normalizeDataBakerListenModel(
       rawSource.aiRecommendListenModel || rawSource.aiRecommendModel || result.aiRecommendListenModel,
       defaultConfig.aiRecommendListenModel || defaultConfig.aiRecommendModel || "qwen3.5-omni-flash",
@@ -2880,6 +2903,7 @@
               constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT ||
               "http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiRecommendModelMode: "two_stage",
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendListenPrompt: "",
             aiRecommendListenTemperature: "",
@@ -5047,6 +5071,7 @@
             currentConfig.aiRecommendAutoFillEnabled !== false,
           aiRecommendEndpoint: currentConfig.aiRecommendEndpoint,
           aiRecommendRequestTimeoutMs: currentConfig.aiRecommendRequestTimeoutMs,
+          aiRecommendModelMode: currentConfig.aiRecommendModelMode,
           aiRecommendListenModel: currentConfig.aiRecommendListenModel,
           aiRecommendListenPrompt: currentConfig.aiRecommendListenPrompt,
           aiRecommendListenTemperature: currentConfig.aiRecommendListenTemperature,
