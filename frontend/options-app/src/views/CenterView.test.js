@@ -59,14 +59,21 @@ describe("CenterView legacy workbench", () => {
     scriptsStore.visibleScripts = ["a1", "b1"];
   });
 
-  test("shows legacy edit-order toolbar and ordered platform sections", () => {
+  test("shows legacy center stage without hero shortcuts and with remark panels", () => {
     const wrapper = mount(CenterView);
     const sections = wrapper.findAll(".platform-section.platform-module");
+    const firstCard = wrapper.find(".script-card");
 
     expect(wrapper.find("#public-center-edit-toggle").exists()).toBe(true);
     expect(wrapper.text()).toContain("编辑顺序");
+    expect(wrapper.find(".hero-badges").exists()).toBe(false);
+    expect(wrapper.find("#stage-label").exists()).toBe(false);
     expect(sections).toHaveLength(2);
     expect(sections[0].attributes("data-platform-id")).toBe("beta");
     expect(sections[1].attributes("data-platform-id")).toBe("alpha");
+    expect(wrapper.findAll(".platform-summary")).toHaveLength(2);
+    expect(wrapper.findAll(".platform-script-stack")).toHaveLength(2);
+    expect(firstCard.find(".script-remark-panel").exists()).toBe(true);
+    expect(firstCard.text()).toContain("项目备注");
   });
 });

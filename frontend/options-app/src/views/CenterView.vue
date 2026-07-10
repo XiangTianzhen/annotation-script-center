@@ -2,13 +2,11 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { buildPlatformEntryDescriptor, isScriptRuntimeAccessible } from "@/services/globals";
-import { useAuthStore } from "@/stores/auth";
 import { useAppStore } from "@/stores/app";
 import { useScriptsStore } from "@/stores/scripts";
 import { useSettingsStore } from "@/stores/settings";
 
 const router = useRouter();
-const authStore = useAuthStore();
 const appStore = useAppStore();
 const scriptsStore = useScriptsStore();
 const settingsStore = useSettingsStore();
@@ -87,7 +85,7 @@ const centerEditStatus = computed(() => {
     return editStatusMessage.value;
   }
   if (!editingOrder.value) {
-    return "默认只读浏览；进入编辑模式后可拖动整个平台区块上下重排。";
+    return "点击“编辑顺序”后可拖动平台区块上下重排。";
   }
   return "按住平台区块拖动；在目标区域停留片刻后，平台会自动让位并保存顺序。";
 });
@@ -418,7 +416,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="platform-grid">
-    <section class="hero">
+    <section class="hero public-hero hero-compact hero-center-stage">
       <div class="hero-top">
         <div>
           <span class="hero-kicker">FUNCTION PANEL</span>
@@ -426,17 +424,6 @@ onBeforeUnmount(() => {
           <p>
             功能面板只保留启停与详情入口；扩展版本下载统一进入脚本下载中心，后端设置与系统概况统一进入系统管理。
           </p>
-        </div>
-        <div class="hero-badges">
-          <button class="ghost-button" type="button" @click="router.push('/downloads')">脚本下载中心</button>
-          <button
-            id="stage-label"
-            class="badge stage"
-            type="button"
-            @click="router.push(authStore.isUnlocked ? '/admin/overview' : '/admin/unlock')"
-          >
-            系统管理
-          </button>
         </div>
       </div>
 
@@ -462,7 +449,8 @@ onBeforeUnmount(() => {
     <section class="public-center-toolbar">
       <div class="public-center-toolbar-copy">
         <strong>功能面板工作台</strong>
-        <span>{{ centerEditStatus }}</span>
+        <span class="public-center-toolbar-summary">默认只读浏览；进入编辑模式后可拖动整个平台区块上下重排。</span>
+        <span id="public-center-edit-status" class="status-text public-center-edit-status">{{ centerEditStatus }}</span>
       </div>
       <div class="public-center-toolbar-actions">
         <button
@@ -474,7 +462,6 @@ onBeforeUnmount(() => {
           {{ editingOrder ? "完成编辑" : "编辑顺序" }}
         </button>
       </div>
-      <div id="public-center-edit-status" class="status-text public-center-edit-status">{{ centerEditStatus }}</div>
     </section>
 
     <div ref="workbenchRef" class="platform-workbench" :class="{ 'is-editing': editingOrder }">
@@ -556,7 +543,10 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <p class="script-copy">{{ script.description }}</p>
+              <div class="script-remark-panel">
+                <span class="script-remark-label">项目备注</span>
+                <p class="script-copy script-remark-copy">{{ script.description }}</p>
+              </div>
             </article>
           </div>
         </div>

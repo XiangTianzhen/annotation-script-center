@@ -1,3 +1,7 @@
+## 2026-07-10
+- 收口(options): 功能面板 `#/center` 主舞台继续按旧版样式回收，移除 hero 里的页面快捷按钮，恢复两段式工作台说明、紧凑平台摘要列和更密的脚本卡节奏
+- 回收(options): 平台脚本卡恢复独立 `项目备注` 分隔区，并同步收窄平台左列、减轻拖拽占位/ghost 视觉强度，保持现有平台排序和脚本可见性逻辑不变
+
 ## 2026-07-09（启动 Options Vue 全量迁移骨架）
 - 新增(options): 启动 `frontend/options-app/` Vue 工作区，采用 `Vue 3 + Vite + Vue Router + Pinia` 作为 options 全量迁移源码入口
 - 调整(options): Vite 构建产物输出回 `extension/options/`，扩展继续复用 `manifest.json -> options/options.html` 入口
