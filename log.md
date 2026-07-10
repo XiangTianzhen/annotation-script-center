@@ -1,3 +1,14 @@
+## 2026-07-10（优化 Magic Data 杭州话 AI 音频优先与词表方向）
+- 更新杭州话 AI 听音与比较 Prompt
+  - 默认 `direct_dialect` 听音阶段改为盲听，不携带平台两行文本、说话人已有值或词表
+  - 比较阶段固定“音频实际发声 > 听音杭州话文本 > 平台文本”，禁止从普通话含义反推杭州话词形
+  - 增加“现在 / 葛毛”反例约束，只有实际听到对应杭州话读音时才允许采用词表规范字形
+- 更新杭州话词表与路由上下文
+  - `buildLexiconContext` 新增 `dialect_to_mandarin` 内部匹配方向，只按听音杭州话统一用字和可接受写法命中
+  - 手动 `mandarin_to_dialect` 继续保留普通话转杭州话能力
+- 更新杭州话设置说明、脚本 README、平台资料 README 与后端 README
+- 增加盲听隔离、单向词表、路由策略、“现在 / 葛毛”和识别转换兼容回归测试
+
 ## 2026-07-10（接入 ByteDance AIDP 金华话 JSON 词表上下文）
 - 更新 `platform-resources/bytedance-aidp/jinhua-helper/backend/ai-service.js`
   - 运行时以 `jinhua-lexicon.json` 为主词表，构建 `lexiconRows / lexiconStatus / lexiconRowCount`

@@ -477,9 +477,12 @@ function getLexiconState() {
   return cachedState;
 }
 
-function getEntryTerms(entry) {
+function getEntryTerms(entry, matchDirection) {
   const unifiedTerms = splitTerms(entry.unified);
   const acceptableTerms = splitTerms(entry.acceptable);
+  if (matchDirection === "dialect_to_mandarin") {
+    return unifiedTerms.concat(acceptableTerms).filter(Boolean);
+  }
   const mandarinTerms = splitTerms(entry.mandarin);
   return unifiedTerms.concat(acceptableTerms, mandarinTerms).filter(Boolean);
 }
@@ -494,6 +497,10 @@ function normalizeLimit(value) {
 
 function buildLexiconContext(input) {
   const request = input && typeof input === "object" ? input : {};
+  const matchDirection =
+    normalizeText(request.matchDirection).toLowerCase() === "dialect_to_mandarin"
+      ? "dialect_to_mandarin"
+      : "bidirectional";
   const state = getLexiconState();
   if (!state.enabled || state.status !== "ready") {
     return {
@@ -505,24 +512,26 @@ function buildLexiconContext(input) {
     };
   }
 
-  const targetText = [
-    normalizeText(request.platformDialectText),
-    normalizeText(request.platformMandarinText),
-    normalizeText(request.heardDialectText),
-  ]
+  const targetText = (matchDirection === "dialect_to_mandarin"
+    ? [normalizeText(request.heardDialectText)]
+    : [
+        normalizeText(request.platformDialectText),
+        normalizeText(request.platformMandarinText),
+        normalizeText(request.heardDialectText),
+      ])
     .filter(Boolean)
     .join("\n");
 
   const limit = normalizeLimit(request.limit);
   const matches = state.rows
     .filter(function (entry) {
-      const terms = getEntryTerms(entry);
+      const terms = getEntryTerms(entry, matchDirection);
       return terms.some(function (term) {
         return term && targetText.indexOf(term) >= 0;
       });
     })
     .map(function (entry) {
-      const terms = getEntryTerms(entry);
+      const terms = getEntryTerms(entry, matchDirection);
       const maxTermLength = terms.reduce(function (maxLength, term) {
         return Math.max(maxLength, term.length);
       }, 0);

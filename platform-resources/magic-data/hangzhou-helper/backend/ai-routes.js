@@ -305,6 +305,27 @@ function applyFinalDialectNormalizationToResponseData(responseData, options) {
   });
 }
 
+function buildStageLexiconContext(
+  reviewRequest,
+  listen,
+  recognizedMandarinText,
+  isRecognitionConvert
+) {
+  const request = reviewRequest && typeof reviewRequest === "object" ? reviewRequest : {};
+  const listenEvidence = listen && typeof listen === "object" ? listen : {};
+  if (isRecognitionConvert === true) {
+    return buildLexiconContext({
+      platformDialectText: request.platformDialectText,
+      platformMandarinText: request.platformMandarinText,
+      heardDialectText: recognizedMandarinText,
+    });
+  }
+  return buildLexiconContext({
+    heardDialectText: listenEvidence.heardDialectText,
+    matchDirection: "dialect_to_mandarin",
+  });
+}
+
 async function reviewCurrent(body, requestId) {
   const startedAtMs = Date.now();
   requestId = normalizeText(requestId) || createRequestId();
@@ -337,14 +358,16 @@ async function reviewCurrent(body, requestId) {
       reviewRequest.recognitionStrategy === "mandarin_to_dialect" ||
       reviewRequest.recognitionMode === "recognition_convert";
 
-    const beforeListenLexicon = buildLexiconContext({
-      platformDialectText: reviewRequest.platformDialectText,
-      platformMandarinText: reviewRequest.platformMandarinText,
-      heardDialectText: "",
-    });
+    const beforeListenLexicon = isRecognitionConvert
+      ? buildLexiconContext({
+          platformDialectText: reviewRequest.platformDialectText,
+          platformMandarinText: reviewRequest.platformMandarinText,
+          heardDialectText: "",
+        })
+      : null;
     const listenPrompt = isRecognitionConvert
       ? buildRecognitionConvertListenPrompt(reviewRequest, beforeListenLexicon)
-      : buildListenPrompt(reviewRequest, beforeListenLexicon);
+      : buildListenPrompt(reviewRequest);
 
     const listenStartedAt = Date.now();
     const listenResult = await runQueuedModelTask(listenModel, function () {
@@ -363,11 +386,12 @@ async function reviewCurrent(body, requestId) {
       ? normalizeText(listen.recognizedMandarinText || listen.heardMandarinMeaning || "")
       : "";
 
-    const lexiconContext = buildLexiconContext({
-      platformDialectText: reviewRequest.platformDialectText,
-      platformMandarinText: reviewRequest.platformMandarinText,
-      heardDialectText: isRecognitionConvert ? recognizedMandarinText : listen.heardDialectText,
-    });
+    const lexiconContext = buildStageLexiconContext(
+      reviewRequest,
+      listen,
+      recognizedMandarinText,
+      isRecognitionConvert
+    );
     const conversionContext = isRecognitionConvert
       ? convertMandarinToDialectByLexicon(recognizedMandarinText, {
           platformDialectText: reviewRequest.platformDialectText,
@@ -824,5 +848,6 @@ module.exports = {
   __test__: {
     applyFinalDialectNormalizationToResponseData,
     buildReviewLexiconMeta,
+    buildStageLexiconContext,
   },
 };
