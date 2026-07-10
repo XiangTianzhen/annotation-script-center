@@ -5,6 +5,69 @@ const test = require("node:test");
 
 const routesModule = require("./ai-routes.js");
 
+test("Magic Data Hangzhou route builds audio-first lexicon context for direct recognition", function () {
+  const helper = routesModule.__test__?.buildStageLexiconContext;
+  assert.equal(typeof helper, "function");
+
+  const MandarinHeardContext = helper(
+    {
+      platformDialectText: "葛毛去上班",
+      platformMandarinText: "现在去上班",
+    },
+    {
+      heardDialectText: "我现在去上班",
+    },
+    "",
+    false
+  );
+  const dialectHeardContext = helper(
+    {
+      platformDialectText: "现在去上班",
+      platformMandarinText: "现在去上班",
+    },
+    {
+      heardDialectText: "我葛毛去上班",
+    },
+    "",
+    false
+  );
+
+  assert.equal(
+    MandarinHeardContext.matches.some(function (entry) {
+      return entry.unified === "葛毛" && entry.mandarin === "现在";
+    }),
+    false
+  );
+  assert.equal(
+    dialectHeardContext.matches.some(function (entry) {
+      return entry.unified === "葛毛" && entry.mandarin === "现在";
+    }),
+    true
+  );
+});
+
+test("Magic Data Hangzhou route keeps bidirectional context for recognition conversion", function () {
+  const helper = routesModule.__test__?.buildStageLexiconContext;
+  assert.equal(typeof helper, "function");
+
+  const context = helper(
+    {
+      platformDialectText: "",
+      platformMandarinText: "现在去上班",
+    },
+    {},
+    "现在去上班",
+    true
+  );
+
+  assert.equal(
+    context.matches.some(function (entry) {
+      return entry.unified === "葛毛" && entry.mandarin === "现在";
+    }),
+    true
+  );
+});
+
 test("Magic Data Hangzhou success lexicon meta keeps rewrite mode", function () {
   const helper = routesModule.__test__?.buildReviewLexiconMeta;
   assert.equal(typeof helper, "function");

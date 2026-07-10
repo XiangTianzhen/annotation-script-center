@@ -7727,6 +7727,10 @@
           ? "data-baker-ai"
           : "magic-data-ai");
       const modelLabel = panelSpec.modelLabel || (usePipelineModels ? "比较模型" : "质检模型");
+      const recognitionStrategyHelpText =
+        scriptId === magicDataHangzhouScriptId
+          ? "直接识别：以音频实际读音为准，词表只辅助杭州话转普通话，不从普通话反推杭州话。识别转换：会先识别普通话再按词表反推杭州话，结果可能不同于实际读音。"
+          : "直接识别方言文本，或先识别普通话再按字词表转换为方言文本。";
       const modelFieldMarkup = {
         enabled: isDataBakerPanel
           ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label>'
@@ -7746,7 +7750,9 @@
           prefix +
           '-recognition-strategy-field"><span>识别策略</span><select id="' +
           prefix +
-          '-recognition-strategy-select" data-options-custom-select="true"></select><span class="asr-ai-help">直接识别方言文本，或先识别普通话再按字词表转换为方言文本。</span></label>',
+          '-recognition-strategy-select" data-options-custom-select="true"></select><span class="asr-ai-help">' +
+          recognitionStrategyHelpText +
+          "</span></label>",
         listenModel:
           '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +

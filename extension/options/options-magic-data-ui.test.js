@@ -31,3 +31,16 @@ test("Magic Data options source recognizes Hangzhou helper as a third script", f
     /candidate === magicDataAnnotatorScriptId\s*\|\|\s*candidate === magicDataMinnanScriptId\s*\|\|\s*candidate === magicDataHangzhouScriptId/
   );
 });
+
+test("Magic Data Hangzhou recognition strategy help distinguishes audio-first and conversion modes", function () {
+  const script = fs.readFileSync(path.resolve(__dirname, "options.js"), "utf8");
+
+  assert.match(
+    script,
+    /直接识别：以音频实际读音为准，词表只辅助杭州话转普通话，不从普通话反推杭州话/
+  );
+  assert.match(
+    script,
+    /识别转换：会先识别普通话再按词表反推杭州话，结果可能不同于实际读音/
+  );
+});

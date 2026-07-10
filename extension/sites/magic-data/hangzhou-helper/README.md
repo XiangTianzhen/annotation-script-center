@@ -39,6 +39,8 @@
   - `listenModel=qwen3.5-omni-flash`
   - `compareModel=qwen3.5-flash`
   - `enableThinking=false`
+- `direct_dialect` 使用“盲听音频 -> 单向词表翻译/质检”：听音阶段不读取平台杭州话、平台普通话、说话人已有值或词表；比较阶段只允许从已听出的杭州话词形查询普通话释义，不从普通话反推杭州话。
+- `mandarin_to_dialect` 继续保留“先识别普通话，再按词表转杭州话”的手动识别转换能力；该模式可能生成与实际读音不同的杭州话词形。
 - 为兼容历史配置，仍保留 legacy 字段镜像，但杭州话不新增 legacy API 别名。
 
 ## 当前边界
