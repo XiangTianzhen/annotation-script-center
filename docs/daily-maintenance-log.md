@@ -40,3 +40,10 @@
 - 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md 维护记录，未修改扩展运行时代码、统一后端、接口、页面、数据库、依赖、配置文件或环境变量
 - 后续待办：继续关注 Magic Data、Aishell Tech 与 ByteDance AIDP 等近期活跃脚本的文档同步边界，后续自动维护仍需先确认无未提交改动再追加日志
 - 自动维护记录说明：本条为 automation-3 的每日检查留痕，用于记录本轮只做文档级维护，并按固定 add、commit、push 流程提交到 main
+## 2026-07-10
+- 日期：2026-07-10
+- 项目：标注脚本中心（annotation-script-center）
+- 检查范围：已阅读 AGENTS.md、README.md、log.md、docs/README.md、docs/platforms-index.md、extension/README.md、platform-resources/README.md、platform-resources/backend/README.md，并确认当前仓库位于 main 分支且维护前工作区干净
+- 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md 维护记录，未修改业务代码、接口、页面、数据库、依赖、配置文件或环境变量
+- 后续待办：继续关注 Magic Data、Aishell Tech、ByteDance AIDP 等近期活跃脚本的资料同步边界，后续维护仍需先确认工作区无未提交改动再执行日志追加
+- 自动维护记录说明：本条为 automation-3 的每日检查留痕，用于记录本轮只做文档级维护，并按固定 add、commit、push 流程提交到 main
