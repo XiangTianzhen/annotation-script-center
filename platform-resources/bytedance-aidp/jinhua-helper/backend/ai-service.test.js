@@ -3,7 +3,75 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
+const { loadProjectAssets } = require("../../../backend/ai-framework/loaders/project-assets");
+const adapter = require("../ai/adapter");
 const aiService = require("./ai-service");
+
+const EXPECTED_JINHUA_LEXICON_ROWS = 991;
+
+function createAudioRequest(overrides) {
+  return aiService.normalizeRecommendRequest(
+    Object.assign(
+      {
+        audioDataUrl: "data:audio/wav;base64,ZmFrZQ==",
+        startMs: 0,
+        endMs: 1000,
+        fieldContext: {
+          text: "",
+        },
+      },
+      overrides || {}
+    )
+  );
+}
+
+function createPromptCaptureDeps(captured, listenPayload) {
+  let nowValue = 0;
+  return {
+    now: function () {
+      nowValue += 25;
+      return nowValue;
+    },
+    normalizeUsage: function (usage) {
+      return usage || {};
+    },
+    requestOmniInputAudio: async function (_payload, prompt, options) {
+      captured.listenPrompt = prompt;
+      return {
+        model: options.model,
+        rawText: JSON.stringify(
+          listenPayload || {
+            listenText: "",
+            isSinging: false,
+            isNonJinhuaDialect: false,
+            needHumanReview: false,
+            notes: [],
+          }
+        ),
+        usage: {},
+      };
+    },
+    requestTextCompareJson: async function (_payload, prompt, options) {
+      captured.refinePrompt = prompt;
+      return {
+        model: options.model,
+        rawText: JSON.stringify({
+          finalMandarinText: "测试文本。",
+          isSinging: false,
+          isNonJinhuaDialect: false,
+          blockAutoFill: false,
+          needHumanReview: false,
+          notes: [],
+        }),
+        usage: {},
+      };
+    },
+  };
+}
+
+function loadJinhuaAssetsContext() {
+  return aiService.buildAssetsContext(loadProjectAssets(adapter));
+}
 
 test("Jinhua ai service trims obvious stutter repeats to at most three copies", function () {
   const result = aiService.__testOnly.normalizeRefineStageOutput({
@@ -117,6 +185,102 @@ test("Jinhua ai service defaults expose supported model modes", function () {
   assert.equal(payload.defaults.modelMode, "two_stage");
   assert.deepEqual(payload.supportedModelModes, ["two_stage", "expert_omni_plus"]);
   assert.ok(payload.supportedModels.refine.includes("qwen3.5-omni-plus"));
+});
+
+test("Jinhua ai service builds runtime lexicon rows from JSON as the primary source", function () {
+  const assetsContext = loadJinhuaAssetsContext();
+
+  assert.equal(assetsContext.lexiconStatus, "ready");
+  assert.equal(assetsContext.lexiconRowCount, EXPECTED_JINHUA_LEXICON_ROWS);
+  assert.equal(assetsContext.lexiconContextLimit, 24);
+  assert.equal(assetsContext.lexiconRows.length, EXPECTED_JINHUA_LEXICON_ROWS);
+});
+
+test("Jinhua ai service health exposes lexicon runtime metadata", function () {
+  const payload = aiService.createHealthPayload(loadJinhuaAssetsContext());
+
+  assert.equal(payload.reference.lexiconSource, "jinhua-lexicon.json");
+  assert.equal(payload.reference.lexiconStatus, "ready");
+  assert.equal(payload.reference.lexiconRowCount, EXPECTED_JINHUA_LEXICON_ROWS);
+  assert.equal(payload.reference.lexiconContextLimit, 24);
+});
+
+test("Jinhua listen prompt includes matched JSON lexicon context from field text", async function () {
+  const assetsContext = loadJinhuaAssetsContext();
+  const captured = {};
+  await aiService.recommend(
+    createAudioRequest({
+      fieldContext: {
+        text: "今朝日头很大。",
+      },
+    }),
+    assetsContext,
+    createPromptCaptureDeps(captured)
+  );
+
+  const userPrompt = String(captured.listenPrompt?.userPrompt || "");
+  assert.match(userPrompt, /金华话差异词表上下文/);
+  assert.match(userPrompt, /方言正字：日头；普通话：太阳；分类：词汇；发音：ȵiəʔ21diu14/);
+});
+
+test("Jinhua refine prompt includes matched JSON lexicon context from listen text", async function () {
+  const assetsContext = loadJinhuaAssetsContext();
+  const captured = {};
+  await aiService.recommend(
+    createAudioRequest({
+      fieldContext: {
+        text: "zzzz-no-lexicon-match",
+      },
+    }),
+    assetsContext,
+    createPromptCaptureDeps(captured, {
+      listenText: "星很亮。",
+      isSinging: false,
+      isNonJinhuaDialect: false,
+      needHumanReview: false,
+      notes: [],
+    })
+  );
+
+  const userPrompt = String(captured.refinePrompt?.userPrompt || "");
+  assert.match(userPrompt, /金华话词义转普通话参考/);
+  assert.match(userPrompt, /方言正字：星；普通话：星星；分类：词汇；发音：ɕiŋ334/);
+});
+
+test("Jinhua lexicon context does not expand the full table when there is no match", async function () {
+  const assetsContext = loadJinhuaAssetsContext();
+  const captured = {};
+  await aiService.recommend(
+    createAudioRequest({
+      fieldContext: {
+        text: "zzzz-no-lexicon-match",
+      },
+    }),
+    assetsContext,
+    createPromptCaptureDeps(captured, {
+      listenText: "yyyy-no-lexicon-match",
+      isSinging: false,
+      isNonJinhuaDialect: false,
+      needHumanReview: false,
+      notes: [],
+    })
+  );
+
+  assert.doesNotMatch(String(captured.listenPrompt?.userPrompt || ""), /金华话差异词表上下文/);
+  assert.doesNotMatch(String(captured.refinePrompt?.userPrompt || ""), /金华话词义转普通话参考/);
+  assert.doesNotMatch(String(captured.refinePrompt?.userPrompt || ""), /方言正字：日头/);
+});
+
+test("Jinhua CSV reference is not used as a runtime lexicon fallback", function () {
+  const assetsContext = aiService.buildAssetsContext({
+    ruleText: "",
+    lexiconJson: null,
+    lexiconReferenceCsv: "分类,普通话,方言正字【标注参考这列】,发音\n词汇,太阳,日头,nie",
+  });
+
+  assert.equal(assetsContext.lexiconStatus, "missing");
+  assert.equal(assetsContext.lexiconRowCount, 0);
+  assert.equal(assetsContext.lexiconRows.length, 0);
 });
 
 test("Jinhua ai service keeps transcript text while blocking auto-fill for singing results", async function () {

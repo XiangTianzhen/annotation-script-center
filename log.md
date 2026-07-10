@@ -1,3 +1,13 @@
+## 2026-07-10（接入 ByteDance AIDP 金华话 JSON 词表上下文）
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/backend/ai-service.js`
+  - 运行时以 `jinhua-lexicon.json` 为主词表，构建 `lexiconRows / lexiconStatus / lexiconRowCount`
+  - 听音和收口 prompt 按当前段文本、页面字段和听音结果筛选少量相关词条，不展开全量词表
+  - CSV / XLSX 继续只作人工参考或生成来源，不作为运行时 fallback 主词表
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/backend/ai-service.test.js`
+  - 回归覆盖 JSON 主词表状态、听音 / 收口命中上下文、无命中不展开全表和 CSV 不 fallback
+- 更新金华话 README
+  - 明确 JSON 主词表运行时筛选口径，以及 CSV / XLSX 的人工参考边界
+
 ## 2026-07-10（调整 ByteDance AIDP 金华话差异表发音展示）
 - 新增 `platform-resources/bytedance-aidp/jinhua-helper/ai/pronunciation-display.js`
   - 将金华话原始 IPA 发音近似转换为拼音式 ASCII 展示

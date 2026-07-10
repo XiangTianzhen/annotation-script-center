@@ -94,9 +94,9 @@
   - 当前包含 `991` 行数据，固定为 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列，发音列使用拼音式 ASCII 展示
 - `../ai/assets/jinhua-pronunciation-reference.xlsx`
   - 金华话差异发音参考 XLSX，供人工按表格形式验收，发音列使用拼音式 ASCII 展示
-- JSON 与 CSV 已在 `../ai/adapter.js` 注册，当前仅作为后续 AI 听音和普通话翻译收口参考资产；XLSX 仅供人工验收，不进入运行时 asset loader。
+- JSON 与 CSV 已在 `../ai/adapter.js` 注册；运行时只把 `jinhua-lexicon.json` 作为主词表读取，CSV / XLSX 仅供人工验收或生成来源，不作为 fallback 主词表。
 - JSON 继续保留原始 IPA 发音，CSV / XLSX 只做人工可读展示转换。
-- 当前版本不把全量词表直接展开进 prompt。
+- 每次 AI 请求会按当前段文本、页面字段和听音结果筛选少量 JSON 词条追加进听音 / 收口 prompt；无命中时不展开全量词表。
 
 ## 日志与导出
 

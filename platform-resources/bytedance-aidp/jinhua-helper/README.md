@@ -99,10 +99,10 @@
   - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-lexicon.json`
   - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.csv`
   - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.xlsx`
-  - 资产已在 `ai/adapter.js` 注册；当前不把全量词表直接展开进 AI prompt。
+  - 资产已在 `ai/adapter.js` 注册；运行时以 `jinhua-lexicon.json` 为主词表，按当前段文本、页面字段和听音结果筛选少量相关词条进入 AI prompt，不展开全量词表。
   - 词义与读音资产已清理掉原始音频路径、视频编号、采集索引和原始资料路径，并筛除方言正字与普通话相同或缺少方言发音的记录。
   - 当前 JSON / CSV 主资产保留 `991` 条差异记录；CSV 与 XLSX 均使用 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列。
-  - JSON 继续保留原始 IPA 发音字段；CSV / XLSX 的 `发音` 列使用近似拼音式 ASCII 展示，便于人工验收。
+  - JSON 继续保留原始 IPA 发音字段；CSV / XLSX 的 `发音` 列使用近似拼音式 ASCII 展示，便于人工验收，不作为运行时词表 fallback。
 - 当前 AI 调用记录已纳入后台导出数据集：
   - `ByteDance AIDP 金华话脚本 AI 调用记录`
 

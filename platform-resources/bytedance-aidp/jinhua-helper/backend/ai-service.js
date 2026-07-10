@@ -19,6 +19,7 @@ const DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_MODEL_MODE = "two_stage";
 const EXPERT_MODEL_MODE = "expert_omni_plus";
 const EXPERT_OMNI_PLUS_MODEL = "qwen3.5-omni-plus";
+const LEXICON_CONTEXT_LIMIT = 24;
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_REFINE_MODEL = "qwen3.5-plus";
 const SUPPORTED_MODEL_MODES = [DEFAULT_MODEL_MODE, EXPERT_MODEL_MODE];
@@ -103,6 +104,10 @@ const PRICING_SUMMARY = Object.freeze(
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function toFiniteNumber(value, fallback) {
@@ -285,6 +290,147 @@ function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supported
   };
 }
 
+function uniqueLexiconTerms(values) {
+  return normalizeList(Array.isArray(values) ? values : [values], 40);
+}
+
+function buildLexiconRows(lexiconDocument) {
+  const document = lexiconDocument && typeof lexiconDocument === "object" ? lexiconDocument : {};
+  return (Array.isArray(document.entries) ? document.entries : [])
+    .map(function (entry, index) {
+      const source = entry && typeof entry === "object" ? entry : {};
+      const attributes = isPlainObject(source.attributes) ? source.attributes : {};
+      const display = normalizeText(source.display);
+      const normalized = normalizeText(source.normalized);
+      const dialectWord = display || normalized;
+      const mandarin = normalizeText(source.mandarin);
+      const aliases = normalizeList(source.aliases || [], 20);
+      const tags = normalizeList(source.tags || [], 10);
+      if (!dialectWord || !mandarin) {
+        return null;
+      }
+      return {
+        id: normalizeText(source.id) || "jinhua-lexicon-" + String(index + 1),
+        dialectWord,
+        normalized,
+        display,
+        mandarin,
+        aliases,
+        tags,
+        pronunciation: normalizeText(attributes.phonetic),
+        sourceIndex: index,
+        terms: uniqueLexiconTerms([dialectWord, normalized, display, mandarin].concat(aliases)),
+      };
+    })
+    .filter(Boolean);
+}
+
+function collectTextValues(value, target, depth) {
+  const result = Array.isArray(target) ? target : [];
+  if (depth > 4 || value == null) {
+    return result;
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    const text = normalizeText(value);
+    if (text) {
+      result.push(text);
+    }
+    return result;
+  }
+  if (Array.isArray(value)) {
+    value.slice(0, 30).forEach(function (item) {
+      collectTextValues(item, result, depth + 1);
+    });
+    return result;
+  }
+  if (isPlainObject(value)) {
+    Object.keys(value).slice(0, 60).forEach(function (key) {
+      collectTextValues(value[key], result, depth + 1);
+    });
+  }
+  return result;
+}
+
+function buildLexiconHintText(values) {
+  return normalizeList(values, 120).join("\n");
+}
+
+function scoreLexiconRow(row, hintText) {
+  const sourceText = String(hintText || "");
+  if (!sourceText) {
+    return 0;
+  }
+  return (Array.isArray(row?.terms) ? row.terms : []).reduce(function (score, term) {
+    if (!term || sourceText.indexOf(term) < 0) {
+      return score;
+    }
+    return Math.max(score, term.length);
+  }, 0);
+}
+
+function formatLexiconContextRow(row) {
+  const tags = normalizeList(row?.tags || [], 10).join("、");
+  return [
+    "方言正字：" + normalizeText(row?.dialectWord),
+    "普通话：" + normalizeText(row?.mandarin),
+    tags ? "分类：" + tags : "",
+    normalizeText(row?.pronunciation) ? "发音：" + normalizeText(row.pronunciation) : "",
+  ]
+    .filter(Boolean)
+    .join("；");
+}
+
+function buildRelevantLexiconContext(assetsContext, hintValues) {
+  const rows = Array.isArray(assetsContext?.lexiconRows) ? assetsContext.lexiconRows : [];
+  const hintText = buildLexiconHintText(hintValues);
+  if (!rows.length || !hintText) {
+    return {
+      matchedCount: 0,
+      rows: [],
+      text: "",
+    };
+  }
+  const matchedRows = rows
+    .map(function (row) {
+      return {
+        row,
+        score: scoreLexiconRow(row, hintText),
+      };
+    })
+    .filter(function (item) {
+      return item.score > 0;
+    })
+    .sort(function (left, right) {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return left.row.sourceIndex - right.row.sourceIndex;
+    });
+  const limitedRows = matchedRows.slice(0, LEXICON_CONTEXT_LIMIT).map(function (item) {
+    return item.row;
+  });
+  return {
+    matchedCount: matchedRows.length,
+    rows: limitedRows,
+    text: limitedRows
+      .map(formatLexiconContextRow)
+      .filter(Boolean)
+      .map(function (line) {
+        return "- " + line;
+      })
+      .join("\n"),
+  };
+}
+
+function collectRequestLexiconHints(request, extraValues) {
+  const values = [];
+  const source = request && typeof request === "object" ? request : {};
+  collectTextValues(source.fieldContext, values, 0);
+  collectTextValues(source.editorContext, values, 0);
+  collectTextValues(extraValues || [], values, 0);
+  return values;
+}
+
 function normalizeModelMode(value, fallback) {
   const fallbackMode =
     SUPPORTED_MODEL_MODES.indexOf(normalizeText(fallback).toLowerCase()) >= 0
@@ -357,8 +503,23 @@ function normalizeRecommendRequest(body) {
 
 function buildAssetsContext(assets) {
   const source = assets && typeof assets === "object" ? assets : {};
+  let lexiconRows = [];
+  let lexiconStatus = "missing";
+  try {
+    if (source.lexiconJson) {
+      lexiconRows = buildLexiconRows(source.lexiconJson);
+      lexiconStatus = "ready";
+    }
+  } catch (_error) {
+    lexiconRows = [];
+    lexiconStatus = "invalid";
+  }
   return {
     rulesText: normalizeText(source.ruleText),
+    lexiconRows,
+    lexiconStatus,
+    lexiconRowCount: lexiconRows.length,
+    lexiconContextLimit: LEXICON_CONTEXT_LIMIT,
   };
 }
 
@@ -404,6 +565,10 @@ function normalizeRefineStageOutput(value) {
 }
 
 function buildListenPrompt(request, assetsContext) {
+  const lexiconContext = buildRelevantLexiconContext(
+    assetsContext,
+    collectRequestLexiconHints(request)
+  );
   return {
     systemPrompt: appendPromptRequirements(
       request.aiStages?.listen?.prompt || DEFAULT_LISTEN_PROMPT,
@@ -420,6 +585,10 @@ function buildListenPrompt(request, assetsContext) {
       LISTEN_STAGE_RULE_LINES.join("\n"),
       normalizeText(assetsContext?.rulesText)
         ? "参考资料已加载：jinhua-rules.md（本阶段只使用精简规则，不直接展开整份规则文本）。"
+        : "",
+      lexiconContext.text
+        ? "金华话差异词表上下文（仅辅助听音和词义判断，不要求输出金华话原文）：\n" +
+          lexiconContext.text
         : "",
       "当前上下文：",
       JSON.stringify(
@@ -442,6 +611,10 @@ function buildListenPrompt(request, assetsContext) {
 }
 
 function buildRefinePrompt(request, assetsContext, listenResult) {
+  const lexiconContext = buildRelevantLexiconContext(
+    assetsContext,
+    collectRequestLexiconHints(request, [listenResult?.listenText])
+  );
   return {
     systemPrompt: appendPromptRequirements(
       request.aiStages?.refine?.prompt || DEFAULT_REFINE_PROMPT,
@@ -460,6 +633,10 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
       REFINE_STAGE_RULE_LINES.join("\n"),
       normalizeText(assetsContext?.rulesText)
         ? "参考资料已加载：jinhua-rules.md（本阶段只使用精简规则，不直接展开整份规则文本）。"
+        : "",
+      lexiconContext.text
+        ? "金华话词义转普通话参考（最终仍必须输出普通话翻译，不输出金华话原文稿）：\n" +
+          lexiconContext.text
         : "",
       "当前上下文：",
       JSON.stringify(
@@ -680,6 +857,10 @@ function createHealthPayload(assetsContext) {
     reference: {
       rulesSource: "jinhua-rules.md",
       rulesLoaded: Boolean(normalizeText(assetsContext?.rulesText)),
+      lexiconSource: "jinhua-lexicon.json",
+      lexiconStatus: normalizeText(assetsContext?.lexiconStatus || "missing"),
+      lexiconRowCount: Number(assetsContext?.lexiconRowCount || 0) || 0,
+      lexiconContextLimit: LEXICON_CONTEXT_LIMIT,
     },
     pricing: Object.assign({}, PRICING_SUMMARY),
   };
