@@ -8,6 +8,7 @@ const test = require("node:test");
 const { loadProjectAssets } = require("../../../backend/ai-framework/loaders/project-assets");
 const { validateBusinessLexiconDocument } = require("../../../backend/business-lexicon");
 const adapter = require("./adapter");
+const { toJinhuaPronunciationDisplay } = require("./pronunciation-display");
 
 const ASSET_DIR = path.join(__dirname, "assets");
 const DIFFERENCE_CSV_HEADER = ["分类", "普通话", "方言正字【标注参考这列】", "发音"];
@@ -54,6 +55,11 @@ function getDialectText(entry) {
   return String(entry.display || entry.normalized || "").trim();
 }
 
+function assertDisplayPronunciation(value, message) {
+  assert.match(value, /^[A-Za-z.\-?,;:\/\s]+$/, message);
+  assert.doesNotMatch(value, /[0-9ȵɕəɛɡɤɿʑʔʦʨŋǾɑ̃̄，。？…]/, message);
+}
+
 test("ByteDance AIDP Jinhua adapter exposes difference lexicon and pronunciation assets", function () {
   assert.equal(adapter.assets.lexiconJson.jsonPath, "assets/jinhua-lexicon.json");
   assert.equal(
@@ -83,7 +89,13 @@ test("ByteDance AIDP Jinhua adapter exposes difference lexicon and pronunciation
     assert.equal(row.length, DIFFERENCE_CSV_HEADER.length);
     assert.notEqual(row[2].trim(), row[1].trim(), `${row[2]} should differ from ${row[1]}`);
     assert.ok(row[3].trim(), `${row[2]} should keep Jinhua pronunciation`);
+    assertDisplayPronunciation(row[3], `${row[2]} should expose display pronunciation`);
   }
+
+  const rowsByDialect = new Map(csvRows.slice(1).map((row) => [row[2], row]));
+  assert.equal(rowsByDialect.get("日头")?.[3], toJinhuaPronunciationDisplay("ȵiəʔ21diu14"));
+  assert.equal(rowsByDialect.get("星")?.[3], toJinhuaPronunciationDisplay("ɕiŋ334"));
+  assert.equal(rowsByDialect.get("天雷")?.[3], toJinhuaPronunciationDisplay("thia33lɛ55"));
 });
 
 test("ByteDance AIDP Jinhua exposes an xlsx difference reference table", function () {

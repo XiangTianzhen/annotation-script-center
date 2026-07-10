@@ -51,8 +51,8 @@
 | `page-structure/01-mark-v3-detail.md` | `mark-v3` 详情页语义分区、锚点和挂载边界 |
 | `backend/README.md` | 金华话脚本分段建议与 AI 推荐后端入口 |
 | `ai/assets/jinhua-lexicon.json` | 金华话差异词义转化表，仅保留方言正字与普通话不同、且带方言发音的转换参考 entry |
-| `ai/assets/jinhua-pronunciation-reference.csv` | 金华话差异发音参考 CSV，固定为 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列 |
-| `ai/assets/jinhua-pronunciation-reference.xlsx` | 金华话差异发音参考 XLSX，供人工按表格形式验收 |
+| `ai/assets/jinhua-pronunciation-reference.csv` | 金华话差异发音参考 CSV，固定为 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列，发音列使用拼音式 ASCII 展示 |
+| `ai/assets/jinhua-pronunciation-reference.xlsx` | 金华话差异发音参考 XLSX，供人工按表格形式验收，发音列使用拼音式 ASCII 展示 |
 
 运行时代码入口：
 
@@ -102,6 +102,7 @@
   - 资产已在 `ai/adapter.js` 注册；当前不把全量词表直接展开进 AI prompt。
   - 词义与读音资产已清理掉原始音频路径、视频编号、采集索引和原始资料路径，并筛除方言正字与普通话相同或缺少方言发音的记录。
   - 当前 JSON / CSV 主资产保留 `991` 条差异记录；CSV 与 XLSX 均使用 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列。
+  - JSON 继续保留原始 IPA 发音字段；CSV / XLSX 的 `发音` 列使用近似拼音式 ASCII 展示，便于人工验收。
 - 当前 AI 调用记录已纳入后台导出数据集：
   - `ByteDance AIDP 金华话脚本 AI 调用记录`
 

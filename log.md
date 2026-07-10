@@ -1,3 +1,17 @@
+## 2026-07-10（调整 ByteDance AIDP 金华话差异表发音展示）
+- 新增 `platform-resources/bytedance-aidp/jinhua-helper/ai/pronunciation-display.js`
+  - 将金华话原始 IPA 发音近似转换为拼音式 ASCII 展示
+  - 去除声调数字、入声符号和零声母标记，并按声调边界切分音节
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.csv`
+  - 保持 `991` 条差异记录和四列表头不变
+  - `发音` 列改为 `nie diu / xing / thia le` 这类人工验收更易读的拼音式展示
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.xlsx`
+  - 同步 CSV 的拼音式发音列，并保留原表格样式
+- 更新测试与文档
+  - `adapter.test.js` 覆盖 CSV 发音列 ASCII 化和抽样转换结果
+  - `pronunciation-display.test.js` 覆盖 IPA 到拼音式展示的核心转换
+  - 相关 README 明确 JSON 继续保留原始 IPA，CSV / XLSX 仅做人工可读展示
+
 ## 2026-07-10（生成 ByteDance AIDP 金华话差异词义参考表）
 - 更新 `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-lexicon.json`
   - 按“方言正字与普通话不同，且保留方言发音”规则筛选金华话词义资产
