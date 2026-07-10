@@ -84,6 +84,10 @@ test("AIDP jinhua AI recommendation forwards configured model mode", async funct
         listen: {
           model: "qwen3.5-omni-flash",
         },
+        single: {
+          model: "qwen3.5-omni-plus",
+          prompt: "single prompt",
+        },
         refine: {
           model: "qwen3.5-plus",
         },
@@ -110,6 +114,8 @@ test("AIDP jinhua AI recommendation forwards configured model mode", async funct
 
     assert.equal(body.modelMode, "expert_omni_plus");
     assert.equal(body.aiStages.listen.model, "qwen3.5-omni-flash");
+    assert.equal(body.aiStages.single.model, "qwen3.5-omni-plus");
+    assert.equal(body.aiStages.single.prompt, "single prompt");
     assert.equal(body.aiStages.refine.model, "qwen3.5-plus");
   } finally {
     restoreOfflineAudio();

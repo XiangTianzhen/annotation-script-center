@@ -801,7 +801,7 @@
       metaHead.appendChild(
         createSectionTitleRow(
           "AI信息",
-          "展示最近一次识别结果、两阶段 usage/cost 和 debug，默认折叠显示。"
+          "展示最近一次识别结果、当前模式 usage/cost 和 debug，默认折叠显示。"
         )
       );
       const metaActions = document.createElement("div");
@@ -1130,8 +1130,13 @@
       }
       const listenUsage = source.usage?.listen || {};
       const refineUsage = source.usage?.refine || {};
+      const singleUsage = source.usage?.single || {};
       const listenCost = source.cost?.listen || {};
       const refineCost = source.cost?.refine || {};
+      const singleCost = source.cost?.single || {};
+      const isSingleStage =
+        normalizeText(source.models?.modelMode).toLowerCase() === "expert_omni_plus" ||
+        Boolean(normalizeText(source.models?.singleModel));
       const reviewTags = [];
       if (source.isSinging === true) {
         reviewTags.push("唱歌");
@@ -1179,22 +1184,38 @@
       infoPane.className = "info-pane";
       const grid = document.createElement("div");
       grid.className = "info-grid";
-      [
+      const detailRows = [
         ["最终普通话翻译", normalizeText(source.finalMandarinText)],
         ["听音阶段结果", normalizeText(source.listenText)],
         ["当前段", Number(source.segmentNumber) > 0 ? "第 " + String(source.segmentNumber) + " 段" : ""],
-        ["听音模型", source.models?.listenModel || ""],
-        ["收口模型", source.models?.refineModel || ""],
-        ["听音输入Token", pickUsageValue(listenUsage, ["input_tokens", "prompt_tokens"])],
-        ["听音输出Token", pickUsageValue(listenUsage, ["output_tokens", "completion_tokens"])],
-        ["听音总Token", pickUsageValue(listenUsage, ["total_tokens", "totalTokens"])],
-        ["听音预估人民币", pickCostValue(listenCost, ["estimatedCostCny", "totalCny", "total_cost_cny"])],
-        ["收口输入Token", pickUsageValue(refineUsage, ["input_tokens", "prompt_tokens"])],
-        ["收口输出Token", pickUsageValue(refineUsage, ["output_tokens", "completion_tokens"])],
-        ["收口总Token", pickUsageValue(refineUsage, ["total_tokens", "totalTokens"])],
-        ["收口预估人民币", pickCostValue(refineCost, ["estimatedCostCny", "totalCny", "total_cost_cny"])],
-        ["总预估人民币", pickCostValue(source.cost, ["totalEstimatedCostCny", "totalCny", "total_cost_cny"])],
-      ]
+      ];
+      if (isSingleStage) {
+        detailRows.push(
+          ["听音和收口模型", source.models?.singleModel || ""],
+          ["听音和收口输入Token", pickUsageValue(singleUsage, ["input_tokens", "prompt_tokens"])],
+          ["听音和收口输出Token", pickUsageValue(singleUsage, ["output_tokens", "completion_tokens"])],
+          ["听音和收口总Token", pickUsageValue(singleUsage, ["total_tokens", "totalTokens"])],
+          ["听音和收口预估人民币", pickCostValue(singleCost, ["estimatedCostCny", "totalCny", "total_cost_cny"])]
+        );
+      } else {
+        detailRows.push(
+          ["听音模型", source.models?.listenModel || ""],
+          ["收口模型", source.models?.refineModel || ""],
+          ["听音输入Token", pickUsageValue(listenUsage, ["input_tokens", "prompt_tokens"])],
+          ["听音输出Token", pickUsageValue(listenUsage, ["output_tokens", "completion_tokens"])],
+          ["听音总Token", pickUsageValue(listenUsage, ["total_tokens", "totalTokens"])],
+          ["听音预估人民币", pickCostValue(listenCost, ["estimatedCostCny", "totalCny", "total_cost_cny"])],
+          ["收口输入Token", pickUsageValue(refineUsage, ["input_tokens", "prompt_tokens"])],
+          ["收口输出Token", pickUsageValue(refineUsage, ["output_tokens", "completion_tokens"])],
+          ["收口总Token", pickUsageValue(refineUsage, ["total_tokens", "totalTokens"])],
+          ["收口预估人民币", pickCostValue(refineCost, ["estimatedCostCny", "totalCny", "total_cost_cny"])]
+        );
+      }
+      detailRows.push([
+        "总预估人民币",
+        pickCostValue(source.cost, ["totalEstimatedCostCny", "totalCny", "total_cost_cny"]),
+      ]);
+      detailRows
         .filter(function (item) {
           return normalizeText(item[0]) && normalizeText(item[1]);
         })

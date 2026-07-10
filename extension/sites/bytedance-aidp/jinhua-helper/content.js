@@ -453,6 +453,11 @@
           prompt: normalizeStagePrompt(current.aiRecommendListenPrompt || defaults.aiRecommendListenPrompt),
           params: buildAiStageParams(current, "aiRecommendListen"),
         },
+        single: {
+          model: "qwen3.5-omni-plus",
+          prompt: normalizeStagePrompt(current.aiRecommendListenPrompt || defaults.aiRecommendListenPrompt),
+          params: buildAiStageParams(current, "aiRecommendListen"),
+        },
         refine: {
           model: normalizeStageModel(
             current.aiRecommendRefineModel,

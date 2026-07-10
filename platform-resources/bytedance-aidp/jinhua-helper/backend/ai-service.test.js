@@ -129,6 +129,7 @@ test("Jinhua ai service defaults split listen-stage judgement fields from refine
   const payload = aiService.createDefaultsPayload();
   const listenPrompt = String(payload.defaults?.stages?.listen?.prompt || "");
   const refinePrompt = String(payload.defaults?.stages?.refine?.prompt || "");
+  const singlePrompt = String(payload.defaults?.stages?.single?.prompt || "");
 
   assert.match(
     listenPrompt,
@@ -142,6 +143,12 @@ test("Jinhua ai service defaults split listen-stage judgement fields from refine
   );
   assert.match(refinePrompt, /不要使用阿拉伯数字/);
   assert.match(refinePrompt, /前日/);
+  assert.match(
+    singlePrompt,
+    /listenText, finalMandarinText, isSinging, isNonJinhuaDialect, blockAutoFill, needHumanReview, notes/
+  );
+  assert.match(singlePrompt, /不要使用阿拉伯数字/);
+  assert.match(singlePrompt, /一次完成听音和普通话翻译收口/);
 });
 
 test("Jinhua ai service keeps two-stage models as the default mode", function () {
@@ -156,13 +163,17 @@ test("Jinhua ai service keeps two-stage models as the default mode", function ()
   assert.equal(request.refineModel, "qwen3.5-plus");
 });
 
-test("Jinhua ai service expert mode forces both stages to qwen3.5-omni-plus", function () {
+test("Jinhua ai service expert mode adds a single stage without overwriting two-stage models", function () {
   const request = aiService.normalizeRecommendRequest({
     modelMode: "expert_omni_plus",
     audioDataUrl: "data:audio/wav;base64,ZmFrZQ==",
     aiStages: {
       listen: {
         model: "qwen3.5-omni-flash",
+        prompt: "复用听音配置",
+        params: {
+          temperature: 0.2,
+        },
       },
       refine: {
         model: "qwen3.5-plus",
@@ -173,10 +184,12 @@ test("Jinhua ai service expert mode forces both stages to qwen3.5-omni-plus", fu
   });
 
   assert.equal(request.modelMode, "expert_omni_plus");
-  assert.equal(request.listenModel, "qwen3.5-omni-plus");
-  assert.equal(request.refineModel, "qwen3.5-omni-plus");
-  assert.equal(request.aiStages.listen.model, "qwen3.5-omni-plus");
-  assert.equal(request.aiStages.refine.model, "qwen3.5-omni-plus");
+  assert.equal(request.listenModel, "qwen3.5-omni-flash");
+  assert.equal(request.refineModel, "qwen3.5-plus");
+  assert.equal(request.singleModel, "qwen3.5-omni-plus");
+  assert.equal(request.aiStages.single.model, "qwen3.5-omni-plus");
+  assert.equal(request.aiStages.single.prompt, "复用听音配置");
+  assert.equal(request.aiStages.single.params.temperature, 0.2);
 });
 
 test("Jinhua ai service defaults expose supported model modes", function () {
@@ -185,6 +198,7 @@ test("Jinhua ai service defaults expose supported model modes", function () {
   assert.equal(payload.defaults.modelMode, "two_stage");
   assert.deepEqual(payload.supportedModelModes, ["two_stage", "expert_omni_plus"]);
   assert.ok(payload.supportedModels.refine.includes("qwen3.5-omni-plus"));
+  assert.deepEqual(payload.supportedModels.single, ["qwen3.5-omni-plus"]);
 });
 
 test("Jinhua ai service builds runtime lexicon rows from JSON as the primary source", function () {
@@ -283,7 +297,7 @@ test("Jinhua CSV reference is not used as a runtime lexicon fallback", function 
   assert.equal(assetsContext.lexiconRows.length, 0);
 });
 
-test("Jinhua ai service keeps transcript text while blocking auto-fill for singing results", async function () {
+test("Jinhua ai service expert mode calls Omni once and records single-stage usage", async function () {
   const request = aiService.normalizeRecommendRequest({
     modelMode: "expert_omni_plus",
     requestId: "req-jinhua-singing",
@@ -301,6 +315,8 @@ test("Jinhua ai service keeps transcript text while blocking auto-fill for singi
     },
   });
   let nowValue = 0;
+  let omniCallCount = 0;
+  let refineCallCount = 0;
   const result = await aiService.recommend(
     request,
     {
@@ -315,35 +331,26 @@ test("Jinhua ai service keeps transcript text while blocking auto-fill for singi
         return usage || {};
       },
       requestOmniInputAudio: async function (_payload, _prompt, options) {
+        omniCallCount += 1;
         return {
           model: options.model,
           rawText: JSON.stringify({
             listenText: "这一段像在唱歌。",
+            finalMandarinText: "这一段像在唱歌，但是还是能听出歌词。",
             isSinging: true,
             isNonJinhuaDialect: false,
-            needHumanReview: false,
-            notes: ["听音阶段识别为唱歌"],
+            blockAutoFill: true,
+            needHumanReview: true,
+            notes: ["合并阶段要求人工复核"],
           }),
           usage: {
             total_tokens: 10,
           },
         };
       },
-      requestTextCompareJson: async function (_payload, _prompt, options) {
-        return {
-          model: options.model,
-          rawText: JSON.stringify({
-            finalMandarinText: "这一段像在唱歌，但是还是能听出歌词。",
-            isSinging: true,
-            isNonJinhuaDialect: false,
-            blockAutoFill: true,
-            needHumanReview: true,
-            notes: ["收口阶段要求人工复核"],
-          }),
-          usage: {
-            total_tokens: 20,
-          },
-        };
+      requestTextCompareJson: async function () {
+        refineCallCount += 1;
+        throw new Error("expert mode must not call refine provider");
       },
     }
   );
@@ -354,8 +361,69 @@ test("Jinhua ai service keeps transcript text while blocking auto-fill for singi
   assert.equal(result.isNonJinhuaDialect, false);
   assert.equal(result.blockAutoFill, true);
   assert.equal(result.needHumanReview, true);
+  assert.equal(omniCallCount, 1);
+  assert.equal(refineCallCount, 0);
   assert.equal(result.models.modelMode, "expert_omni_plus");
-  assert.equal(result.models.listenModel, "qwen3.5-omni-plus");
-  assert.equal(result.models.refineModel, "qwen3.5-omni-plus");
-  assert.deepEqual(result.notes, ["听音阶段识别为唱歌", "收口阶段要求人工复核"]);
+  assert.equal(result.models.singleModel, "qwen3.5-omni-plus");
+  assert.equal(result.models.listenModel, undefined);
+  assert.equal(result.models.refineModel, undefined);
+  assert.equal(result.usage.single.total_tokens, 10);
+  assert.equal(result.usage.listen, undefined);
+  assert.equal(result.usage.refine, undefined);
+  assert.ok(result.cost.single);
+  assert.equal(typeof result.timing.singleMs, "number");
+  assert.equal(result.raw.single.length > 0, true);
+  assert.equal(result.debug.single.finalMandarinText, "这一段像在唱歌，但是还是能听出歌词。");
+  assert.deepEqual(result.notes, ["合并阶段要求人工复核"]);
+});
+
+test("Jinhua ai service expert mode blocks auto-fill when the single result misses final Mandarin text", async function () {
+  const request = createAudioRequest({ modelMode: "expert_omni_plus" });
+  const result = await aiService.recommend(request, {}, {
+    normalizeUsage: function (usage) {
+      return usage || {};
+    },
+    requestOmniInputAudio: async function (_payload, _prompt, options) {
+      return {
+        model: options.model,
+        rawText: JSON.stringify({
+          listenText: "只返回了听音文本。",
+          isSinging: false,
+          isNonJinhuaDialect: false,
+          blockAutoFill: false,
+          needHumanReview: false,
+          notes: [],
+        }),
+        usage: {},
+      };
+    },
+  });
+
+  assert.equal(result.listenText, "只返回了听音文本。");
+  assert.equal(result.finalMandarinText, "");
+  assert.equal(result.blockAutoFill, true);
+  assert.equal(result.needHumanReview, true);
+  assert.match(result.notes.join("\n"), /缺少 finalMandarinText/);
+});
+
+test("Jinhua ai service expert mode safely preserves malformed model text without duplicate warnings", async function () {
+  const request = createAudioRequest({ modelMode: "expert_omni_plus" });
+  const result = await aiService.recommend(request, {}, {
+    normalizeUsage: function (usage) {
+      return usage || {};
+    },
+    requestOmniInputAudio: async function (_payload, _prompt, options) {
+      return {
+        model: options.model,
+        rawText: "未返回 JSON 的听音结果",
+        usage: {},
+      };
+    },
+  });
+
+  assert.equal(result.listenText, "未返回 JSON 的听音结果。");
+  assert.equal(result.finalMandarinText, "");
+  assert.equal(result.blockAutoFill, true);
+  assert.equal(result.needHumanReview, true);
+  assert.deepEqual(result.notes, ["模型未返回标准 JSON，已保留原始听音文本并禁止自动填入。"]);
 });

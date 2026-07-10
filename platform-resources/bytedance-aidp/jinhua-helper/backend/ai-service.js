@@ -25,6 +25,7 @@ const DEFAULT_REFINE_MODEL = "qwen3.5-plus";
 const SUPPORTED_MODEL_MODES = [DEFAULT_MODEL_MODE, EXPERT_MODEL_MODE];
 const SUPPORTED_LISTEN_MODELS = ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
 const SUPPORTED_REFINE_MODELS = ["qwen3.5-plus", "qwen3.5-flash", EXPERT_OMNI_PLUS_MODEL];
+const SUPPORTED_SINGLE_MODELS = [EXPERT_OMNI_PLUS_MODEL];
 const DEFAULT_STAGE_PARAMS = {
   temperature: 0.1,
   top_p: 0.8,
@@ -95,10 +96,24 @@ const DEFAULT_REFINE_PROMPT = [
   "明显的口吃式同字或同音节连续重复，最多保留 3 次；有语义的正常重复不要误删。",
   "纯静音或完全听不清时，finalMandarinText 返回空字符串。",
 ].join("\n");
+const DEFAULT_SINGLE_PROMPT = [
+  "请严格只根据当前音频片段，一次完成听音和普通话翻译收口。",
+  "只输出 JSON，不要输出 Markdown、解释或多余文字。",
+  "JSON 字段固定为：listenText, finalMandarinText, isSinging, isNonJinhuaDialect, blockAutoFill, needHumanReview, notes。",
+  "listenText 保留你听到的保守草稿，不做语义扩写；finalMandarinText 必须翻译成普通话写法。",
+  "普通话不要截取，听到多少写多少；不知名人名、地名、公司名或其他无法精准锁定的事物，用 ##名称## 包起来。",
+  "请显式判断 isSinging 和 isNonJinhuaDialect，布尔值只能写 true 或 false。",
+  "如果主说话人在唱歌或主要内容不是金华话，也仍然保留可识别文本，但 blockAutoFill 必须设为 true。",
+  "标点只允许使用 ，。？！；句末只允许使用 。？！；不要使用阿拉伯数字，统一改写为汉字数字。",
+  "时间词和金华话常见词优先按下列映射收口：前日->前天，后日->后天，今朝->今天，昨日->昨天，明朝->明天，面腔->脸庞，毛脚->未婚夫，火哇->火了，灵光->厉害。",
+  "语气词保留；明显的口吃式同字或同音节连续重复最多保留 3 次，有语义的正常重复不要误删。",
+  "纯静音或完全听不清时，listenText 和 finalMandarinText 都返回空字符串。",
+].join("\n");
 const PRICING_SUMMARY = Object.freeze(
   buildPricingAvailabilitySummary({
     listen: SUPPORTED_LISTEN_MODELS,
     refine: SUPPORTED_REFINE_MODELS,
+    single: SUPPORTED_SINGLE_MODELS,
   })
 );
 
@@ -238,6 +253,11 @@ function buildStageDefaults() {
     refine: {
       model: DEFAULT_REFINE_MODEL,
       prompt: DEFAULT_REFINE_PROMPT,
+      params: Object.assign({}, DEFAULT_STAGE_PARAMS),
+    },
+    single: {
+      model: EXPERT_OMNI_PLUS_MODEL,
+      prompt: DEFAULT_SINGLE_PROMPT,
       params: Object.assign({}, DEFAULT_STAGE_PARAMS),
     },
   };
@@ -467,10 +487,12 @@ function normalizeRecommendRequest(body) {
     stageDefaults.refine.prompt,
     SUPPORTED_REFINE_MODELS
   );
-  if (modelMode === EXPERT_MODEL_MODE) {
-    listenStage.model = EXPERT_OMNI_PLUS_MODEL;
-    refineStage.model = EXPERT_OMNI_PLUS_MODEL;
-  }
+  const singleStage = normalizeStageConfig(
+    isPlainObject(aiStages.single) ? aiStages.single : aiStages.listen,
+    stageDefaults.single.model,
+    stageDefaults.single.prompt,
+    SUPPORTED_SINGLE_MODELS
+  );
   return {
     audioUrl,
     audioDataUrl,
@@ -494,9 +516,11 @@ function normalizeRecommendRequest(body) {
     modelMode,
     listenModel: listenStage.model,
     refineModel: refineStage.model,
+    singleModel: singleStage.model,
     aiStages: {
       listen: listenStage,
       refine: refineStage,
+      single: singleStage,
     },
   };
 }
@@ -561,6 +585,42 @@ function normalizeRefineStageOutput(value) {
     blockAutoFill: normalizeBooleanFlag(source.blockAutoFill),
     needHumanReview: source.needHumanReview === true,
     notes: normalizeNotes(source.notes),
+  };
+}
+
+function normalizeSingleStageOutput(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const listenText = normalizeMandarinResultText(
+    source.listenText || source.heardText || source.audioText || ""
+  );
+  const finalMandarinText = normalizeMandarinResultText(
+    source.finalMandarinText || source.refinedMandarinText || source.mandarinText || ""
+  );
+  const isSinging = normalizeBooleanFlag(source.isSinging);
+  const isNonJinhuaDialect = normalizeBooleanFlag(source.isNonJinhuaDialect);
+  const missingFinalText = Boolean(listenText) && !finalMandarinText;
+  const notes = normalizeNotes(source.notes);
+  const alreadyBlockedForInvalidJson =
+    source.blockAutoFill === true &&
+    source.needHumanReview === true &&
+    notes.some(function (note) {
+      return note.indexOf("未返回标准 JSON") >= 0;
+    });
+  if (missingFinalText && !alreadyBlockedForInvalidJson) {
+    notes.push("合并阶段缺少 finalMandarinText，已禁止自动填入。");
+  }
+  return {
+    listenText,
+    finalMandarinText,
+    isSinging,
+    isNonJinhuaDialect,
+    blockAutoFill:
+      normalizeBooleanFlag(source.blockAutoFill) ||
+      isSinging ||
+      isNonJinhuaDialect ||
+      missingFinalText,
+    needHumanReview: source.needHumanReview === true || missingFinalText,
+    notes,
   };
 }
 
@@ -663,6 +723,53 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
   };
 }
 
+function buildSinglePrompt(request, assetsContext) {
+  const lexiconContext = buildRelevantLexiconContext(
+    assetsContext,
+    collectRequestLexiconHints(request)
+  );
+  return {
+    systemPrompt: appendPromptRequirements(
+      request.aiStages?.single?.prompt || DEFAULT_SINGLE_PROMPT,
+      [
+        "listenText 只保留听到的文本；finalMandarinText 必须是普通话翻译。",
+        "普通话不要截取，听到多少写多少；不知名实体用 ##名称## 包起来。",
+        "isSinging、isNonJinhuaDialect 和 blockAutoFill 只能输出 true 或 false。",
+        "唱歌或非金华话也不要直接放弃文本，但 blockAutoFill 必须为 true。",
+        "finalMandarinText 的标点只允许使用 ，。？！；不要使用阿拉伯数字。",
+        "纯静音或完全听不清时，listenText 和 finalMandarinText 都返回空字符串。",
+      ]
+    ),
+    userPrompt: [
+      "听音和普通话翻译收口规则：",
+      LISTEN_STAGE_RULE_LINES.concat(REFINE_STAGE_RULE_LINES).join("\n"),
+      normalizeText(assetsContext?.rulesText)
+        ? "参考资料已加载：jinhua-rules.md（本阶段只使用精简规则，不直接展开整份规则文本）。"
+        : "",
+      lexiconContext.text
+        ? "金华话差异词表上下文（用于辅助听音和普通话翻译收口）：\n" +
+          lexiconContext.text
+        : "",
+      "当前上下文：",
+      JSON.stringify(
+        {
+          segment: {
+            startMs: request.startMs,
+            endMs: request.endMs,
+            durationMs: request.durationMs,
+            segmentNumber: request.segmentNumber,
+          },
+          fieldContext: request.fieldContext,
+          editorContext: request.editorContext,
+        },
+        null,
+        2
+      ),
+      "请仅根据当前音频片段一次输出听音草稿和最终普通话翻译 JSON。",
+    ].join("\n"),
+  };
+}
+
 function createRuntimeDeps(overrides) {
   const source = overrides && typeof overrides === "object" ? overrides : {};
   return {
@@ -690,6 +797,15 @@ function parseStageJsonWithFallback(rawText, requestId, stage) {
         listenText: rawText || "",
         needHumanReview: true,
         notes: ["模型未返回标准 JSON，已按原始文本兜底。"],
+      };
+    }
+    if (stage === "single") {
+      return {
+        listenText: rawText || "",
+        finalMandarinText: "",
+        blockAutoFill: true,
+        needHumanReview: true,
+        notes: ["模型未返回标准 JSON，已保留原始听音文本并禁止自动填入。"],
       };
     }
     return {
@@ -774,6 +890,45 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
   };
 }
 
+async function runSingleStage(request, assetsContext, deps) {
+  const stageStartedAt = deps.now();
+  const result = await deps.requestOmniInputAudio(
+    {
+      audioUrl: request.audioUrl,
+      audioDataUrl: request.audioDataUrl,
+      aiOptions: request.aiStages.single.params,
+    },
+    buildSinglePrompt(request, assetsContext),
+    {
+      model: request.singleModel,
+      timeoutMs: request.timeoutMs,
+      stage: "single",
+    }
+  );
+  const parsed = parseStageJsonWithFallback(result.rawText || "", request.requestId, "single");
+  const normalized = normalizeSingleStageOutput(parsed);
+  return {
+    listenText: normalized.listenText,
+    finalMandarinText: normalized.finalMandarinText,
+    isSinging: normalized.isSinging,
+    isNonJinhuaDialect: normalized.isNonJinhuaDialect,
+    blockAutoFill: normalized.blockAutoFill,
+    needHumanReview: normalized.needHumanReview,
+    notes: normalized.notes,
+    rawText: String(result.rawText || ""),
+    debugRawJson: parsed && typeof parsed === "object" ? parsed : null,
+    timing: {
+      singleMs: Math.max(0, deps.now() - stageStartedAt),
+    },
+    models: {
+      singleModel: normalizeText(result.model) || request.singleModel,
+    },
+    usage: {
+      single: deps.normalizeUsage(result.usage),
+    },
+  };
+}
+
 function buildRecommendCost(models, usage) {
   return estimateProjectCost({
     listen: {
@@ -788,6 +943,16 @@ function buildRecommendCost(models, usage) {
   });
 }
 
+function buildSingleRecommendCost(models, usage) {
+  return estimateProjectCost({
+    single: {
+      modelId: models?.singleModel,
+      usage: usage?.single,
+      outputMode: "text",
+    },
+  });
+}
+
 function mergeNotes() {
   return normalizeNotes(Array.from(arguments).flat());
 }
@@ -796,6 +961,36 @@ async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
   const normalizedAssetsContext = assetsContext || {};
+  if (request.modelMode === EXPERT_MODEL_MODE) {
+    const singleResult = await runSingleStage(request, normalizedAssetsContext, deps);
+    const models = Object.assign({}, singleResult.models || {}, {
+      modelMode: request.modelMode,
+    });
+    const usage = Object.assign({}, singleResult.usage || {});
+    return {
+      listenText: normalizeText(singleResult.listenText),
+      finalMandarinText: normalizeText(singleResult.finalMandarinText),
+      isSinging: singleResult.isSinging === true,
+      isNonJinhuaDialect: singleResult.isNonJinhuaDialect === true,
+      blockAutoFill: singleResult.blockAutoFill === true,
+      needHumanReview: singleResult.needHumanReview === true,
+      notes: normalizeNotes(singleResult.notes),
+      timing: {
+        singleMs: Number(singleResult.timing?.singleMs || 0) || 0,
+        totalMs: Math.max(0, deps.now() - startedAt),
+      },
+      models,
+      usage,
+      cost: buildSingleRecommendCost(models, usage),
+      raw: {
+        single: singleResult.rawText,
+      },
+      debug: {
+        single: normalizeErrorDebugObject(singleResult.debugRawJson),
+        rulesSource: "jinhua-rules.md",
+      },
+    };
+  }
   const listenResult = await runListenStage(request, normalizedAssetsContext, deps);
   const refineResult = await runRefineStage(request, normalizedAssetsContext, listenResult, deps);
   const models = Object.assign({}, listenResult.models || {}, refineResult.models || {});
@@ -848,10 +1043,11 @@ function createHealthPayload(assetsContext) {
     supportedModels: {
       listen: SUPPORTED_LISTEN_MODELS.slice(),
       refine: SUPPORTED_REFINE_MODELS.slice(),
+      single: SUPPORTED_SINGLE_MODELS.slice(),
     },
     contract: {
       writeField: "TempAnswer.Content.data.regions[*].txt",
-      stages: ["listen", "refine"],
+      stages: ["listen", "refine", "single"],
       writeMode: "manual-or-autofill",
     },
     reference: {
@@ -879,6 +1075,7 @@ function createDefaultsPayload() {
     supportedModels: {
       listen: SUPPORTED_LISTEN_MODELS.slice(),
       refine: SUPPORTED_REFINE_MODELS.slice(),
+      single: SUPPORTED_SINGLE_MODELS.slice(),
     },
     supportedParams: {
       temperature: true,
@@ -976,11 +1173,13 @@ module.exports = {
   SUPPORTED_MODEL_MODES,
   SUPPORTED_LISTEN_MODELS,
   SUPPORTED_REFINE_MODELS,
+  SUPPORTED_SINGLE_MODELS,
   __testOnly: {
     compressObviousStutters,
     normalizeListenStageOutput,
     normalizeMandarinResultText,
     normalizeRefineStageOutput,
+    normalizeSingleStageOutput,
   },
   buildAssetsContext,
   buildRecommendErrorBody,

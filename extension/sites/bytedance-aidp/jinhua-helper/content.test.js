@@ -1198,6 +1198,10 @@ test("ByteDance AIDP content resolves Jinhua AI config with normalized stage par
   assert.equal(config.aiStages.listen.prompt, "listen prompt");
   assert.equal(config.aiStages.listen.params.top_p, 0.6);
   assert.equal(config.aiStages.listen.params.max_tokens, 888);
+  assert.equal(config.aiStages.single.model, "qwen3.5-omni-plus");
+  assert.equal(config.aiStages.single.prompt, "listen prompt");
+  assert.equal(config.aiStages.single.params.top_p, 0.6);
+  assert.equal(config.aiStages.single.params.max_tokens, 888);
   assert.equal(config.aiStages.refine.model, "qwen3.5-plus");
   assert.equal(config.aiStages.refine.prompt, "refine prompt");
   assert.equal(config.aiStages.refine.params.temperature, 0.2);

@@ -120,9 +120,10 @@
 
 - 当前金华话助手支持两种 AI 模型模式：
   - `two_stage`：默认普通模式，沿用原听音模型 `qwen3.5-omni-flash` 与收口模型 `qwen3.5-plus` 的双模型流程。
-  - `expert_omni_plus`：专家模式，仍保留听音和收口两阶段，但两阶段实际都强制使用 `qwen3.5-omni-plus`。
-- `expert_omni_plus` 只改变 AI 调用模型选择，不改变写回字段、自动填入拦截规则、批量范围或平台暂存契约。
-- 设置页会保存 `aiRecommendModelMode`，并保留原有双模型配置，便于切回普通模式。
+  - `expert_omni_plus`：专家模式，固定使用 `qwen3.5-omni-plus`，单次完成听音、普通话翻译收口和安全判断。
+- `expert_omni_plus` 使用 `aiStages.single`，成功响应按 `models.singleModel / usage.single / cost.single` 返回，不重复计算两阶段消耗。
+- 设置页只显示一块 `听音和收口`；Prompt 与参数复用听音配置，普通模式的收口配置继续保留。
+- 模式切换不改变写回字段、自动填入拦截规则、批量范围或平台暂存契约。
 
 ## 安全边界
 

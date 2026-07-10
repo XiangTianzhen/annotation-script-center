@@ -19,6 +19,11 @@ const stageLogSupport = createStageLogSupport({
       label: "普通话翻译收口",
       modelKeys: ["refineModel"],
     },
+    {
+      key: "single",
+      label: "听音和收口",
+      modelKeys: ["singleModel"],
+    },
   ],
 });
 
@@ -60,6 +65,7 @@ const aiCallLogger = createAiCallLogger({
     { key: "segmentEndMs", header: "片段结束毫秒" },
     { key: "listenModel", header: "听音模型" },
     { key: "refineModel", header: "普通话翻译收口模型" },
+    { key: "singleModel", header: "听音和收口模型" },
     ...stageLogSupport.extraColumns,
   ],
   buildExtendedRow(context) {
@@ -78,6 +84,7 @@ const aiCallLogger = createAiCallLogger({
       segmentEndMs: normalizeNumber(input.endMs),
       listenModel: normalizeText(models.listenModel || input.listenModel),
       refineModel: normalizeText(models.refineModel || input.refineModel),
+      singleModel: normalizeText(models.singleModel || input.singleModel),
       ...stageLogSupport.buildRow(context),
     };
   },

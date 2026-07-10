@@ -15,7 +15,7 @@
 | `index.js` | 注册金华话脚本后端路由 |
 | `segment-routes.js` | 暴露分段建议健康检查与预览接口 |
 | `ai-routes.js` | 暴露金华话 AI 推荐 `health / defaults / recommend` 接口 |
-| `ai-service.js` | 两阶段听音与普通话翻译收口、usage/cost 汇总、响应结构收口 |
+| `ai-service.js` | 普通双阶段与专家单阶段听音/普通话翻译收口、usage/cost 汇总、响应结构收口 |
 | `ai-call-log.js` | 金华话脚本 AI 调用日志写入器 |
 
 ## 当前接口
@@ -54,12 +54,13 @@
 
 ## AI 规则
 
-- 两阶段固定为：
+- 普通模式两阶段固定为：
   - `listen`：原始听音草稿、`唱歌` 判断、`非金华话` 判断
   - `refine`：普通话翻译收口、格式约束、`blockAutoFill` 决策
 - 两阶段 JSON 契约固定为：
   - `listen`：`listenText, isSinging, isNonJinhuaDialect, needHumanReview, notes`
   - `refine`：`finalMandarinText, isSinging, isNonJinhuaDialect, blockAutoFill, needHumanReview, notes`
+- 专家模式 `single` 一次调用固定返回：`listenText, finalMandarinText, isSinging, isNonJinhuaDialect, blockAutoFill, needHumanReview, notes`。
 - 最终输出规则固定为：
   - 最终输出是“普通话翻译”，不是金华话原文稿
   - 普通话不要截取，听到多少写多少
@@ -80,9 +81,11 @@
 - `normalizeRecommendRequest` 接收 `modelMode`：
   - 缺省或非法值按 `two_stage` 处理。
   - `two_stage` 保持原双模型行为，听音默认 `qwen3.5-omni-flash`，收口默认 `qwen3.5-plus`。
-  - `expert_omni_plus` 仍执行 `listen -> refine` 两次调用，但归一化后两阶段模型都强制为 `qwen3.5-omni-plus`。
-- `health / defaults` 返回 `supportedModelModes`，成功响应的 `models` 返回 `modelMode / listenModel / refineModel`，便于前端和 AI 调用日志确认实际生效模式。
-- 专家模式不改变 prompt、参数白名单、usage/cost 聚合或 `blockAutoFill` 判定口径。
+  - `expert_omni_plus` 只执行一次 `single` Omni 调用，模型固定为 `qwen3.5-omni-plus`。
+- `aiStages.single` 保存专家模式配置；旧客户端未发送时兼容读取 `aiStages.listen` 的 Prompt 与参数。
+- `health / defaults` 返回 `defaults.stages.single` 和 `supportedModels.single`。
+- 普通成功响应继续返回 `listen/refine` 元数据；专家成功响应返回 `models.singleModel / usage.single / cost.single / timing.singleMs / raw.single / debug.single`。
+- 专家结果缺少 `finalMandarinText` 或模型未返回标准 JSON 时，固定 `blockAutoFill=true / needHumanReview=true`。
 
 ## AI 资产
 
@@ -96,12 +99,12 @@
   - 金华话差异发音参考 XLSX，供人工按表格形式验收，发音列使用拼音式 ASCII 展示
 - JSON 与 CSV 已在 `../ai/adapter.js` 注册；运行时只把 `jinhua-lexicon.json` 作为主词表读取，CSV / XLSX 仅供人工验收或生成来源，不作为 fallback 主词表。
 - JSON 继续保留原始 IPA 发音，CSV / XLSX 只做人工可读展示转换。
-- 每次 AI 请求会按当前段文本、页面字段和听音结果筛选少量 JSON 词条追加进听音 / 收口 prompt；无命中时不展开全量词表。
+- 每次 AI 请求会按当前段文本、页面字段和听音结果筛选少量 JSON 词条追加进普通模式听音 / 收口 Prompt 或专家模式单阶段 Prompt；无命中时不展开全量词表。
 
 ## 日志与导出
 
 - 金华话脚本独立 AI 调用日志当前已接入后台 `AI 调用记录` 数据集选项
-- 导出 CSV 时保留阶段级 token 与人民币列
+- 导出 CSV 时保留普通模式听音 / 收口列，并追加专家模式 `听音和收口模型 / Token / 预估人民币` 列；单次调用不重复计费
 
 ## 当前边界
 

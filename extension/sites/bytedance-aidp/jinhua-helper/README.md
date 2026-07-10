@@ -21,7 +21,7 @@
   - 当该开关关闭时，右侧不再保留空白 `AI 设置`；会直接用 `快捷键` 面板替换当前 AI 区，同时继续保留已保存的 AI 参数
   - 该开关与脚本 `启用 / 关闭` 状态完全独立；关闭脚本不会把已保存的 `启用 AI 功能` 自动改回关闭
   - `请求超时时间（秒）`
-  - `听音 / 普通话翻译收口` 两阶段模型、Prompt 与生成参数
+  - 普通模式提供 `听音 / 普通话翻译收口` 两阶段模型、Prompt 与生成参数；专家模式只提供一组 `听音和收口` 配置
   - `快捷键`
   - 当前运行时只读取和写回 `platforms.bytedanceAidp.scripts.jinhuaHelper`，不再复用苏州话配置键
 - 设置页基础设置、`AI 设置`、`快捷键` 标题都已统一使用可点击 `?` 说明入口；帮助浮层改为页面顶层单例，不再被卡片或右栏遮挡。
@@ -78,7 +78,7 @@
     - 批量状态区会把 `待复核` 单独计数，不再混进 `跳过`
   - 第二排整宽：`当前音频信息`
   - 第三排整宽：`AI信息`
-    - 展示行内识别或批量识别最近一次结果的两阶段模型、usage、cost 和 debug
+    - 展示行内识别或批量识别最近一次结果的当前模式模型、usage、cost 和 debug；专家模式只显示一组 `听音和收口` 消耗
     - 若最近一次结果来自批量识别，顶部会按段号顺序显示切换按钮，点击后切换到对应段的 AI 信息
 - 当前会在题目头部信息条右侧的 `.operation-group-btn-GcvnvK` 挂三个辅助按钮：
   - `清空画段`
@@ -138,9 +138,10 @@
   - `/api/bytedance-aidp/jinhua-helper/ai/recommend/health`
   - `/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults`
   - `/api/bytedance-aidp/jinhua-helper/ai/recommend`
-- 当前 AI 两阶段分工固定为：
+- 普通模式 AI 两阶段分工固定为：
   - `listen` 只负责粗听文本、`唱歌` 判断和 `非金华话` 判断
   - `refine` 负责普通话收口、标点/数字/重复约束与 `blockAutoFill` 决策
+- 专家模式使用 `single` 单阶段，一次输出听音草稿、最终普通话翻译和安全判断。
 - 当前批量识别只处理当前题当前页，不跨页、不自动切题
 - 当前批量识别与分段建议写回只作用于 `SubmitTempItemAnswer` 暂存答案
 - 当前不会直接点击平台 `提交 / 下一题 / 重置`
@@ -213,7 +214,8 @@
 
 - 设置页 `AI 设置` 支持 `模型模式`：
   - `普通模式`：沿用原有两阶段配置，听音模型与普通话翻译收口模型分别选择和保存。
-  - `专家模式`：请求后端时仍走 `listen -> refine` 两阶段，但两阶段实际都使用 `qwen3.5-omni-plus`。
-- 专家模式不会清空或覆盖已保存的普通双模型配置；切回普通模式后继续使用原来的听音 / 收口模型值。
-- 运行时调用 `/api/bytedance-aidp/jinhua-helper/ai/recommend` 时会额外发送 `modelMode`，后端返回的 `models.modelMode` 用于确认实际模式。
+  - `专家模式`：只显示一块 `听音和收口` 配置，固定使用 `qwen3.5-omni-plus` 并只发起一次 Omni 请求。
+- 专家模式复用听音 Prompt 与生成参数；在专家模式修改后，切回普通模式会继续作为听音阶段配置使用。
+- 专家模式不会清空或覆盖已保存的普通模式收口模型、Prompt 与参数；切回普通模式后原样恢复。
+- 运行时调用 `/api/bytedance-aidp/jinhua-helper/ai/recommend` 时发送 `modelMode` 和 `aiStages.single`；专家响应使用 `models.singleModel / usage.single / cost.single`。
 

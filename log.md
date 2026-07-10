@@ -1553,3 +1553,10 @@
   - 修复 Edge / Chrome 加载解压后的 beta ZIP 时无法匹配 manifest 引用脚本的问题
 - 更新 `scripts/package-crx-release-source.test.js`
   - 新增打包脚本源码回归测试，防止 Windows ZIP entry 再次写成反斜杠路径
+
+## 2026-07-10（合并金华话专家模式听音与收口）
+- 调整金华话设置页专家模式，只保留一块 `听音和收口` 模型、Prompt 与生成参数区域；普通模式继续保留听音和收口双区块。
+- 专家模式固定使用 `qwen3.5-omni-plus`，复用听音 Prompt 与参数并改为单次 Omni 调用；普通模式收口配置继续保留。
+- 金华话 AI 接口新增 `aiStages.single / defaults.stages.single`，专家响应按 `singleModel / usage.single / cost.single` 返回。
+- AI 信息面板与调用日志新增中文“听音和收口”单阶段消耗展示，避免专家调用被重复统计。
+- 补充 options、content、AI client、UI panel、后端 AI service 与调用日志回归测试。

@@ -111,7 +111,7 @@
   function normalizeAiStages(aiStages) {
     const source = aiStages && typeof aiStages === "object" ? aiStages : {};
     const result = {};
-    ["listen", "refine"].forEach(function (stageKey) {
+    ["listen", "single", "refine"].forEach(function (stageKey) {
       const stage = source[stageKey] && typeof source[stageKey] === "object" ? source[stageKey] : null;
       if (!stage) {
         return;

@@ -592,6 +592,52 @@ test("AIDP jinhua ui panel renders Mandarin transcript wording and AI return cop
   }
 });
 
+test("AIDP jinhua ui panel renders expert usage as one listen-and-refine stage", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = findMountedPanelRoot(harness.body);
+    runtime.renderAiMeta({
+      models: {
+        modelMode: "expert_omni_plus",
+        singleModel: "qwen3.5-omni-plus",
+      },
+      usage: {
+        single: {
+          input_tokens: 21,
+          output_tokens: 34,
+          total_tokens: 55,
+        },
+      },
+      cost: {
+        single: {
+          estimatedCostCny: 0.004,
+        },
+        totalEstimatedCostCny: 0.004,
+      },
+    });
+
+    assert.match(panelRoot.textContent, /听音和收口模型/);
+    assert.match(panelRoot.textContent, /听音和收口输入Token/);
+    assert.match(panelRoot.textContent, /听音和收口输出Token/);
+    assert.match(panelRoot.textContent, /听音和收口总Token/);
+    assert.match(panelRoot.textContent, /听音和收口预估人民币/);
+    assert.doesNotMatch(panelRoot.textContent, /\s听音模型：/);
+    assert.doesNotMatch(panelRoot.textContent, /\s收口模型：/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP jinhua ui panel shows review warning tags and force-fill action for blocked current recommendation", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;

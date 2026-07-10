@@ -273,6 +273,14 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /bytedance-aidp-ai-timeout/);
   assert.match(script, /bytedance-aidp-ai-listen-model-select/);
   assert.match(script, /bytedance-aidp-ai-refine-model-select/);
+  assert.match(script, /id=\"bytedance-aidp-ai-listen-block\"/);
+  assert.match(script, /id=\"bytedance-aidp-ai-refine-block\"/);
+  assert.match(script, /id=\"bytedance-aidp-ai-listen-stage-title\"/);
+  assert.match(script, /function syncBytedanceAidpJinhuaModelModeLayout\(/);
+  assert.match(script, /听音和收口模型/);
+  assert.match(script, /听音和收口 Prompt/);
+  assert.match(script, /stageDefaults\.single/);
+  assert.match(script, /refineBlockNode\.classList\.toggle\("hidden", isExpertMode\)/);
   assert.doesNotMatch(html, /data-aidp-custom-select="true"/);
   assert.doesNotMatch(script, /function ensureAidpDropdownDemo\(/);
   assert.doesNotMatch(css, /\.aidp-dropdown-demo \{/);
@@ -304,7 +312,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.doesNotMatch(script, /data-aidp-default-rows=/);
   assert.match(
     script,
-    /listenPromptNode\.value = String\(\s*getAsrVoiceAiEffectiveText\(currentConfig\.aiRecommendListenPrompt,\s*stageDefaults\.listen\.prompt\)\s*\)/
+    /listenPromptNode\.value = String\(\s*getAsrVoiceAiEffectiveText\(currentConfig\.aiRecommendListenPrompt,\s*listenStageDefaults\.prompt\)\s*\)/
   );
   assert.match(
     script,
