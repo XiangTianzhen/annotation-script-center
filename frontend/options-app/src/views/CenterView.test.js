@@ -14,7 +14,7 @@ vi.mock("vue-router", () => ({
   },
 }));
 
-describe("CenterView legacy workbench", () => {
+describe("CenterView workbench", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
 
@@ -24,7 +24,7 @@ describe("CenterView legacy workbench", () => {
     const settingsStore = useSettingsStore();
     settingsStore.settings = {
       meta: {
-        publicCenterPlatformOrder: ["beta", "alpha"],
+        publicCenterPlatformOrder: ["second", "alpha"],
       },
     };
 
@@ -34,11 +34,15 @@ describe("CenterView legacy workbench", () => {
         id: "alpha",
         label: "Alpha",
         description: "Alpha 平台",
+        displayHost: "alpha.example.com/management/task-v2",
+        entryUrl: "https://alpha.example.com/management/task-v2",
       },
-      beta: {
-        id: "beta",
-        label: "Beta",
-        description: "Beta 平台",
+      second: {
+        id: "second",
+        label: "Second",
+        description: "Second 平台",
+        displayHost: "second.example.com",
+        entryUrl: "https://second.example.com/",
       },
     };
     scriptsStore.scriptLibrary = {
@@ -50,12 +54,12 @@ describe("CenterView legacy workbench", () => {
       },
       b1: {
         id: "b1",
-        label: "Beta Script",
-        description: "Beta 脚本说明",
-        platformId: "beta",
+        label: "Second Script",
+        description: "Second 脚本说明",
+        platformId: "second",
       },
     };
-    scriptsStore.visiblePlatforms = ["beta", "alpha"];
+    scriptsStore.visiblePlatforms = ["second", "alpha"];
     scriptsStore.visibleScripts = ["a1", "b1"];
   });
 
@@ -69,11 +73,17 @@ describe("CenterView legacy workbench", () => {
     expect(wrapper.find(".hero-badges").exists()).toBe(false);
     expect(wrapper.find("#stage-label").exists()).toBe(false);
     expect(sections).toHaveLength(2);
-    expect(sections[0].attributes("data-platform-id")).toBe("beta");
+    expect(sections[0].attributes("data-platform-id")).toBe("second");
     expect(sections[1].attributes("data-platform-id")).toBe("alpha");
     expect(wrapper.findAll(".platform-summary")).toHaveLength(2);
     expect(wrapper.findAll(".platform-script-stack")).toHaveLength(2);
     expect(firstCard.find(".script-remark-panel").exists()).toBe(true);
     expect(firstCard.text()).toContain("项目备注");
+    const links = wrapper.findAll(".platform-link-pill");
+    expect(links[0].find(".platform-link-host").text()).toBe("second.example.com");
+    expect(links[0].find(".platform-link-path").exists()).toBe(false);
+    expect(links[1].find(".platform-link-host").text()).toBe("alpha.example.com");
+    expect(links[1].find(".platform-link-path").text()).toBe("/management/task-v2");
+    expect(links[1].find(".platform-link-mark").text()).toBe("↗");
   });
 });

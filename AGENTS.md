@@ -91,10 +91,10 @@
 - 允许保留英文范围标识，但描述必须是中文。
 - 推荐格式：
   - `修复(data-baker): 修复 AI 工具卡挂载失败`
-  - `优化(aishell): 调整结果卡人民币展示`
+  - `优化(aidp): 调整结果卡人民币展示`
   - `新增(backend): 增加 Fun-ASR REST 调用`
   - `文档(readme): 收口项目导航`
-  - `发布: v0.4.0`
+  - `发布: v1.0.0`
 - 禁止使用纯英文、`update`、`fix bug`、`修改` 等含糊提交说明。
 
 ## 4. 目录边界
@@ -213,14 +213,10 @@
 - 关闭当前脚本时不自动启用其他脚本。
 - 如需并行启用，必须由当前 Prompt 明确授权。
 - 各脚本详情页不得新增独立后端地址；后端地址统一走 options 首页入口。
-- Magic Data 双助手（客家话 / 闽南语）同平台互斥启用。
+- ByteDance AIDP 的苏州话 / 金华话脚本同平台互斥启用。
 
 ### 5.3 shared 模块规则
 
-- `extension/sites/alibaba-labelx/shared/audio-controller-core.js`
-  - LabelX 快判 / 转写通用音频核心
-- `extension/sites/alibaba-labelx/shared/submit-actions.js`
-  - LabelX 快判 / 转写通用提交快捷键动作
 - `extension/options/options-shared-shortcut-panel.js`
   - 脚本详情页快捷键通用渲染组件
 - 提交类动作只作为快捷键，不加入顶部工具栏。
@@ -264,12 +260,9 @@
 
 - 当前纳入统一治理的业务词表主格式固定为 `JSON`。
 - `CSV / XLSX` 只保留为参考源、原始来源或导入来源。
-- 当前统一治理范围仅指以下 5 份业务词表：
-  - `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.json`
-  - `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon.json`
-  - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
-  - `platform-resources/magic-data/minnan-helper/backend/lexicon/minnan-lexicon.json`
+- 当前统一治理范围仅指以下 2 份业务词表：
   - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
+  - `platform-resources/magic-data/hangzhou-helper/backend/lexicon/hangzhou-lexicon.json`
 - JSON 顶层字段固定为：
   - `schemaVersion`
   - `language`
@@ -368,15 +361,16 @@
 
 - 默认保持当前 `extension/manifest.json` 版本不变。
 - 只有用户明确要求“完成当前版本 / 准备打包 / 准备发布 / 提升版本号”时，才调整版本号。
-- 当前阶段版本固定为 `0.4.0`。
-- 在用户明确说明“这是 `0.4.0` 的最终版本并开始打包 / 发布”之前，不自动提升到 `0.4.1`。
+- 当前正式版本为 `1.0.0`。
+- 后续未收到明确发布指令时，不自动提升版本号。
 - `ASC_RELEASE` 前必须先完成真实浏览器验收。
 - 发布失败不得 commit / tag / push。
-- 正式发布产物以 CRX 三件套为准：
+- 正式发布产物固定为四项：
   - `annotation-script-center-v<version>.crx`
+  - `annotation-script-center-v<version>.zip`
   - `annotation-script-center-update.xml`
   - `annotation-script-center-crx-latest.json`
-- ZIP 仅作为过渡分发兼容项，不作为正式发布验收必选项。
+- 发布流程只有单一公开 profile，不接受通道参数。
 
 ## 11. 安全与脱敏
 

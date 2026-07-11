@@ -20,9 +20,6 @@ const endpointStatus = computed(() => {
   if (mode === "local") {
     return `当前后端入口：Local${baseUrls.local ? `（${baseUrls.local}）` : ""}`;
   }
-  if (mode === "beta") {
-    return `当前后端入口：Beta${baseUrls.beta ? `（${baseUrls.beta}）` : ""}`;
-  }
   return `当前后端入口：Server${baseUrls.server ? `（${baseUrls.server}）` : ""}`;
 });
 

@@ -101,7 +101,7 @@ test("concurrent AI request stream refills immediately after AI completion and k
   await stream.whenProducersDone;
 });
 
-test("Aishell-style batch stream allows out-of-order results and stops launching new AI requests after cancelPending", async function () {
+test("batch stream allows out-of-order results and stops launching new AI requests after cancelPending", async function () {
   const deferreds = Array.from({ length: 20 }, createDeferred);
   const started = [];
   const stream = createConcurrentAiRequestStream({

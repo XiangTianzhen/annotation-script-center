@@ -58,24 +58,23 @@ function loadStorageApi(initialSettings) {
   };
 }
 
-test("Magic Data storage defaults expose Hangzhou helper as a hidden third script", async function () {
+test("Magic Data storage defaults expose only the promoted Hangzhou helper", async function () {
   const harness = loadStorageApi({});
 
   try {
     const settings = await harness.storage.getSettings();
     const platform = settings.platforms.magicData;
-    const hakkaScript = platform.scripts.hakkaHelper;
-    const minnanScript = platform.scripts.minnanHelper;
     const hangzhouScript = platform.scripts.hangzhouHelper;
 
+    assert.equal(settings.meta.schemaVersion, 30);
+    assert.deepEqual(Object.keys(settings.platforms).sort(), [
+      "bytedanceAidp",
+      "dataBakerCvpc",
+      "magicData",
+    ]);
     assert.equal(platform.enabled, true);
-    assert.equal(platform.activeScriptId, "magicDataAnnotatorAiReview");
-    assert.equal(hakkaScript.id, "magicDataAnnotatorAiReview");
-    assert.equal(hakkaScript.enabled, true);
-    assert.equal(hakkaScript.aiReviewEnabled, true);
-    assert.equal(minnanScript.id, "magicDataMinnanAssistant");
-    assert.equal(minnanScript.enabled, false);
-    assert.equal(minnanScript.aiReviewEnabled, false);
+    assert.equal(platform.activeScriptId, "");
+    assert.deepEqual(Object.keys(platform.scripts), ["hangzhouHelper"]);
     assert.equal(hangzhouScript.id, "magicDataHangzhouAssistant");
     assert.equal(hangzhouScript.enabled, false);
     assert.equal(hangzhouScript.aiReviewEnabled, false);
@@ -101,7 +100,7 @@ test("Magic Data storage defaults expose Hangzhou helper as a hidden third scrip
   }
 });
 
-test("Magic Data setScriptEnabled switches active script to Hangzhou and disables Hakka and Minnan", async function () {
+test("Magic Data setScriptEnabled activates the sole Hangzhou helper and drops retired scripts", async function () {
   const harness = loadStorageApi({
     platforms: {
       magicData: {
@@ -131,16 +130,11 @@ test("Magic Data setScriptEnabled switches active script to Hangzhou and disable
       true
     );
     const platform = settings.platforms.magicData;
-    const hakkaScript = platform.scripts.hakkaHelper;
-    const minnanScript = platform.scripts.minnanHelper;
     const hangzhouScript = platform.scripts.hangzhouHelper;
 
     assert.equal(platform.enabled, true);
     assert.equal(platform.activeScriptId, "magicDataHangzhouAssistant");
-    assert.equal(hakkaScript.enabled, false);
-    assert.equal(hakkaScript.aiReviewEnabled, false);
-    assert.equal(minnanScript.enabled, false);
-    assert.equal(minnanScript.aiReviewEnabled, false);
+    assert.deepEqual(Object.keys(platform.scripts), ["hangzhouHelper"]);
     assert.equal(hangzhouScript.enabled, true);
     assert.equal(hangzhouScript.aiReviewEnabled, true);
     assert.equal(hangzhouScript.aiReviewModelMode, "two_stage");
@@ -153,6 +147,57 @@ test("Magic Data setScriptEnabled switches active script to Hangzhou and disable
       settings.scriptCenter.projects.magicDataHangzhouAssistant.aiReviewEnabled,
       true
     );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Magic Data storage migrates old model and recognition enum values", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      magicData: {
+        scripts: {
+          hangzhouHelper: {
+            aiReviewModelMode: "single",
+            aiReviewRecognitionStrategy: "mandarin_bridge",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.magicData.scripts.hangzhouHelper;
+    assert.equal(script.aiReviewModelMode, "omni_single");
+    assert.equal(script.aiReviewRecognitionStrategy, "mandarin_to_dialect");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Magic Data storage preserves current enums and always disables thinking", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 30 },
+    platforms: {
+      magicData: {
+        scripts: {
+          hangzhouHelper: {
+            aiReviewModelMode: "omni_single",
+            aiReviewRecognitionStrategy: "mandarin_to_dialect",
+            aiReviewEnableThinking: true,
+            enableThinking: true,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.magicData.scripts.hangzhouHelper;
+    assert.equal(script.aiReviewModelMode, "omni_single");
+    assert.equal(script.aiReviewRecognitionStrategy, "mandarin_to_dialect");
+    assert.equal(script.aiReviewEnableThinking, false);
+    assert.equal(script.enableThinking, false);
   } finally {
     harness.cleanup();
   }

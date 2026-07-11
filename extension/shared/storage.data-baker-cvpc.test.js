@@ -58,7 +58,7 @@ function loadStorageApi(initialSettings) {
   };
 }
 
-test("CVPC storage defaults expose beta liuzhou helper settings", async function () {
+test("CVPC storage defaults expose promoted liuzhou helper settings", async function () {
   const harness = loadStorageApi({});
 
   try {
@@ -68,8 +68,16 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
     assert.deepEqual(settings.meta.backendBaseUrls, {
       server: "https://script.xiangtianzhen.store",
       local: "http://127.0.0.1:3333",
-      beta: "",
     });
+    assert.equal(settings.meta.schemaVersion, 30);
+    assert.deepEqual(Object.keys(settings.platforms).sort(), [
+      "bytedanceAidp",
+      "dataBakerCvpc",
+      "magicData",
+    ]);
+    assert.deepEqual(Object.keys(settings.platforms.dataBakerCvpc.scripts), [
+      "liuzhouAssistant",
+    ]);
     assert.equal(settings.platforms.dataBakerCvpc.enabled, true);
     assert.equal(script.id, "dataBakerCvpcLiuzhouAssistant");
     assert.equal(script.enabled, true);
@@ -143,7 +151,6 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
     assert.deepEqual(settings.meta.backendBaseUrls, {
       server: "https://script.xiangtianzhen.store",
       local: "http://127.0.0.1:3333",
-      beta: "",
     });
     assert.equal(script.segmentPreviewEnabled, false);
     assert.equal(
@@ -252,6 +259,34 @@ test("CVPC storage keeps valid segment silence threshold dbfs overrides", async 
   }
 });
 
+test("CVPC storage preserves runtime boundary settings and every supported model", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 30 },
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentContextPaddingMs: 1500,
+            segmentSilenceThresholdDbfs: -80,
+            aiRecommendListenModel: "qwen3.5-omni-plus",
+            aiRecommendRefineModel: "qwen3.5-flash",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+    assert.equal(script.segmentContextPaddingMs, 1500);
+    assert.equal(script.segmentSilenceThresholdDbfs, -80);
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-plus");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("CVPC storage normalizes silence threshold unit overrides", async function () {
   const harness = loadStorageApi({
     platforms: {
@@ -270,6 +305,30 @@ test("CVPC storage normalizes silence threshold unit overrides", async function 
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
     assert.equal(script.segmentSilenceThresholdUnit, "ratio");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage preserves the value silence threshold unit", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentSilenceThresholdUnit: "value",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    assert.equal(
+      settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant.segmentSilenceThresholdUnit,
+      "value"
+    );
   } finally {
     harness.cleanup();
   }

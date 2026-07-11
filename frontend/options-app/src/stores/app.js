@@ -5,7 +5,6 @@ export const useAppStore = defineStore("app", {
   state: () => ({
     extensionName: getManifestName(),
     version: getManifestVersion(),
-    releaseChannel: String(globalThis.ASREdgeConstants?.RELEASE_CHANNEL || "public"),
     toast: {
       visible: false,
       message: "",

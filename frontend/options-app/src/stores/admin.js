@@ -20,7 +20,6 @@ export const useAdminStore = defineStore("admin", {
     dashboardLoading: false,
     dashboardError: "",
     backendDraft: null,
-    projectDownloadStatus: "",
     aiCallLogStatus: "",
   }),
   actions: {
@@ -36,7 +35,7 @@ export const useAdminStore = defineStore("admin", {
         typeof constants.getBackendBaseUrlsFromSettings === "function"
           ? constants.getBackendBaseUrlsFromSettings
           : function () {
-              return { server: "", local: "", beta: "" };
+              return { server: "", local: "" };
             };
       this.backendDraft = {
         backendEndpointMode: getMode(settings || {}),
@@ -92,18 +91,6 @@ export const useAdminStore = defineStore("admin", {
       this.syncDraft(settingsStore.settings);
       appStore.showToast("后端设置已保存。", "success");
       return true;
-    },
-    async requestProjectDownload(settings, session, payload) {
-      return requestAdminJson("/api/admin/project-data-download/request", settings || {}, session, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...payload,
-          clientInfo: getDownloadClientInfo(),
-        }),
-      });
     },
     async requestAiCallLogDownload(settings, session, payload) {
       return requestAdminJson("/api/admin/ai-call-log/request", settings || {}, session, {

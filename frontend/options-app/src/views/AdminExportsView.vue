@@ -2,11 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import AdminPageFrame from "@/components/admin/AdminPageFrame.vue";
 import BaseSelect from "@/components/base/BaseSelect.vue";
-import {
-  loadAiCallLogOptions,
-  loadProjectDataDownloadOptions,
-} from "@/services/admin-service";
-import { getProjectDownloadSupplierHelper } from "@/services/globals";
+import { loadAiCallLogOptions } from "@/services/admin-service";
 import { useAdminStore } from "@/stores/admin";
 import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
@@ -14,35 +10,13 @@ import { useSettingsStore } from "@/stores/settings";
 const adminStore = useAdminStore();
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
-const supplierHelper = getProjectDownloadSupplierHelper();
-
-const projectDatasets = ref([]);
 const aiDatasets = ref([]);
-const projectDataset = ref("");
-const projectSupplier = ref("__all__");
-const projectOperator = ref(settingsStore.settings?.meta?.aiUsageOperatorName || "");
 const aiDataset = ref("");
 const aiOperator = ref(settingsStore.settings?.meta?.aiUsageOperatorName || "");
 const dateFrom = ref("");
 const dateTo = ref("");
-const projectStatus = ref("");
 const aiStatus = ref("");
 
-const currentProjectDataset = computed(
-  () => projectDatasets.value.find((item) => item.id === projectDataset.value) || null
-);
-const projectDatasetOptions = computed(() =>
-  projectDatasets.value.map((item) => ({
-    value: item.id,
-    label: item.label,
-  }))
-);
-const supplierOptions = computed(() =>
-  (supplierState.value.options || []).map((item) => ({
-    value: item.value,
-    label: item.label,
-  }))
-);
 const aiDatasetOptions = computed(() =>
   aiDatasets.value.map((item) => ({
     value: item.id,
@@ -50,23 +24,7 @@ const aiDatasetOptions = computed(() =>
   }))
 );
 
-const supplierState = computed(() => {
-  const builder =
-    typeof supplierHelper.buildProjectDownloadSupplierState === "function"
-      ? supplierHelper.buildProjectDownloadSupplierState
-      : (dataset) => ({
-          showRow: Array.isArray(dataset?.suppliers) && dataset.suppliers.length > 0,
-          options: (dataset?.suppliers || []).map((item) => ({ value: item, label: item })),
-        });
-  return builder(currentProjectDataset.value || {});
-});
-
 const exportSummaryCards = computed(() => [
-  {
-    label: "项目数据类型",
-    value: String(projectDatasets.value.length),
-    note: "按数据集类型导出标注项目数据，必要时可继续按供应商筛选。",
-  },
   {
     label: "AI 日志类型",
     value: String(aiDatasets.value.length),
@@ -74,52 +32,21 @@ const exportSummaryCards = computed(() => [
   },
   {
     label: "导出范围",
-    value: "项目数据 / AI 日志",
-    note: "扩展版本下载已移到公开脚本下载中心，这里只保留后台导出能力。",
+    value: "四脚本 AI 日志",
+    note: "扩展版本下载位于公开脚本下载中心，这里只保留 AI 日志导出。",
   },
 ]);
 
 async function loadOptions() {
-  const [projectResult, aiResult] = await Promise.all([
-    loadProjectDataDownloadOptions(settingsStore.settings || {}),
-    loadAiCallLogOptions(settingsStore.settings || {}),
-  ]);
-  projectDatasets.value =
-    projectResult.response.ok && projectResult.body?.success === true
-      ? projectResult.body.data || []
-      : [];
+  const aiResult = await loadAiCallLogOptions(settingsStore.settings || {});
   aiDatasets.value =
     aiResult.response.ok && aiResult.body?.success === true
       ? aiResult.body.data || []
       : [];
-  projectDataset.value = projectDatasets.value[0]?.id || "";
   aiDataset.value =
     aiDatasets.value.find((item) => item.hasData !== false)?.id ||
     aiDatasets.value[0]?.id ||
     "";
-}
-
-async function requestProjectExport() {
-  projectStatus.value = "正在申请短期下载链接...";
-  const result = await adminStore.requestProjectDownload(
-    settingsStore.settings || {},
-    authStore.session,
-    {
-      dataset: projectDataset.value,
-      supplier: projectSupplier.value,
-      operatorName: projectOperator.value,
-    }
-  );
-  if (result.authFailed) {
-    projectStatus.value = "管理员会话已失效，请重新登录。";
-    return;
-  }
-  if (!result.response.ok || result.body?.success !== true) {
-    projectStatus.value = result.body?.message || "项目数据导出失败。";
-    return;
-  }
-  adminStore.triggerDownload(result.body.data?.downloadUrl || "");
-  projectStatus.value = "下载链接已生成，已在新窗口打开。";
 }
 
 async function requestAiExport() {
@@ -152,7 +79,7 @@ onMounted(loadOptions);
 <template>
   <AdminPageFrame
     title="数据导出"
-    description="这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已经移到公开脚本下载中心。"
+    description="这里只保留四个正式脚本的 AI 请求记录导出；扩展版本下载位于公开脚本下载中心。"
   >
       <div id="admin-download-summary" class="admin-summary-grid">
         <article
@@ -167,48 +94,6 @@ onMounted(loadOptions);
       </div>
 
       <div id="admin-download-grid" class="admin-download-grid">
-        <section id="project-data-download-panel" class="home-endpoint-card">
-          <div class="admin-card-head">
-            <strong>项目数据导出</strong>
-            <span>供应商逻辑仍然复用现有共享 helper，不额外改动字段契约。</span>
-          </div>
-
-          <label class="project-download-row">
-            <span>数据类型</span>
-            <BaseSelect
-              id="project-download-dataset-select"
-              v-model="projectDataset"
-              :options="projectDatasetOptions"
-              placeholder="请选择数据类型"
-              :custom="true"
-            />
-          </label>
-
-          <label
-            v-if="supplierState.showRow"
-            id="project-download-supplier-row"
-            class="project-download-row"
-          >
-            <span>供应商</span>
-            <BaseSelect
-              id="project-download-supplier-select"
-              v-model="projectSupplier"
-              :options="supplierOptions"
-              :custom="true"
-            />
-          </label>
-
-          <label class="project-download-row">
-            <span>获取人姓名</span>
-            <input v-model="projectOperator" type="text" maxlength="60" placeholder="请输入获取人姓名" />
-          </label>
-
-          <div class="field-actions">
-            <button type="button" class="primary-button" @click="requestProjectExport">导出</button>
-          </div>
-          <p v-if="projectStatus" class="status-text">{{ projectStatus }}</p>
-        </section>
-
         <section id="ai-call-log-download-panel" class="home-endpoint-card">
           <div class="admin-card-head">
             <strong>AI 调用记录导出</strong>

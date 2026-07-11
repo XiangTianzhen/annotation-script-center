@@ -80,12 +80,7 @@ vi.mock("vue-router", async () => {
 describe("Admin legacy shells", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    globalThis.ASREdgeConstants = {
-      RELEASE_CHANNEL: "beta",
-      canUseBetaFeatures() {
-        return true;
-      },
-    };
+    globalThis.ASREdgeConstants = {};
 
     const settingsStore = useSettingsStore();
     settingsStore.settings = {
@@ -94,7 +89,6 @@ describe("Admin legacy shells", () => {
         backendBaseUrls: {
           server: "https://server.example.com",
           local: "http://127.0.0.1:3333",
-          beta: "https://beta.example.com",
         },
         aiUsageOperatorName: "测试员",
       },
@@ -111,7 +105,6 @@ describe("Admin legacy shells", () => {
       backendBaseUrls: {
         server: "https://server.example.com",
         local: "http://127.0.0.1:3333",
-        beta: "https://beta.example.com",
       },
     };
     adminStore.dashboardLoading = false;
@@ -172,14 +165,14 @@ describe("Admin legacy shells", () => {
     expect(backendWrapper.find("#admin-backend-card-slot").exists()).toBe(true);
     expect(backendWrapper.text()).toContain("服务器");
     expect(backendWrapper.text()).toContain("本机");
-    expect(backendWrapper.text()).toContain("Beta");
+    expect(backendWrapper.text()).not.toContain("Beta");
     expect(backendWrapper.text()).toContain("折叠根地址配置");
     expect(backendWrapper.text()).toContain("保存后端根地址");
     expect(backendWrapper.text()).toContain("当前生效：");
-    expect(backendWrapper.findAll(".home-endpoint-row input")).toHaveLength(3);
+    expect(backendWrapper.findAll(".home-endpoint-row input")).toHaveLength(2);
     expect(exportsWrapper.find("#admin-download-summary").exists()).toBe(true);
-    expect(exportsWrapper.find("#project-data-download-panel").exists()).toBe(true);
+    expect(exportsWrapper.find("#project-data-download-panel").exists()).toBe(false);
     expect(exportsWrapper.find("#ai-call-log-download-panel").exists()).toBe(true);
-    expect(exportsWrapper.findAll("select[data-options-custom-select='true']")).toHaveLength(3);
+    expect(exportsWrapper.findAll("select[data-options-custom-select='true']")).toHaveLength(1);
   });
 });

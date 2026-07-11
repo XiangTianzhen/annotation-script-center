@@ -22,16 +22,23 @@
 
 说明：
 
-- legacy `/api/magic-data/annotator/*` 继续只归属客家话助手，杭州话不新增 legacy 别名。
-- 首版继续复用客家话的响应结构和前端联动方式，不引入新的模型链路。
+- 杭州话只使用 `/api/magic-data/hangzhou-helper/*` 命名空间，不新增 legacy 别名。
+- 当前继续使用 Magic Data 统一 AI 响应结构和前端联动方式，不引入新的模型链路。
 
 ## 当前实现口径
 
-- 页面范围与客家话保持一致：`#/asrmark`、`#/asrmarkCheck`。
+- 页面范围固定为 Magic Data 稳定标注路由：`#/asrmark`、`#/asrmarkCheck`。
 - 右侧 AI 面板、行内填入、原始输出、快捷键、当前页临时全自动链路都保留。
-- Prompt、`rulesProfile`、README 文案已切到杭州话语义，但默认模型口径仍先与客家话一致。
+- Prompt、`rulesProfile` 与默认模型均按杭州话当前正式配置读取。
 - “音频是否是纯方言” 当前按宽松规则判断：只要音频里出现明显杭州话/方言字词、方言说法或方言读法，就优先按 `纯方言`；只有整段基本都在说普通话时才按 `口音普通话`。
 - 日志统计继续落在 `backend/logs/` 下，通过统一调用日志格式输出。
+
+## Options 设置契约
+
+- 设置页读取 `/api/magic-data/hangzhou-helper/ai/defaults`，后端不可用时安全回退本地默认值。
+- 模型方案固定为 `two_stage / omni_single`，识别策略固定为 `direct_dialect / mandarin_to_dialect`；旧枚举由 storage 自动迁移。
+- 双模型和单模型选择会动态显示对应模型字段，thinking 始终固定关闭。
+- 两段 Prompt、完整生成参数和 22 个运行时快捷键统一由 Vue 详情页维护；Prompt 与参数等于后端默认值时保存为空 override。
 
 ## 词表边界
 

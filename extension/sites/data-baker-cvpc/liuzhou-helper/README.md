@@ -11,7 +11,7 @@
 - 通过 `MAIN` world 页内观察桥捕获页面真实 `annotation/meta`、`user/meta` 响应、`annotation/*` 请求最小鉴权头和当前音频签名 URL；观察桥会进入同源 `xaudio` iframe，并在 `data-api.js` 内按观察器、桥接 meta、直连 meta、DOM audio、Performance、同源 iframe audio 逐级回退
 - `user/meta` 当前只保留最小用户快照 `name / user_id`，用于补齐平台账号信息并透传到 AI 调用日志
 - 把助手区嵌入右侧 `全局标注` 卡片：原生 `Valid / Invalid` 保持在上方；右侧当前只保留状态、当前音频/当前段摘要和提示说明，并优先插入 `全局标注` 内部的 `.label_title_border2` 内容流；摘要当前改为逐行显示 `文件 / 来源 / 当前第 N 段 / 当前段时间`
-- 当右侧 `.label_title_border2` 同时容纳 `柳州话脚本 Beta` 与中间 `AI 区` 所在字段分组时，当前会把 `Beta` 卡稳定排到 `AI 区` 上方
+- 当右侧 `.label_title_border2` 同时容纳 `柳州话脚本` 与中间 `AI 区` 所在字段分组时，当前会把脚本卡稳定排到 `AI 区` 上方
 - `是否有效（Valid or Not）` 下方当前作为独立同级 `柳州话 AI 识别助手`，优先挂到承载字段块的 `div[data-v-fd55b986]` 内，并与各个 `padding-left: 10px` 字段块保持同级；固定按 4 个分区展示：
   - `当前段识别`
   - `批量识别`
@@ -45,7 +45,7 @@
   - 后端会直接下载当前 mp3，并通过 Python `miniaudio` 解码后做整音频静音分析
   - 后端固定按 `30ms` 窗口、轻量平滑、`<=0.18s` 短尖峰桥接、连续 `0.4s` 静音和可配置前后补偿生成整条音频建议段
   - 阈值当前开放到 options `基础设置 -> 静音阈值`，默认单位 `dB`，也可切换 `% / Val`
-  - 前后补偿时长当前开放到 options `基础设置 -> 前后补偿时长`，默认 `0.2s`，可调范围 `0 ~ 1.5s`
+  - 前后补偿时长当前开放到 options `基础设置 -> 前后静音时长`，默认 `0.2s`，可调范围 `0 ~ 1.5s`
   - 当前页面显示的是“后端整音频重切预览”，不再依赖浏览器本地 `AudioContext` 解码
   - 当预览结果为空时，AI 区会补充说明“后端未检出静音”或“命中了静音但拆分后仍不足 2 段”
 - `应用分段建议` 当前改成“平台保存接口优先，增量 DOM 回退兜底”：
@@ -134,6 +134,10 @@
   - `基础设置` 当前新增默认开关 `标签与有效性不一致时直接修正`，默认 `true`；关闭后，当前段手动写入若需要切换 `Valid / Invalid` 会先弹原生确认框
   - `听音` 当前新增 `附带词表参考（听音辅助）` 持久开关，默认关闭；关闭时 listen 只按当前段音频听写，开启后才附带词表参考片段
   - `基础设置` 当前新增 `静音阈值`，默认 `-27 dB`
+  - 静音阈值可切换 `dB / % / Val` 显示单位，持久化仍统一保存 `segmentSilenceThresholdDbfs`
+  - 前后静音允许 `0~1.5` 秒；静音阈值的有效 dBFS 范围与运行时、后端统一为 `-80~-5 dB`
+  - 听音和文本修正两阶段都提供模型、Prompt、`temperature / top_p / max_tokens / max_completion_tokens / presence_penalty / frequency_penalty / seed / stop sequences`
+  - Prompt 与生成参数优先显示后端 defaults；内容等于后端默认值时保存为空 override，后端不可用时安全回退本地默认值
 - 可分别屏蔽两类平台高层提示：
   - “您正在编辑该作业,不能打开新的Tab页”
   - “系统进入暂停状态”
@@ -173,9 +177,10 @@
 
 ## Options 口径
 
-- 脚本详情页的快捷键当前统一复用 `extension/options/options-shared-shortcut-panel.js`。
+- 脚本详情页快捷键统一复用 Vue `frontend/options-app/src/components/script-detail/ShortcutEditor.vue`。
 - 默认快捷键为空；只有用户在 options 中录制并保存后，运行时才会响应对应动作。
 - `基础设置` 当前提供两个独立开关，默认都开启：
   - `屏蔽“不能打开新的Tab页”提示`
   - `屏蔽“系统进入暂停状态”提示`
 - 运行时当前兼容旧版 `Shift + 数字` 风格的已保存快捷键；像 `Alt + Shift + 2/3` 这类历史组合在新版本里仍可继续触发。
+- 设置页当前完整列出 18 个运行时动作：9 个编辑/识别动作与 9 个页面标签动作；默认仍全部为空。

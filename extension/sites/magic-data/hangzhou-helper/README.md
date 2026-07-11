@@ -7,21 +7,20 @@
 - 脚本 ID：`magicDataHangzhouAssistant`
 - 平台配置：`platforms.magicData.scripts.hangzhouHelper`
 - 兼容镜像：`scriptCenter.projects.magicDataHangzhouAssistant`
-- 当前为隐藏 beta；需走现有 beta 解锁后才在脚本中心显示。
+- 当前为 `1.0.0` 正式脚本，固定在脚本中心显示。
 
 ## 文件
 
 - `content.js`：入口编排与挂载控制。
 - `assistant-panel.js`：右侧 AI 结果面板。
 - `shortcuts-runtime.js`：快捷键运行时。
-- `ui-panel.js`：旧版兼容面板，当前主链路不挂载。
 - `ai-review-client.js`：杭州话专属接口 client。
 
 ## 运行口径
 
 - 页面支持：`#/asrmark`、`#/asrmarkCheck`
 - 只有 `platforms.magicData.activeScriptId = magicDataHangzhouAssistant` 且脚本已启用时才真正挂载。
-- 首版以前端行为复制客家话助手为主，保留：
+- 当前前端保留以下杭州话运行时能力：
   - 右侧 AI 面板
   - 行内填入
   - `显示 AI 原始输出`
@@ -33,13 +32,17 @@
 ## AI 配置
 
 - 使用统一的 `modelMode + recognitionStrategy + listenModel + compareModel + singleModel` 配置字段。
-- 默认口径先与客家话助手保持一致：
+- 默认模型口径固定为：
   - `modelMode=two_stage`
   - `recognitionStrategy=direct_dialect`
   - `listenModel=qwen3.5-omni-flash`
   - `compareModel=qwen3.5-flash`
   - `enableThinking=false`
 - 为兼容历史配置，仍保留 legacy 字段镜像，但杭州话不新增 legacy API 别名。
+- 设置页会读取 `/api/magic-data/hangzhou-helper/ai/defaults`，并在后端不可用时回退本地默认值。
+- `modelMode` 只接受 `two_stage / omni_single`，`recognitionStrategy` 只接受 `direct_dialect / mandarin_to_dialect`；旧值 `single / mandarin_bridge` 会在 storage 中迁移。
+- 双模型与单模型选择会动态显示对应模型字段；thinking 固定关闭。
+- 设置页提供两段 Prompt、完整生成参数和当前运行时支持的 22 个快捷键动作。
 
 ## 当前边界
 

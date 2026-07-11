@@ -41,14 +41,6 @@ export function getSharedSelect() {
   return globalThis.ASREdgeOptionsSharedSelect || {};
 }
 
-export function getSharedAsrAiPanel() {
-  return globalThis.ASREdgeOptionsSharedAsrAiPanel || {};
-}
-
-export function getProjectDownloadSupplierHelper() {
-  return globalThis.ASREdgeOptionsProjectDownloadSupplier || {};
-}
-
 export function getChromeSessionStorageArea() {
   const area = globalThis.chrome?.storage?.session;
   return area && typeof area.get === "function" ? area : null;
@@ -73,12 +65,6 @@ export function buildBackendUrl(path, settingsOrMode) {
       ? constants.buildBackendUrl
       : null;
   return builder ? builder(path, settingsOrMode) : String(path || "");
-}
-
-export function canUseBetaFeatures(settings) {
-  const constants = getConstants();
-  const checker = typeof constants.canUseBetaFeatures === "function" ? constants.canUseBetaFeatures : null;
-  return checker ? checker(settings || {}) : false;
 }
 
 export function isScriptRuntimeAccessible(scriptId, settings) {
@@ -169,6 +155,33 @@ export function buildPlatformEntryDescriptor(platform) {
     return {
       displayHost,
       entryUrl: "",
+    };
+  }
+}
+
+export function splitPlatformDisplayAddress(value) {
+  const rawValue = normalizeText(value).replace(/\/+$/, "");
+  if (!rawValue) {
+    return { host: "", path: "" };
+  }
+  try {
+    const url = new URL(/^https?:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`);
+    const path = url.pathname && url.pathname !== "/"
+      ? url.pathname.replace(/\/+$/, "")
+      : "";
+    return {
+      host: url.host,
+      path,
+    };
+  } catch (_error) {
+    const withoutScheme = rawValue.replace(/^https?:\/\//i, "");
+    const slashIndex = withoutScheme.indexOf("/");
+    if (slashIndex < 0) {
+      return { host: withoutScheme, path: "" };
+    }
+    return {
+      host: withoutScheme.slice(0, slashIndex),
+      path: `/${withoutScheme.slice(slashIndex + 1).replace(/\/+$/, "")}`,
     };
   }
 }

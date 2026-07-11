@@ -462,7 +462,7 @@ test("CVPC ui panel mount tolerates document.body being unavailable before edito
     });
 
     const text = collectText(harness.globalPanel);
-    assert.match(text, /柳州话脚本 Beta/);
+    assert.match(text, /柳州话脚本/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

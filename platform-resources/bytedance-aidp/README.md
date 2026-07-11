@@ -7,7 +7,7 @@
 - 当前脚本资料：
   - `suzhou-helper`
   - `jinhua-helper`
-- 当前状态：`beta` 平台资料 + 双脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/` 两套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
+- 当前状态：`1.0.0` 双脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/` 两套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
 - 首轮依据：
   - 用户提供的列表首页 URL
   - 用户提供的 `mark-v3` 详情页 URL

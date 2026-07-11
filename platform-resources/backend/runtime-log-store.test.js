@@ -25,17 +25,22 @@ test("runtime log store writes daily files, removes expired files, and returns l
   configureRuntimeLogStoreForTest({
     runtimeDataDir,
   });
-  const staleFilePath = path.join(runtimeDataDir, "runtime-2026-05-20.jsonl");
+  const now = new Date();
+  const dateText = now.toISOString().slice(0, 10);
+  const staleDate = new Date(now.getTime() - (RUNTIME_LOG_RETENTION_DAYS + 2) * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const staleFilePath = path.join(runtimeDataDir, `runtime-${staleDate}.jsonl`);
   fs.writeFileSync(staleFilePath, "{\"message\":\"stale\"}\n", "utf8");
   appendRuntimeLog({
-    createdAt: "2026-06-08T10:00:00.000Z",
+    createdAt: `${dateText}T10:00:00.000Z`,
     level: "info",
     scope: "admin.dashboard",
     action: "read",
     message: "first",
   });
   appendRuntimeLog({
-    createdAt: "2026-06-08T10:01:00.000Z",
+    createdAt: `${dateText}T10:01:00.000Z`,
     level: "success",
     scope: "admin.session",
     action: "unlock_success",
@@ -53,7 +58,7 @@ test("runtime log store writes daily files, removes expired files, and returns l
   assert.equal(items[0].message, "second");
   assert.equal(items[0].level, "success");
   assert.equal(items[0].details.ok, "true");
-  const runtimeFilePath = path.join(runtimeDataDir, "runtime-2026-06-08.jsonl");
+  const runtimeFilePath = path.join(runtimeDataDir, `runtime-${dateText}.jsonl`);
   assert.equal(fs.existsSync(runtimeFilePath), true);
   assert.equal(fs.existsSync(staleFilePath), false);
   assert.equal(fs.readFileSync(runtimeFilePath, "utf8").trim().split(/\r?\n/).length, 2);
@@ -84,7 +89,7 @@ test("runtime log summary reports 24 hour counters and latest failure", function
   appendRuntimeLog({
     createdAt: "2026-06-08T09:45:00.000Z",
     level: "error",
-    scope: "admin.project_data_download",
+    scope: "admin.ai_call_log",
     action: "request_failed",
     message: "download failed",
     requestId: "req-error",
@@ -106,7 +111,7 @@ test("runtime log summary reports 24 hour counters and latest failure", function
   assert.equal(summary.recent24Hours.warnCount, 1);
   assert.equal(summary.recent24Hours.errorCount, 1);
   assert.equal(summary.latestFailure.level, "error");
-  assert.equal(summary.latestFailure.scope, "admin.project_data_download");
+  assert.equal(summary.latestFailure.scope, "admin.ai_call_log");
   assert.equal(summary.latestFailure.requestId, "req-error");
   clearRuntimeLogsForTest();
 });

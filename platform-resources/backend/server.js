@@ -17,141 +17,28 @@ server.listen(config.port, config.host, function () {
     scope: "backend.server",
     action: "listen",
     message: "platform-resources 后端已启动",
-    details: {
-      baseUrl,
-    },
+    details: { baseUrl },
   });
   console.info("[Platform Resources][backend] listening on " + baseUrl);
-  console.info(
-    "[Platform Resources][backend] ASR judgement upload: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-judgement/statistics/upload"
-  );
-  console.info(
-    "[Platform Resources][backend] ASR judgement CSV: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-judgement/statistics/download"
-  );
-  console.info(
-    "[Platform Resources][backend] ASR judgement suppliers: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-judgement/statistics/suppliers"
-  );
-  console.info(
-    "[Platform Resources][backend] ASR transcription upload: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-transcription/statistics/upload"
-  );
-  console.info(
-    "[Platform Resources][backend] ASR transcription CSV: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-transcription/statistics/download"
-  );
-  console.info(
-    "[Platform Resources][backend] ASR transcription suppliers: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-transcription/statistics/suppliers"
-  );
-  console.info(
-    "[Platform Resources][backend] ASR judgement AI health: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-judgement/ai/health"
-  );
-  console.info(
-    "[Platform Resources][backend] ASR judgement AI suggest: " +
-      baseUrl +
-      "/api/alibaba-labelx/asr-judgement/ai/suggest"
-  );
-  console.info(
-    "[Platform Resources][backend] DataBaker AI health: " +
-      baseUrl +
-      "/api/data-baker/round-one-quality/ai/recommend/health"
-  );
-  console.info(
-    "[Platform Resources][backend] DataBaker AI recommend: " +
-      baseUrl +
-      "/api/data-baker/round-one-quality/ai/recommend"
-  );
-  console.info(
-    "[Platform Resources][backend] DataBaker CVPC segment preview: " +
-      baseUrl +
-      "/api/data-baker-cvpc/liuzhou-helper/segment/preview"
-  );
-  console.info(
-    "[Platform Resources][backend] DataBaker CVPC AI recommend: " +
-      baseUrl +
-      "/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
-  );
-  console.info(
-    "[Platform Resources][backend] DataBaker CVPC clip cache upload: " +
-      baseUrl +
-      "/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload"
-  );
-  console.info(
-    "[Platform Resources][backend] Aishell Tech AI health: " +
-      baseUrl +
-      "/api/aishell-tech/minnan-helper/ai/recommend/health"
-  );
-  console.info(
-    "[Platform Resources][backend] Aishell Tech AI recommend: " +
-      baseUrl +
-      "/api/aishell-tech/minnan-helper/ai/recommend"
-  );
-  console.info(
-    "[Platform Resources][backend] DataBaker export upload: " +
-      baseUrl +
-      "/api/data-baker/round-one-quality/export/upload"
-  );
-  console.info(
-    "[Platform Resources][backend] DataBaker export CSV: " +
-      baseUrl +
-      "/api/data-baker/round-one-quality/export/download"
-  );
-  console.info(
-    "[Platform Resources][backend] Admin session unlock: " +
-      baseUrl +
-      "/api/admin/session/unlock"
-  );
-  console.info(
-    "[Platform Resources][backend] Admin dashboard overview: " +
-      baseUrl +
-      "/api/admin/dashboard/overview"
-  );
-  console.info(
-    "[Platform Resources][backend] Admin dashboard runtime logs: " +
-      baseUrl +
-      "/api/admin/dashboard/runtime-logs"
-  );
-  console.info(
-    "[Platform Resources][backend] Project data download options: " +
-      baseUrl +
-      "/api/admin/project-data-download/options"
-  );
-  console.info(
-    "[Platform Resources][backend] Project data download request: " +
-      baseUrl +
-      "/api/admin/project-data-download/request"
-  );
-  console.info(
-    "[Platform Resources][backend] Project data download file: " +
-      baseUrl +
-      "/api/admin/project-data-download/file?token=..."
-  );
-  console.info(
-    "[Platform Resources][backend] AI call log options: " +
-      baseUrl +
-      "/api/admin/ai-call-log/options"
-  );
-  console.info(
-    "[Platform Resources][backend] AI call log request: " +
-      baseUrl +
-      "/api/admin/ai-call-log/request"
-  );
-  console.info(
-    "[Platform Resources][backend] AI call log file: " +
-      baseUrl +
-      "/api/admin/ai-call-log/file?token=..."
-  );
+  [
+    "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/health",
+    "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
+    "/api/bytedance-aidp/suzhou-helper/ai/recommend/health",
+    "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
+    "/api/bytedance-aidp/jinhua-helper/ai/recommend/health",
+    "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
+    "/api/magic-data/hangzhou-helper/ai/review-current/health",
+    "/api/magic-data/hangzhou-helper/ai/defaults",
+    "/api/admin/session/unlock",
+    "/api/admin/dashboard/overview",
+    "/api/admin/dashboard/runtime-logs",
+    "/api/admin/download-center/releases",
+    "/api/admin/ai-call-log/options",
+    "/api/admin/ai-call-log/request",
+    "/api/admin/ai-call-log/file?token=...",
+  ].forEach(function (route) {
+    console.info("[Platform Resources][backend] " + baseUrl + route);
+  });
 });
 
 module.exports = server;

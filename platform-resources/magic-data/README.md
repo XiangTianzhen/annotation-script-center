@@ -1,42 +1,10 @@
-# Magic Data ANNOTATOR 平台资料
+# Magic Data
 
-本目录维护 Magic Data 平台共用资料与脚本专属资料。
+当前只保留杭州话脚本 `magicDataHangzhouAssistant`。
 
-## 当前脚本
+- 运行时：`extension/sites/magic-data/hangzhou-helper/`
+- 脚本资料与后端：`hangzhou-helper/`
+- 稳定 Network：`network/`
+- 稳定页面结构：`page-structure/`
 
-- 客家话助手：`magicDataAnnotatorAiReview`
-- 闽南语助手：`magicDataMinnanAssistant`
-- 杭州话脚本：`magicDataHangzhouAssistant`
-- 同平台默认互斥启用；`platforms.magicData.activeScriptId` 同一时刻只允许指向一个脚本。
-- 杭州话脚本当前沿用现有 beta 解锁口径，未解锁时不在脚本中心展示。
-
-## 目录职责
-
-- `backend/`：平台共用后端能力与注册辅助。
-- `network/`：平台共用 Network 采集资料。
-- `page-structure/`：平台共用页面结构资料。
-- `hakka-helper/`：客家话助手专属资料。
-- `minnan-helper/`：闽南语助手专属资料。
-- `hangzhou-helper/`：杭州话脚本专属资料。
-
-## 当前实现口径
-
-- 客家话 legacy `/api/magic-data/annotator/*` 继续只归属客家话助手。
-- 闽南语与杭州话都使用各自独立路径，不新增 `annotator` legacy 别名。
-- 杭州话首版以前端运行时和后端接口复制客家话能力为主：
-  - 支持 `#/asrmark` 与 `#/asrmarkCheck`
-  - 保留右侧 AI 面板、行内填入、原始输出、快捷键和当前页临时全自动链路
-  - 默认模型口径先与客家话保持一致，不新增独立模型链路
-- Magic Data 三脚本共享平台结构采集与统一后端地址入口，但 `AI 设置`、`基础设置`、`快捷键` 仍按脚本独立保存。
-- Options / popup / storage 已扩成三脚本互斥逻辑；启用杭州话时会自动关闭客家话和闽南语。
-
-## 杭州话当前边界
-
-- 当前已接入 `hangzhou-helper/backend/lexicon/hangzhou-lexicon.json` 作为杭州话运行时主词表；源 Excel `杭州方言正字表0509.xlsx` 仍不入库。
-- 词表文件缺失或 JSON 解析失败时，杭州话后端继续按无词表模式运行，`review-current` 不被阻断。
-- 词表 JSON 继续按用户维护为主；后续如需补 CSV / Excel 转换链路，再单独处理。
-
-## 安全边界
-
-- AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。
-- 文档与日志不记录 token、cookie、authorization、完整签名 URL、完整敏感文本。
+共用资料只服务杭州话仍依赖的页面识别、数据采集和 Network observer。Options 保存本身不会触发业务保存或提交；普通 AI 建议默认人工确认，用户显式启动的当前页全自动或快捷键按杭州话脚本契约执行。

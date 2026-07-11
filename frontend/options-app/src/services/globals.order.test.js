@@ -6,12 +6,12 @@ describe("getVisiblePlatformLibrary order", () => {
     globalThis.ASREdgeConstants = {
       PLATFORM_LIBRARY: {
         alpha: { id: "alpha", label: "Alpha" },
-        beta: { id: "beta", label: "Beta" },
+        second: { id: "second", label: "Second" },
         gamma: { id: "gamma", label: "Gamma" },
       },
       SCRIPT_LIBRARY: {
         a1: { id: "a1", platformId: "alpha" },
-        b1: { id: "b1", platformId: "beta" },
+        b1: { id: "b1", platformId: "second" },
         g1: { id: "g1", platformId: "gamma" },
       },
       isPlatformVisible() {
@@ -28,6 +28,6 @@ describe("getVisiblePlatformLibrary order", () => {
       },
     });
 
-    expect(result.visiblePlatforms).toEqual(["gamma", "alpha", "beta"]);
+    expect(result.visiblePlatforms).toEqual(["gamma", "alpha", "second"]);
   });
 });

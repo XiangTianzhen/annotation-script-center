@@ -12,10 +12,12 @@
   - 设置页可控制 `启用 AI 功能`、`画段后自动应用建议` 与 `识别完成后立即填入`
   - 设置页基础设置、`AI 设置`、`快捷键` 标题已统一把详细说明收进可点击 `?`，并改为页面顶层帮助浮层避免被右栏遮挡
   - 设置页布尔开关已统一为滑块样式，右侧状态文案会随开关在 `开启 / 关闭` 间切换；下拉选择、输入框和数字框高度已统一
-  - AIDP 设置页本轮已先回退下拉框与多行输入框到较早的原生样式：基础设置和阶段模型重新使用原生 `select`，`听音 Prompt`、`收口 Prompt` 与 `stop sequences` 重新使用普通 `textarea`
-  - 当 `启用 AI 功能` 关闭并保存后，右侧 `AI 设置` 面板直接由 `快捷键` 面板替换；重新开启后继续沿用原有 AI 参数
+  - 设置字段固定按“开关 -> 下拉框 -> 单行参数 -> Prompt / stop sequences”排列，并统一使用当前 Vue Options 控件样式
+  - 当 `启用 AI 功能` 关闭并保存后，右侧 `AI 设置` 面板隐藏，左侧基础设置与快捷键收为单栏；重新开启后继续沿用原有 AI 参数
   - `启用 AI 功能` 与脚本 `启用 / 关闭` 状态完全独立；关闭脚本不会改写已保存的 `aiRecommendEnabled`
-  - `请求超时时间` 前端已改为秒口径输入，支持 `0.001` 秒精度，持久化仍写回 `aiRecommendRequestTimeoutMs`
+  - `请求超时时间` 前端按 `1~60` 秒输入，持久化仍写回毫秒口径的 `aiRecommendRequestTimeoutMs`
+  - 听音与普通话听写收口阶段均提供完整生成参数，并从 `/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults` 读取默认模型、Prompt 与参数
+  - defaults 读取失败时设置页继续使用本地回退；已修改草稿不会被迟到的 defaults 响应覆盖
   - 快捷键录制开始后改为顶部常驻提示；录制成功、取消和删除继续走顶部 `1s` toast
   - 管理区 `/management/*` 已补 header 账号区 `切换账号` 按钮，会先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 站点储存，再补清 AIDP / SSO / 第三方登录 Cookie 后刷新页面
   - 关闭自动填入时，行内识别会先缓存结果，再由同一行 `填入` 按钮直填 textarea
@@ -57,7 +59,7 @@
 - `extension/sites/bytedance-aidp/suzhou-helper/segmentation-controller.js`
 - `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
 - `extension/sites/bytedance-aidp/suzhou-helper/shortcuts.js`
-- `extension/sites/bytedance-aidp/suzhou-helper/page-world/network-observer.js`
+- `extension/sites/bytedance-aidp/shared/page-world/network-observer.js`
 
 ## 当前运行时边界
 

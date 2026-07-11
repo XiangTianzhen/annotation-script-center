@@ -1,16 +1,22 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import BaseSelect from "@/components/base/BaseSelect.vue";
 import InlineHelpDot from "@/components/base/InlineHelpDot.vue";
+import ScriptSettingsFields from "@/components/script-detail/ScriptSettingsFields.vue";
 import ShortcutEditor from "@/components/script-detail/ShortcutEditor.vue";
+import {
+  applyScriptDraftFieldUpdate,
+  hydrateScriptDraft,
+  loadScriptDefaults,
+  serializeScriptDraft,
+} from "@/services/script-defaults";
 import { isScriptRuntimeAccessible } from "@/services/globals";
 import {
   getScriptConfig,
   getScriptDetailSections,
   saveScriptConfig,
 } from "@/services/script-settings";
-import { clone, deepGet, deepSet } from "@/utils/clone";
+import { clone } from "@/utils/clone";
 import { useAppStore } from "@/stores/app";
 import { useScriptsStore } from "@/stores/scripts";
 import { useSettingsStore } from "@/stores/settings";
@@ -21,12 +27,21 @@ const scriptsStore = useScriptsStore();
 const settingsStore = useSettingsStore();
 
 const saving = ref(false);
+const draftDirty = ref(false);
 const draftConfig = ref({});
+const savedConfig = ref({});
+const validationError = ref("");
+const defaultsState = ref({ status: "loading", config: {}, options: {}, error: "" });
+let defaultsLoadToken = 0;
 
 const scriptId = computed(() => String(route.params.scriptId || "").trim());
 const script = computed(() => scriptsStore.getScript(scriptId.value));
 const detailSections = computed(() =>
-  getScriptDetailSections(scriptId.value, draftConfig.value || {})
+  getScriptDetailSections(
+    scriptId.value,
+    savedConfig.value || {},
+    defaultsState.value || {}
+  )
 );
 const basicSection = computed(() =>
   detailSections.value.find((section) => section.key === "basic") || null
@@ -40,78 +55,131 @@ const shortcutsSection = computed(() =>
 const primarySections = computed(() =>
   [basicSection.value, shortcutsSection.value].filter(Boolean)
 );
-const secondarySections = computed(() =>
-  [aiSection.value].filter(Boolean)
-);
+const secondarySections = computed(() => [aiSection.value].filter(Boolean));
 const runtimeEnabled = computed(() =>
   isScriptRuntimeAccessible(scriptId.value, settingsStore.settings || {})
 );
 const runtimeStatusText = computed(() => (runtimeEnabled.value ? "当前启用" : "当前未启用"));
 const runtimeStatusTone = computed(() => (runtimeEnabled.value ? "enabled" : "disabled"));
+const defaultsStatusText = computed(() => {
+  if (defaultsState.value.status === "loaded") return "已读取后端默认配置";
+  if (defaultsState.value.status === "fallback") return "使用本地回退";
+  return "正在读取后端默认配置";
+});
+const defaultsStatusTitle = computed(() =>
+  defaultsState.value.status === "fallback" && defaultsState.value.error
+    ? defaultsState.value.error
+    : defaultsStatusText.value
+);
 
-function syncDraftFromSettings() {
-  draftConfig.value = getScriptConfig(settingsStore.settings || {}, scriptId.value);
+function readSavedConfig() {
+  return getScriptConfig(settingsStore.settings || {}, scriptId.value);
+}
+
+function hydrateFromSaved(force = false) {
+  savedConfig.value = readSavedConfig();
+  if (force || draftDirty.value === false) {
+    draftConfig.value = hydrateScriptDraft(
+      scriptId.value,
+      savedConfig.value,
+      defaultsState.value
+    );
+  }
+}
+
+async function initializeScriptDetail() {
+  const currentToken = ++defaultsLoadToken;
+  draftDirty.value = false;
+  validationError.value = "";
+  defaultsState.value = { status: "loading", config: {}, options: {}, error: "" };
+  hydrateFromSaved(true);
+  const nextDefaults = await loadScriptDefaults(
+    scriptId.value,
+    settingsStore.settings || {}
+  );
+  if (currentToken !== defaultsLoadToken) return;
+  defaultsState.value = nextDefaults;
+  if (draftDirty.value === false) {
+    draftConfig.value = hydrateScriptDraft(
+      scriptId.value,
+      savedConfig.value,
+      defaultsState.value
+    );
+  }
 }
 
 watch(
-  () => [scriptId.value, settingsStore.settings],
+  scriptId,
   () => {
-    syncDraftFromSettings();
+    void initializeScriptDetail();
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 );
 
-function getFieldValue(field) {
-  if (field.kind === "boolean") {
-    return Boolean(deepGet(draftConfig.value || {}, field.path, false));
-  }
-  return deepGet(draftConfig.value || {}, field.path, field.defaultValue ?? "");
-}
+watch(
+  () => settingsStore.settings,
+  () => {
+    hydrateFromSaved(false);
+  },
+  { deep: true }
+);
 
-function setFieldValue(field, value) {
-  const next = clone(draftConfig.value || {});
-  deepSet(next, field.path, value);
-  draftConfig.value = next;
-}
-
-function coerceValue(field, rawValue) {
-  if (field.kind === "number" || field.valueType === "number") {
-    if (rawValue === "" || rawValue === null || rawValue === undefined) {
-      return "";
-    }
-    const numeric = Number(rawValue);
-    return Number.isFinite(numeric) ? numeric : "";
-  }
-  return rawValue;
-}
-
-function resolveGridClass(section) {
-  if (section?.layout === "single") {
-    return "detail-grid single";
-  }
-  return "detail-grid two";
+function updateField(field, value) {
+  draftConfig.value = applyScriptDraftFieldUpdate(
+    scriptId.value,
+    draftConfig.value,
+    field,
+    value
+  );
+  draftDirty.value = true;
+  validationError.value = "";
 }
 
 async function saveForm() {
   saving.value = true;
+  validationError.value = "";
   try {
-    await saveScriptConfig(settingsStore, scriptId.value, draftConfig.value);
+    const persistedConfig = serializeScriptDraft(
+      scriptId.value,
+      draftConfig.value,
+      defaultsState.value
+    );
+    await saveScriptConfig(settingsStore, scriptId.value, persistedConfig);
+    const normalizedConfig = readSavedConfig();
+    savedConfig.value = clone(normalizedConfig);
+    draftDirty.value = false;
+    draftConfig.value = hydrateScriptDraft(
+      scriptId.value,
+      normalizedConfig,
+      defaultsState.value
+    );
     scriptsStore.sync(settingsStore.settings || {});
-    syncDraftFromSettings();
     appStore.showToast("脚本设置已保存。", "success");
   } catch (error) {
-    appStore.showToast(error?.message || String(error), "error");
+    validationError.value = error?.message || String(error);
+    appStore.showToast(validationError.value, "error");
   } finally {
     saving.value = false;
   }
 }
 
 async function toggleScriptEnabled() {
-  const nextEnabled = !runtimeEnabled.value;
-  await settingsStore.toggleScript(scriptId.value, nextEnabled);
-  scriptsStore.sync(settingsStore.settings || {});
-  syncDraftFromSettings();
-  appStore.showToast(nextEnabled ? "脚本已启用。" : "脚本已关闭。", "success");
+  try {
+    const nextEnabled = !runtimeEnabled.value;
+    await settingsStore.toggleScript(scriptId.value, nextEnabled);
+    scriptsStore.sync(settingsStore.settings || {});
+    savedConfig.value = readSavedConfig();
+    if (draftDirty.value === false) {
+      draftConfig.value = hydrateScriptDraft(
+        scriptId.value,
+        savedConfig.value,
+        defaultsState.value
+      );
+    }
+    appStore.showToast(nextEnabled ? "脚本已启用。" : "脚本已关闭。", "success");
+  } catch (error) {
+    appStore.showToast(error?.message || String(error), "error");
+  }
 }
 </script>
 
@@ -153,9 +221,15 @@ async function toggleScriptEnabled() {
       <p id="detail-script-note" class="detail-note">
         {{ script.note || "当前页面用于编辑脚本专属设置；公共后端地址与数据导出仍统一走系统管理。" }}
       </p>
+      <p v-if="validationError" class="detail-validation-error" role="alert">
+        {{ validationError }}
+      </p>
     </section>
 
-    <div class="detail-workbench detail-workbench-legacy" :class="{ 'is-single': secondarySections.length <= 0 }">
+    <div
+      class="detail-workbench detail-workbench-legacy"
+      :class="{ 'is-single': secondarySections.length <= 0 }"
+    >
       <div class="detail-track detail-track-primary">
         <section
           v-for="section in primarySections"
@@ -164,161 +238,56 @@ async function toggleScriptEnabled() {
           :class="section.key === 'shortcuts' ? 'detail-shortcut-panel' : 'detail-panel-base'"
         >
           <div class="detail-section-head">
-            <div>
-              <strong class="field-title-row">
-                <span>{{ section.title }}</span>
-                <InlineHelpDot :text="section.help" />
-              </strong>
-            </div>
+            <strong class="field-title-row">
+              <span>{{ section.title }}</span>
+              <InlineHelpDot :text="section.help" />
+            </strong>
           </div>
 
           <ShortcutEditor
             v-if="section.key === 'shortcuts'"
             :model-value="draftConfig.shortcuts || {}"
             :actions="section.actions || []"
-            @update:model-value="(value) => setFieldValue({ path: 'shortcuts' }, value)"
+            @update:model-value="updateField({ path: 'shortcuts' }, $event)"
           />
 
-          <div v-else :class="resolveGridClass(section)">
-            <template v-for="field in section.fields" :key="field.path || field.label">
-              <div v-if="field.kind === 'notice'" class="field-card field-card-notice">
-                <strong class="field-title-row">
-                  <span>{{ field.label }}</span>
-                </strong>
-                <span v-for="line in field.lines || []" :key="line">{{ line }}</span>
-              </div>
-
-              <label v-else-if="field.kind === 'boolean'" class="field-card">
-                <strong class="field-title-row">
-                  <span>{{ field.label }}</span>
-                  <InlineHelpDot :text="field.help" />
-                </strong>
-                <span class="field-toggle switch-field">
-                  <input
-                    type="checkbox"
-                    :checked="Boolean(getFieldValue(field))"
-                    @change="(event) => setFieldValue(field, event.target.checked)"
-                  />
-                  <span class="switch-slider" aria-hidden="true"></span>
-                  <span class="switch-text">{{ Boolean(getFieldValue(field)) ? "开启" : "关闭" }}</span>
-                </span>
-              </label>
-
-              <label v-else class="field-card">
-                <strong class="field-title-row">
-                  <span>{{ field.label }}</span>
-                  <InlineHelpDot :text="field.help" />
-                </strong>
-
-                <BaseSelect
-                  v-if="field.kind === 'select'"
-                  :model-value="String(getFieldValue(field) ?? '')"
-                  :options="field.options || []"
-                  :placeholder="field.placeholder || ''"
-                  :custom="true"
-                  @update:model-value="(value) => setFieldValue(field, coerceValue(field, value))"
-                />
-
-                <textarea
-                  v-else-if="field.kind === 'textarea'"
-                  :rows="field.rows || 8"
-                  :placeholder="field.placeholder || ''"
-                  :value="String(getFieldValue(field) ?? '')"
-                  @input="(event) => setFieldValue(field, event.target.value)"
-                />
-
-                <input
-                  v-else
-                  :type="field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : 'text'"
-                  :min="field.min"
-                  :max="field.max"
-                  :step="field.step"
-                  :placeholder="field.placeholder || ''"
-                  :value="getFieldValue(field)"
-                  @input="(event) => setFieldValue(field, coerceValue(field, event.target.value))"
-                />
-              </label>
-            </template>
-          </div>
+          <ScriptSettingsFields
+            v-else
+            :groups="section.groups || []"
+            :model-value="draftConfig"
+            @update-field="updateField"
+          />
         </section>
       </div>
 
-      <div class="detail-track detail-track-secondary" :class="{ 'is-empty': secondarySections.length <= 0 }">
+      <div
+        class="detail-track detail-track-secondary"
+        :class="{ 'is-empty': secondarySections.length <= 0 }"
+      >
         <section
           v-for="section in secondarySections"
           :key="section.key"
           class="detail-panel detail-ai-panel"
         >
-          <div class="detail-section-head">
-            <div>
-              <strong class="field-title-row">
-                <span>{{ section.title }}</span>
-                <InlineHelpDot :text="section.help" />
-              </strong>
-            </div>
+          <div class="detail-section-head detail-ai-section-head">
+            <strong class="field-title-row">
+              <span>{{ section.title }}</span>
+              <InlineHelpDot :text="section.help" />
+            </strong>
+            <span
+              class="defaults-status"
+              :class="`is-${defaultsState.status}`"
+              :title="defaultsStatusTitle"
+            >
+              {{ defaultsStatusText }}
+            </span>
           </div>
 
-          <div :class="resolveGridClass(section)">
-            <template v-for="field in section.fields" :key="field.path || field.label">
-              <div v-if="field.kind === 'notice'" class="field-card field-card-notice">
-                <strong class="field-title-row">
-                  <span>{{ field.label }}</span>
-                </strong>
-                <span v-for="line in field.lines || []" :key="line">{{ line }}</span>
-              </div>
-
-              <label v-else-if="field.kind === 'boolean'" class="field-card">
-                <strong class="field-title-row">
-                  <span>{{ field.label }}</span>
-                  <InlineHelpDot :text="field.help" />
-                </strong>
-                <span class="field-toggle switch-field">
-                  <input
-                    type="checkbox"
-                    :checked="Boolean(getFieldValue(field))"
-                    @change="(event) => setFieldValue(field, event.target.checked)"
-                  />
-                  <span class="switch-slider" aria-hidden="true"></span>
-                  <span class="switch-text">{{ Boolean(getFieldValue(field)) ? "开启" : "关闭" }}</span>
-                </span>
-              </label>
-
-              <label v-else class="field-card">
-                <strong class="field-title-row">
-                  <span>{{ field.label }}</span>
-                  <InlineHelpDot :text="field.help" />
-                </strong>
-
-                <BaseSelect
-                  v-if="field.kind === 'select'"
-                  :model-value="String(getFieldValue(field) ?? '')"
-                  :options="field.options || []"
-                  :placeholder="field.placeholder || ''"
-                  :custom="true"
-                  @update:model-value="(value) => setFieldValue(field, coerceValue(field, value))"
-                />
-
-                <textarea
-                  v-else-if="field.kind === 'textarea'"
-                  :rows="field.rows || 8"
-                  :placeholder="field.placeholder || ''"
-                  :value="String(getFieldValue(field) ?? '')"
-                  @input="(event) => setFieldValue(field, event.target.value)"
-                />
-
-                <input
-                  v-else
-                  :type="field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : 'text'"
-                  :min="field.min"
-                  :max="field.max"
-                  :step="field.step"
-                  :placeholder="field.placeholder || ''"
-                  :value="getFieldValue(field)"
-                  @input="(event) => setFieldValue(field, coerceValue(field, event.target.value))"
-                />
-              </label>
-            </template>
-          </div>
+          <ScriptSettingsFields
+            :groups="section.groups || []"
+            :model-value="draftConfig"
+            @update-field="updateField"
+          />
         </section>
       </div>
     </div>

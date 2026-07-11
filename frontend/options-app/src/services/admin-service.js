@@ -192,30 +192,8 @@ export async function loadDownloadCenterReleases(settings) {
   };
 }
 
-export async function loadProjectDataDownloadOptions(settings) {
-  const response = await fetch(
-    buildBackendUrl("/api/admin/project-data-download/options", settings || {}),
-    {
-      method: "GET",
-      cache: "no-store",
-    }
-  );
-  const body = await response.json().catch(() => ({}));
-  return {
-    response,
-    body,
-  };
-}
-
 export async function loadAiCallLogOptions(settings) {
-  const urlObject = new URL(
-    buildBackendUrl("/api/admin/ai-call-log/options", settings || {}),
-    globalThis.location?.href || "https://example.com"
-  );
-  if (settings?.meta?.betaUnlocked === true) {
-    urlObject.searchParams.set("includeBeta", "1");
-  }
-  const response = await fetch(urlObject.toString(), {
+  const response = await fetch(buildBackendUrl("/api/admin/ai-call-log/options", settings || {}), {
     method: "GET",
     cache: "no-store",
   });

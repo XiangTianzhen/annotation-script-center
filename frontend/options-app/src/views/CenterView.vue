@@ -1,7 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { buildPlatformEntryDescriptor, isScriptRuntimeAccessible } from "@/services/globals";
+import {
+  buildPlatformEntryDescriptor,
+  isScriptRuntimeAccessible,
+  splitPlatformDisplayAddress,
+} from "@/services/globals";
 import { useAppStore } from "@/stores/app";
 import { useScriptsStore } from "@/stores/scripts";
 import { useSettingsStore } from "@/stores/settings";
@@ -63,9 +67,13 @@ const platformGroups = computed(() =>
           runtimeEnabled: isScriptRuntimeAccessible(script.id, settingsStore.settings || {}),
         }));
       const preferredScript = scripts.find((item) => item.runtimeEnabled) || scripts[0] || null;
+      const descriptor = buildPlatformEntryDescriptor(platform);
       return {
         ...platform,
-        ...buildPlatformEntryDescriptor(platform),
+        ...descriptor,
+        displayAddress: splitPlatformDisplayAddress(
+          descriptor.displayHost || platform?.host || ""
+        ),
         scripts,
         preferredScript,
       };
@@ -490,7 +498,14 @@ onBeforeUnmount(() => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {{ group.displayHost || group.host || "打开平台" }}
+                <span class="platform-link-copy">
+                  <span class="platform-link-host">
+                    {{ group.displayAddress.host || "打开平台" }}
+                  </span>
+                  <span v-if="group.displayAddress.path" class="platform-link-path">
+                    {{ group.displayAddress.path }}
+                  </span>
+                </span>
                 <span class="platform-link-mark" aria-hidden="true">↗</span>
               </a>
               <span v-if="group.preferredScript" class="pill" :class="group.preferredScript.runtimeEnabled ? 'enabled' : 'info'">

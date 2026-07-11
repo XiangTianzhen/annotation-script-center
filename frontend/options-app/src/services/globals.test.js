@@ -3,6 +3,7 @@ import {
   buildPlatformEntryDescriptor,
   getVisiblePlatformLibrary,
   isScriptRuntimeAccessible,
+  splitPlatformDisplayAddress,
 } from "@/services/globals";
 
 describe("globals helpers", () => {
@@ -10,14 +11,14 @@ describe("globals helpers", () => {
     globalThis.ASREdgeConstants = {
       PLATFORM_LIBRARY: {
         alpha: { id: "alpha", label: "Alpha" },
-        beta: { id: "beta", label: "Beta" },
+        hidden: { id: "hidden", label: "Hidden" },
       },
       SCRIPT_LIBRARY: {
         a1: { id: "a1", platformId: "alpha" },
-        b1: { id: "b1", platformId: "beta" },
+        b1: { id: "b1", platformId: "hidden" },
       },
       isPlatformVisible(platformId) {
-        return platformId !== "beta";
+        return platformId !== "hidden";
       },
       isScriptVisible(scriptId) {
         return scriptId !== "b1";
@@ -37,6 +38,25 @@ describe("globals helpers", () => {
     expect(descriptor).toEqual({
       displayHost: "example.com",
       entryUrl: "https://example.com/app",
+    });
+  });
+
+  test("splitPlatformDisplayAddress keeps the host intact and moves long paths to a second line", () => {
+    expect(
+      splitPlatformDisplayAddress("aidp.bytedance.com/management/task-v2")
+    ).toEqual({
+      host: "aidp.bytedance.com",
+      path: "/management/task-v2",
+    });
+    expect(
+      splitPlatformDisplayAddress("https://cvpc.data-baker.com/app/editor/asr/")
+    ).toEqual({
+      host: "cvpc.data-baker.com",
+      path: "/app/editor/asr",
+    });
+    expect(splitPlatformDisplayAddress("work.magicdatatech.com")).toEqual({
+      host: "work.magicdatatech.com",
+      path: "",
     });
   });
 

@@ -5,7 +5,15 @@
 - 平台：`data-baker-cvpc`
 - 脚本 ID：`dataBakerCvpcLiuzhouAssistant`
 - 目标页：`https://cvpc.data-baker.com/app/editor/asr/`
-- 当前阶段：`beta`
+- 当前阶段：`1.0.0` 正式脚本
+
+## Options 设置契约
+
+- 基础设置覆盖画段建议、自动应用、自动填入、Valid/Invalid 修正、两类提示屏蔽、前后静音时长和静音阈值。
+- 静音阈值支持 `dB / % / Val` 显示转换，内部与后端请求始终使用 dBFS；有效范围统一为 `-80~-5 dB`，前后静音范围为 `0~1.5s`。
+- AI 设置按听音/文本修正两阶段读取 `/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`，并提供模型、Prompt、词表参考与完整生成参数。
+- defaults 请求失败只切换为本地回退，不阻断编辑；Prompt 与生成参数等于后端默认值时不写冗余 override。
+- 快捷键设置完整对应当前运行时 18 个动作，默认全部为空。
 
 ## 当前能力
 
@@ -22,7 +30,7 @@
   - 当前音频签名 URL：运行时优先从页内观察桥映射获取；页内桥会消费页面真实 `annotation/meta`、`user/meta` 响应，以及顶层页面或同源 `xaudio` iframe 的真实音频请求和初始化阶段控制台打印的音频 URL。若扩展自身直连 `annotation/meta` 因平台鉴权返回失败，会回退使用页内桥传入的运行时 meta；`user/meta` 桥接未命中时再同源直连 `GET /httpapi/user/meta`；音频地址缺失时继续回退到 DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
   - 助手区嵌入右侧 `全局标注` 卡片，保持原生 `Valid / Invalid` 在上方；右侧当前只保留状态、当前音频/当前段摘要和提示说明，并优先插入 `全局标注` 的 `.label_title_border2` 内容流；摘要当前改为逐行显示 `文件 / 来源 / 当前第 N 段 / 当前段时间`
-  - 当右侧 `.label_title_border2` 同时容纳 `柳州话脚本 Beta` 与中间 `AI 区` 所在字段分组时，当前会把 `Beta` 卡稳定排到 `AI 区` 上方
+  - 当右侧 `.label_title_border2` 同时容纳 `柳州话脚本` 与中间 `AI 区` 所在字段分组时，当前会把脚本卡稳定排到 `AI 区` 上方
   - `是否有效（Valid or Not）` 下方当前作为独立同级 `柳州话 AI 识别助手`，优先挂到承载字段块的 `div[data-v-fd55b986]` 内，并与各个 `padding-left: 10px` 字段块保持同级；固定按 `当前段识别 / 批量识别 / 分段建议 / AI信息` 4 个分区展示
   - 中间 AI 区当前新增页内开关 `生成后自动应用分段建议`，默认开启；只有用户手动点击 `生成分段建议` 后才会触发，自动应用失败时会保留当前 preview，不自动刷新页面
   - 字段内结果区当前固定展示两张最终结果卡：
@@ -82,7 +90,7 @@
     - 前端请求体当前主链路只发送 `audioUrl` 与 `rules.silenceThresholdDbfs/minSilenceMs/contextPaddingMs`
     - 后端会直接下载 mp3，并通过 Python `miniaudio` 解码
     - 后端固定按 `30ms` 窗口、轻量平滑、`<=0.18s` 短尖峰桥接、连续 `0.4s` 静音和可配置前后补偿生成整条音频 `proposedSegments`
-    - 前后补偿时长当前开放到 options `基础设置 -> 前后补偿时长`，默认 `0.2s`，可调范围 `0 ~ 1.5s`
+    - 前后补偿时长当前开放到 options `基础设置 -> 前后静音时长`，默认 `0.2s`，可调范围 `0 ~ 1.5s`
     - 当前返回结果固定是后端整音频重切预览；前端不会按它自动重画整页波形
     - 前端空预览当前会额外提示“后端未检出静音”或“命中了静音但拆分后仍不足 2 段”
   - `应用分段建议` 当前优先走平台保存接口：
@@ -206,7 +214,7 @@
     - 当前主链路只要求 `audioUrl`
     - `rules.silenceThresholdDbfs`
     - 固定规则 `rules.minSilenceMs = 400`
-    - `rules.contextPaddingMs` 默认 `200`，由 options `前后补偿时长` 按 `0 ~ 1.5s` 映射到毫秒后传入
+    - `rules.contextPaddingMs` 默认 `200`，由 options `前后静音时长` 按 `0 ~ 1.5s` 映射到毫秒后传入
     - 如需兼容旧增量链路，仍可选传 `existingSegments[] / silentRanges[] / segmentScope`
   - 输出：
     - `data.proposedSegments`
@@ -251,7 +259,7 @@
   - `platformUserId = data.user_id`
   - `projectId / taskId / processId / dataId / jobId / fileName / entryIndex / selectionKey / segmentStartMs / segmentEndMs / listenModel / refineModel`
 - 当前原始返回 JSON 会继续脱敏鉴权类 token / cookie / 签名信息，但 usage 里的 token 数量不再被打成 `<redacted>`
-- 该数据集当前按 beta 可见性收口：未解锁 beta 时，系统管理里的 `AI 请求记录` 不显示这项；解锁 beta 后才会请求并显示
+- 该数据集作为正式脚本固定出现在系统管理的 `AI 请求记录` 选项中
 - 系统管理 `AI 请求记录` 的开始 / 结束日期当前默认留空；留空表示导出该脚本当前可见的全部日期范围
 
 ## 当前边界

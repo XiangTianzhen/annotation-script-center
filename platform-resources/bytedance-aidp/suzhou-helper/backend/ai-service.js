@@ -8,7 +8,7 @@ const {
   ensureChineseSentencePunctuation,
   normalizeUsage,
   parseModelJsonText,
-} = require("../../../data-baker/round-one-quality/backend/ai-service");
+} = require("../../../backend/ai/model-response-utils");
 const {
   buildPricingAvailabilitySummary,
   estimateProjectCost,

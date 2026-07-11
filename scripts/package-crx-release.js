@@ -7,14 +7,9 @@ const crypto = require("crypto");
 const childProcess = require("child_process");
 const { buildOptionsApp } = require("./build-options-app");
 const {
-  buildBuildMetaContent,
-  buildManifestForChannel,
-  buildReleaseProfile,
+  buildManifestForRelease,
   buildReleaseProfiles,
-  normalizeReleaseBuildMode,
-  normalizeReleaseChannel,
 } = require("./package-crx-build-profile");
-const { buildEmptyLocalBuildMetaContent } = require("./build-meta-local");
 
 const APP_NAME = "annotation-script-center";
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -29,12 +24,6 @@ const DEFAULT_UPDATE_XML_URL = `${DEFAULT_DOWNLOAD_BASE_URL}${UPDATE_XML_FILENAM
 const CRX_LATEST_FILENAME = `${APP_NAME}-crx-latest.json`;
 const DEFAULT_MIN_AGENT_VERSION = "0.1.0";
 const RELEASE_CONFIG_PATH = path.join(REPO_ROOT, "config", "package-crx-release.json");
-const RELEASE_LOCAL_CONFIG_PATH = path.join(
-  REPO_ROOT,
-  "config",
-  "secrets",
-  "package-crx-release.local.json"
-);
 const ZIP_PROTECTED_NAME_PATTERNS = [
   /^config\//i,
   /^platform-resources\//i,
@@ -109,11 +98,7 @@ function readJsonConfigFile(filePath) {
 }
 
 function loadReleaseConfig() {
-  return Object.assign(
-    {},
-    readJsonConfigFile(RELEASE_CONFIG_PATH),
-    readJsonConfigFile(RELEASE_LOCAL_CONFIG_PATH)
-  );
+  return readJsonConfigFile(RELEASE_CONFIG_PATH);
 }
 
 function normalizeBaseUrl(input) {
@@ -358,30 +343,15 @@ function validateZipArchive(zipOutputPath) {
   };
 }
 
-function createPreparedExtensionBuild(options) {
-  const config = options && typeof options === "object" ? options : {};
-  const channel = normalizeReleaseChannel(config.channel);
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), `${APP_NAME}-${channel}-`));
+function createPreparedExtensionBuild() {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), `${APP_NAME}-release-`));
   const extensionDir = path.join(tempRoot, "extension");
   fs.cpSync(SOURCE_EXTENSION_DIR, extensionDir, { recursive: true });
 
   const manifestPath = path.join(extensionDir, "manifest.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  const nextManifest = buildManifestForChannel(manifest, channel);
+  const nextManifest = buildManifestForRelease(manifest);
   fs.writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, "utf8");
-
-  const buildMetaPath = path.join(extensionDir, "shared", "build-meta.js");
-  const buildMetaLocalPath = path.join(extensionDir, "shared", "build-meta.local.js");
-  fs.writeFileSync(
-    buildMetaPath,
-    buildBuildMetaContent({
-      releaseChannel: channel,
-      betaUnlockPasswordSha256: config.betaUnlockPasswordSha256 || "",
-      betaBackendBaseUrl: config.betaBackendBaseUrl || "",
-    }),
-    "utf8"
-  );
-  fs.writeFileSync(buildMetaLocalPath, buildEmptyLocalBuildMetaContent(), "utf8");
 
   return {
     tempRoot,
@@ -454,11 +424,7 @@ function packageReleaseProfile(options) {
     throw new Error("缺少有效打包 profile。");
   }
 
-  const preparedBuild = createPreparedExtensionBuild({
-    channel: profile.channel,
-    betaUnlockPasswordSha256: config.betaUnlockPasswordSha256 || "",
-    betaBackendBaseUrl: config.betaBackendBaseUrl || "",
-  });
+  const preparedBuild = createPreparedExtensionBuild();
 
   try {
     fs.mkdirSync(DIST_DIR, { recursive: true });
@@ -527,7 +493,7 @@ function packageReleaseProfile(options) {
     }
 
     return {
-      channel: profile.channel,
+      profile,
       crxOutputPath,
       zipOutputPath,
       updateXmlPath,
@@ -552,40 +518,11 @@ function main() {
   const downloadBaseUrl = normalizeBaseUrl(
     args.downloadBaseUrl || process.env.ASC_DOWNLOAD_BASE_URL || releaseConfig.downloadBaseUrl
   );
-  const buildMode = normalizeReleaseBuildMode(
-    args.channel || process.env.ASC_RELEASE_CHANNEL || releaseConfig.channel
-  );
-  const betaUnlockPasswordSha256 = String(
-    args.betaUnlockPasswordSha256 ||
-      process.env.ASC_BETA_UNLOCK_PASSWORD_SHA256 ||
-      releaseConfig.betaUnlockPasswordSha256 ||
-      ""
-  )
-    .trim()
-    .toLowerCase();
-  const betaBackendBaseUrl = String(
-    args.betaBackendBaseUrl ||
-      process.env.ASC_BETA_BACKEND_BASE_URL ||
-      releaseConfig.betaBackendBaseUrl ||
-      ""
-  )
-    .trim();
   const releaseNotes = typeof args.notes === "string" && args.notes.trim()
     ? args.notes.trim()
     : `${APP_NAME} release ${version}`;
-  const profiles = buildReleaseProfiles(buildMode, version);
-  const needsBetaArtifacts = profiles.some(function (profile) {
-    return normalizeReleaseChannel(profile.channel) === "beta";
-  });
-  const needsCrxArtifacts = profiles.some(function (profile) {
-    return Boolean(profile.crxFilename);
-  });
-  if (needsBetaArtifacts && !betaUnlockPasswordSha256) {
-    throw new Error(
-      "当前命令会生成 beta 包，缺少 ASC_BETA_UNLOCK_PASSWORD_SHA256 或 --betaUnlockPasswordSha256。"
-    );
-  }
-  const browserExe = needsCrxArtifacts ? resolveBrowserExecutable() : "";
+  const profiles = buildReleaseProfiles(version);
+  const browserExe = resolveBrowserExecutable();
 
   const results = profiles.map(function (profile) {
     return packageReleaseProfile({
@@ -594,15 +531,12 @@ function main() {
       downloadBaseUrl,
       releaseNotes,
       profile,
-      betaUnlockPasswordSha256,
-      betaBackendBaseUrl,
     });
   });
 
   console.log("release generated:");
   results.forEach(function (result) {
-    const profile = buildReleaseProfile(result.channel, version);
-    console.log(`- channel: ${result.channel}`);
+    const profile = result.profile;
     if (result.crxOutputPath) {
       console.log(`  CRX: ${result.crxOutputPath}`);
     }
@@ -633,14 +567,12 @@ function main() {
       outputIndex += 1;
     }
   });
-  const publicResult = results.find(function (result) {
-    return result.channel === "public";
-  });
-  if (publicResult && publicResult.updateXmlPath && publicResult.crxLatestPath) {
+  const releaseResult = results[0];
+  if (releaseResult && releaseResult.updateXmlPath && releaseResult.crxLatestPath) {
     console.log("");
     console.log("企业自动更新预留文件：");
-    console.log(`1. ${publicResult.updateXmlPath}`);
-    console.log(`2. ${publicResult.crxLatestPath}`);
+    console.log(`1. ${releaseResult.updateXmlPath}`);
+    console.log(`2. ${releaseResult.crxLatestPath}`);
   }
   if (results.some(function (result) { return result.generatedNewKey; })) {
     console.log(

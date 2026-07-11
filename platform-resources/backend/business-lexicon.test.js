@@ -23,13 +23,13 @@ function createTempJsonFile(content) {
 test("validateBusinessLexiconDocument accepts normalized JSON lexicon entries", function () {
   const result = validateBusinessLexiconDocument({
     schemaVersion: "1",
-    language: "minnan",
+    language: "hangzhou_dialect",
     mode: "rule_lexicon",
-    sourceFiles: ["reference/minnan-lexicon.csv"],
+    sourceFiles: ["lexicon/hangzhou-lexicon.json"],
     updatedAt: "2026-06-09T00:00:00.000Z",
     entries: [
       {
-        id: "mn-001",
+        id: "hz-001",
         normalized: "伊",
         display: "伊",
         mandarin: "他",
@@ -42,7 +42,7 @@ test("validateBusinessLexiconDocument accepts normalized JSON lexicon entries", 
 
   assert.equal(result.entries.length, 1);
   assert.deepEqual(result.entries[0], {
-    id: "mn-001",
+    id: "hz-001",
     normalized: "伊",
     display: "伊",
     mandarin: "他",
@@ -88,13 +88,13 @@ test("validateBusinessLexiconDocument rejects duplicate ids and empty mandarin",
 test("loadBusinessLexiconJson reports invalid schema errors with stable status", function () {
   const filePath = createTempJsonFile({
     schemaVersion: "1",
-    language: "hakka",
+    language: "hangzhou_dialect",
     mode: "rule_lexicon",
     sourceFiles: [],
     updatedAt: "2026-06-09T00:00:00.000Z",
     entries: [
       {
-        id: "hk-001",
+        id: "hz-001",
         normalized: "你",
         display: "你",
         mandarin: "你",

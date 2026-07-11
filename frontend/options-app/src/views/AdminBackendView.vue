@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref } from "vue";
 import AdminPageFrame from "@/components/admin/AdminPageFrame.vue";
-import { canUseBetaFeatures } from "@/services/globals";
 import { useAdminStore } from "@/stores/admin";
 import { useAppStore } from "@/stores/app";
 import { useScriptsStore } from "@/stores/scripts";
@@ -15,17 +14,13 @@ const configExpanded = ref(true);
 
 const draft = computed(() => adminStore.backendDraft || {
   backendEndpointMode: "server",
-  backendBaseUrls: { server: "", local: "", beta: "" },
+  backendBaseUrls: { server: "", local: "" },
 });
 
-const betaVisible = computed(() => canUseBetaFeatures(settingsStore.settings || {}));
 const currentModeLabel = computed(() => {
   const mode = String(draft.value.backendEndpointMode || "server").trim().toLowerCase();
   if (mode === "local") {
     return "本机";
-  }
-  if (mode === "beta") {
-    return "Beta";
   }
   return "服务器";
 });
@@ -33,9 +28,6 @@ const effectiveBaseUrl = computed(() => {
   const mode = String(draft.value.backendEndpointMode || "server").trim().toLowerCase();
   if (mode === "local") {
     return String(draft.value.backendBaseUrls?.local || "").trim();
-  }
-  if (mode === "beta") {
-    return String(draft.value.backendBaseUrls?.beta || "").trim();
   }
   return String(draft.value.backendBaseUrls?.server || "").trim();
 });
@@ -53,7 +45,7 @@ async function save() {
 <template>
   <AdminPageFrame
     title="后端设置"
-    description="这些统一维护 server / local / beta 三套后端根地址；AI 调用使用人与全局摘要统一放在左侧侧栏中管理。"
+    description="统一维护 Server / Local 两套后端根地址；AI 调用使用人与全局摘要统一放在左侧侧栏中管理。"
   >
       <section class="admin-surface-card">
         <div class="admin-card-head">
@@ -64,7 +56,7 @@ async function save() {
         <div id="admin-backend-card-slot">
           <section class="home-endpoint-card hero-command-card">
             <strong>后端根地址</strong>
-            <span class="home-endpoint-help">该设置统一控制所有脚本的后端请求和下载入口；前端只保存三套根地址，再从当前模式派生 `/api/...` 与 `/downloads/...`。</span>
+            <span class="home-endpoint-help">该设置统一控制所有脚本的后端请求和下载入口；前端只保存两套根地址，再从当前模式派生 `/api/...` 与 `/downloads/...`。</span>
 
             <div class="segmented-control" role="tablist" aria-label="后端模式切换">
               <button
@@ -82,15 +74,6 @@ async function save() {
                 @click="setMode('local')"
               >
                 本机
-              </button>
-              <button
-                v-if="betaVisible"
-                type="button"
-                class="segmented-button"
-                :class="{ active: draft.backendEndpointMode === 'beta' }"
-                @click="setMode('beta')"
-              >
-                Beta
               </button>
             </div>
 
@@ -116,10 +99,6 @@ async function save() {
               <label class="home-endpoint-row">
                 <span>Local 根地址</span>
                 <input v-model="draft.backendBaseUrls.local" type="text" />
-              </label>
-              <label v-if="betaVisible" class="home-endpoint-row">
-                <span>Beta 根地址</span>
-                <input v-model="draft.backendBaseUrls.beta" type="text" />
               </label>
             </div>
 

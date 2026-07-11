@@ -4,7 +4,6 @@
   const constants = globalThis.ASREdgeConstants || {};
   const DEFAULT_LOCAL_BASE_URL = constants.DEFAULT_BACKEND_BASE_URLS?.local || "";
   const DEFAULT_SERVER_BASE_URL = constants.DEFAULT_BACKEND_BASE_URLS?.server || "";
-  const DEFAULT_BETA_BASE_URL = constants.DEFAULT_BACKEND_BASE_URLS?.beta || "";
   const jobClient = globalThis.ASREdgeAiJobClient || null;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =
@@ -83,7 +82,6 @@
 
     const localMode = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
     const serverMode = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
-    const betaMode = constants.BACKEND_ENDPOINT_MODE_BETA || "beta";
     const mode = typeof constants.getBackendEndpointModeFromSettings === "function"
       ? constants.getBackendEndpointModeFromSettings(settings || {})
       : String(settings?.meta?.backendEndpointMode || "").trim().toLowerCase() === localMode
@@ -95,21 +93,13 @@
         ? constants.getBackendBaseUrlByMode(mode, settings || {})
         : mode === localMode
           ? DEFAULT_LOCAL_BASE_URL
-          : mode === betaMode
-            ? DEFAULT_BETA_BASE_URL
           : DEFAULT_SERVER_BASE_URL;
     const normalizedBaseUrl = normalizeBaseUrl(
       baseUrl,
-      mode === localMode
-        ? DEFAULT_LOCAL_BASE_URL
-        : mode === betaMode
-          ? DEFAULT_BETA_BASE_URL
-          : DEFAULT_SERVER_BASE_URL
+      mode === localMode ? DEFAULT_LOCAL_BASE_URL : DEFAULT_SERVER_BASE_URL
     );
     const endpoint =
-      typeof constants.buildBackendUrl === "function"
-        ? constants.buildBackendUrl(API_PATH, mode)
-        : normalizedBaseUrl.replace(/\/+$/, "") + API_PATH;
+      normalizedBaseUrl.replace(/\/+$/, "") + API_PATH;
 
     return {
       mode,

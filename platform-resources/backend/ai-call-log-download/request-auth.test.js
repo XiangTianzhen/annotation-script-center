@@ -67,8 +67,9 @@ test("ai call log request accepts admin bearer token without password", async fu
   const csvPath = path.join(tempDir, "ai-calls-2026-05-31.csv");
   fs.writeFileSync(csvPath, "\uFEFFcreatedAt,requestId,success\n2026-05-31T10:00:00.000Z,req-1,true\n", "utf8");
 
-  process.env.ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256 = createPasswordSha256("download-pass");
-  process.env.ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET = "secret-ai-call-log";
+  process.env.ASC_AI_CALL_LOG_DOWNLOAD_PASSWORD_SHA256 = createPasswordSha256("download-pass");
+  process.env.ASC_AI_CALL_LOG_DOWNLOAD_JWT_SECRET = "secret-ai-call-log";
+  process.env.ASC_ADMIN_JWT_SECRET = "secret-ai-call-log";
 
   const issued = createAdminSessionToken(
     {
@@ -122,23 +123,19 @@ test("ai call log request accepts admin bearer token without password", async fu
   assert.ok(body.data.downloadUrl);
 });
 
-test("ai call log options include CVPC liuzhou helper dataset", function () {
-  const datasets = listAiCallLogDatasets({
-    includeBetaDatasets: true,
-  });
+test("ai call log options expose exactly the four 1.0 scripts", function () {
+  const datasets = listAiCallLogDatasets({});
   const target = datasets.find(function (item) {
     return item.id === "data-baker-cvpc-liuzhou-helper-ai";
   });
 
   assert.ok(target);
   assert.equal(target.label, "DataBaker CVPC 柳州话助手 AI 调用记录");
-});
-
-test("ai call log options hide beta CVPC dataset by default", function () {
-  const datasets = listAiCallLogDatasets({});
-  const target = datasets.find(function (item) {
-    return item.id === "data-baker-cvpc-liuzhou-helper-ai";
-  });
-
-  assert.equal(target, undefined);
+  assert.deepEqual(datasets.map((item) => item.id), [
+    "data-baker-cvpc-liuzhou-helper-ai",
+    "bytedance-aidp-suzhou-helper-ai",
+    "bytedance-aidp-jinhua-helper-ai",
+    "magic-data-hangzhou-helper-ai",
+  ]);
+  assert.equal(datasets.some((item) => "visibility" in item), false);
 });

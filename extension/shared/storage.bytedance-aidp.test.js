@@ -58,7 +58,7 @@ function loadStorageApi(initialSettings) {
   };
 }
 
-test("ByteDance AIDP storage defaults expose beta suzhou helper settings", async function () {
+test("ByteDance AIDP storage defaults expose promoted helper settings", async function () {
   const harness = loadStorageApi({});
 
   try {
@@ -66,6 +66,16 @@ test("ByteDance AIDP storage defaults expose beta suzhou helper settings", async
     const suzhouScript = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
 
+    assert.equal(settings.meta.schemaVersion, 30);
+    assert.deepEqual(Object.keys(settings.platforms).sort(), [
+      "bytedanceAidp",
+      "dataBakerCvpc",
+      "magicData",
+    ]);
+    assert.deepEqual(Object.keys(settings.platforms.bytedanceAidp.scripts).sort(), [
+      "jinhuaHelper",
+      "suzhouHelper",
+    ]);
     assert.equal(settings.platforms.bytedanceAidp.enabled, true);
     assert.equal(
       settings.platforms.bytedanceAidp.activeScriptId,
@@ -167,7 +177,90 @@ test("ByteDance AIDP storage clamps suzhou helper segment padding threshold play
   }
 });
 
-test("ByteDance AIDP storage migrates legacy visible-by-default config to hidden-by-default", async function () {
+test("ByteDance AIDP storage preserves every runtime preset, boundary and supported model", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 30 },
+    platforms: {
+      bytedanceAidp: {
+        scripts: {
+          jinhuaHelper: {
+            segmentSilenceThresholdDbfs: -80,
+            aiRecommendRequestTimeoutMs: 1000,
+            aiRecommendListenModel: "qwen3.5-omni-plus",
+            aiRecommendRefineModel: "qwen3.5-flash",
+            defaultPlaybackRate: 1.75,
+            fixedWaveZoom: 10,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.bytedanceAidp.scripts.jinhuaHelper;
+    assert.equal(script.segmentSilenceThresholdDbfs, -80);
+    assert.equal(script.aiRecommendRequestTimeoutMs, 1000);
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-plus");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
+    assert.equal(script.defaultPlaybackRate, 1.75);
+    assert.equal(script.fixedWaveZoom, 10);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage preserves both stages of generation parameter overrides", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      bytedanceAidp: {
+        scripts: {
+          suzhouHelper: {
+            aiRecommendListenTemperature: "0.2",
+            aiRecommendListenTopP: "0.7",
+            aiRecommendListenMaxTokens: "2048",
+            aiRecommendListenMaxCompletionTokens: "512",
+            aiRecommendListenPresencePenalty: "-0.3",
+            aiRecommendListenFrequencyPenalty: "0.4",
+            aiRecommendListenSeed: "123",
+            aiRecommendListenStopSequences: " END \nEND\nSTOP ",
+            aiRecommendRefineTemperature: "0.1",
+            aiRecommendRefineTopP: "0.8",
+            aiRecommendRefineMaxTokens: "1200",
+            aiRecommendRefineMaxCompletionTokens: "600",
+            aiRecommendRefinePresencePenalty: "0",
+            aiRecommendRefineFrequencyPenalty: "0",
+            aiRecommendRefineSeed: "456",
+            aiRecommendRefineStopSequences: "DONE\nDONE",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.bytedanceAidp.scripts.suzhouHelper;
+    assert.equal(script.aiRecommendListenTemperature, "0.2");
+    assert.equal(script.aiRecommendListenTopP, "0.7");
+    assert.equal(script.aiRecommendListenMaxTokens, "2048");
+    assert.equal(script.aiRecommendListenMaxCompletionTokens, "512");
+    assert.equal(script.aiRecommendListenPresencePenalty, "-0.3");
+    assert.equal(script.aiRecommendListenFrequencyPenalty, "0.4");
+    assert.equal(script.aiRecommendListenSeed, "123");
+    assert.equal(script.aiRecommendListenStopSequences, "END\nSTOP");
+    assert.equal(script.aiRecommendRefineTemperature, "0.1");
+    assert.equal(script.aiRecommendRefineTopP, "0.8");
+    assert.equal(script.aiRecommendRefineMaxTokens, "1200");
+    assert.equal(script.aiRecommendRefineMaxCompletionTokens, "600");
+    assert.equal(script.aiRecommendRefinePresencePenalty, "0");
+    assert.equal(script.aiRecommendRefineFrequencyPenalty, "0");
+    assert.equal(script.aiRecommendRefineSeed, "456");
+    assert.equal(script.aiRecommendRefineStopSequences, "DONE");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage migrates legacy platform AI visibility to hidden-by-default", async function () {
   const harness = loadStorageApi({
     meta: {
       schemaVersion: 24,
