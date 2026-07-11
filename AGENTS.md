@@ -352,6 +352,11 @@
 
 ### 9.1 测试文件治理
 
+- 长期测试代码统一放在仓库根目录 `tests/`，按 `frontend / extension / backend / release` 分区；Options runtime 测试放在 `tests/frontend/runtime/`。
+- `extension/`、`frontend/options-app/src/`、`platform-resources/` 与 `scripts/` 等生产目录不得再散落 `*.test.*` / `*.spec.*`。
+- 全量测试统一在仓库根目录执行 `npm test`；定向验证使用根 `package.json` 提供的 `test:frontend / test:runtime / test:extension / test:backend / test:release`。
+- 测试引用生产代码时统一通过 `tests/helpers/repo-paths.cjs` 解析仓库根路径，不得依赖测试文件自身位置猜测相邻源码。
+- 测试临时数据必须写入系统临时目录，并在 `t.after()` 等清理钩子中删除；不得在源码目录留下 `tmp-*`、CSV、日志或缓存。
 - AI / 模型 / 日志 / 队列链路相关 `*.test.js` 默认视为临时验证资产。
 - 当前任务若只是用它们做一次性校验，验证完成后可删除，除非用户明确要求保留。
 - `options`、`storage`、`ui-panel`、`content`、`data-api`、`shortcuts` 这类核心回归测试默认保留。

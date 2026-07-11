@@ -21,11 +21,6 @@ export default defineConfig({
       },
     },
   },
-  test: {
-    environment: "jsdom",
-    globals: true,
-    include: ["src/**/*.test.js"],
-  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

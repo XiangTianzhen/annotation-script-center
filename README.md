@@ -20,11 +20,23 @@
 在仓库根目录执行：
 
 ```powershell
-npm --prefix frontend/options-app test
+npm test
+```
+
+测试统一放在根目录 `tests/`，也可以按范围单独执行：
+
+```powershell
+npm run test:frontend
+npm run test:runtime
+npm run test:extension
+npm run test:backend
+npm run test:release
+```
+
+Options 构建仍使用：
+
+```powershell
 node scripts/build-options-app.js
-npm --prefix frontend/options-app run test:runtime
-$tests = @(rg --files extension scripts platform-resources | Where-Object { $_ -match '\.test\.js$' })
-node --test $tests
 ```
 
 统一后端默认监听 `127.0.0.1:3333`：

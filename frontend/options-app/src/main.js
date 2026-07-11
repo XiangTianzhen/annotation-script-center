@@ -7,7 +7,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useAdminStore } from "@/stores/admin";
 import { useScriptsStore } from "@/stores/scripts";
 import { useSettingsStore } from "@/stores/settings";
-import "@/styles.css";
+import "@/styles/index.scss";
 
 async function bootstrap() {
   const app = createApp(App);

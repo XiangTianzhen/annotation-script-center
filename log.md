@@ -1499,3 +1499,9 @@
 - 测试(options): 补齐四脚本字段、18/7/7/22 快捷键、单位转换、动态显隐、defaults 回退与 AIDP 保存后 AI 面板联动回归
 - 修复(options/storage): 对齐 AIDP 最小超时、`1.75` 倍速、`1~10` 波形缩放、两阶段模型白名单与 `-80~-5 dB` 阈值；CVPC 前后静音恢复到 `0~1.5s`，杭州历史 thinking 配置统一清理为关闭
 - 修复(options): 非法数字整次阻止保存，成功写入后重新读取 storage 归一化结果，避免当前显示与刷新后不一致
+- 重构(options): 将 3243 行全局 CSS 迁移为模块化 SCSS，按 foundation、components、layouts、pages 与 vendor 分层，并使用嵌套状态和就近响应式规则保持编译级联等价
+- 重构(test): 将 60 个既有测试从 Options、扩展、后端与发布脚本目录集中迁入根 `tests/`，生产目录不再散落测试文件
+- 新增(test): 增加根级 `npm test` 与 frontend、runtime、extension、backend、release 五个分区命令，统一跨平台顺序执行和失败状态透传
+- 修复(test): Vitest 缓存固定写入 Options 已忽略目录，AI 日志下载测试改用系统临时目录并在结束后清理环境变量和文件
+- 修复(options): 将下载中心与功能面板的响应式覆盖归回页面 SCSS owner，并修正品牌背景资源路径，恢复窄屏级联与 Vite 内联产物
+- 修复(test): 测试分区改为统一只要求非空，移除 frontend 固定 13 个文件限制，并为运行日志与业务词表测试补齐临时目录清理

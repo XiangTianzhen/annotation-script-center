@@ -1,0 +1,52 @@
+// pages / downloads
+.download-release-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
+
+  @media (max-width: 980px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.download-release-highlight,
+.download-release-selector {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: rgba(248, 250, 255, 0.88);
+}
+
+.download-release-highlight strong {
+  font-size: 28px;
+}
+
+.download-release-current {
+  display: grid;
+  gap: 12px;
+}
+
+.download-release-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.download-release-actions button {
+  min-width: 128px;
+}
+
+.download-center-shell {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.download-center-top {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}

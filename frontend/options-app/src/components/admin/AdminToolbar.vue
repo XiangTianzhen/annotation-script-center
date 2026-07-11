@@ -77,3 +77,21 @@ async function logout() {
     </div>
   </div>
 </template>
+
+<style scoped lang="scss">
+.admin-toolbar {
+  justify-content: space-between;
+  padding: 0 2px;
+
+  > .status-text {
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  @media (max-width: 720px) {
+    display: grid;
+    justify-content: stretch;
+  }
+}
+</style>
