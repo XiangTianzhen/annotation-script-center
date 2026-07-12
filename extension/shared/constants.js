@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 31;
+  const SCHEMA_VERSION = 30;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";

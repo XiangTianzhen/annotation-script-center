@@ -67,7 +67,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     const suzhouScript = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
 
-    assert.equal(settings.meta.schemaVersion, 31);
+    assert.equal(settings.meta.schemaVersion, 30);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",

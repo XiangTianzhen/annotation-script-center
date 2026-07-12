@@ -21,10 +21,10 @@ test("release profiles contain one public profile", function () {
   assert.deepEqual(buildReleaseProfiles("1.0.0"), [buildReleaseProfile("1.0.0")]);
 });
 
-test("release manifest cannot carry a beta version marker", function () {
+test("release manifest omits version_name", function () {
   const manifest = buildManifestForRelease({
     name: "标注脚本中心",
-    version_name: "beta",
+    version_name: "preview",
     host_permissions: ["https://example.test/*"],
   });
 
@@ -32,9 +32,9 @@ test("release manifest cannot carry a beta version marker", function () {
   assert.deepEqual(manifest.host_permissions, ["https://example.test/*"]);
 });
 
-test("release profile module exposes no beta or build-meta API", function () {
-  assert.equal(profileModule.buildBuildMetaContent, undefined);
-  assert.equal(profileModule.buildManifestForChannel, undefined);
-  assert.equal(profileModule.normalizeReleaseChannel, undefined);
-  assert.equal(profileModule.normalizeReleaseBuildMode, undefined);
+test("release profile module exposes only the public build API", function () {
+  assert.deepEqual(
+    Object.keys(profileModule).sort(),
+    ["buildManifestForRelease", "buildReleaseProfile", "buildReleaseProfiles"]
+  );
 });

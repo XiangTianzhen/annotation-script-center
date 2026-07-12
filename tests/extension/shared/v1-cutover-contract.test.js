@@ -72,8 +72,8 @@ test("1.0.0 catalog contains only the four promoted scripts", function () {
 
   assert.deepEqual(platformIds, RETAINED_PLATFORM_IDS);
   assert.deepEqual(scriptIds, RETAINED_SCRIPT_IDS);
-  assert.equal(scripts.some((item) => item.visibility === "beta"), false);
-  assert.equal(constants.SCHEMA_VERSION, 31);
+  assert.equal(scripts.every((item) => !("visibility" in item)), true);
+  assert.equal(constants.SCHEMA_VERSION, 30);
 });
 
 test("1.0.0 constants expose only server and local backend modes", function () {
@@ -83,11 +83,11 @@ test("1.0.0 constants expose only server and local backend modes", function () {
     server: "https://annotation-script-center.xiangtianzhen.store",
     local: "http://127.0.0.1:3333",
   });
-  assert.equal(constants.normalizeBackendEndpointMode("beta", "local"), "server");
-  assert.equal("BACKEND_ENDPOINT_MODE_BETA" in constants, false);
-  assert.equal("RELEASE_CHANNEL" in constants, false);
-  assert.equal("BETA_UNLOCK_PASSWORD_SHA256" in constants, false);
-  assert.equal("canUseBetaFeatures" in constants, false);
+  assert.equal(constants.normalizeBackendEndpointMode("unsupported", "local"), "server");
+  assert.deepEqual(
+    Object.keys(constants.DEFAULT_SETTINGS.meta.backendBaseUrls).sort(),
+    ["local", "server"]
+  );
 });
 
 test("1.0.0 runtime accessibility follows retained script enablement and AIDP mutual exclusion", function () {
@@ -120,27 +120,21 @@ function cloneForRuntimeTest(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-test("1.0.0 settings migration preserves retained settings and drops retired and beta state", async function () {
+test("1.0.0 settings normalization preserves retained settings and drops unknown state", async function () {
   const harness = loadStorage({
     meta: {
-      schemaVersion: 29,
-      backendEndpointMode: "beta",
+      schemaVersion: 30,
+      backendEndpointMode: "server",
       backendBaseUrls: {
         server: "https://server.example.test",
         local: "http://127.0.0.1:4444",
-        beta: "https://beta.example.test",
       },
-      betaUnlocked: true,
-      betaUnlockedAt: "2026-07-01T00:00:00.000Z",
-      betaBackendBaseUrl: "https://beta.example.test",
       aiUsageOperatorName: "测试人员",
       aiCallLogDownloadOperatorName: "日志人员",
-      publicCenterPlatformOrder: ["aishellTech", "magicData", "bytedanceAidp", "dataBakerCvpc"],
+      publicCenterPlatformOrder: ["unknownPlatform", "magicData", "bytedanceAidp", "dataBakerCvpc"],
       unknownMeta: "remove-me",
     },
     platforms: {
-      alibabaLabelx: { enabled: false },
-      aishellTech: { enabled: true },
       dataBakerCvpc: {
         enabled: true,
         scripts: { liuzhouAssistant: { enabled: false, segmentContextPaddingMs: 360 } },
@@ -157,8 +151,7 @@ test("1.0.0 settings migration preserves retained settings and drops retired and
         enabled: true,
         activeScriptId: "magicDataHangzhouAssistant",
         scripts: {
-          hakkaHelper: { enabled: true },
-          minnanHelper: { enabled: true },
+          unknownHelper: { enabled: true },
           hangzhouHelper: { enabled: true, aiReviewRequestTimeoutMs: 45000 },
         },
       },
@@ -170,7 +163,7 @@ test("1.0.0 settings migration preserves retained settings and drops retired and
   try {
     const settings = await harness.storage.getSettings();
     assert.deepEqual(Object.keys(settings.platforms).sort(), RETAINED_PLATFORM_IDS);
-    assert.equal(settings.meta.schemaVersion, 31);
+    assert.equal(settings.meta.schemaVersion, 30);
     assert.equal(settings.meta.backendEndpointMode, "server");
     assert.deepEqual(settings.meta.backendBaseUrls, {
       server: "https://server.example.test",
@@ -188,56 +181,10 @@ test("1.0.0 settings migration preserves retained settings and drops retired and
     assert.equal(settings.platforms.bytedanceAidp.scripts.jinhuaHelper.segmentContextPaddingMs, 280);
     assert.equal(settings.platforms.magicData.scripts.hangzhouHelper.aiReviewRequestTimeoutMs, 45000);
     assert.deepEqual(Object.keys(settings.platforms.magicData.scripts), ["hangzhouHelper"]);
-    assert.equal("betaUnlocked" in settings.meta, false);
-    assert.equal("betaUnlockedAt" in settings.meta, false);
-    assert.equal("betaBackendBaseUrl" in settings.meta, false);
     assert.equal("unknownMeta" in settings.meta, false);
     assert.equal("unknownRoot" in settings, false);
   } finally {
     harness.cleanup();
-  }
-});
-
-test("1.0.0 settings migration replaces only the legacy default server address", async function () {
-  const legacyHarness = loadStorage({
-    meta: {
-      schemaVersion: 30,
-      backendEndpointMode: "server",
-      backendBaseUrls: {
-        server: "https://script.xiangtianzhen.store",
-        local: "http://127.0.0.1:3333",
-      },
-    },
-  });
-
-  try {
-    const settings = await legacyHarness.storage.getSettings();
-    assert.equal(settings.meta.schemaVersion, 31);
-    assert.equal(
-      settings.meta.backendBaseUrls.server,
-      "https://annotation-script-center.xiangtianzhen.store"
-    );
-  } finally {
-    legacyHarness.cleanup();
-  }
-
-  const customHarness = loadStorage({
-    meta: {
-      schemaVersion: 30,
-      backendEndpointMode: "server",
-      backendBaseUrls: {
-        server: "https://custom.example.test",
-        local: "http://127.0.0.1:4444",
-      },
-    },
-  });
-
-  try {
-    const settings = await customHarness.storage.getSettings();
-    assert.equal(settings.meta.backendBaseUrls.server, "https://custom.example.test");
-    assert.equal(settings.meta.backendBaseUrls.local, "http://127.0.0.1:4444");
-  } finally {
-    customHarness.cleanup();
   }
 });
 

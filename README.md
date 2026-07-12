@@ -13,7 +13,6 @@
 - `platform-resources/`：三个平台的稳定资料与四脚本后端。
 - `platform-resources/backend/server.js`：统一后端入口。
 - `docs/platforms-index.md`：平台与脚本索引。
-- `docs/server-deployment.md`：新域名的 Nginx、HTTPS、PM2、验收与回滚流程。
 - `log.md`：历史改动总账。
 
 ## 开发与验证

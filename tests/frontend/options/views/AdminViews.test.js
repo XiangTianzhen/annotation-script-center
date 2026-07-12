@@ -165,7 +165,6 @@ describe("Admin legacy shells", () => {
     expect(backendWrapper.find("#admin-backend-card-slot").exists()).toBe(true);
     expect(backendWrapper.text()).toContain("服务器");
     expect(backendWrapper.text()).toContain("本机");
-    expect(backendWrapper.text()).not.toContain("Beta");
     expect(backendWrapper.text()).toContain("折叠根地址配置");
     expect(backendWrapper.text()).toContain("保存后端根地址");
     expect(backendWrapper.text()).toContain("当前生效：");

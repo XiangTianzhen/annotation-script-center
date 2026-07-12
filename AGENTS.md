@@ -29,8 +29,6 @@
   - 处理具体平台前先读
 - `docs/external-docs-aliyun-bailian.md`
   - 百炼官方文档入口与查阅规则
-- `docs/unfinished-crx-enterprise-managed-install.md`
-  - 当前未完成模块与现实阻塞
 - `extension/README.md`
   - 扩展当前运行时契约、目录说明、加载方式
 - `platform-resources/README.md`
@@ -61,7 +59,6 @@
    - `platform-resources/<platform>/<script>/README.md`
    - 相关源码、配置、接口与数据文件
 5. 若涉及百炼 / DashScope / Qwen / thinking / 结构化输出 / Qwen-Omni / Web Search / 调用地区 / 限流，额外先读 `docs/external-docs-aliyun-bailian.md`
-6. 若涉及 CRX 企业托管自动安装阻塞，额外先读 `docs/unfinished-crx-enterprise-managed-install.md`
 
 ## 3. Git 与执行规则
 

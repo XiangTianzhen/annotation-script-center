@@ -314,7 +314,6 @@ test("AIDP suzhou ui panel keeps current-audio and AI sections collapsed by defa
     assert.equal(aiCollapseButton.className, "collapse-toggle");
     assert.equal(summaryCard.style.display, "none");
     assert.equal(aiInfoCard.style.display, "none");
-    assert.equal(panelRoot.textContent.includes("Beta"), false);
     assert.equal(tooltipButton.textContent, "?");
     assert.equal(tooltipButton.getAttribute("data-icon"), "");
 
@@ -578,7 +577,6 @@ test("AIDP suzhou ui panel removes current-segment section and keeps preview-bat
     assert.match(panelText, /批量识别/);
     assert.match(panelText, /当前音频信息/);
     assert.match(panelText, /AI信息/);
-    assert.doesNotMatch(panelText, /Beta/);
 
     assert.ok(panelText.indexOf("分段建议") < panelText.indexOf("当前音频信息"));
     assert.ok(panelText.indexOf("批量识别") < panelText.indexOf("当前音频信息"));

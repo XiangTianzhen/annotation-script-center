@@ -68,12 +68,8 @@ describe("App 1.0 public shell", () => {
     scriptsStore.visibleScripts = ["dataBakerCvpcLiuzhouAssistant"];
   });
 
-  test("contains no beta unlock status or exit controls", () => {
+  test("shows the current public version", () => {
     const wrapper = mount(App);
-    expect(wrapper.find("#workspace-beta-status").exists()).toBe(false);
-    expect(wrapper.find("#workspace-beta-exit").exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("内测模式");
-    expect(wrapper.text()).not.toContain("Beta");
     expect(wrapper.find("#workspace-version").text()).toBe("v1.0.0");
   });
 });

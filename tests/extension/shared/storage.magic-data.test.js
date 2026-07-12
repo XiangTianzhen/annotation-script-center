@@ -67,7 +67,7 @@ test("Magic Data storage defaults expose only the promoted Hangzhou helper", asy
     const platform = settings.platforms.magicData;
     const hangzhouScript = platform.scripts.hangzhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 31);
+    assert.equal(settings.meta.schemaVersion, 30);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
