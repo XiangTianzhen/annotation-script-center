@@ -25,11 +25,11 @@ test("release manifest cannot carry a beta version marker", function () {
   const manifest = buildManifestForRelease({
     name: "标注脚本中心",
     version_name: "beta",
-    host_permissions: ["https://script.xiangtianzhen.store/*"],
+    host_permissions: ["https://example.test/*"],
   });
 
   assert.equal(manifest.version_name || "", "");
-  assert.deepEqual(manifest.host_permissions, ["https://script.xiangtianzhen.store/*"]);
+  assert.deepEqual(manifest.host_permissions, ["https://example.test/*"]);
 });
 
 test("release profile module exposes no beta or build-meta API", function () {

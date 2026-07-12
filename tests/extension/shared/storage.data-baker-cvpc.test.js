@@ -67,10 +67,10 @@ test("CVPC storage defaults expose promoted liuzhou helper settings", async func
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
     assert.deepEqual(settings.meta.backendBaseUrls, {
-      server: "https://script.xiangtianzhen.store",
+      server: "https://annotation-script-center.xiangtianzhen.store",
       local: "http://127.0.0.1:3333",
     });
-    assert.equal(settings.meta.schemaVersion, 30);
+    assert.equal(settings.meta.schemaVersion, 31);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -92,11 +92,11 @@ test("CVPC storage defaults expose promoted liuzhou helper settings", async func
     assert.equal(script.blockPauseStateTips, true);
     assert.equal(
       script.segmentPreviewEndpoint,
-      "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview"
+      "https://annotation-script-center.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview"
     );
     assert.equal(
       script.aiRecommendEndpoint,
-      "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
+      "https://annotation-script-center.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
     );
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.segmentSilenceThresholdDbfs, -27);
@@ -150,7 +150,7 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
 
     assert.equal(settings.meta.backendEndpointMode, "local");
     assert.deepEqual(settings.meta.backendBaseUrls, {
-      server: "https://script.xiangtianzhen.store",
+      server: "https://annotation-script-center.xiangtianzhen.store",
       local: "http://127.0.0.1:3333",
     });
     assert.equal(script.segmentPreviewEnabled, false);

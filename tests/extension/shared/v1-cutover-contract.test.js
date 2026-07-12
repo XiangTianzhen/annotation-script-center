@@ -73,14 +73,14 @@ test("1.0.0 catalog contains only the four promoted scripts", function () {
   assert.deepEqual(platformIds, RETAINED_PLATFORM_IDS);
   assert.deepEqual(scriptIds, RETAINED_SCRIPT_IDS);
   assert.equal(scripts.some((item) => item.visibility === "beta"), false);
-  assert.equal(constants.SCHEMA_VERSION, 30);
+  assert.equal(constants.SCHEMA_VERSION, 31);
 });
 
 test("1.0.0 constants expose only server and local backend modes", function () {
   const constants = loadConstants();
 
   assert.deepEqual(constants.DEFAULT_BACKEND_BASE_URLS, {
-    server: "https://script.xiangtianzhen.store",
+    server: "https://annotation-script-center.xiangtianzhen.store",
     local: "http://127.0.0.1:3333",
   });
   assert.equal(constants.normalizeBackendEndpointMode("beta", "local"), "server");
@@ -170,7 +170,7 @@ test("1.0.0 settings migration preserves retained settings and drops retired and
   try {
     const settings = await harness.storage.getSettings();
     assert.deepEqual(Object.keys(settings.platforms).sort(), RETAINED_PLATFORM_IDS);
-    assert.equal(settings.meta.schemaVersion, 30);
+    assert.equal(settings.meta.schemaVersion, 31);
     assert.equal(settings.meta.backendEndpointMode, "server");
     assert.deepEqual(settings.meta.backendBaseUrls, {
       server: "https://server.example.test",
@@ -198,6 +198,49 @@ test("1.0.0 settings migration preserves retained settings and drops retired and
   }
 });
 
+test("1.0.0 settings migration replaces only the legacy default server address", async function () {
+  const legacyHarness = loadStorage({
+    meta: {
+      schemaVersion: 30,
+      backendEndpointMode: "server",
+      backendBaseUrls: {
+        server: "https://script.xiangtianzhen.store",
+        local: "http://127.0.0.1:3333",
+      },
+    },
+  });
+
+  try {
+    const settings = await legacyHarness.storage.getSettings();
+    assert.equal(settings.meta.schemaVersion, 31);
+    assert.equal(
+      settings.meta.backendBaseUrls.server,
+      "https://annotation-script-center.xiangtianzhen.store"
+    );
+  } finally {
+    legacyHarness.cleanup();
+  }
+
+  const customHarness = loadStorage({
+    meta: {
+      schemaVersion: 30,
+      backendEndpointMode: "server",
+      backendBaseUrls: {
+        server: "https://custom.example.test",
+        local: "http://127.0.0.1:4444",
+      },
+    },
+  });
+
+  try {
+    const settings = await customHarness.storage.getSettings();
+    assert.equal(settings.meta.backendBaseUrls.server, "https://custom.example.test");
+    assert.equal(settings.meta.backendBaseUrls.local, "http://127.0.0.1:4444");
+  } finally {
+    customHarness.cleanup();
+  }
+});
+
 test("1.0.0 manifest references only retained runtimes", function () {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const scriptPaths = (manifest.content_scripts || []).flatMap((entry) => entry.js || []);
@@ -208,6 +251,10 @@ test("1.0.0 manifest references only retained runtimes", function () {
   const joined = allPaths.join("\n");
 
   assert.equal(manifest.version, "1.0.0");
+  assert.equal(
+    manifest.update_url,
+    "https://annotation-script-center.xiangtianzhen.store/downloads/annotation-script-center-update.xml"
+  );
   assert.match(joined, /sites\/data-baker-cvpc\/liuzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/suzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/jinhua-helper\//);

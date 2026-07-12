@@ -13,6 +13,7 @@
 - `platform-resources/`：三个平台的稳定资料与四脚本后端。
 - `platform-resources/backend/server.js`：统一后端入口。
 - `docs/platforms-index.md`：平台与脚本索引。
+- `docs/server-deployment.md`：新域名的 Nginx、HTTPS、PM2、验收与回滚流程。
 - `log.md`：历史改动总账。
 
 ## 开发与验证
@@ -46,6 +47,7 @@ node platform-resources/backend/server.js
 ```
 
 Options 只维护 `Server` 与 `Local` 两套后端根地址。
+公开 Server 与下载更新入口统一为 `https://annotation-script-center.xiangtianzhen.store`。
 
 ## 发布
 

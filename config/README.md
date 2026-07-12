@@ -8,6 +8,7 @@
 ## 后端地址
 
 扩展 Options 只维护 `Server` 与 `Local` 两套根地址。默认值在 `extension/shared/constants.js` 中定义。
+当前公开 Server 和发布下载基址统一使用 `https://annotation-script-center.xiangtianzhen.store`。
 
 ## 管理员鉴权
 

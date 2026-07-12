@@ -29,3 +29,5 @@ node platform-resources/backend/server.js
 ```
 
 默认地址为 `http://127.0.0.1:3333`。管理员鉴权读取 `ASC_ADMIN_PASSWORD_SHA256` 与 `ASC_ADMIN_JWT_SECRET`；AI 日志可配置独立凭据。
+
+公网部署由 Nginx 终止 HTTPS 并代理 `/api/`，当前公开域名为 `https://annotation-script-center.xiangtianzhen.store`。PM2、Nginx、Certbot 和回滚命令见 [`docs/server-deployment.md`](../../docs/server-deployment.md)。

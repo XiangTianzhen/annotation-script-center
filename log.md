@@ -1505,3 +1505,8 @@
 - 修复(test): Vitest 缓存固定写入 Options 已忽略目录，AI 日志下载测试改用系统临时目录并在结束后清理环境变量和文件
 - 修复(options): 将下载中心与功能面板的响应式覆盖归回页面 SCSS owner，并修正品牌背景资源路径，恢复窄屏级联与 Vite 内联产物
 - 修复(test): 测试分区改为统一只要求非空，移除 frontend 固定 13 个文件限制，并为运行日志与业务词表测试补齐临时目录清理
+
+## 2026-07-12
+- 部署(domain): 将扩展 Server、AIDP 回退端点、更新地址、发布下载基址和后端下载中心统一切换到 `annotation-script-center.xiangtianzhen.store`
+- 迁移(storage): 设置 schema 升至 31，仅迁移精确旧默认 Server 地址并保留用户自定义 Server / Local 配置
+- 文档(deploy): 增加当前分支的 PM2、Nginx、Certbot、本地浏览器验收、正式产物上传与回滚操作流程

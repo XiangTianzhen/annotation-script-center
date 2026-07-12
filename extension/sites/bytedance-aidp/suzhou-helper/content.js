@@ -376,7 +376,7 @@
         aiRecommendAutoFillEnabled: DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED,
         aiRecommendEndpoint:
           CONSTANTS.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT ||
-          "https://script.xiangtianzhen.store/api/bytedance-aidp/suzhou-helper/ai/recommend",
+          "https://annotation-script-center.xiangtianzhen.store/api/bytedance-aidp/suzhou-helper/ai/recommend",
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendListenPrompt: "",

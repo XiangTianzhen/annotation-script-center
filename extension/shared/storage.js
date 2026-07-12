@@ -4,6 +4,7 @@
   const constants = globalThis.ASREdgeConstants || {};
   const STORAGE_KEY = constants.STORAGE_KEY || "asrEdgeSettings";
   const EXTENSION_CONTEXT_INVALIDATED_CODE = "extension-context-invalidated";
+  const LEGACY_SERVER_BASE_URL = "https://script.xiangtianzhen.store";
 
   function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
   function object(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
@@ -53,12 +54,17 @@
   function normalizeMeta(rawMeta) {
     const source = object(rawMeta);
     const baseUrls = constants.getBackendBaseUrlsFromSettings({ meta: { backendBaseUrls: source.backendBaseUrls } });
+    const sourceSchemaVersion = Number(source.schemaVersion);
+    const isLegacySchema = !Number.isFinite(sourceSchemaVersion) || sourceSchemaVersion < 31;
+    if (isLegacySchema && baseUrls.server === LEGACY_SERVER_BASE_URL) {
+      baseUrls.server = constants.DEFAULT_BACKEND_BASE_URLS.server;
+    }
     const allowedOrder = ["dataBakerCvpc", "bytedanceAidp", "magicData"];
     const seen = new Set();
     const publicCenterPlatformOrder = (Array.isArray(source.publicCenterPlatformOrder) ? source.publicCenterPlatformOrder : [])
       .filter((id) => allowedOrder.includes(id) && !seen.has(id) && seen.add(id));
     return {
-      schemaVersion: constants.SCHEMA_VERSION || 30,
+      schemaVersion: constants.SCHEMA_VERSION || 31,
       backendEndpointMode: constants.normalizeBackendEndpointMode(source.backendEndpointMode, "server"),
       backendBaseUrls: baseUrls,
       aiUsageOperatorName: text(source.aiUsageOperatorName),

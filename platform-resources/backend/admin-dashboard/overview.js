@@ -5,7 +5,7 @@ const { buildAsyncJobRuntimeMeta } = require("../ai-framework/runtime/ai-runtime
 const { listAiCallLogDatasets } = require("../ai-call-log-download/routes");
 const { summarizeRuntimeLogs } = require("../runtime-log-store");
 
-const FALLBACK_SCRIPT_DOWNLOAD_CENTER_URL = "https://script.xiangtianzhen.store/downloads/";
+const FALLBACK_SCRIPT_DOWNLOAD_CENTER_URL = "https://annotation-script-center.xiangtianzhen.store/downloads/";
 
 function normalizeText(value) {
   return String(value || "").trim();

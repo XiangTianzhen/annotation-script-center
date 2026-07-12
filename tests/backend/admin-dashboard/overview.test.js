@@ -52,7 +52,7 @@ test("admin dashboard overview returns pool occupancy and runtime log summary pa
       },
     },
     downloads: {
-      scriptCenterUrl: "https://script.xiangtianzhen.store/downloads/",
+      scriptCenterUrl: "https://annotation-script-center.xiangtianzhen.store/downloads/",
       aiCallLogDatasets: [
         { id: "magic-data-hangzhou-helper-ai", label: "杭州话脚本 AI 调用记录", hasData: true },
       ],
@@ -122,6 +122,10 @@ test("admin dashboard overview preserves task store capacity snapshot", function
 });
 
 test("admin dashboard overview normalizes scriptCenterUrl", function () {
+  assert.equal(
+    resolveScriptDownloadCenterUrl({}),
+    "https://annotation-script-center.xiangtianzhen.store/downloads/"
+  );
   assert.equal(
     resolveScriptDownloadCenterUrl({ scriptCenterUrl: "http://47.109.197.170/downloads" }),
     "http://47.109.197.170/downloads/"
