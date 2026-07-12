@@ -16,6 +16,39 @@
 | `security/` | 签名 token 与下载审计公共能力 |
 | `runtime-log-store.js` | 脱敏运行日志和摘要 |
 
+## Python 运行环境
+
+以下能力需要 Python：
+
+- CVPC 柳州话画段的后端音频分析。
+- 配置为 Python 模式的 Fun-ASR provider。
+- 模型调度选择 Python runtime 时的 Qwen provider。
+
+所有能力共用 `platform-resources/backend/.venv`，依赖清单为 `ai/python/requirements.txt`，当前包含 `dashscope`、`opencc-python-reimplemented` 和 `miniaudio`。`.venv/` 已被 Git 忽略，每台开发机和服务器都需要自行创建，不能从其他系统复制。
+
+Windows PowerShell：
+
+```powershell
+Set-Location platform-resources/backend
+py -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -r ai\python\requirements.txt
+.venv\Scripts\python.exe -c "import dashscope, opencc, miniaudio; print('Python dependencies OK')"
+Set-Location ../..
+```
+
+Linux 服务器：
+
+```bash
+cd /var/www/annotation-script-center/platform-resources/backend
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r ai/python/requirements.txt
+.venv/bin/python -c "import dashscope, opencc, miniaudio; print('Python dependencies OK')"
+```
+
+后端依次自动识别 `.venv/Scripts/python.exe` 和 `.venv/bin/python`，所以 PM2 仍然启动 `server.js`，不需要激活虚拟环境。只有需要覆盖默认路径时，才在 ignored env 中配置对应的 Python 可执行文件变量。
+
 ## 启动配置
 
 复制环境模板并填写本地真实值：
@@ -106,6 +139,8 @@ curl -fsS http://127.0.0.1:3333/api/magic-data/hangzhou-helper/ai/defaults
 - 无法连接：确认 PM2 进程、监听地址、Nginx upstream 和 Options 后端模式。
 - `401/403`：确认管理员哈希、JWT 密钥和请求凭据是否一致。
 - AI 请求失败：检查 DashScope Key、模型名、60 秒超时和 PM2 脱敏日志。
+- `CVPC 画段 Python 环境未配置`：确认 `platform-resources/backend/.venv/bin/python`（Linux）或 `.venv\Scripts\python.exe`（Windows）存在，并重新安装 `ai/python/requirements.txt`。
+- `cvpc-segment-python-dependency-missing` 或 `fun-asr-python-dependency-missing`：使用虚拟环境中的 Python 执行 import 验证，不要使用系统 Python 代替验证。
 - 下载中心为空：确认 `dist/` 存在 ZIP、Nginx autoindex 已开启、`ASC_DOWNLOAD_BASE_URL` 可访问。
 - 扩展提示网络失败：先直接访问 health/defaults，再检查 HTTPS 和浏览器 Network。
 
@@ -116,7 +151,8 @@ curl -fsS http://127.0.0.1:3333/api/magic-data/hangzhou-helper/ai/defaults
 ```powershell
 npm run test:backend
 node --check platform-resources/backend/server.js
+platform-resources/backend/.venv/Scripts/python.exe -c "import dashscope, opencc, miniaudio; print('Python dependencies OK')"
 node platform-resources/backend/server.js
 ```
 
-长期测试位于根 `tests/backend/`，不得在后端生产目录新增测试文件。
+Linux 验证时将 Python 路径替换为 `platform-resources/backend/.venv/bin/python`。长期测试位于根 `tests/backend/`，不得在后端生产目录新增测试文件。
