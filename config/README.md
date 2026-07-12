@@ -1,165 +1,79 @@
-# Config 目录说明
+# 配置目录
 
-本目录统一承载扩展发布和后端运行相关配置，不再在各子目录单独维护 README。
+`config/` 只保存可提交模板、公开模型价格和本机私密配置的目录约定。真实密钥、密码和服务端私有值不得进入 Git。
 
-## 当前文件与目录
+## 目录与文件
 
-- `package-crx-release.json`
-  - 可提交的默认打包配置
-- `aliyun-bailian-model-pricing.json`
-  - 可提交的模型价格配置
-- `env/`
-  - `ai.env` / `backend.env`：本地或服务器运行时环境文件
-  - `*.example`：可提交的示例文件
-- `secrets/`
-  - `annotation-script-center.pem`：CRX 企业发布私钥
-  - `package-crx-release.local.json`：本地私有发布覆盖配置，不提交 Git
+| 路径 | 是否提交 | 职责 |
+|---|---:|---|
+| `aliyun-bailian-model-pricing.json` | 是 | 模型价格与人民币估算数据源 |
+| `env/backend.env.example` | 是 | 管理员会话与下载鉴权模板 |
+| `env/ai.env.example` | 是 | DashScope 与 AI runtime 模板 |
+| `env/backend.env` | 否 | 本机/服务器管理员真实配置 |
+| `env/backend.local.env` | 否 | 后端本地覆盖 |
+| `env/ai.env` | 否 | 本机/服务器 AI 真实配置 |
+| `env/ai.local.env` | 否 | AI 本地覆盖 |
+| `secrets/` | 否 | 本地私有文件；当前 ZIP 打包流程不读取该目录 |
 
-## 发布配置读取顺序
+## 环境加载顺序
 
-当前 `scripts/package-crx-release.js` 与 `scripts/sync-local-build-meta.js` 的读取顺序：
+统一后端启动时依次尝试读取：
 
-1. `config/package-crx-release.json`
-2. `config/secrets/package-crx-release.local.json`
-3. 环境变量
-4. 命令行参数
+1. `config/env/backend.env`
+2. `config/env/backend.local.env`
+3. `config/env/ai.env`
+4. `config/env/ai.local.env`
+5. `.env.local`
+6. `ASC_ENV_FILE` 指向的可选附加文件
 
-## 推荐做法
+启动进程已经存在的系统环境变量优先级最高，不会被文件覆盖。文件之间按上述顺序加载，后加载文件中的同名键会覆盖前面文件的值，因此 `.local.env` 和 `ASC_ENV_FILE` 可作为本机最终覆盖层。
 
-- 把非敏感默认值放到 `config/package-crx-release.json`
-  - 例如 `downloadBaseUrl`
-  - 例如 `betaBackendBaseUrl`
-- 把共享价格表放到 `config/aliyun-bailian-model-pricing.json`
-- 把敏感值放到 `config/secrets/package-crx-release.local.json`
-  - 例如 `betaUnlockPasswordSha256`
+## 管理员鉴权
 
-本地私有覆盖文件示例：
-
-```json
-{
-  "betaUnlockPasswordSha256": "your_beta_unlock_password_sha256"
-}
-```
-
-## 常用操作示例
-
-### 1. 创建运行环境文件
-
-在仓库根目录运行：
+复制模板：
 
 ```powershell
-Copy-Item config\env\backend.env.example config\env\backend.env
-Copy-Item config\env\ai.env.example config\env\ai.env
+Copy-Item config/env/backend.env.example config/env/backend.env
 ```
 
-### 2. 同步本地 beta build meta
+必须配置：
 
-开发者模式直接加载 `extension/` 时，如果希望本地 beta 入口能正常输入口令，需要先执行：
+- `ASC_ADMIN_PASSWORD_SHA256`：管理员密码的 SHA-256 值。
+- `ASC_ADMIN_JWT_SECRET`：随机、足够长的管理员会话签名密钥。
+
+AI 日志下载可以通过 `ASC_AI_CALL_LOG_DOWNLOAD_PASSWORD_SHA256` 和 `ASC_AI_CALL_LOG_DOWNLOAD_JWT_SECRET` 使用独立凭据；未配置时复用管理员凭据。
+
+## AI 配置
+
+复制模板：
 
 ```powershell
-node scripts/sync-local-build-meta.js
+Copy-Item config/env/ai.env.example config/env/ai.env
 ```
 
-该命令会把本地 `config` 中的 beta 口令 hash 与 beta 后端地址写入：
+当前维护的 provider 为 DashScope。通常只需要填写 `DASHSCOPE_API_KEY`；共享 job 超时、TTL、容量和轮询间隔已有代码默认值，只有确实需要偏离默认行为时才添加覆盖项。
 
-- `extension/shared/build-meta.local.js`
+价格估算统一读取 `aliyun-bailian-model-pricing.json`。缺少价格时页面显示“没有数据源”，CSV 金额列保持空白。
 
-这个文件已加入 `.gitignore`，只供本地开发使用；正式包与 beta ZIP 打包时会自动被安全 stub 覆盖，不会把本地私有 hash 带进发布产物。
+## 后端地址
 
-### 3. 生成发布包
+扩展 Options 只维护：
 
-在仓库根目录运行：
+- Server：`https://annotation-script-center.xiangtianzhen.store`
+- Local：`http://127.0.0.1:3333`
+
+管理员下载中心读取 `ASC_DOWNLOAD_BASE_URL`；未配置时使用公开域名下的 `/downloads/`。
+
+## ZIP 打包
 
 ```powershell
-node scripts/package-crx-release.js
+node scripts/package-extension-zip.js
 ```
 
-可选参数：
+打包脚本构建 Options、清空旧 `dist`、压缩 `extension/` 并校验 `manifest.json`，最终只保留版本化 ZIP。该流程不读取 `config/secrets/`。
 
-- 只生成 public：
+## 安全检查
 
-```powershell
-node scripts/package-crx-release.js --channel public
-```
-
-- 只生成 beta：
-
-```powershell
-node scripts/package-crx-release.js --channel beta
-```
-
-## 项目数据下载密码与 JWT Secret 配置
-
-该组配置当前同时服务：
-
-- 项目数据下载
-- 系统管理后台会话
-- AI 调用日志下载 fallback
-
-项目数据下载与系统管理会话都不保存明文密码。后端仅校验 SHA256，并使用 JWT Secret 生成短期下载 token / 管理员会话 token。
-
-### 操作步骤
-
-#### 1. 创建真实配置文件
-
-```powershell
-Copy-Item config\env\backend.env.example config\env\backend.env
-```
-
-#### 2. 生成下载密码的 SHA256
-
-```powershell
-node -e "const crypto=require('crypto'); console.log(crypto.createHash('sha256').update(process.argv[1]).digest('hex'))" "你的下载密码"
-```
-
-#### 3. 生成 JWT Secret
-
-```powershell
-node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
-```
-
-#### 4. 填入 `config/env/backend.env`
-
-主推变量：
-
-- `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
-- `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`
-
-兼容旧变量：
-
-- `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`
-- `ASC_DATA_DOWNLOAD_JWT_SECRET`
-
-AI 调用日志如需单独配置，也可以额外写：
-
-- `ASC_AI_CALL_LOG_DOWNLOAD_PASSWORD_SHA256`
-- `ASC_AI_CALL_LOG_DOWNLOAD_JWT_SECRET`
-
-示例：
-
-```text
-ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256=上一步生成的密码hash
-ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET=上一步生成的随机字符串
-```
-
-#### 5. 重新启动后端
-
-本地临时运行：
-
-```powershell
-node platform-resources\backend\server.js
-```
-
-PM2 更新：
-
-```powershell
-pm2 restart annotation-script-center --update-env
-```
-
-Linux / 服务器也同样是修改 `config/env/backend.env` 后再重启对应进程，不需要新增第二套后台密码配置。
-
-## 私钥规则
-
-- `annotation-script-center.pem` 必须长期保管并离线备份。
-- 后续每个版本的 CRX 都必须使用同一个 `.pem` 打包。
-- 如果私钥丢失并重新生成，扩展 `extension_id` 会变化，企业策略 `appid` 需要全部重配。
+- `git status --short --ignored` 应将真实 env 和 `secrets/` 显示为 ignored。
+- 不在命令输出、截图、日志或测试 fixture 中展示真实值。
+- 服务器更新前备份 ignored 配置；不要通过 `git reset` 或覆盖复制清理服务器目录。

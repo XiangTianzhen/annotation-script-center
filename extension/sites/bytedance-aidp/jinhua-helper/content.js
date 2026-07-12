@@ -192,13 +192,6 @@
     return model || normalizeText(fallback);
   }
 
-  function normalizeModelMode(value, fallback) {
-    const fallbackText = normalizeText(fallback || "two_stage").toLowerCase();
-    const normalizedFallback = fallbackText === "expert_omni_plus" ? "expert_omni_plus" : "two_stage";
-    const text = normalizeText(value).toLowerCase();
-    return text === "expert_omni_plus" ? "expert_omni_plus" : normalizedFallback;
-  }
-
   function normalizeStagePrompt(value) {
     return String(value || "");
   }
@@ -386,9 +379,8 @@
         aiRecommendAutoFillEnabled: DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED,
         aiRecommendEndpoint:
           CONSTANTS.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT ||
-          "https://script.xiangtianzhen.store/api/bytedance-aidp/jinhua-helper/ai/recommend",
+          "https://annotation-script-center.xiangtianzhen.store/api/bytedance-aidp/jinhua-helper/ai/recommend",
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
-        aiRecommendModelMode: "two_stage",
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendListenPrompt: "",
         aiRecommendRefineModel: "qwen3.5-plus",
@@ -439,10 +431,6 @@
       aiRecommendRequestTimeoutMs: normalizeAiRequestTimeoutMs(
         current.aiRecommendRequestTimeoutMs,
         defaults.aiRecommendRequestTimeoutMs || DEFAULT_TIMEOUT_MS
-      ),
-      aiRecommendModelMode: normalizeModelMode(
-        current.aiRecommendModelMode,
-        defaults.aiRecommendModelMode || "two_stage"
       ),
       aiStages: {
         listen: {
@@ -5144,7 +5132,6 @@
             timeoutMs: helperConfig.aiRecommendRequestTimeoutMs,
             settings: helperConfig.settings,
             aiUsageOperatorName: helperConfig.aiUsageOperatorName,
-            modelMode: helperConfig.aiRecommendModelMode,
             aiStages: helperConfig.aiStages,
           })
         : null;

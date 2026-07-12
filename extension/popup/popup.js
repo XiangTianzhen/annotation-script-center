@@ -1,898 +1,156 @@
 (function () {
+  "use strict";
+
   const constants = globalThis.ASREdgeConstants || {};
   const storage = globalThis.ASREdgeStorage || null;
-  const messageTypes = constants.MESSAGE_TYPES || {};
   const scriptLibrary = constants.SCRIPT_LIBRARY || {};
-  const platformLibrary = constants.PLATFORM_LIBRARY || {};
-  const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
-  const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
-  const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
-  const dataBakerRoundOneQualityScriptId =
-    constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
-  const dataBakerCvpcHost =
-    (constants.DATA_BAKER_CVPC_PLATFORM || {}).host || "cvpc.data-baker.com";
-  const dataBakerCvpcLiuzhouScriptId =
+  const cvpcScriptId =
     constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
-  const bytedanceAidpHost =
-    (constants.BYTEDANCE_AIDP_PLATFORM || {}).host || "aidp.bytedance.com";
-  const bytedanceAidpSuzhouScriptId =
+  const suzhouScriptId =
     constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
-  const bytedanceAidpJinhuaScriptId =
+  const jinhuaScriptId =
     constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper";
-  const magicDataHost = "work.magicdatatech.com";
-  const magicDataHakkaScriptId =
-    constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
-  const magicDataMinnanScriptId =
-    constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
-  const magicDataHangzhouScriptId =
+  const hangzhouScriptId =
     constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID || "magicDataHangzhouAssistant";
-  const aishellTechHost = (constants.AISHELL_TECH_PLATFORM || {}).host || "mark.aishelltech.com";
-  const aishellTechMinnanScriptId =
-    constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
-  const aishellTechVietnameseScriptId =
-    constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
-  const aishellTechThaiScriptId =
-    constants.AISHELL_TECH_THAI_SCRIPT_ID || "aishellTechThaiAssistant";
-  const aishellTechCnEnShortDramaScriptId =
-    constants.AISHELL_TECH_CN_EN_SHORT_DRAMA_SCRIPT_ID || "aishellTechCnEnShortDrama";
-  const abakaAiHost = (constants.ABAKA_AI_PLATFORM || {}).host || "abao.fortidyndns.com";
-  const abakaAiScriptId =
-    constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
+  const cvpcHost = constants.DATA_BAKER_CVPC_PLATFORM?.host || "cvpc.databaker.com";
+  const aidpHost = constants.BYTEDANCE_AIDP_PLATFORM?.host || "aidp.bytedance.com";
+  const magicHost = constants.PLATFORM_LIBRARY?.magicData?.host || "work.magicdatatech.com";
+
   let currentDetectedScriptId = null;
-  let toggleInFlight = false;
   let lastRenderedSettings = null;
   let lastRenderedContext = null;
-
-  function queryTabs(queryInfo) {
-    return new Promise(function (resolve) {
-      chrome.tabs.query(queryInfo, function (tabs) {
-        resolve(Array.isArray(tabs) ? tabs : []);
-      });
-    });
-  }
-
-  function sendMessageToTab(tabId, message) {
-    return new Promise(function (resolve) {
-      chrome.tabs.sendMessage(tabId, message, function (response) {
-        const error = chrome.runtime && chrome.runtime.lastError;
-        if (error) {
-          resolve({
-            ok: false,
-            error: error.message,
-          });
-          return;
-        }
-
-        resolve(response || { ok: false, error: "empty-response" });
-      });
-    });
-  }
+  let toggleInFlight = false;
 
   function getElement(id) {
     return document.getElementById(id);
   }
 
-  function setPopupStatus(text) {
-    getElement("popup-status").textContent = text || "";
+  function openScriptCenter(scriptId) {
+    const suffix = scriptId ? "#/script/" + encodeURIComponent(scriptId) : "#/center";
+    chrome.tabs.create({ url: chrome.runtime.getURL("options/options.html" + suffix) });
   }
 
-  function setTogglePill(text, tone, disabled) {
-    const node = getElement("detected-status-pill");
-    if (!node) {
-      return;
+  function getActiveTab() {
+    return new Promise(function (resolve) {
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        resolve(Array.isArray(tabs) ? tabs[0] || null : null);
+      });
+    });
+  }
+
+  function getScriptConfig(settings, scriptId) {
+    if (scriptId === cvpcScriptId) {
+      return settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouHelper || {};
     }
-    node.textContent = text;
-    node.className = "pill-toggle " + tone;
-    node.disabled = disabled === true;
+    if (scriptId === suzhouScriptId) {
+      return settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+    }
+    if (scriptId === jinhuaScriptId) {
+      return settings?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || {};
+    }
+    if (scriptId === hangzhouScriptId) {
+      return settings?.platforms?.magicData?.scripts?.hangzhouHelper || {};
+    }
+    return {};
+  }
+
+  function getPlatformConfig(settings, scriptId) {
+    if (scriptId === cvpcScriptId) return settings?.platforms?.dataBakerCvpc || {};
+    if (scriptId === suzhouScriptId || scriptId === jinhuaScriptId) {
+      return settings?.platforms?.bytedanceAidp || {};
+    }
+    if (scriptId === hangzhouScriptId) return settings?.platforms?.magicData || {};
+    return {};
   }
 
   function isScriptEnabled(settings, scriptId) {
-    switch (scriptId) {
-      case transcriptionProjectId:
-      case judgementProjectId:
-        return (
-          settings?.platforms?.alibabaLabelx?.enabled === true &&
-          settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId === scriptId
-        );
-      case lightwheelScriptId:
-        return Boolean(
-          settings?.platforms?.lightwheel?.enabled &&
-            settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
-        );
-      case dataBakerRoundOneQualityScriptId:
-        return (
-          settings?.platforms?.dataBaker?.enabled !== false &&
-          settings?.platforms?.dataBaker?.scripts?.roundOneQuality?.enabled !== false
-        );
-      case dataBakerCvpcLiuzhouScriptId:
-        return (
-          settings?.platforms?.dataBakerCvpc?.enabled !== false &&
-          settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.enabled !== false
-        );
-      case bytedanceAidpSuzhouScriptId:
-      case bytedanceAidpJinhuaScriptId:
-        return getBytedanceAidpScriptState(settings, scriptId).enabled;
-      case magicDataHakkaScriptId:
-        return (
-          settings?.platforms?.magicData?.enabled !== false &&
-          settings?.platforms?.magicData?.scripts?.hakkaHelper?.enabled !== false
-        );
-      case magicDataMinnanScriptId:
-        return (
-          settings?.platforms?.magicData?.enabled !== false &&
-          settings?.platforms?.magicData?.scripts?.minnanHelper?.enabled !== false
-        );
-      case magicDataHangzhouScriptId:
-        return (
-          settings?.platforms?.magicData?.enabled !== false &&
-          settings?.platforms?.magicData?.scripts?.hangzhouHelper?.enabled !== false
-        );
-      case aishellTechMinnanScriptId:
-        return (
-          settings?.platforms?.aishellTech?.enabled !== false &&
-          settings?.platforms?.aishellTech?.scripts?.minnanHelper?.enabled !== false
-        );
-      case aishellTechVietnameseScriptId:
-        return (
-          settings?.platforms?.aishellTech?.enabled !== false &&
-          settings?.platforms?.aishellTech?.scripts?.vietnameseHelper?.enabled !== false
-        );
-      case aishellTechThaiScriptId:
-        return (
-          settings?.platforms?.aishellTech?.enabled !== false &&
-          settings?.platforms?.aishellTech?.scripts?.thaiHelper?.enabled !== false
-        );
-      case aishellTechCnEnShortDramaScriptId:
-        return (
-          settings?.platforms?.aishellTech?.enabled !== false &&
-          settings?.platforms?.aishellTech?.scripts?.cnEnShortDrama?.enabled !== false
-        );
-      case abakaAiScriptId:
-        return (
-          settings?.platforms?.abakaAi?.enabled !== false &&
-          settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false
-        );
-      default:
-        return false;
-    }
+    const platform = getPlatformConfig(settings, scriptId);
+    const script = getScriptConfig(settings, scriptId);
+    return platform.enabled !== false && script.enabled !== false;
   }
 
-  function getResolvedScriptLabel(context) {
-    const script = context?.scriptId ? scriptLibrary[context.scriptId] || {} : {};
-    return context?.scriptId
-      ? String(context.scriptLabel || script.label || script.shortLabel || context.scriptId)
-      : "";
+  function resolveAidpScript(settings) {
+    const platform = settings?.platforms?.bytedanceAidp || {};
+    const active = String(platform.activeScriptId || "").trim();
+    if (active === jinhuaScriptId) return jinhuaScriptId;
+    if (active === suzhouScriptId) return suzhouScriptId;
+    const jinhuaEnabled = platform.scripts?.jinhuaHelper?.enabled === true;
+    return jinhuaEnabled ? jinhuaScriptId : suzhouScriptId;
   }
 
-  function buildRuntimeDescription(context) {
-    const statusText = String(context?.statusText || "").trim();
-    return statusText ? "运行状态：" + statusText : "";
-  }
-
-  function getLabelxActiveScriptId(settings) {
-    return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
-  }
-
-  function getBytedanceAidpActiveScriptId(settings) {
-    const configured = String(settings?.platforms?.bytedanceAidp?.activeScriptId || "").trim();
-    const suzhouConfig = settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || null;
-    const jinhuaConfig = settings?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || null;
-    const suzhouEnabled = Boolean(suzhouConfig && suzhouConfig.enabled !== false);
-    const jinhuaEnabled = Boolean(jinhuaConfig && jinhuaConfig.enabled !== false);
-    if (configured === bytedanceAidpSuzhouScriptId && suzhouEnabled) {
-      return bytedanceAidpSuzhouScriptId;
-    }
-    if (configured === bytedanceAidpJinhuaScriptId && jinhuaEnabled) {
-      return bytedanceAidpJinhuaScriptId;
-    }
-    if (suzhouEnabled && !jinhuaEnabled) {
-      return bytedanceAidpSuzhouScriptId;
-    }
-    if (jinhuaEnabled && !suzhouEnabled) {
-      return bytedanceAidpJinhuaScriptId;
-    }
-    return "";
-  }
-
-  function getBytedanceAidpScriptState(settings, preferredScriptId) {
-    const activeScriptId = getBytedanceAidpActiveScriptId(settings);
-    const resolvedScriptId = preferredScriptId || activeScriptId || bytedanceAidpSuzhouScriptId;
-    const isJinhua = resolvedScriptId === bytedanceAidpJinhuaScriptId;
-    const scriptKey = isJinhua ? "jinhuaHelper" : "suzhouHelper";
-    const scriptConfig = settings?.platforms?.bytedanceAidp?.scripts?.[scriptKey] || {};
-    return {
-      activeScriptId: activeScriptId,
-      scriptId: resolvedScriptId,
-      scriptKey: scriptKey,
-      enabled:
-        settings?.platforms?.bytedanceAidp?.enabled !== false &&
-        scriptConfig.enabled !== false &&
-        (!activeScriptId || activeScriptId === resolvedScriptId),
-      platformAiEnabled: scriptConfig.platformAiEnabled !== false,
-      scriptConfig: scriptConfig,
-    };
-  }
-
-  function isLightwheelEnabled(settings) {
-    return Boolean(
-      settings?.platforms?.lightwheel?.enabled &&
-        settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
-    );
-  }
-
-  function openScriptCenter(scriptId) {
-    const targetUrl = scriptId
-      ? chrome.runtime.getURL(
-          "options/options.html?view=script&script=" + encodeURIComponent(scriptId)
-        )
-      : chrome.runtime.getURL("options/options.html");
-    chrome.tabs.create({ url: targetUrl });
-    window.close();
-  }
-
-  async function getActiveTab() {
-    const tabs = await queryTabs({
-      active: true,
-      currentWindow: true,
-    });
-
-    return tabs[0] || null;
-  }
-
-  function getDetectedContext(urlString, settings) {
-    if (!urlString) {
-      return {
-        scriptId: null,
-        platformId: null,
-        statusText: "无法读取当前页 URL",
-        statusTone: "pending",
-        title: "当前页面不可识别",
-        description: "当前标签页 URL 不可用，无法判断脚本是否命中。",
-      };
-    }
-
+  function getDetectedContext(rawUrl, settings) {
     let url;
     try {
-      url = new URL(urlString);
-    } catch (error) {
+      url = new URL(String(rawUrl || ""));
+    } catch (_error) {
+      return { title: "当前页面无法识别", description: "请打开受支持的标注平台页面。" };
+    }
+
+    if (url.hostname === cvpcHost) {
       return {
-        scriptId: null,
-        platformId: null,
-        statusText: "URL 解析失败",
-        statusTone: "error",
-        title: "当前页面不可识别",
-        description: "当前标签页 URL 无法解析。",
+        scriptId: cvpcScriptId,
+        description: url.pathname.includes("/app/editor/asr/")
+          ? "运行状态：已支持"
+          : "请进入 CVPC ASR 编辑器后使用柳州话脚本。",
       };
     }
-
-    if (url.hostname === (constants.TARGET_PLATFORM || {}).host) {
-      if (!String(url.pathname || "").toLowerCase().startsWith("/corpora/labeling/")) {
-        return {
-          scriptId: null,
-          platformId: "alibabaLabelx",
-          url: url,
-          statusText: "未触发",
-          statusTone: "pending",
-          title: "当前页面属于 Alibaba LabelX",
-          description: "但当前 URL 不在标注脚本的匹配范围内。",
-        };
-      }
-
-      const activeScriptId = getLabelxActiveScriptId(settings);
-      const platformEnabled = Boolean(settings?.platforms?.alibabaLabelx?.enabled);
-      const activeScript = scriptLibrary[activeScriptId] || {};
-
+    if (url.hostname === aidpHost) {
+      const scriptId = resolveAidpScript(settings);
+      const detailMatched = url.pathname.includes("/mark-v3/");
+      const config = getScriptConfig(settings, scriptId);
       return {
-        scriptId: activeScriptId,
-        platformId: "alibabaLabelx",
-        url: url,
-        platformEnabled: platformEnabled,
-        title: "当前页面命中 Alibaba LabelX",
-        description: platformEnabled
-          ? "当前会尝试触发 " + String(activeScript.label || activeScriptId) + "。"
-          : "当前页面属于 LabelX，但该平台脚本目前未启用。",
+        scriptId,
+        description: !isScriptEnabled(settings, scriptId)
+          ? "运行状态：未启用"
+          : detailMatched && config.platformAiEnabled === false
+            ? "运行状态：详情页命中（平台 AI 已隐藏）"
+            : detailMatched
+              ? "运行状态：已支持"
+              : "请进入 AIDP 标注详情页后使用脚本。",
       };
     }
-
-    if (url.hostname === (constants.LIGHTWHEEL_PLATFORM || {}).host) {
-      const scriptVisible =
-        typeof constants.isScriptVisible === "function"
-          ? constants.isScriptVisible(lightwheelScriptId, settings || {})
-          : true;
-      const scriptRuntimeAccessible =
-        typeof constants.isScriptRuntimeAccessible === "function"
-          ? constants.isScriptRuntimeAccessible(lightwheelScriptId, settings || {})
-          : isLightwheelEnabled(settings);
-      if (!scriptVisible || !scriptRuntimeAccessible) {
-        return {
-          scriptId: null,
-          platformId: null,
-          url: url,
-          statusText: "未触发",
-          statusTone: "pending",
-          title: "当前页面未命中已启用脚本",
-          description: "当前页面没有可对外显示的已启用脚本。",
-        };
-      }
-      const access = url.searchParams.get("access") || "";
-      const enabled = isLightwheelEnabled(settings);
-
-      if (url.pathname === "/w/video3/index.html" && access === "1") {
-        return {
-          scriptId: lightwheelScriptId,
-          platformId: "lightwheel",
-          url: url,
-          platformEnabled: enabled,
-          title: "当前页面命中 Lightwheel 查看态面板",
-          description: enabled
-            ? "当前 URL 满足 access=1，可命中 Lightwheel 查看态面板脚本。"
-            : "当前 URL 满足 access=1，但 Lightwheel 查看态面板未启用。",
-        };
-      }
-
+    if (url.hostname === magicHost) {
       return {
-        scriptId: lightwheelScriptId,
-        platformId: "lightwheel",
-        url: url,
-        platformEnabled: enabled,
-        title: "当前页面属于 Lightwheel",
-        description: "但当前 URL 不满足查看态面板脚本的 access=1 触发条件。",
-        statusText: "未触发",
-        statusTone: "pending",
+        scriptId: hangzhouScriptId,
+        description: isScriptEnabled(settings, hangzhouScriptId)
+          ? "运行状态：已支持"
+          : "运行状态：未启用",
       };
     }
-
-    if (url.hostname === (constants.DATA_BAKER_PLATFORM || {}).host) {
-      const pathname = String(url.pathname || "").toLowerCase();
-      const hash = String(url.hash || "").toLowerCase();
-      const isV2Path =
-        pathname === "/v2" || pathname === "/v2/" || pathname.startsWith("/v2/");
-      const platformEnabled = settings?.platforms?.dataBaker?.enabled !== false;
-      const scriptEnabled =
-        settings?.platforms?.dataBaker?.scripts?.roundOneQuality?.enabled !== false;
-      const enabledDescriptionSuffix =
-        platformEnabled && scriptEnabled
-          ? ""
-          : " 当前平台或脚本未启用，可在脚本中心启用后再使用。";
-
-      if (!isV2Path) {
-        return {
-          scriptId: dataBakerRoundOneQualityScriptId,
-          platformId: "dataBaker",
-          url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
-          statusText: "未触发",
-          statusTone: "pending",
-          title: "当前页面属于标贝易采",
-          description: "当前 URL 不在标贝易采 /v2 页面范围内。" + enabledDescriptionSuffix,
-        };
-      }
-
-      if (hash.indexOf("#/quality/roundonecollect") >= 0) {
-        return {
-          scriptId: dataBakerRoundOneQualityScriptId,
-          platformId: "dataBaker",
-          url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
-          title: "当前页面命中标贝易采",
-          description:
-            "当前会尝试触发“闽南语助手”。" + enabledDescriptionSuffix,
-        };
-      }
-
-      if (hash.indexOf("#/group/detail") >= 0) {
-        return {
-          scriptId: dataBakerRoundOneQualityScriptId,
-          platformId: "dataBaker",
-          url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
-          title: "当前页面命中标贝易采",
-          description:
-            "当前支持任务组详情页导出能力。" + enabledDescriptionSuffix,
-        };
-      }
-
-      return {
-        scriptId: dataBakerRoundOneQualityScriptId,
-        platformId: "dataBaker",
-        url: url,
-        platformEnabled: platformEnabled,
-        scriptEnabled: scriptEnabled,
-        statusText: "待进入一检页面",
-        statusTone: "pending",
-        title: "当前页面属于标贝易采",
-        description:
-          "进入一检详情页后会尝试触发“闽南语助手”。" + enabledDescriptionSuffix,
-      };
-    }
-
-    if (url.hostname === magicDataHost) {
-      const hash = String(url.hash || "").toLowerCase();
-      const isAsrmark = hash.indexOf("#/asrmark") >= 0;
-      const platformEnabled = settings?.platforms?.magicData?.enabled !== false;
-      const hakkaEnabled =
-        settings?.platforms?.magicData?.scripts?.hakkaHelper?.enabled !== false &&
-        settings?.platforms?.magicData?.scripts?.hakkaHelper?.aiReviewEnabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataAnnotator?.enabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataAnnotator?.aiReviewEnabled !== false;
-      const minnanEnabled =
-        settings?.platforms?.magicData?.scripts?.minnanHelper?.enabled !== false &&
-        settings?.platforms?.magicData?.scripts?.minnanHelper?.aiReviewEnabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.enabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.aiReviewEnabled !== false;
-      const hangzhouEnabled =
-        settings?.platforms?.magicData?.scripts?.hangzhouHelper?.enabled !== false &&
-        settings?.platforms?.magicData?.scripts?.hangzhouHelper?.aiReviewEnabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataHangzhouAssistant?.enabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataHangzhouAssistant?.aiReviewEnabled !== false;
-      const configuredActiveScriptId = String(
-        settings?.platforms?.magicData?.activeScriptId || ""
-      ).trim();
-      const activeScriptId =
-        configuredActiveScriptId === magicDataHakkaScriptId && hakkaEnabled
-          ? magicDataHakkaScriptId
-          : configuredActiveScriptId === magicDataMinnanScriptId && minnanEnabled
-            ? magicDataMinnanScriptId
-            : configuredActiveScriptId === magicDataHangzhouScriptId && hangzhouEnabled
-              ? magicDataHangzhouScriptId
-              : hakkaEnabled && !minnanEnabled && !hangzhouEnabled
-                ? magicDataHakkaScriptId
-                : minnanEnabled && !hakkaEnabled && !hangzhouEnabled
-                  ? magicDataMinnanScriptId
-                  : hangzhouEnabled && !hakkaEnabled && !minnanEnabled
-                    ? magicDataHangzhouScriptId
-                    : null;
-      const activeScript = activeScriptId ? scriptLibrary[activeScriptId] || {} : {};
-      const enabledLabel = activeScriptId
-        ? String(activeScript.label || activeScript.shortLabel || activeScriptId)
-        : "未启用";
-      if (isAsrmark) {
-        return {
-          scriptId: activeScriptId,
-          scriptLabel: enabledLabel,
-          platformId: "magicData",
-          platformLabel: "Magic Data ANNOTATOR",
-          url: url,
-          statusText: platformEnabled && activeScriptId ? "已支持" : "未启用",
-          statusTone: platformEnabled && activeScriptId ? "success" : "disabled",
-          title: activeScriptId ? enabledLabel : "当前页面：Magic Data 标注单条页",
-          description: platformEnabled && activeScriptId ? "运行状态：已支持" : "运行状态：未启用",
-          openScriptSettings: Boolean(activeScriptId),
-        };
-      }
-      return {
-        scriptId: activeScriptId,
-        scriptLabel: enabledLabel,
-        platformId: "magicData",
-        platformLabel: "Magic Data ANNOTATOR",
-        url: url,
-        statusText: "待进入标注单条页",
-        statusTone: "pending",
-        title: "当前页面属于 Magic Data",
-        description: "进入 #/asrmark 后可使用已启用助手（当前：" + enabledLabel + "）。",
-        openScriptSettings: Boolean(activeScriptId),
-      };
-    }
-
-    if (url.hostname === dataBakerCvpcHost) {
-      const scriptVisible =
-        typeof constants.isScriptVisible === "function"
-          ? constants.isScriptVisible(dataBakerCvpcLiuzhouScriptId, settings || {})
-          : true;
-      const scriptRuntimeAccessible =
-        typeof constants.isScriptRuntimeAccessible === "function"
-          ? constants.isScriptRuntimeAccessible(dataBakerCvpcLiuzhouScriptId, settings || {})
-          : true;
-      if (!scriptVisible) {
-        return {
-          scriptId: null,
-          platformId: null,
-          url: url,
-          statusText: "未触发",
-          statusTone: "pending",
-          title: "当前页面未命中已启用脚本",
-          description: "当前平台或脚本尚未解锁。",
-        };
-      }
-      const pathname = String(url.pathname || "").toLowerCase();
-      const platformEnabled = settings?.platforms?.dataBakerCvpc?.enabled !== false;
-      const scriptEnabled =
-        settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.enabled !== false;
-      const enabled = platformEnabled && scriptEnabled && scriptRuntimeAccessible;
-      if (pathname === "/app/editor/asr/") {
-        return {
-          scriptId: dataBakerCvpcLiuzhouScriptId,
-          platformId: "dataBakerCvpc",
-          platformLabel: "DataBaker CVPC",
-          url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
-          statusText: enabled ? "已支持 Beta" : "未启用",
-          statusTone: enabled ? "success" : "disabled",
-          title: "当前页面命中 DataBaker CVPC",
-          description: enabled
-            ? "当前页会尝试触发“柳州话脚本” beta 运行时：生成画段建议、当前段 AI 推荐和辅助填入。"
-            : "当前 URL 已命中 CVPC 编辑器，但平台脚本未启用或尚未解锁 beta。 ",
-        };
-      }
-      return {
-        scriptId: dataBakerCvpcLiuzhouScriptId,
-        platformId: "dataBakerCvpc",
-        platformLabel: "DataBaker CVPC",
-        url: url,
-        platformEnabled: platformEnabled,
-        scriptEnabled: scriptEnabled,
-        statusText: enabled ? "待进入编辑器" : "未启用",
-        statusTone: enabled ? "pending" : "disabled",
-        title: "当前页面属于 DataBaker CVPC",
-        description: "进入 /app/editor/asr/ 后，才会触发柳州话脚本 beta 运行时。",
-      };
-    }
-
-    if (url.hostname === bytedanceAidpHost) {
-      const aidpState = getBytedanceAidpScriptState(settings);
-      const targetScriptId = aidpState.activeScriptId || aidpState.scriptId;
-      const scriptVisible =
-        typeof constants.isScriptVisible === "function"
-          ? constants.isScriptVisible(targetScriptId, settings || {})
-          : true;
-      const scriptRuntimeAccessible =
-        typeof constants.isScriptRuntimeAccessible === "function"
-          ? constants.isScriptRuntimeAccessible(targetScriptId, settings || {})
-          : true;
-      if (!scriptVisible) {
-        return {
-          scriptId: null,
-          platformId: null,
-          url: url,
-          statusText: "未触发",
-          statusTone: "pending",
-          title: "当前页面未命中已启用脚本",
-          description: "当前 beta 平台或脚本尚未解锁。",
-        };
-      }
-      const pathname = String(url.pathname || "").toLowerCase();
-      const isDetailPage = /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+\/?$/.test(pathname);
-      const platformEnabled = settings?.platforms?.bytedanceAidp?.enabled !== false;
-      const enabled = aidpState.enabled && scriptRuntimeAccessible;
-      const scriptLabel =
-        scriptLibrary[targetScriptId]?.label || (targetScriptId === bytedanceAidpJinhuaScriptId ? "金华话脚本" : "苏州话脚本");
-
-      if (isDetailPage) {
-        return {
-          scriptId: targetScriptId,
-          platformId: "bytedanceAidp",
-          platformLabel: "ByteDance AIDP",
-          url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: aidpState.scriptConfig.enabled !== false,
-          statusText: !enabled
-            ? "未启用"
-            : aidpState.platformAiEnabled
-              ? "详情页命中"
-              : "详情页命中（平台 AI 已隐藏）",
-          statusTone: !enabled ? "disabled" : aidpState.platformAiEnabled ? "success" : "pending",
-          title: "当前页面命中 ByteDance AIDP mark-v3 详情页",
-          description: enabled
-            ? aidpState.platformAiEnabled
-              ? "当前页会尝试触发“" + scriptLabel + "”，并按设置显示平台原生 AI 板块。"
-              : "当前页会尝试触发“" + scriptLabel + "”，并按设置隐藏平台原生 AI 洞察与猫形浮动入口。"
-            : "当前 URL 已命中 mark-v3 详情页，但 AIDP 当前激活脚本未启用或尚未解锁。",
-        };
-      }
-
-      if (pathname.indexOf("/management/task-v2") === 0) {
-        return {
-          scriptId: targetScriptId,
-          platformId: "bytedanceAidp",
-          platformLabel: "ByteDance AIDP",
-          url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: aidpState.scriptConfig.enabled !== false,
-          statusText: enabled ? "待进入详情页" : "未启用",
-          statusTone: enabled ? "pending" : "disabled",
-          title: "当前页面属于 ByteDance AIDP 任务页",
-          description:
-            "进入 /management/task-v2/{taskId}/mark-v3/{index} 后，才会触发“" +
-            scriptLabel +
-            "”运行时。",
-        };
-      }
-    }
-
-    if (url.hostname === aishellTechHost) {
-      const pathname = String(url.pathname || "").toLowerCase();
-      const aishellState = getAishellTechActiveScriptState(settings);
-      const enabled = aishellState.enabled;
-      const aiReady = aishellState.aiReady;
-      const activeScriptId = aishellState.activeScriptId || aishellTechMinnanScriptId;
-      const activeLabel = aishellState.scriptLabel;
-      const isCnEnShortDrama = activeScriptId === aishellTechCnEnShortDramaScriptId;
-
-      if (pathname === "/mytask/mark") {
-        return {
-          scriptId: activeScriptId,
-          platformId: "aishellTech",
-          platformLabel: "希尔贝壳",
-          url: url,
-          platformEnabled: aishellState.platformEnabled,
-          scriptEnabled: enabled,
-          statusText: !enabled ? "未启用" : isCnEnShortDrama ? "已启用" : aiReady ? "已支持" : "AI 推荐已关闭",
-          statusTone: !enabled ? "disabled" : isCnEnShortDrama || aiReady ? "success" : "pending",
-          title: "当前页面命中希尔贝壳数据标注页",
-          description: !enabled
-            ? "当前页已命中希尔贝壳数据标注页，但平台脚本未启用、未选择生效脚本，或 AI 推荐面板已关闭。"
-            : isCnEnShortDrama
-              ? "当前页可使用“" + activeLabel + "”：显示只读当前媒体信息面板，不自动保存、不自动提交。"
-            : aiReady
-            ? "当前页可使用“" + activeLabel + "”：支持当前条 AI 推荐、复制、填入，以及当前分包内从当前选中条开始的批量串行保存。"
-            : "当前页已命中希尔贝壳数据标注页，但平台脚本未启用、未选择生效脚本，或 AI 推荐面板已关闭。",
-        };
-      }
-
-      if (pathname.indexOf("/mytask/detail/") === 0) {
-        return {
-          scriptId: activeScriptId,
-          platformId: "aishellTech",
-          platformLabel: "希尔贝壳",
-          url: url,
-          platformEnabled: aishellState.platformEnabled,
-          scriptEnabled: enabled,
-          statusText: enabled ? "待进入数据标注页" : "未启用",
-          statusTone: enabled ? "pending" : "disabled",
-          title: "当前页面属于希尔贝壳任务详情页",
-          description:
-            "点击分包“查看”进入 /mytask/mark 后，才会触发“" + activeLabel + "”运行时。",
-        };
-      }
-
-      if (pathname === "/mytask/index") {
-        return {
-          scriptId: activeScriptId,
-          platformId: "aishellTech",
-          platformLabel: "希尔贝壳",
-          url: url,
-          platformEnabled: aishellState.platformEnabled,
-          scriptEnabled: enabled,
-          statusText: enabled ? "待进入任务详情/标注页" : "未启用",
-          statusTone: enabled ? "pending" : "disabled",
-          title: "当前页面属于希尔贝壳我的任务页",
-          description:
-            "当前脚本只在任务详情页和数据标注页做路由覆盖，实际业务能力只在 /mytask/mark 生效；当前生效脚本为“" + activeLabel + "”。",
-        };
-      }
-
-      return {
-        scriptId: activeScriptId,
-        platformId: "aishellTech",
-        platformLabel: "希尔贝壳",
-        url: url,
-        platformEnabled: aishellState.platformEnabled,
-        scriptEnabled: enabled,
-        statusText: enabled ? "待进入业务页" : "未启用",
-        statusTone: enabled ? "pending" : "disabled",
-        title: "当前页面属于希尔贝壳",
-        description:
-          "当前脚本主要围绕 /mytask/mark 工作；其余页面只做路由覆盖与资料复用。当前生效脚本为“" +
-          activeLabel +
-          "”。",
-      };
-    }
-
-    if (url.hostname === abakaAiHost) {
-      const platformEnabled = settings?.platforms?.abakaAi?.enabled !== false;
-      const scriptEnabled = settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false;
-      const enabled = platformEnabled && scriptEnabled;
-      const pathname = String(url.pathname || "");
-      return {
-        scriptId: abakaAiScriptId,
-        platformId: "abakaAi",
-        platformLabel: "Abaka AI",
-        url: url,
-        platformEnabled: platformEnabled,
-        scriptEnabled: scriptEnabled,
-        statusText: enabled ? "已支持只读采集" : "未启用",
-        statusTone: enabled ? "success" : "disabled",
-        title: "当前页面属于 Abaka AI",
-        description:
-          "当前脚本仅做页面结构与 Network 脱敏采集（Console 导出），不自动领取、不自动保存、不自动提交、不自动流转。当前路径：" +
-          pathname,
-      };
-    }
-
     return {
-      scriptId: null,
-      platformId: null,
-      url: url,
-      statusText: "未命中",
-      statusTone: "pending",
-      title: "当前页面未命中任何脚本",
-      description: "当前 URL 不在脚本中心已接入的平台范围内。",
+      title: "当前页面未命中脚本",
+      description: "支持 DataBaker CVPC、ByteDance AIDP 与 Magic Data。",
     };
   }
 
-  async function enrichRuntimeStatus(activeTab, context) {
-    if (!context.scriptId) {
-      return context;
-    }
-
-    if (context.platformId === "alibabaLabelx") {
-      if (!context.platformEnabled) {
-        context.statusText = "未启用";
-        context.statusTone = "disabled";
-        return context;
-      }
-
-      const response = await sendMessageToTab(activeTab.id, {
-        type: messageTypes.PANEL_PING,
-      });
-
-      if (
-        response &&
-        response.ok === true &&
-        context.scriptId === transcriptionProjectId &&
-        response.scriptId === transcriptionProjectId &&
-        response.injected === true
-      ) {
-        if (response.matched === true) {
-          context.statusText = "运行成功";
-          context.statusTone = "success";
-          context.description += " 页面内转写运行时已命中详情页并启动。";
-          return context;
-        }
-
-        context.statusText = "已注入";
-        context.statusTone = "pending";
-        context.description += " 转写脚本已注入，正在等待转写详情页 DOM 加载。";
-        return context;
-      }
-
-      if (response && response.ok === true) {
-        context.statusText = "运行成功";
-        context.statusTone = "success";
-        context.description += " 页面内运行时已响应。";
-        return context;
-      }
-
-      context.statusText = "注入失败";
-      context.statusTone = "error";
-      context.description += " 该页面未响应扩展运行时，请刷新页面或重新加载扩展。";
-      return context;
-    }
-
-    if (context.platformId === "lightwheel") {
-      if (!context.platformEnabled) {
-        context.statusText = context.statusText || "未启用";
-        context.statusTone = context.statusTone || "disabled";
-        return context;
-      }
-
-      context.statusText = context.statusText || "待迁移";
-      context.statusTone = context.statusTone || "pending";
-      context.description += " 当前扩展版还没有把运行时逻辑迁过来。";
-      return context;
-    }
-
-    if (context.platformId === "dataBaker") {
-      if (!context.platformEnabled || context.scriptEnabled === false) {
-        context.statusText = "未启用";
-        context.statusTone = "disabled";
-        return context;
-      }
-
-      if (!context.statusText) {
-        context.statusText = "已启用";
-      }
-      if (!context.statusTone) {
-        context.statusTone = "success";
-      }
-      return context;
-    }
-
-    if (context.platformId === "magicData") {
-      return context;
-    }
-
-    if (context.platformId === "aishellTech") {
-      return context;
-    }
-
-    return context;
+  function setPopupStatus(message) {
+    getElement("popup-status").textContent = String(message || "");
   }
 
-  function getAishellTechActiveScriptState(settings) {
-    const platformEnabled = settings?.platforms?.aishellTech?.enabled !== false;
-    const activeScriptId = String(settings?.platforms?.aishellTech?.activeScriptId || "").trim();
-    const minnanConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
-    const vietnameseConfig = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
-    const thaiConfig = settings?.platforms?.aishellTech?.scripts?.thaiHelper || {};
-    const cnEnShortDramaConfig = settings?.platforms?.aishellTech?.scripts?.cnEnShortDrama || {};
-    const minnanEnabled =
-      minnanConfig.enabled !== false && minnanConfig.aiRecommendEnabled !== false;
-    const vietnameseEnabled =
-      vietnameseConfig.enabled !== false && vietnameseConfig.aiRecommendEnabled !== false;
-    const thaiEnabled =
-      thaiConfig.enabled !== false && thaiConfig.aiRecommendEnabled !== false;
-    const cnEnShortDramaEnabled = cnEnShortDramaConfig.enabled !== false;
-    const resolvedScriptId =
-      activeScriptId === aishellTechMinnanScriptId && minnanEnabled
-        ? aishellTechMinnanScriptId
-        : activeScriptId === aishellTechVietnameseScriptId && vietnameseEnabled
-          ? aishellTechVietnameseScriptId
-          : activeScriptId === aishellTechThaiScriptId && thaiEnabled
-            ? aishellTechThaiScriptId
-            : activeScriptId === aishellTechCnEnShortDramaScriptId && cnEnShortDramaEnabled
-              ? aishellTechCnEnShortDramaScriptId
-            : minnanEnabled && !vietnameseEnabled && !thaiEnabled && !cnEnShortDramaEnabled
-            ? aishellTechMinnanScriptId
-            : vietnameseEnabled && !minnanEnabled && !thaiEnabled && !cnEnShortDramaEnabled
-              ? aishellTechVietnameseScriptId
-              : thaiEnabled && !minnanEnabled && !vietnameseEnabled && !cnEnShortDramaEnabled
-                ? aishellTechThaiScriptId
-                : cnEnShortDramaEnabled && !minnanEnabled && !vietnameseEnabled && !thaiEnabled
-                  ? aishellTechCnEnShortDramaScriptId
-                : minnanEnabled
-                  ? aishellTechMinnanScriptId
-                  : vietnameseEnabled
-                    ? aishellTechVietnameseScriptId
-                    : thaiEnabled
-                      ? aishellTechThaiScriptId
-                      : cnEnShortDramaEnabled
-                        ? aishellTechCnEnShortDramaScriptId
-                      : "";
-    const activeScript = resolvedScriptId ? scriptLibrary[resolvedScriptId] || {} : {};
-    return {
-      platformEnabled: platformEnabled,
-      activeScriptId: resolvedScriptId,
-      scriptLabel: resolvedScriptId
-        ? String(activeScript.label || activeScript.shortLabel || resolvedScriptId)
-        : "无",
-      enabled: platformEnabled && Boolean(resolvedScriptId),
-      aiReady:
-        platformEnabled &&
-        Boolean(resolvedScriptId) &&
-        (resolvedScriptId === aishellTechCnEnShortDramaScriptId
-          ? true
-          : resolvedScriptId === aishellTechVietnameseScriptId
-          ? vietnameseEnabled
-          : resolvedScriptId === aishellTechThaiScriptId
-            ? thaiEnabled
-            : minnanEnabled),
-    };
+  function setTogglePill(text, tone, disabled) {
+    const element = getElement("detected-status-pill");
+    element.textContent = text;
+    element.className = "pill-toggle " + tone;
+    element.disabled = Boolean(disabled);
   }
 
   function renderContext(context) {
     currentDetectedScriptId = context.scriptId || null;
     lastRenderedContext = context;
-
-    const scriptLabel = getResolvedScriptLabel(context);
-    const runtimeDescription = buildRuntimeDescription(context) || context.description || "";
-
-    if (context.scriptId) {
-      getElement("detected-title").textContent = scriptLabel;
-      getElement("detected-description").textContent = runtimeDescription;
-    } else {
-      getElement("detected-title").textContent = context.title || "当前页面检测完成";
-      getElement("detected-description").textContent = runtimeDescription || context.description || "";
-    }
-
-    const openScriptSettingsButton = getElement("open-script-settings");
-    openScriptSettingsButton.disabled = !context.scriptId || context.openScriptSettings === false;
-    const scriptEnabled = context.scriptId ? isScriptEnabled(lastRenderedSettings || {}, context.scriptId) : false;
+    const script = currentDetectedScriptId ? scriptLibrary[currentDetectedScriptId] || {} : {};
+    getElement("detected-title").textContent = currentDetectedScriptId
+      ? script.label || script.shortLabel || currentDetectedScriptId
+      : context.title || "当前页面检测完成";
+    getElement("detected-description").textContent = context.description || "";
+    getElement("open-script-settings").disabled = !currentDetectedScriptId;
+    const enabled = currentDetectedScriptId
+      ? isScriptEnabled(lastRenderedSettings || {}, currentDetectedScriptId)
+      : false;
     setTogglePill(
-      toggleInFlight ? "切换中..." : context.scriptId ? (scriptEnabled ? "已启用" : "未启用") : "未命中脚本",
-      toggleInFlight ? "pending" : scriptEnabled ? "enabled" : "disabled",
-      toggleInFlight || !context.scriptId
+      toggleInFlight ? "切换中..." : currentDetectedScriptId ? (enabled ? "已启用" : "未启用") : "未命中脚本",
+      toggleInFlight ? "pending" : enabled ? "enabled" : "disabled",
+      toggleInFlight || !currentDetectedScriptId
     );
-
-    if (!context.scriptId) {
-      setPopupStatus("");
-      return;
-    }
-
     setPopupStatus("");
   }
 
@@ -901,67 +159,44 @@
       setPopupStatus("扩展存储不可用，无法读取脚本中心。");
       return;
     }
-
-    const settings =
-      settingsOverride && typeof settingsOverride === "object"
-        ? settingsOverride
-        : await storage.getSettings();
-    lastRenderedSettings = settings;
+    lastRenderedSettings = settingsOverride || (await storage.getSettings());
     const activeTab = await getActiveTab();
-
     document.title = constants.EXTENSION_NAME || "标注脚本中心";
     getElement("extension-name").textContent = constants.EXTENSION_NAME || "标注脚本中心";
     getElement("stage-label").textContent = constants.STAGE_LABEL || "脚本中心";
-
-    const baseContext = getDetectedContext(activeTab?.url || "", settings);
-    const context =
-      activeTab && typeof activeTab.id === "number"
-        ? await enrichRuntimeStatus(activeTab, baseContext)
-        : baseContext;
-
-    renderContext(context, settings);
+    renderContext(getDetectedContext(activeTab?.url || "", lastRenderedSettings));
   }
 
   async function handleToggleCurrentScript() {
-    if (toggleInFlight || !currentDetectedScriptId) {
-      return;
-    }
+    if (toggleInFlight || !currentDetectedScriptId) return;
     if (!storage || typeof storage.setScriptEnabled !== "function") {
       setPopupStatus("当前扩展版本不支持直接切换脚本启停。");
       return;
     }
-    const settings = lastRenderedSettings || (await storage.getSettings());
-    const nextEnabled = !isScriptEnabled(settings, currentDetectedScriptId);
     toggleInFlight = true;
-    if (lastRenderedContext) {
-      renderContext(lastRenderedContext, settings);
-    }
+    renderContext(lastRenderedContext || {});
     try {
-      const nextSettings = await storage.setScriptEnabled(currentDetectedScriptId, nextEnabled);
+      const nextSettings = await storage.setScriptEnabled(
+        currentDetectedScriptId,
+        !isScriptEnabled(lastRenderedSettings || {}, currentDetectedScriptId)
+      );
       toggleInFlight = false;
       await render(nextSettings);
     } catch (error) {
       toggleInFlight = false;
       await render();
-      setPopupStatus("切换脚本状态失败：" + (error && error.message ? error.message : String(error)));
+      setPopupStatus("切换脚本状态失败：" + (error?.message || String(error)));
     }
   }
 
   document.addEventListener("DOMContentLoaded", async function () {
-    getElement("stage-label").addEventListener("click", function () {
-      openScriptCenter(null);
-    });
-
+    getElement("stage-label").addEventListener("click", function () { openScriptCenter(null); });
     getElement("open-script-settings").addEventListener("click", function () {
-      if (currentDetectedScriptId) {
-        openScriptCenter(currentDetectedScriptId);
-      }
+      if (currentDetectedScriptId) openScriptCenter(currentDetectedScriptId);
     });
-
     getElement("detected-status-pill").addEventListener("click", function () {
       void handleToggleCurrentScript();
     });
-
     await render();
   });
 })();

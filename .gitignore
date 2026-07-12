@@ -1,10 +1,6 @@
 # 构建和发布产物
 /dist/*
 !dist/annotation-script-center-v*.zip
-!/dist/annotation-script-center-v*.crx
-!/dist/annotation-script-center-update.xml
-!/dist/annotation-script-center-crx-latest.json
-!/dist/annotation-script-center-beta.zip
 *.pem
 
 # 本地统计输出
@@ -47,8 +43,6 @@
 /config/secrets/*.pem
 /config/secrets/*.key
 /config/secrets/*.p12
-/config/secrets/package-crx-release.local.json
-/extension/shared/build-meta.local.js
 !/config/env/ai.env.example
 !/config/env/backend.env.example
 
@@ -63,3 +57,4 @@ Thumbs.db
 .agent
 .playwright-mcp/
 .superpowers/
+/frontend/options-app/node_modules/

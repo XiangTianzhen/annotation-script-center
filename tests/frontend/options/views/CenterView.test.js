@@ -1,0 +1,89 @@
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
+import CenterView from "@/views/CenterView.vue";
+import { useAppStore } from "@/stores/app";
+import { useScriptsStore } from "@/stores/scripts";
+import { useSettingsStore } from "@/stores/settings";
+
+vi.mock("vue-router", () => ({
+  useRouter() {
+    return {
+      push: vi.fn(),
+    };
+  },
+}));
+
+describe("CenterView workbench", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+
+    const appStore = useAppStore();
+    appStore.showToast = vi.fn();
+
+    const settingsStore = useSettingsStore();
+    settingsStore.settings = {
+      meta: {
+        publicCenterPlatformOrder: ["second", "alpha"],
+      },
+    };
+
+    const scriptsStore = useScriptsStore();
+    scriptsStore.platformLibrary = {
+      alpha: {
+        id: "alpha",
+        label: "Alpha",
+        description: "Alpha 平台",
+        displayHost: "alpha.example.com/management/task-v2",
+        entryUrl: "https://alpha.example.com/management/task-v2",
+      },
+      second: {
+        id: "second",
+        label: "Second",
+        description: "Second 平台",
+        displayHost: "second.example.com",
+        entryUrl: "https://second.example.com/",
+      },
+    };
+    scriptsStore.scriptLibrary = {
+      a1: {
+        id: "a1",
+        label: "Alpha Script",
+        description: "Alpha 脚本说明",
+        platformId: "alpha",
+      },
+      b1: {
+        id: "b1",
+        label: "Second Script",
+        description: "Second 脚本说明",
+        platformId: "second",
+      },
+    };
+    scriptsStore.visiblePlatforms = ["second", "alpha"];
+    scriptsStore.visibleScripts = ["a1", "b1"];
+  });
+
+  test("shows legacy center stage without hero shortcuts and with remark panels", () => {
+    const wrapper = mount(CenterView);
+    const sections = wrapper.findAll(".platform-section.platform-module");
+    const firstCard = wrapper.find(".script-card");
+
+    expect(wrapper.find("#public-center-edit-toggle").exists()).toBe(true);
+    expect(wrapper.text()).toContain("编辑顺序");
+    expect(wrapper.find(".hero-badges").exists()).toBe(false);
+    expect(wrapper.find("#stage-label").exists()).toBe(false);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].attributes("data-platform-id")).toBe("second");
+    expect(sections[1].attributes("data-platform-id")).toBe("alpha");
+    expect(wrapper.findAll(".platform-summary")).toHaveLength(2);
+    expect(wrapper.findAll(".platform-script-stack")).toHaveLength(2);
+    expect(firstCard.find(".script-remark-panel").exists()).toBe(true);
+    expect(firstCard.text()).toContain("项目备注");
+    const links = wrapper.findAll(".platform-link-pill");
+    expect(links[0].find(".platform-link-host").text()).toBe("second.example.com");
+    expect(links[0].find(".platform-link-path").exists()).toBe(false);
+    expect(links[1].find(".platform-link-host").text()).toBe("alpha.example.com");
+    expect(links[1].find(".platform-link-path").text()).toBe("/management/task-v2");
+    expect(links[1].find(".platform-link-mark").text()).toBe("↗");
+  });
+});

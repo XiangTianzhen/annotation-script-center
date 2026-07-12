@@ -11,13 +11,12 @@ const {
 } = require("../ai-call-log/csv-writer");
 const { normalizeText } = require("../ai-call-log/sanitizer");
 const { createCorsHeaders, sendJson } = require("../response");
-const { createAuditStore } = require("../project-data-download/audit-store");
+const { createAuditStore } = require("../security/audit-store");
 const {
   createSignedToken,
   verifySignedToken,
-} = require("../project-data-download/jwt");
+} = require("../security/signed-token");
 
-const { aiCallLogger: dataBakerLogger } = require("../../data-baker/round-one-quality/backend/ai-call-log");
 const { aiCallLogger: dataBakerCvpcLiuzhouLogger } = require("../../data-baker-cvpc/liuzhou-helper/backend/ai-call-log");
 const {
   aiCallLogger: bytedanceAidpSuzhouLogger,
@@ -25,18 +24,7 @@ const {
 const {
   aiCallLogger: bytedanceAidpJinhuaLogger,
 } = require("../../bytedance-aidp/jinhua-helper/backend/ai-call-log");
-const { aiCallLogger: aishellLogger } = require("../../aishell-tech/minnan-helper/data/ai-call-log");
-const {
-  aiCallLogger: aishellVietnameseLogger,
-} = require("../../aishell-tech/vietnamese-helper/data/ai-call-log");
-const {
-  aiCallLogger: aishellThaiLogger,
-} = require("../../aishell-tech/thai-helper/data/ai-call-log");
-const { aiCallLogger: magicDataHakkaLogger } = require("../../magic-data/hakka-helper/backend/ai-call-log");
-const { aiCallLogger: magicDataMinnanLogger } = require("../../magic-data/minnan-helper/backend/ai-call-log");
-const { aiCallLogger: asrJudgementLogger } = require("../../alibaba-labelx/asr-judgement/backend/ai-call-log");
-const { aiCallLogger: asrTranscriptionLogger } = require("../../alibaba-labelx/asr-transcription/backend/ai-call-log");
-const { aiCallLogger: abakaTask21Logger } = require("../../abaka-ai/task21/backend/ai-call-log");
+const { aiCallLogger: magicDataHangzhouLogger } = require("../../magic-data/hangzhou-helper/backend/ai-call-log");
 
 const OPTIONS_PATH = "/api/admin/ai-call-log/options";
 const REQUEST_PATH = "/api/admin/ai-call-log/request";
@@ -102,12 +90,10 @@ function getRequestBaseUrl(request) {
 function getAuthConfig() {
   const passwordSha256 =
     normalizeText(process.env.ASC_AI_CALL_LOG_DOWNLOAD_PASSWORD_SHA256) ||
-    normalizeText(process.env.ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256) ||
-    normalizeText(process.env.ASC_DATA_DOWNLOAD_PASSWORD_SHA256);
+    normalizeText(process.env.ASC_ADMIN_PASSWORD_SHA256);
   const jwtSecret =
     normalizeText(process.env.ASC_AI_CALL_LOG_DOWNLOAD_JWT_SECRET) ||
-    normalizeText(process.env.ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET) ||
-    normalizeText(process.env.ASC_DATA_DOWNLOAD_JWT_SECRET);
+    normalizeText(process.env.ASC_ADMIN_JWT_SECRET);
   return {
     passwordSha256: passwordSha256,
     jwtSecret: jwtSecret,
@@ -121,18 +107,9 @@ function createDatasetRegistry(config) {
   }
   return [
     {
-      id: "data-baker-round-one-quality-ai",
-      label: "DataBaker 一检 AI 调用记录",
-      defaultFileName: "data-baker-round-one-quality-ai-calls.csv",
-      getLogger: function () {
-        return dataBakerLogger;
-      },
-    },
-    {
       id: "data-baker-cvpc-liuzhou-helper-ai",
       label: "DataBaker CVPC 柳州话助手 AI 调用记录",
       defaultFileName: "data-baker-cvpc-liuzhou-helper-ai-calls.csv",
-      visibility: "beta",
       getLogger: function () {
         return dataBakerCvpcLiuzhouLogger;
       },
@@ -141,7 +118,6 @@ function createDatasetRegistry(config) {
       id: "bytedance-aidp-suzhou-helper-ai",
       label: "ByteDance AIDP 苏州话脚本 AI 调用记录",
       defaultFileName: "bytedance-aidp-suzhou-helper-ai-calls.csv",
-      visibility: "beta",
       getLogger: function () {
         return bytedanceAidpSuzhouLogger;
       },
@@ -150,88 +126,19 @@ function createDatasetRegistry(config) {
       id: "bytedance-aidp-jinhua-helper-ai",
       label: "ByteDance AIDP 金华话脚本 AI 调用记录",
       defaultFileName: "bytedance-aidp-jinhua-helper-ai-calls.csv",
-      visibility: "beta",
       getLogger: function () {
         return bytedanceAidpJinhuaLogger;
       },
     },
     {
-      id: "aishell-tech-minnan-helper-ai",
-      label: "Aishell Tech 闽南语助手 AI 调用记录",
-      defaultFileName: "aishell-tech-minnan-helper-ai-calls.csv",
+      id: "magic-data-hangzhou-helper-ai",
+      label: "Magic Data 杭州话脚本 AI 调用记录",
+      defaultFileName: "magic-data-hangzhou-helper-ai-calls.csv",
       getLogger: function () {
-        return aishellLogger;
-      },
-    },
-    {
-      id: "aishell-tech-vietnamese-helper-ai",
-      label: "Aishell Tech 越南语助手 AI 调用记录",
-      defaultFileName: "aishell-tech-vietnamese-helper-ai-calls.csv",
-      getLogger: function () {
-        return aishellVietnameseLogger;
-      },
-    },
-    {
-      id: "aishell-tech-thai-helper-ai",
-      label: "Aishell Tech 泰语助手 AI 调用记录",
-      defaultFileName: "aishell-tech-thai-helper-ai-calls.csv",
-      getLogger: function () {
-        return aishellThaiLogger;
-      },
-    },
-    {
-      id: "magic-data-hakka-helper-ai",
-      label: "Magic Data 客家话助手 AI 调用记录",
-      defaultFileName: "magic-data-hakka-helper-ai-calls.csv",
-      getLogger: function () {
-        return magicDataHakkaLogger;
-      },
-    },
-    {
-      id: "magic-data-minnan-helper-ai",
-      label: "Magic Data 闽南语助手 AI 调用记录",
-      defaultFileName: "magic-data-minnan-helper-ai-calls.csv",
-      getLogger: function () {
-        return magicDataMinnanLogger;
-      },
-    },
-    {
-      id: "alibaba-labelx-asr-judgement-ai",
-      label: "LabelX 快判 AI 调用记录",
-      defaultFileName: "alibaba-labelx-asr-judgement-ai-calls.csv",
-      getLogger: function () {
-        return asrJudgementLogger;
-      },
-    },
-    {
-      id: "alibaba-labelx-asr-transcription-ai",
-      label: "LabelX 转写 AI 调用记录",
-      defaultFileName: "alibaba-labelx-asr-transcription-ai-calls.csv",
-      getLogger: function () {
-        return asrTranscriptionLogger;
-      },
-    },
-    {
-      id: "abaka-task21-ai",
-      label: "Abaka Task21 AI 调用记录",
-      defaultFileName: "abaka-task21-ai-calls.csv",
-      getLogger: function () {
-        return abakaTask21Logger;
+        return magicDataHangzhouLogger;
       },
     },
   ];
-}
-
-function shouldIncludeBetaDatasets(config) {
-  const source = config && typeof config === "object" ? config : {};
-  return source.includeBetaDatasets === true;
-}
-
-function filterDatasetsByVisibility(datasets, config) {
-  const includeBeta = shouldIncludeBetaDatasets(config);
-  return (Array.isArray(datasets) ? datasets : []).filter(function (item) {
-    return item?.visibility !== "beta" || includeBeta;
-  });
 }
 
 function getDatasetById(datasets, datasetId) {
@@ -283,7 +190,6 @@ function buildAiCallLogDatasetOption(dataset) {
   return {
     id: dataset.id,
     label: dataset.label,
-    visibility: normalizeText(dataset.visibility),
     hasData: meta.hasData,
     fileCount: meta.fileCount,
     dateFrom: meta.dateFrom,
@@ -292,14 +198,7 @@ function buildAiCallLogDatasetOption(dataset) {
 }
 
 function listAiCallLogDatasets(config) {
-  return filterDatasetsByVisibility(createDatasetRegistry(config), config).map(
-    buildAiCallLogDatasetOption
-  );
-}
-
-function parseIncludeBetaDatasets(value) {
-  const text = normalizeText(value).toLowerCase();
-  return text === "1" || text === "true" || text === "yes";
+  return createDatasetRegistry(config).map(buildAiCallLogDatasetOption);
 }
 
 function toStatusCodeForCode(code) {
@@ -487,10 +386,8 @@ function registerAiCallLogDownloadRoutes(router, options) {
   });
   auditStore.ensureDataDir();
 
-  router.get(OPTIONS_PATH, function ({ response, query }) {
-    const result = filterDatasetsByVisibility(datasets, {
-      includeBetaDatasets: parseIncludeBetaDatasets(query?.includeBeta),
-    }).map(buildAiCallLogDatasetOption);
+  router.get(OPTIONS_PATH, function ({ response }) {
+    const result = datasets.map(buildAiCallLogDatasetOption);
     sendJson(response, 200, {
       success: true,
       data: result,

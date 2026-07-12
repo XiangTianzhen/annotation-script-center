@@ -1,0 +1,57 @@
+// components / buttons
+button {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.68;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-strong));
+  color: #ffffff;
+  box-shadow: 0 12px 20px rgba(21, 94, 239, 0.22);
+}
+
+.secondary-button {
+  background: #dfe7f2;
+  color: var(--text-primary);
+}
+
+.ghost-button {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text-primary);
+  border: 1px solid var(--border-soft);
+}
+
+.danger-button {
+  background: var(--brand-danger-soft);
+  color: var(--brand-danger);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+}
+
+.segmented-button {
+  min-width: 92px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--text-secondary);
+
+  &.active {
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-strong));
+    color: #ffffff;
+  }
+}

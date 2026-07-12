@@ -1,200 +1,158 @@
-# 平台资源统一后端
+# 统一后端
 
-## 目录用途
+统一后端入口为 `platform-resources/backend/server.js`，默认只监听 `127.0.0.1:3333`。它负责组合四脚本 API、管理员能力、公共 AI、日志和 ZIP 下载中心。
 
-本目录是 `platform-resources/` 下所有浏览器无关后端工具的统一启动入口。新增平台或脚本项目 API 时，应优先在对应项目目录实现业务逻辑，再通过 `registry.js` 注册到这里。
+## 主要文件
 
-## 启动方式
+| 路径 | 职责 |
+|---|---|
+| `server.js` | 加载 env、创建应用并监听端口 |
+| `app.js` | HTTP 应用、Router 和公共中间处理 |
+| `registry.js` | 注册四脚本与管理员路由 |
+| `config.js` | host、port 和后端配置归一化 |
+| `env-loader.js` | 按固定顺序加载 ignored env 文件 |
+| `ai/` | provider、模型目录、调度、队列、价格与响应工具 |
+| `ai-framework/` | request/response 契约、route factory、pipeline 和 adapter registry |
+| `security/` | 签名 token 与下载审计公共能力 |
+| `runtime-log-store.js` | 脱敏运行日志和摘要 |
 
-在仓库根目录运行：
+## Python 运行环境
+
+以下能力需要 Python：
+
+- CVPC 柳州话画段的后端音频分析。
+- 配置为 Python 模式的 Fun-ASR provider。
+- 模型调度选择 Python runtime 时的 Qwen provider。
+
+所有能力共用 `platform-resources/backend/.venv`，依赖清单为 `ai/python/requirements.txt`，当前包含 `dashscope`、`opencc-python-reimplemented` 和 `miniaudio`。`.venv/` 已被 Git 忽略，每台开发机和服务器都需要自行创建，不能从其他系统复制。
+
+Windows PowerShell：
 
 ```powershell
-node platform-resources\backend\server.js
+Set-Location platform-resources/backend
+py -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -r ai\python\requirements.txt
+.venv\Scripts\python.exe -c "import dashscope, opencc, miniaudio; print('Python dependencies OK')"
+Set-Location ../..
 ```
 
-默认监听：
+Linux 服务器：
+
+```bash
+cd /var/www/annotation-script-center/platform-resources/backend
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r ai/python/requirements.txt
+.venv/bin/python -c "import dashscope, opencc, miniaudio; print('Python dependencies OK')"
+```
+
+后端依次自动识别 `.venv/Scripts/python.exe` 和 `.venv/bin/python`，所以 PM2 仍然启动 `server.js`，不需要激活虚拟环境。只有需要覆盖默认路径时，才在 ignored env 中配置对应的 Python 可执行文件变量。
+
+## 启动配置
+
+复制环境模板并填写本地真实值：
+
+```powershell
+Copy-Item config/env/backend.env.example config/env/backend.env
+Copy-Item config/env/ai.env.example config/env/ai.env
+```
+
+启动：
+
+```powershell
+node platform-resources/backend/server.js
+```
+
+默认地址：
 
 ```text
 http://127.0.0.1:3333
 ```
 
-服务器若使用 PM2，推荐进程名统一为 `annotation-script-center`。首次启动示例：
+管理员鉴权必须提供：
+
+- `ASC_ADMIN_PASSWORD_SHA256`
+- `ASC_ADMIN_JWT_SECRET`
+
+AI 调用通常需要 `DASHSCOPE_API_KEY`。环境加载顺序和覆盖规则见 [config/README.md](../../config/README.md)。
+
+## 四脚本路由
+
+| 脚本 | Health / Defaults | 主要能力 |
+|---|---|---|
+| 柳州话 | `/api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`、`.../defaults` | AI 推荐、整音频分段预览 |
+| 苏州话 | `/api/bytedance-aidp/suzhou-helper/ai/recommend/health`、`.../defaults` | AI 推荐、分段建议 |
+| 金华话 | `/api/bytedance-aidp/jinhua-helper/ai/recommend/health`、`.../defaults` | AI 推荐、分段建议 |
+| 杭州话 | `/api/magic-data/hangzhou-helper/ai/review-current/health`、`/api/magic-data/hangzhou-helper/ai/defaults` | 当前条 AI 质检 |
+
+完整请求体、响应字段和写回边界由各脚本 README 维护，统一后端不复制脚本业务 schema。
+
+## 管理员接口
+
+- `/api/admin/session/*`：管理员会话解锁与状态。
+- `/api/admin/dashboard/*`：后端运行概况与脱敏运行日志。
+- `/api/admin/download-center/*`：读取公开 `/downloads/` 目录索引，只返回版本化 ZIP。
+- `/api/admin/ai-call-log/*`：四脚本 AI 日志选项、申请下载和签名文件下载。
+
+`GET /api/admin/ai-call-log/options` 固定返回柳州、苏州、金华、杭州四项。
+
+下载中心通过 `ASC_DOWNLOAD_BASE_URL` 指定目录；服务器必须为对应 `/downloads/` 开启目录索引，并提供 `annotation-script-center-v<version>.zip`。
+
+## 公共 AI 与日志
+
+- `ai/model-dispatcher.js` 按模型目录选择 provider。
+- `ai/provider-queue.js` 按具体模型隔离并发和容量。
+- `ai/model-pricing.js` 读取 `config/aliyun-bailian-model-pricing.json`。
+- `ai/model-response-utils.js` 统一 usage、JSON 文本解析和中文句末标点。
+- AI 日志默认记录输入、输出、总 Token 和可用的人民币估算。
+- 普通运行日志只保留 requestId、hostname、status、model、duration 和错误摘要。
+
+后端默认请求超时为 `60000ms`。若模型长期超过该时间，应优化模型、Prompt 或任务拆分，不通过无限拉长代理超时解决。
+
+## PM2 与 Nginx
+
+PM2：
 
 ```bash
 cd /var/www/annotation-script-center
-pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
+pm2 start platform-resources/backend/server.js \
+  --name annotation-script-center \
+  --cwd /var/www/annotation-script-center \
+  --time
+pm2 save
 ```
 
-## 环境变量加载顺序
+Nginx 的 `/api/` 应代理到 `http://127.0.0.1:3333`；`/downloads/` 应 alias 到仓库 `dist/` 并开启目录索引。完整示例位于根 [README](../../README.md)。
 
-启动时会自动读取统一后端环境配置文件，顺序为：
-
-1. `config/env/backend.env`
-2. `config/env/backend.local.env`
-3. `config/env/ai.env`
-4. `config/env/ai.local.env`
-5. `.env.local`
-6. 可选 `ASC_ENV_FILE` 指向的外部文件
-
-系统环境变量优先级最高，不会被配置文件覆盖。文件不存在时跳过；读取失败时只输出脱敏 `warn`，不输出文件内容。
-
-## 服务器部署与更新
-
-### 首次部署
-
-Linux / PM2 示例：
+## 健康检查
 
 ```bash
-cd /var/www
-git clone https://github.com/XiangTianzhen/annotation-script-center.git annotation-script-center
-cd /var/www/annotation-script-center
-cp config/env/backend.env.example config/env/backend.env
-cp config/env/ai.env.example config/env/ai.env
-pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
+curl -fsS http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend/health
+curl -fsS http://127.0.0.1:3333/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults
+curl -fsS http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults
+curl -fsS http://127.0.0.1:3333/api/magic-data/hangzhou-helper/ai/defaults
 ```
 
-Windows 示例：
+## 常见排查
+
+- 无法连接：确认 PM2 进程、监听地址、Nginx upstream 和 Options 后端模式。
+- `401/403`：确认管理员哈希、JWT 密钥和请求凭据是否一致。
+- AI 请求失败：检查 DashScope Key、模型名、60 秒超时和 PM2 脱敏日志。
+- `CVPC 画段 Python 环境未配置`：确认 `platform-resources/backend/.venv/bin/python`（Linux）或 `.venv\Scripts\python.exe`（Windows）存在，并重新安装 `ai/python/requirements.txt`。
+- `cvpc-segment-python-dependency-missing` 或 `fun-asr-python-dependency-missing`：使用虚拟环境中的 Python 执行 import 验证，不要使用系统 Python 代替验证。
+- 下载中心为空：确认 `dist/` 存在 ZIP、Nginx autoindex 已开启、`ASC_DOWNLOAD_BASE_URL` 可访问。
+- 扩展提示网络失败：先直接访问 health/defaults，再检查 HTTPS 和浏览器 Network。
+
+不要在排障输出中粘贴真实 env、authorization、完整签名 URL 或完整请求体。
+
+## 验证
 
 ```powershell
-Set-Location D:\deploy
-git clone https://github.com/XiangTianzhen/annotation-script-center.git annotation-script-center
-Set-Location D:\deploy\annotation-script-center
-Copy-Item config\env\backend.env.example config\env\backend.env
-Copy-Item config\env\ai.env.example config\env\ai.env
-node platform-resources\backend\server.js
+npm run test:backend
+node --check platform-resources/backend/server.js
+platform-resources/backend/.venv/Scripts/python.exe -c "import dashscope, opencc, miniaudio; print('Python dependencies OK')"
+node platform-resources/backend/server.js
 ```
 
-首次部署后至少检查：
-
-- `pm2 status` 或当前终端输出中确认进程已监听
-- `GET /` 根接口可访问
-- 至少一个脚本的 `health` 或 `defaults` 接口可访问
-
-### 日常更新
-
-当前仓库没有根级 `package.json`；服务器更新通常不是 `npm install`，而是“拉代码 + 复核 env + 重启进程”。
-
-Linux / PM2 推荐流程：
-
-```bash
-cd /var/www/annotation-script-center
-git pull --ff-only origin main
-pm2 restart annotation-script-center --update-env
-```
-
-Windows / PM2 推荐流程：
-
-```powershell
-Set-Location D:\deploy\annotation-script-center
-git pull --ff-only origin main
-pm2 restart annotation-script-center --update-env
-```
-
-更新时必须注意：
-
-- 不要直接覆盖服务器本地的 `config/env/backend.env`、`config/env/ai.env`、`config/secrets/*`
-- 如果仓库里的 `.example` 或 README 更新了环境变量说明，只手动把新增项合并到服务器私有配置
-- 如果这次只改后端代码，通常不需要重新生成或替换 `dist/` 静态包
-- 如果这次只替换扩展下载包，通常不需要重启 Node 后端
-
-### 更新后检查清单
-
-1. `pm2 status` 中 `annotation-script-center` 为 `online`
-2. `GET /` 根接口返回 `success=true`
-3. 至少抽查一个脚本 `health` 或 `defaults` 接口
-4. 若本轮涉及下载中心或 CRX 分发，再额外检查静态文件 URL 是否可访问
-
-## 平台专属说明入口
-
-统一后端 README 不再承载平台专属业务说明、平台特有环境变量长清单或平台历史热修记录。以下内容统一下钻到对应平台：
-
-- Alibaba LabelX
-  - 总览：[`../alibaba-labelx/README.md`](../alibaba-labelx/README.md)
-  - 快判：[`../alibaba-labelx/asr-judgement/README.md`](../alibaba-labelx/asr-judgement/README.md)
-  - 转写：[`../alibaba-labelx/asr-transcription/README.md`](../alibaba-labelx/asr-transcription/README.md)
-- DataBaker
-  - 总览：[`../data-baker/README.md`](../data-baker/README.md)
-  - 脚本：[`../data-baker/round-one-quality/README.md`](../data-baker/round-one-quality/README.md)
-- DataBaker CVPC
-  - 总览：[`../data-baker-cvpc/README.md`](../data-baker-cvpc/README.md)
-  - 脚本：[`../data-baker-cvpc/liuzhou-helper/README.md`](../data-baker-cvpc/liuzhou-helper/README.md)
-- Magic Data
-  - 总览：[`../magic-data/README.md`](../magic-data/README.md)
-  - 客家话助手：[`../magic-data/hakka-helper/README.md`](../magic-data/hakka-helper/README.md)
-  - 闽南语助手：[`../magic-data/minnan-helper/README.md`](../magic-data/minnan-helper/README.md)
-- Aishell Tech
-  - 总览：[`../aishell-tech/README.md`](../aishell-tech/README.md)
-  - 闽南语助手：[`../aishell-tech/minnan-helper/README.md`](../aishell-tech/minnan-helper/README.md)
-  - 越南语助手：[`../aishell-tech/vietnamese-helper/README.md`](../aishell-tech/vietnamese-helper/README.md)
-  - 泰语助手：[`../aishell-tech/thai-helper/README.md`](../aishell-tech/thai-helper/README.md)
-- Abaka AI
-  - 总览：[`../abaka-ai/README.md`](../abaka-ai/README.md)
-  - Task21：[`../abaka-ai/task21/README.md`](../abaka-ai/task21/README.md)
-
-Alibaba LabelX 的统计导出、CSV 编码、CSV 健康值合并、断点跳过增强等专属说明统一查看：
-
-- [`../alibaba-labelx/README.md`](../alibaba-labelx/README.md)
-- [`../alibaba-labelx/asr-judgement/README.md`](../alibaba-labelx/asr-judgement/README.md)
-- [`../alibaba-labelx/asr-transcription/README.md`](../alibaba-labelx/asr-transcription/README.md)
-
-## 官方文档核对入口
-
-- 阿里云百炼官方文档索引：[`../../docs/external-docs-aliyun-bailian.md`](../../docs/external-docs-aliyun-bailian.md)
-- 涉及模型名、`enable_thinking`、结构化输出、Qwen-Omni、Web Search、限流、调用地区时，必须先核对对应官方文档
-- 如果官方文档在本地无法访问，必须明确说明“未能联网核对官方文档”，不得伪造结论
-
-## 统一 AI 默认口径
-
-- 所有已接入 AI 服务默认返回统一 `cost` 对象，价格统一读取 `config/aliyun-bailian-model-pricing.json`
-- AI 请求记录 CSV 公共列与脚本扩展列统一使用中文表头
-- 单阶段 AI 调用默认记录总 token，并可补当前调用阶段人民币估算；多阶段 AI 调用默认拆分阶段 token 与阶段预估人民币
-- 缺少价格配置的模型仍允许继续调用；页面可显示 `没有数据源`，CSV 金额列保持空白，不写状态文本
-- 仓库内所有 `*_ENABLE_THINKING` 变量只保留历史兼容读取；实际请求统一固定 `enable_thinking=false`
-- TTS 自动清除默认时间统一为 `60000ms`
-- AI / 模型请求默认超时时间统一为 `60000ms`
-
-统一后端公共环境变量：
-
-- `PLATFORM_RESOURCES_SERVER_HOST`
-- `PLATFORM_RESOURCES_SERVER_PORT`
-- `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
-- `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`
-- `ASC_AI_CALL_LOG_DOWNLOAD_PASSWORD_SHA256`
-- `ASC_AI_CALL_LOG_DOWNLOAD_JWT_SECRET`
-
-平台专属模型、队列、Prompt、词表和导出环境变量请查看对应平台 README。
-
-## 统一 AI 调用日志与管理接口
-
-共享核心目录：
-
-- `platform-resources/backend/ai-call-log/`
-
-统一规则：
-
-- 前端必须携带 `aiUsageOperatorName`；未填写时前端与后端都会拦截
-- token 以 `promptTokens / completionTokens` 为主统计口径；多阶段 usage 会先按阶段汇总再写入 `输入Token / 输出Token / 总Token`
-- 默认保留脱敏后的原始成功 / 失败 JSON，不再把大块业务结果拆成公共列
-- AI 请求记录导出已迁入系统管理的“数据导出”页签
-
-统一统计与管理接口：
-
-- `GET /api/admin/ai-call-log/options`
-- `POST /api/admin/ai-call-log/request`
-- `GET /api/admin/ai-call-log/file?token=...`
-- `HEAD /api/admin/ai-call-log/file?token=...`
-- `POST /api/admin/session/unlock`
-
-审计目录：
-
-- `platform-resources/backend/audit-data/ai-call-log-download/`
-
-项目数据下载密码、管理员会话密码和 JWT Secret 的生成步骤统一见：
-
-- [`../../config/README.md`](../../config/README.md)
-
-## 新增项目接入规则
-
-1. 在对应项目目录下创建自己的 `backend/` 实现，不把业务逻辑直接写进统一入口
-2. 在 `platform-resources/backend/registry.js` 中显式注册
-3. 同步更新对应平台 README、`platform-resources/README.md` 和 `log.md`
+Linux 验证时将 Python 路径替换为 `platform-resources/backend/.venv/bin/python`。长期测试位于根 `tests/backend/`，不得在后端生产目录新增测试文件。

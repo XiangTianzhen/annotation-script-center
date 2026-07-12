@@ -10,16 +10,13 @@
 - [`docs/external-docs-aliyun-bailian.md`](external-docs-aliyun-bailian.md)
   - 阿里云百炼官方文档入口
   - 涉及模型、参数、thinking、结构化输出、Qwen-Omni、Web Search 时先看这里
-- [`docs/unfinished-crx-enterprise-managed-install.md`](unfinished-crx-enterprise-managed-install.md)
-  - CRX 企业托管自动安装的当前阻塞、结论和后续路线
 
 ## 使用顺序
 
 1. 先读 [`AGENTS.md`](../AGENTS.md)
 2. 处理具体平台时再读 [`docs/platforms-index.md`](platforms-index.md)
 3. 涉及百炼能力时再读 [`docs/external-docs-aliyun-bailian.md`](external-docs-aliyun-bailian.md)
-4. 遇到企业托管自动安装问题时再读 [`docs/unfinished-crx-enterprise-managed-install.md`](unfinished-crx-enterprise-managed-install.md)
-5. 历史过程统一查看 [`log.md`](../log.md)
+4. 历史过程统一查看 [`log.md`](../log.md)
 
 ## 当前原则
 

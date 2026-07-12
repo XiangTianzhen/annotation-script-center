@@ -1,49 +1,82 @@
-# 杭州话脚本（Magic Data）资料
+# 杭州话脚本资料与后端（Magic Data）
 
-本目录只维护杭州话脚本专属资料。
+本目录维护杭州话脚本的 AI adapter、后端路由、Prompt、响应 schema、词表和脚本专属资料。
 
-## 实际文件与职责
+## 目录与文件
 
-- `ai/adapter.js`：杭州话脚本接入统一 `ai-framework` 的 adapter。
-- `ai/assets/README.md`：AI 资产目录占位说明。
-- `data/README.md`：脚本级 data 目录占位说明。
-- `backend/index.js`：后端注册入口。
-- `backend/ai-review-request.js`：请求归一化 helper。
-- `backend/ai-*.js`：杭州话 AI 能力实现（模型调用、Prompt、词表、日志、成本估算）。
-- `backend/lexicon/README.md`：词表目录与文件约定说明。
-- `network/.gitkeep`、`page-structure/.gitkeep`：当前无脚本专属差异，继续复用平台根级资料。
+| 路径 | 职责 |
+|---|---|
+| `ai/adapter.js` | 注册到统一 `ai-framework` 的杭州话 adapter |
+| `backend/index.js` | 导出 `registerRoutes` |
+| `backend/ai-routes.js` | Health、defaults、质检和日志摘要路由 |
+| `backend/ai-review-request.js` | 请求字段归一化与校验 |
+| `backend/ai-prompts.js` | 听音、比较和单模型 Prompt |
+| `backend/ai-response-schema.js` | 模型结构化响应约束 |
+| `backend/ai-client-qwen.js` | Qwen 调用与结果解析 |
+| `backend/ai-lexicon.js` | 杭州话主词表加载与降级 |
+| `backend/ai-call-log.js` | 杭州话调用日志 |
+| `backend/ai-cost.js` | usage 与人民币估算 |
+| `backend/lexicon/` | JSON 主词表与维护说明 |
+| `network/`、`page-structure/` | 脚本差异占位；当前复用平台根级稳定资料 |
 
-## 对外接口
+## API
 
 - `GET /api/magic-data/hangzhou-helper/ai/review-current/health`
 - `GET /api/magic-data/hangzhou-helper/ai/defaults`
 - `POST /api/magic-data/hangzhou-helper/ai/review-current`
 - `GET /api/magic-data/hangzhou-helper/ai/review-current/logs/summary`
 
-说明：
+路由只使用 `/api/magic-data/hangzhou-helper/*` 命名空间，由统一后端 `registry.js` 注册。
 
-- legacy `/api/magic-data/annotator/*` 继续只归属客家话助手，杭州话不新增 legacy 别名。
-- 首版继续复用客家话的响应结构和前端联动方式，不引入新的模型链路。
+## 请求与响应
 
-## 当前实现口径
+请求由 `ai-review-request.js` 归一化当前条文本、音频上下文、说话人属性、模型方案、识别策略、Prompt 和生成参数。非法枚举、越界参数或缺少必要上下文时返回明确错误，不继续调用模型。
 
-- 页面范围与客家话保持一致：`#/asrmark`、`#/asrmarkCheck`。
-- 右侧 AI 面板、行内填入、原始输出、快捷键、当前页临时全自动链路都保留。
-- Prompt、`rulesProfile`、README 文案已切到杭州话语义，但默认模型口径仍先与客家话一致。
-- 默认 `direct_dialect` 的听音阶段只读取音频与必要任务元数据，不读取平台文本、说话人已有值或词表；比较阶段再读取平台基线做质检。
-- 杭州话原文按“听到什么写什么”处理：普通话含义不能反向触发杭州话词形；只有听音杭州话词形命中统一用字或可接受写法时，才允许用词表确认规范字形。
-- “音频是否是纯方言” 当前按宽松规则判断：只要音频里出现明显杭州话/方言字词、方言说法或方言读法，就优先按 `纯方言`；只有整段基本都在说普通话时才按 `口音普通话`。
-- 日志统计继续落在 `backend/logs/` 下，通过统一调用日志格式输出。
+响应保持 Magic Data 前端所需的统一结构，包括：
 
-## 词表边界
+- 听音/比较或单模型结果。
+- 字段级建议和说话人属性建议。
+- `pureDialectGuess` 等杭州话判断。
+- usage、cost、词表状态和脱敏 debug。
 
-- 当前已接入 `backend/lexicon/hangzhou-lexicon.json` 作为运行时主词表；JSON 内容按用户维护为主。
-- `direct_dialect` 只按听音杭州话词形匹配词表，用于普通话释义和已有读音证据下的规范字形确认；例如听到“现在”时不能仅因词表对应“葛毛”而改写。
-- 手动 `mandarin_to_dialect` 继续允许从普通话命中词表并生成杭州话文本。
-- 源 Excel `杭州方言正字表0509.xlsx` 与参考 CSV 仍未入库；当前脚本继续只读 JSON 主词表。
-- 若词表文件缺失或 JSON 解析失败，后端返回 `lexicon.status=missing`，`review-current` 继续按无词表模式运行。
+## AI 模式
 
-## 安全边界
+- `two_stage`：分别执行听音与比较阶段。
+- `omni_single`：单模型生成完整建议。
+- `direct_dialect`：直接识别方言。
+- `mandarin_to_dialect`：普通话中间文本参与转换/比较。
+- thinking 固定关闭。
+- 默认请求超时为 `60000ms`。
 
-- AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。
-- 文档与日志不记录 token、cookie、authorization、完整签名 URL、完整敏感文本。
+Prompt 与参数来自请求 override 或后端 defaults。空 override 表示继续使用后端默认值。
+
+## 词表
+
+运行时主词表为 `backend/lexicon/hangzhou-lexicon.json`，结构遵循项目统一 JSON 词表契约。用户负责具体词条维护，代码负责：
+
+- JSON 加载与 schema 校验。
+- 给 Prompt 提供必要参考。
+- 返回词表状态与模式。
+- 文件缺失或非法时降级为无词表模式。
+
+参考文件不替代 JSON 主词表，不在代码任务中自动改写词条内容。
+
+## 日志与安全
+
+- 日志记录模型、阶段、耗时、Token 和可用的人民币估算。
+- 不记录 API Key、cookie、authorization、完整签名 URL 或完整音频 URL。
+- 日志数据通过统一管理员 AI 日志接口导出。
+- 模型原始结果在进入前端前经过结构化解析和脱敏。
+
+## 前端联动
+
+扩展客户端位于 `extension/sites/magic-data/hangzhou-helper/`。defaults、字段名称、模型枚举或响应结构变化时，必须同步检查前端 client、Options 设置、storage、测试和两侧 README。
+
+## 验证
+
+```powershell
+npm run test:backend
+npm run test:extension
+```
+
+真实页面验收步骤见 [扩展运行时 README](../../../extension/sites/magic-data/hangzhou-helper/README.md)。

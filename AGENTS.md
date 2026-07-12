@@ -29,8 +29,6 @@
   - 处理具体平台前先读
 - `docs/external-docs-aliyun-bailian.md`
   - 百炼官方文档入口与查阅规则
-- `docs/unfinished-crx-enterprise-managed-install.md`
-  - 当前未完成模块与现实阻塞
 - `extension/README.md`
   - 扩展当前运行时契约、目录说明、加载方式
 - `platform-resources/README.md`
@@ -61,7 +59,6 @@
    - `platform-resources/<platform>/<script>/README.md`
    - 相关源码、配置、接口与数据文件
 5. 若涉及百炼 / DashScope / Qwen / thinking / 结构化输出 / Qwen-Omni / Web Search / 调用地区 / 限流，额外先读 `docs/external-docs-aliyun-bailian.md`
-6. 若涉及 CRX 企业托管自动安装阻塞，额外先读 `docs/unfinished-crx-enterprise-managed-install.md`
 
 ## 3. Git 与执行规则
 
@@ -82,7 +79,7 @@
 - `ASC_READONLY`：只读审计，不改文件
 - `ASC_MAIN_TASK`：在 `main` 执行任务
 - `ASC_MAIN_HOTFIX`：在 `main` 小修
-- `ASC_RELEASE`：发布流程（版本、CRX、tag）
+- `ASC_RELEASE`：发布流程（版本、ZIP、tag）
 - `ASC_BRANCH_TASK`：仅用户明确要求分支时使用
 
 ### 3.2 commit 规范
@@ -91,10 +88,10 @@
 - 允许保留英文范围标识，但描述必须是中文。
 - 推荐格式：
   - `修复(data-baker): 修复 AI 工具卡挂载失败`
-  - `优化(aishell): 调整结果卡人民币展示`
+  - `优化(aidp): 调整结果卡人民币展示`
   - `新增(backend): 增加 Fun-ASR REST 调用`
   - `文档(readme): 收口项目导航`
-  - `发布: v0.4.0`
+  - `发布: v1.0.0`
 - 禁止使用纯英文、`update`、`fix bug`、`修改` 等含糊提交说明。
 
 ## 4. 目录边界
@@ -137,8 +134,6 @@
 
 ### 4.2 配置目录规则
 
-- `config/package-crx-release.json`
-  - 可提交的默认 CRX 打包配置
 - `config/aliyun-bailian-model-pricing.json`
   - 可提交的模型价格配置
 - `config/env/`
@@ -213,14 +208,10 @@
 - 关闭当前脚本时不自动启用其他脚本。
 - 如需并行启用，必须由当前 Prompt 明确授权。
 - 各脚本详情页不得新增独立后端地址；后端地址统一走 options 首页入口。
-- Magic Data 双助手（客家话 / 闽南语）同平台互斥启用。
+- ByteDance AIDP 的苏州话 / 金华话脚本同平台互斥启用。
 
 ### 5.3 shared 模块规则
 
-- `extension/sites/alibaba-labelx/shared/audio-controller-core.js`
-  - LabelX 快判 / 转写通用音频核心
-- `extension/sites/alibaba-labelx/shared/submit-actions.js`
-  - LabelX 快判 / 转写通用提交快捷键动作
 - `extension/options/options-shared-shortcut-panel.js`
   - 脚本详情页快捷键通用渲染组件
 - 提交类动作只作为快捷键，不加入顶部工具栏。
@@ -264,12 +255,9 @@
 
 - 当前纳入统一治理的业务词表主格式固定为 `JSON`。
 - `CSV / XLSX` 只保留为参考源、原始来源或导入来源。
-- 当前统一治理范围仅指以下 5 份业务词表：
-  - `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.json`
-  - `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon.json`
-  - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
-  - `platform-resources/magic-data/minnan-helper/backend/lexicon/minnan-lexicon.json`
+- 当前统一治理范围仅指以下 2 份业务词表：
   - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
+  - `platform-resources/magic-data/hangzhou-helper/backend/lexicon/hangzhou-lexicon.json`
 - JSON 顶层字段固定为：
   - `schemaVersion`
   - `language`
@@ -359,6 +347,11 @@
 
 ### 9.1 测试文件治理
 
+- 长期测试代码统一放在仓库根目录 `tests/`，按 `frontend / extension / backend / release` 分区；Options runtime 测试放在 `tests/frontend/runtime/`。
+- `extension/`、`frontend/options-app/src/`、`platform-resources/` 与 `scripts/` 等生产目录不得再散落 `*.test.*` / `*.spec.*`。
+- 全量测试统一在仓库根目录执行 `npm test`；定向验证使用根 `package.json` 提供的 `test:frontend / test:runtime / test:extension / test:backend / test:release`。
+- 测试引用生产代码时统一通过 `tests/helpers/repo-paths.cjs` 解析仓库根路径，不得依赖测试文件自身位置猜测相邻源码。
+- 测试临时数据必须写入系统临时目录，并在 `t.after()` 等清理钩子中删除；不得在源码目录留下 `tmp-*`、CSV、日志或缓存。
 - AI / 模型 / 日志 / 队列链路相关 `*.test.js` 默认视为临时验证资产。
 - 当前任务若只是用它们做一次性校验，验证完成后可删除，除非用户明确要求保留。
 - `options`、`storage`、`ui-panel`、`content`、`data-api`、`shortcuts` 这类核心回归测试默认保留。
@@ -368,19 +361,17 @@
 
 - 默认保持当前 `extension/manifest.json` 版本不变。
 - 只有用户明确要求“完成当前版本 / 准备打包 / 准备发布 / 提升版本号”时，才调整版本号。
-- 当前阶段版本固定为 `0.4.0`。
-- 在用户明确说明“这是 `0.4.0` 的最终版本并开始打包 / 发布”之前，不自动提升到 `0.4.1`。
+- 当前正式版本为 `1.0.0`。
+- 后续未收到明确发布指令时，不自动提升版本号。
 - `ASC_RELEASE` 前必须先完成真实浏览器验收。
 - 发布失败不得 commit / tag / push。
-- 正式发布产物以 CRX 三件套为准：
-  - `annotation-script-center-v<version>.crx`
-  - `annotation-script-center-update.xml`
-  - `annotation-script-center-crx-latest.json`
-- ZIP 仅作为过渡分发兼容项，不作为正式发布验收必选项。
+- 正式发布产物固定为一项：
+  - `annotation-script-center-v<version>.zip`
+- 发布流程只有单一公开 profile，不接受通道参数。
 
 ## 11. 安全与脱敏
 
-- 不提交 API Key、token、cookie、authorization、access token、JWT secret、CRX 私钥。
+- 不提交 API Key、token、cookie、authorization、access token、JWT secret 或私有配置。
 - 不提交真实客户数据、员工敏感信息、合同内容、未脱敏截图、完整签名 URL、完整音频 URL。
 - 前端不得保存 API Key、cookie、token、完整签名 URL、完整音频 URL。
 - 若用户贴出敏感信息，不写入代码、文档、日志或测试文件。

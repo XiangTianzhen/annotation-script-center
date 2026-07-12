@@ -352,7 +352,6 @@
           fieldContext: source.fieldContext || {},
           editorContext: source.editorContext || {},
           timeoutMs: Number(config.timeoutMs || DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
-          modelMode: normalizeText(config.modelMode || config.aiRecommendModelMode),
         },
         requestMeta
       );

@@ -1,0 +1,401 @@
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  applyScriptDraftFieldUpdate,
+  hydrateScriptDraft,
+  loadScriptDefaults,
+  SCRIPT_DEFAULT_ENDPOINTS,
+  serializeScriptDraft,
+} from "@/services/script-defaults";
+
+const SUZHOU_ID = "bytedanceAidpSuzhouHelper";
+const JINHUA_ID = "bytedanceAidpJinhuaHelper";
+const CVPC_ID = "dataBakerCvpcLiuzhouAssistant";
+const HANGZHOU_ID = "magicDataHangzhouAssistant";
+
+function aidpPayload() {
+  const params = {
+    temperature: 0.1,
+    top_p: 0.8,
+    max_tokens: 1200,
+    max_completion_tokens: null,
+    presence_penalty: 0,
+    frequency_penalty: 0,
+    seed: null,
+    stop: [],
+  };
+  return {
+    success: true,
+    defaults: {
+      timeoutMs: 60000,
+      stages: {
+        listen: { model: "qwen3.5-omni-flash", prompt: "后端听音 Prompt", params },
+        refine: { model: "qwen3.5-plus", prompt: "后端收口 Prompt", params },
+      },
+    },
+    supportedModels: {
+      listen: ["qwen3.5-omni-flash"],
+      refine: ["qwen3.5-plus"],
+    },
+  };
+}
+
+describe("script defaults and draft adapters", () => {
+  beforeEach(() => {
+    globalThis.ASREdgeConstants = {
+      buildBackendUrl(path) {
+        return `https://backend.example.test${path}`;
+      },
+      DEFAULT_SETTINGS: { platforms: {} },
+    };
+  });
+
+  test("loads and maps an AIDP two-stage defaults response", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => aidpPayload(),
+    }));
+
+    const state = await loadScriptDefaults(SUZHOU_ID, {}, fetchImpl);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://backend.example.test/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(state.status).toBe("loaded");
+    expect(state.config.aiRecommendRequestTimeoutMs).toBe(60000);
+    expect(state.config.aiRecommendListenPrompt).toBe("后端听音 Prompt");
+    expect(state.config.aiRecommendListenTemperature).toBe("0.1");
+    expect(state.config.aiRecommendRefineMaxCompletionTokens).toBe("");
+    expect(state.options.listenModels).toEqual([
+      { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+    ]);
+  });
+
+  test("loads the Jinhua defaults route with the same two-stage contract", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => aidpPayload(),
+    }));
+
+    const state = await loadScriptDefaults(JINHUA_ID, {}, fetchImpl);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://backend.example.test/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(state.status).toBe("loaded");
+    expect(state.config.aiRecommendRefinePrompt).toBe("后端收口 Prompt");
+  });
+
+  test("maps the CVPC flat stage parameters and stop sequences", async () => {
+    const state = await loadScriptDefaults(
+      CVPC_ID,
+      {},
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          defaults: {
+            timeoutMs: 60000,
+            stages: {
+              listen: {
+                model: "qwen3.5-omni-flash",
+                prompt: "柳州听音",
+                includeLexiconReference: true,
+                temperature: 0.15,
+                top_p: 0.75,
+                max_tokens: 1800,
+                max_completion_tokens: 900,
+                presence_penalty: -0.2,
+                frequency_penalty: 0.3,
+                seed: 17,
+                stop: ["END", "STOP"],
+              },
+              refine: {
+                model: "qwen3.5-plus",
+                prompt: "柳州修正",
+                temperature: 0.1,
+                stop: ["DONE"],
+              },
+            },
+          },
+          supportedModels: {
+            listen: ["qwen3.5-omni-flash"],
+            refine: ["qwen3.5-plus"],
+          },
+        }),
+      }))
+    );
+
+    expect(state.status).toBe("loaded");
+    expect(state.config.aiRecommendListenIncludeLexiconReference).toBe(true);
+    expect(state.config.aiRecommendListenTemperature).toBe("0.15");
+    expect(state.config.aiRecommendListenMaxCompletionTokens).toBe("900");
+    expect(state.config.aiRecommendListenStopSequences).toBe("END\nSTOP");
+    expect(state.config.aiRecommendRefineStopSequences).toBe("DONE");
+  });
+
+  test("keeps the four existing defaults routes fixed", () => {
+    expect(SCRIPT_DEFAULT_ENDPOINTS).toEqual({
+      dataBakerCvpcLiuzhouAssistant:
+        "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
+      bytedanceAidpSuzhouHelper:
+        "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
+      bytedanceAidpJinhuaHelper:
+        "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
+      magicDataHangzhouAssistant:
+        "/api/magic-data/hangzhou-helper/ai/defaults",
+    });
+  });
+
+  test("maps Hangzhou model options, prompts and generation defaults", async () => {
+    const state = await loadScriptDefaults(
+      HANGZHOU_ID,
+      {},
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          defaults: {
+            modelMode: "omni_single",
+            recognitionStrategy: "mandarin_to_dialect",
+            modelModeOptions: [
+              { value: "two_stage", label: "双模型" },
+              { value: "omni_single", label: "单模型" },
+            ],
+            recognitionStrategyOptions: [
+              { value: "direct_dialect", label: "方言直听" },
+              { value: "mandarin_to_dialect", label: "普通话转方言" },
+            ],
+            listenModel: "qwen3.5-omni-flash",
+            listenModelOptions: ["qwen3.5-omni-flash"],
+            compareModel: "qwen3.5-flash",
+            compareModelOptions: ["qwen3.5-flash"],
+            singleModel: "qwen3.5-omni-flash",
+            singleModelOptions: ["qwen3.5-omni-flash"],
+            timeoutMs: 60000,
+            temperature: 0.2,
+            top_p: 0.7,
+            listenPrompt: "杭州听音",
+            reviewPrompt: "杭州比较",
+          },
+        }),
+      }))
+    );
+
+    expect(state.status).toBe("loaded");
+    expect(state.config.aiReviewModelMode).toBe("omni_single");
+    expect(state.config.aiReviewRecognitionStrategy).toBe("mandarin_to_dialect");
+    expect(state.config.aiReviewListenPrompt).toBe("杭州听音");
+    expect(state.config.aiReviewComparePrompt).toBe("杭州比较");
+    expect(state.config.aiReviewTemperature).toBe("0.2");
+    expect(state.options.singleModels).toEqual([
+      { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+    ]);
+  });
+
+  test("returns an editable local fallback when defaults cannot be fetched", async () => {
+    const state = await loadScriptDefaults(
+      CVPC_ID,
+      {},
+      vi.fn(async () => {
+        throw new Error("offline");
+      })
+    );
+
+    expect(state.status).toBe("fallback");
+    expect(state.error).toContain("offline");
+    expect(state.config.aiRecommendRequestTimeoutMs).toBe(60000);
+    expect(state.options.listenModels.length).toBeGreaterThan(0);
+  });
+
+  test("local fallbacks expose every model supported by the retained two-stage backends", async () => {
+    const state = await loadScriptDefaults(
+      SUZHOU_ID,
+      {},
+      vi.fn(async () => {
+        throw new Error("offline");
+      })
+    );
+
+    expect(state.options.listenModels.map((item) => item.value)).toEqual([
+      "qwen3.5-omni-flash",
+      "qwen3.5-omni-plus",
+    ]);
+    expect(state.options.refineModels.map((item) => item.value)).toEqual([
+      "qwen3.5-plus",
+      "qwen3.5-flash",
+    ]);
+  });
+
+  test("hydrates effective AIDP values and serializes backend defaults as empty overrides", () => {
+    const defaults = {
+      status: "loaded",
+      config: {
+        aiRecommendRequestTimeoutMs: 60000,
+        aiRecommendListenPrompt: "后端听音 Prompt",
+        aiRecommendListenTemperature: "0.1",
+        aiRecommendListenStopSequences: "END\nSTOP",
+        aiRecommendRefinePrompt: "后端收口 Prompt",
+        aiRecommendRefineTemperature: "0.1",
+      },
+      options: {},
+    };
+    const draft = hydrateScriptDraft(
+      SUZHOU_ID,
+      {
+        platformAiEnabled: false,
+        segmentContextPaddingMs: 300,
+        aiRecommendRequestTimeoutMs: 60000,
+        aiRecommendListenPrompt: "",
+        aiRecommendListenTemperature: "",
+        aiRecommendListenStopSequences: "END, STOP",
+        aiRecommendRefinePrompt: "用户收口 Prompt",
+        aiRecommendRefineTemperature: "0.2",
+      },
+      defaults
+    );
+
+    expect(draft.platformAiEnabled).toBe(true);
+    expect(draft.segmentContextPaddingMs).toBe(0.3);
+    expect(draft.aiRecommendRequestTimeoutMs).toBe(60);
+    expect(draft.aiRecommendListenPrompt).toBe("后端听音 Prompt");
+    expect(draft.aiRecommendListenTemperature).toBe("0.1");
+
+    const persisted = serializeScriptDraft(SUZHOU_ID, draft, defaults);
+    expect(persisted.platformAiEnabled).toBe(false);
+    expect(persisted.segmentContextPaddingMs).toBe(300);
+    expect(persisted.aiRecommendRequestTimeoutMs).toBe(60000);
+    expect(persisted.aiRecommendListenPrompt).toBe("");
+    expect(persisted.aiRecommendListenTemperature).toBe("");
+    expect(persisted.aiRecommendListenStopSequences).toBe("");
+    expect(persisted.aiRecommendRefinePrompt).toBe("用户收口 Prompt");
+    expect(persisted.aiRecommendRefineTemperature).toBe("0.2");
+  });
+
+  test("converts CVPC dB, percent and Val without changing the represented threshold", () => {
+    const defaults = { status: "fallback", config: {}, options: {} };
+    let draft = hydrateScriptDraft(
+      CVPC_ID,
+      {
+        segmentSilenceThresholdUnit: "ratio",
+        segmentSilenceThresholdDbfs: -20,
+      },
+      defaults
+    );
+    expect(draft.segmentSilenceThresholdDbfs).toBe(10);
+
+    draft = applyScriptDraftFieldUpdate(
+      CVPC_ID,
+      draft,
+      { path: "segmentSilenceThresholdUnit" },
+      "value"
+    );
+    expect(draft.segmentSilenceThresholdDbfs).toBe(3277);
+
+    const persisted = serializeScriptDraft(CVPC_ID, draft, defaults);
+    expect(persisted.segmentSilenceThresholdUnit).toBe("value");
+    expect(persisted.segmentSilenceThresholdDbfs).toBeCloseTo(-20, 2);
+  });
+
+  test("normalizes Hangzhou legacy enums and keeps thinking disabled", () => {
+    const draft = hydrateScriptDraft(
+      HANGZHOU_ID,
+      {
+        aiReviewModelMode: "single",
+        aiReviewRecognitionStrategy: "mandarin_bridge",
+        aiReviewEnableThinking: true,
+      },
+      { status: "fallback", config: {}, options: {} }
+    );
+    expect(draft.aiReviewModelMode).toBe("omni_single");
+    expect(draft.aiReviewRecognitionStrategy).toBe("mandarin_to_dialect");
+    expect(serializeScriptDraft(HANGZHOU_ID, draft, {}).aiReviewEnableThinking).toBe(false);
+  });
+
+  test("clears Hangzhou prompt, generation and stop overrides that equal backend defaults", () => {
+    const defaults = {
+      status: "loaded",
+      config: {
+        aiReviewListenPrompt: "后端听音 Prompt",
+        aiReviewComparePrompt: "后端比较 Prompt",
+        aiReviewTemperature: "0.1",
+        aiReviewStopSequences: "END\nSTOP",
+      },
+      options: {},
+    };
+    const persisted = serializeScriptDraft(
+      HANGZHOU_ID,
+      {
+        aiReviewModelMode: "two_stage",
+        aiReviewRecognitionStrategy: "direct_dialect",
+        aiReviewRequestTimeoutMs: 60000,
+        aiReviewListenPrompt: "后端听音 Prompt",
+        aiReviewComparePrompt: "用户比较 Prompt",
+        aiReviewTemperature: "0.1",
+        aiReviewStopSequences: "END, STOP",
+      },
+      defaults
+    );
+
+    expect(persisted.aiReviewListenPrompt).toBe("");
+    expect(persisted.aiReviewComparePrompt).toBe("用户比较 Prompt");
+    expect(persisted.aiReviewTemperature).toBe("");
+    expect(persisted.aiReviewStopSequences).toBe("");
+  });
+
+  test("rejects invalid optional generation values before persistence", () => {
+    expect(() =>
+      serializeScriptDraft(
+        SUZHOU_ID,
+        {
+          platformAiEnabled: true,
+          segmentContextPaddingMs: 0.3,
+          segmentSilenceThresholdDbfs: -31,
+          aiRecommendRequestTimeoutMs: 60,
+          aiRecommendListenTopP: "1.2",
+        },
+        { status: "fallback", config: {}, options: {} }
+      )
+    ).toThrow(/top_p.*0.*1/i);
+  });
+
+  test("enforces the same timeout and silence ranges as the AIDP runtime", () => {
+    const baseDraft = {
+      platformAiEnabled: true,
+      segmentContextPaddingMs: 0.3,
+      segmentSilenceThresholdDbfs: -31,
+      aiRecommendRequestTimeoutMs: 60,
+    };
+    expect(() =>
+      serializeScriptDraft(
+        SUZHOU_ID,
+        { ...baseDraft, aiRecommendRequestTimeoutMs: 0.5 },
+        { status: "fallback", config: {}, options: {} }
+      )
+    ).toThrow(/请求超时时间.*1.*60/);
+    expect(() =>
+      serializeScriptDraft(
+        SUZHOU_ID,
+        { ...baseDraft, segmentSilenceThresholdDbfs: -81 },
+        { status: "fallback", config: {}, options: {} }
+      )
+    ).toThrow(/静音阈值.*-80.*-5/);
+  });
+
+  test("preserves the CVPC runtime maximum padding and valid dB boundary", () => {
+    const persisted = serializeScriptDraft(
+      CVPC_ID,
+      {
+        segmentContextPaddingMs: 1.5,
+        segmentSilenceThresholdUnit: "db",
+        segmentSilenceThresholdDbfs: -80,
+        aiRecommendRequestTimeoutMs: 60000,
+      },
+      { status: "fallback", config: {}, options: {} }
+    );
+
+    expect(persisted.segmentContextPaddingMs).toBe(1500);
+    expect(persisted.segmentSilenceThresholdDbfs).toBe(-80);
+  });
+});

@@ -12,10 +12,13 @@
   - 设置页可控制 `启用 AI 功能`、`画段后自动应用建议` 与 `识别完成后立即填入`
   - 设置页基础设置、`AI 设置`、`快捷键` 标题已统一把详细说明收进可点击 `?`，并改为页面顶层帮助浮层避免被右栏遮挡
   - 设置页布尔开关已统一为滑块样式，右侧状态文案会随开关在 `开启 / 关闭` 间切换；下拉选择、输入框和数字框高度已统一
-  - AIDP 设置页本轮已先回退下拉框与多行输入框到较早的原生样式：基础设置和阶段模型重新使用原生 `select`，`听音 Prompt`、`收口 Prompt` 与 `stop sequences` 重新使用普通 `textarea`
-  - 当 `启用 AI 功能` 关闭并保存后，右侧 `AI 设置` 面板直接由 `快捷键` 面板替换；重新开启后继续沿用原有 AI 参数
+  - 设置字段固定按“开关 -> 下拉框 -> 单行参数 -> Prompt / stop sequences”排列，并统一使用当前 Vue Options 控件样式
+  - 当 `启用 AI 功能` 关闭并保存后，右侧 `AI 设置` 面板隐藏，左侧基础设置与快捷键收为单栏；重新开启后继续沿用原有 AI 参数
   - `启用 AI 功能` 与脚本 `启用 / 关闭` 状态完全独立；关闭脚本不会改写已保存的 `aiRecommendEnabled`
-  - `请求超时时间` 前端已改为秒口径输入，支持 `0.001` 秒精度，持久化仍写回 `aiRecommendRequestTimeoutMs`
+  - `请求超时时间` 前端按 `1~60` 秒输入，持久化仍写回毫秒口径的 `aiRecommendRequestTimeoutMs`
+  - 听音与普通话翻译收口阶段均提供完整生成参数，并从 `/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults` 读取默认模型、Prompt 与参数
+  - defaults 读取失败时设置页继续使用本地回退；已修改草稿不会被迟到的 defaults 响应覆盖
+  - 当前 `1.0.0` 不展示专家模式，避免暴露当前分支运行时与 storage 尚不能执行的设置
   - 快捷键录制开始后改为顶部常驻提示；录制成功、取消和删除继续走顶部 `1s` toast
   - 管理区 `/management/*` 已补 header 账号区 `切换账号` 按钮，会先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 站点储存，再补清 AIDP / SSO / 第三方登录 Cookie 后刷新页面
   - 关闭自动填入时，行内识别会先缓存结果，再由同一行 `填入` 按钮直填 textarea
@@ -50,9 +53,6 @@
 | `page-structure/README.md` | `mark-v3` 详情页结构索引 |
 | `page-structure/01-mark-v3-detail.md` | `mark-v3` 详情页语义分区、锚点和挂载边界 |
 | `backend/README.md` | 金华话脚本分段建议与 AI 推荐后端入口 |
-| `ai/assets/jinhua-lexicon.json` | 金华话差异词义转化表，仅保留方言正字与普通话不同、且带方言发音的转换参考 entry |
-| `ai/assets/jinhua-pronunciation-reference.csv` | 金华话差异发音参考 CSV，固定为 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列，发音列使用拼音式 ASCII 展示 |
-| `ai/assets/jinhua-pronunciation-reference.xlsx` | 金华话差异发音参考 XLSX，供人工按表格形式验收，发音列使用拼音式 ASCII 展示 |
 
 运行时代码入口：
 
@@ -95,14 +95,6 @@
   - 当前题或快照漂移时 fail closed
 - 当前脚本级后端入口：
   - `platform-resources/bytedance-aidp/jinhua-helper/backend/`
-- 当前脚本级 AI 资产：
-  - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-lexicon.json`
-  - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.csv`
-  - `platform-resources/bytedance-aidp/jinhua-helper/ai/assets/jinhua-pronunciation-reference.xlsx`
-  - 资产已在 `ai/adapter.js` 注册；运行时以 `jinhua-lexicon.json` 为主词表，按当前段文本、页面字段和听音结果筛选少量相关词条进入 AI prompt，不展开全量词表。
-  - 词义与读音资产已清理掉原始音频路径、视频编号、采集索引和原始资料路径，并筛除方言正字与普通话相同或缺少方言发音的记录。
-  - 当前 JSON / CSV 主资产保留 `991` 条差异记录；CSV 与 XLSX 均使用 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列。
-  - JSON 继续保留原始 IPA 发音字段；CSV / XLSX 的 `发音` 列使用近似拼音式 ASCII 展示，便于人工验收，不作为运行时词表 fallback。
 - 当前 AI 调用记录已纳入后台导出数据集：
   - `ByteDance AIDP 金华话脚本 AI 调用记录`
 
@@ -115,14 +107,6 @@
 - 不绕过页面按钮 `disabled / readonly`
 - 空结果不覆盖已有非空 `txt`
 - 纯静音或完全听不清时返回空字符串
-
-## AI 模型模式
-
-- 当前金华话助手支持两种 AI 模型模式：
-  - `two_stage`：默认普通模式，沿用原听音模型 `qwen3.5-omni-flash` 与收口模型 `qwen3.5-plus` 的双模型流程。
-  - `expert_omni_plus`：专家模式，仍保留听音和收口两阶段，但两阶段实际都强制使用 `qwen3.5-omni-plus`。
-- `expert_omni_plus` 只改变 AI 调用模型选择，不改变写回字段、自动填入拦截规则、批量范围或平台暂存契约。
-- 设置页会保存 `aiRecommendModelMode`，并保留原有双模型配置，便于切回普通模式。
 
 ## 安全边界
 

@@ -1,0 +1,15 @@
+{
+  "name": "annotation-script-center",
+  "private": true,
+  "imports": {
+    "#repo-paths": "./tests/helpers/repo-paths.cjs"
+  },
+  "scripts": {
+    "test": "node tests/run-tests.cjs",
+    "test:frontend": "node tests/run-tests.cjs frontend",
+    "test:runtime": "node tests/run-tests.cjs runtime",
+    "test:extension": "node tests/run-tests.cjs extension",
+    "test:backend": "node tests/run-tests.cjs backend",
+    "test:release": "node tests/run-tests.cjs release"
+  }
+}

@@ -73,30 +73,7 @@
   - 正常有语义的重复内容不压缩
   - 不使用阿拉伯数字，统一改写为汉字数字
   - 纯静音或完全听不清时返回空字符串
-- 即使判断为 `唱歌` 或 `非金华话`，也仍然尽量返回可识别文本，只是默认 `blockAutoFill=true`
-
-## AI 模型模式
-
-- `normalizeRecommendRequest` 接收 `modelMode`：
-  - 缺省或非法值按 `two_stage` 处理。
-  - `two_stage` 保持原双模型行为，听音默认 `qwen3.5-omni-flash`，收口默认 `qwen3.5-plus`。
-  - `expert_omni_plus` 仍执行 `listen -> refine` 两次调用，但归一化后两阶段模型都强制为 `qwen3.5-omni-plus`。
-- `health / defaults` 返回 `supportedModelModes`，成功响应的 `models` 返回 `modelMode / listenModel / refineModel`，便于前端和 AI 调用日志确认实际生效模式。
-- 专家模式不改变 prompt、参数白名单、usage/cost 聚合或 `blockAutoFill` 判定口径。
-
-## AI 资产
-
-- `../ai/assets/jinhua-lexicon.json`
-  - 金华话差异词义转化表，使用统一 `business-lexicon` schema
-  - 当前包含 `991` 条 entry，只保留方言正字与普通话不同、且带方言发音的记录
-- `../ai/assets/jinhua-pronunciation-reference.csv`
-  - 金华话差异发音参考 CSV
-  - 当前包含 `991` 行数据，固定为 `分类 / 普通话 / 方言正字【标注参考这列】 / 发音` 四列，发音列使用拼音式 ASCII 展示
-- `../ai/assets/jinhua-pronunciation-reference.xlsx`
-  - 金华话差异发音参考 XLSX，供人工按表格形式验收，发音列使用拼音式 ASCII 展示
-- JSON 与 CSV 已在 `../ai/adapter.js` 注册；运行时只把 `jinhua-lexicon.json` 作为主词表读取，CSV / XLSX 仅供人工验收或生成来源，不作为 fallback 主词表。
-- JSON 继续保留原始 IPA 发音，CSV / XLSX 只做人工可读展示转换。
-- 每次 AI 请求会按当前段文本、页面字段和听音结果筛选少量 JSON 词条追加进听音 / 收口 prompt；无命中时不展开全量词表。
+  - 即使判断为 `唱歌` 或 `非金华话`，也仍然尽量返回可识别文本，只是默认 `blockAutoFill=true`
 
 ## 日志与导出
 

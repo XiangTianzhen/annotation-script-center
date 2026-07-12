@@ -1,30 +1,53 @@
-# Magic Data ANNOTATOR 前端目录
+# Magic Data 扩展运行时
 
-Magic Data 平台运行时代码采用“平台共享 + 脚本专属目录”结构。
+当前 Magic Data 运行时只服务杭州话脚本 `magicDataHangzhouAssistant`，匹配站点 `https://work.magicdatatech.com/*`。
 
 ## 目录结构
 
-- `shared/`：页面识别、数据采集、network observer、共享 AI client 等平台共用模块。
-- `hakka-helper/`：客家话助手入口。
-- `minnan-helper/`：闽南语助手入口。
-- `hangzhou-helper/`：杭州话脚本入口（隐藏 beta）。
+| 路径 | 职责 |
+|---|---|
+| `hangzhou-helper/content.js` | 页面入口、设置读取、挂载与状态协调 |
+| `hangzhou-helper/ai-review-client.js` | 杭州话 AI defaults 与质检请求 |
+| `hangzhou-helper/assistant-panel.js` | AI 结果面板、填入和状态反馈 |
+| `hangzhou-helper/shortcuts-runtime.js` | 22 项可录制快捷键动作 |
+| `shared/page-detector.js` | Magic Data 路由和页面类型识别 |
+| `shared/data-collector.js` | 当前条数据采集、缓存优先与 DOM 回退 |
+| `shared/page-world/network-observer.js` | MAIN world 只读 Network observer |
+
+## 注入与数据流
+
+```text
+manifest document_start
+  -> MAIN world network-observer
+  -> ISOLATED world shared constants / storage
+  -> page-detector + data-collector
+  -> Hangzhou content
+  -> ai-review-client
+  -> assistant-panel / shortcuts-runtime
+```
+
+Network observer 只观察页面已有请求，并把最小、脱敏的当前条快照传给隔离世界。运行时不会把 cookie、authorization、完整签名 URL 或完整音频 URL写入扩展 storage。
+
+## 挂载条件
+
+- 支持 `#/asrmark` 与 `#/asrmarkCheck`。
+- `platforms.magicData.activeScriptId` 必须为 `magicDataHangzhouAssistant`。
+- 杭州话脚本和平台必须处于启用状态。
+- 页面容器和当前条数据未准备完成时跳过本轮挂载，等待后续重试。
 
 ## 运行边界
 
-- 平台：`https://work.magicdatatech.com/*`
-- 目标页面：
-  - 客家话助手：`#/asrmark`、`#/asrmarkCheck`
-  - 杭州话脚本：`#/asrmark`、`#/asrmarkCheck`
-  - 闽南语助手：按其现有入口运行
-- 所有脚本都只允许用户主动点击或快捷键触发 AI。
-- 不自动保存、不自动提交、不自动审核、不自动领取、不自动流转。
+- 普通 AI 质检只在用户点击按钮或快捷键后触发。
+- Options 保存不会操作业务页面。
+- AI 建议默认不自动保存、不自动提交、不自动审核、不自动领取、不自动流转。
+- 用户显式启动的当前页临时全自动只作用于 `#/asrmark`，并通过页面真实按钮执行。
+- 所有写入尊重页面原生禁用状态和当前条快照一致性。
 
-## 配置与入口
+## 验证
 
-- options 首页统一后端地址，不在脚本详情页新增独立后端地址。
-- Magic Data 三脚本默认互斥启用；启用一个会自动关闭另外两个。
-- popup 在 Magic Data 页面只展示当前唯一生效脚本。
-- 杭州话脚本沿用现有 beta 解锁口径；未解锁时不在脚本列表显示，解锁后可启停和进入详情页。
-- 三脚本共享平台后端地址入口，但 `AI 设置`、`基础设置`、`快捷键` 仍按脚本独立保存。
-- 杭州话首版沿用客家话前端能力：右侧 AI 面板、行内填入、原始输出、快捷键、当前页临时全自动链路都保留。
-- Magic Data 详情页统一保存 `modelMode + recognitionStrategy + listenModel + compareModel + singleModel` 等显式字段，并同步维护 legacy 配置镜像，避免刷新后回退显示。
+```powershell
+npm run test:extension
+node scripts/build-options-app.js
+```
+
+真实浏览器还需验证两个支持路由的挂载、AI 面板、结果填入、快捷键和停止行为。详细说明见 [杭州话运行时](hangzhou-helper/README.md)。

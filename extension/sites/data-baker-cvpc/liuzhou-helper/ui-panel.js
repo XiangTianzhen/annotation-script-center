@@ -1532,7 +1532,7 @@
 
       rightPanelNode = document.createElement("div");
       rightPanelNode.innerHTML =
-        '<div class="panel-title">柳州话脚本 Beta</div><div class="panel-subtitle">CVPC /app/editor/asr/ 建议生成 + 人工确认</div>';
+        '<div class="panel-title">柳州话脚本</div><div class="panel-subtitle">CVPC /app/editor/asr/ 建议生成 + 人工确认</div>';
 
       const statusRowNode = document.createElement("div");
       statusRowNode.className = "status-row";

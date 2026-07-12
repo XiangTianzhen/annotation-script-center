@@ -1,187 +1,86 @@
-# platform-resources 总览
+# 平台资料与统一后端
 
-`platform-resources/` 用于维护各平台资料、脚本后端实现和统一后端入口。
+`platform-resources/` 保存三个当前平台的稳定参考资料、四脚本专属后端，以及所有脚本共用的统一后端能力。
 
-## 文档入口
+## 当前平台与脚本
 
-- 项目规则：[`../AGENTS.md`](../AGENTS.md)
-- 项目导航：[`../README.md`](../README.md)
-- 扩展源码说明：[`../extension/README.md`](../extension/README.md)
-- 统一后端说明：[`backend/README.md`](backend/README.md)
-- 平台与脚本索引：[`../docs/platforms-index.md`](../docs/platforms-index.md)
-- 百炼官方文档入口：[`../docs/external-docs-aliyun-bailian.md`](../docs/external-docs-aliyun-bailian.md)
-- 配置说明：[`../config/README.md`](../config/README.md)
+| 平台目录 | 脚本 | 运行时 | 后端命名空间 |
+|---|---|---|---|
+| `data-baker-cvpc/` | 柳州话 | `extension/sites/data-baker-cvpc/liuzhou-helper/` | `/api/data-baker-cvpc/liuzhou-helper/*` |
+| `bytedance-aidp/` | 苏州话 | `extension/sites/bytedance-aidp/suzhou-helper/` | `/api/bytedance-aidp/suzhou-helper/*` |
+| `bytedance-aidp/` | 金华话 | `extension/sites/bytedance-aidp/jinhua-helper/` | `/api/bytedance-aidp/jinhua-helper/*` |
+| `magic-data/` | 杭州话 | `extension/sites/magic-data/hangzhou-helper/` | `/api/magic-data/hangzhou-helper/*` |
 
-## 安装 / 部署入口
+平台与脚本入口索引见 [docs/platforms-index.md](../docs/platforms-index.md)。
 
-- 本地加载扩展、打包、发布入口：[`../README.md`](../README.md)
-- 后端部署、PM2、环境变量入口：[`backend/README.md`](backend/README.md)
-- CRX 打包配置：[`../config/README.md`](../config/README.md)
-- 企业托管自动安装现状：[`../docs/unfinished-crx-enterprise-managed-install.md`](../docs/unfinished-crx-enterprise-managed-install.md)
+## 目录职责
 
-## 目录边界
+平台根目录优先包含：
 
-- `platform-resources/backend/`
-  - 统一后端入口、路由注册、公共 AI / 下载 / 管理能力
-- `platform-resources/<platform>/`
-  - 平台总览、共用资料、共用后端、脚本资料
-- 平台目录默认优先使用：
-  - `README.md`
-  - `backend/`
-  - `network/`
-  - `page-structure/`
-  - `<script-id>/`
-- 单脚本目录默认优先使用：
-  - `README.md`
-  - `backend/`
-  - `network/`
-  - `page-structure/`
+- `README.md`：平台当前能力、共用边界和阅读入口。
+- `network/`：当前有效的稳定请求参考。
+- `page-structure/`：当前有效的页面结构、选择器和挂载建议。
+- `<script-id>/`：脚本专属资料、Prompt、词表、后端与差异说明。
 
-## 参考文档规则
+脚本目录只保存脚本专属内容。平台多个脚本共同依赖的页面或请求资料放在平台根级目录，避免重复维护。
 
-- `network/` 与 `page-structure/` 只保留稳定参考文档，不保留过程型会话记录。
-- 目录里存在多份稳定参考页时，`README.md` 只做索引；目录里只有单份稳定参考时，允许直接由该单页承载。
-- 空占位目录继续只保留 `.gitkeep`，不为了形式补 README。
-- 过程型文件不再写进主参考目录：
-  - `pending-capture.md`
-  - `next-session-handoff.md`
-  - `playwright/devtools/readonly/retest` 一类复测记录
-- 历史过程统一写入 `log.md`；当前边界写回对应 README 或稳定参考页。
+## 统一后端
 
-### 索引 README 模板
+- 启动入口：`backend/server.js`
+- 应用组装：`backend/app.js`
+- 路由注册：`backend/registry.js`
+- 公共 AI：`backend/ai/`
+- AI 框架：`backend/ai-framework/`
+- 管理员会话、仪表盘、下载中心与 AI 日志：`backend/admin-*`、`backend/ai-call-log-download/`
 
-- 固定章节：
-  - `目录定位`
-  - `适用范围 / 当前覆盖`
-  - `文件列表`
-  - `阅读顺序`
-  - `通用约定`
-  - `当前边界 / 待补项`
+`registry.js` 只注册四个脚本和当前管理员能力。脚本路由继续由各脚本 `backend/index.js` 导出 `registerRoutes(router, options)`，统一入口负责组合，不把脚本业务复制到公共后端。
 
-### Network 单页模板
+## 请求数据流
 
-- 固定章节：
-  - `请求标识 / 目的`
-  - `页面入口 / 触发动作`
-  - `请求摘要`
-  - `请求体摘要`
-  - `响应摘要`
-  - `关键字段`
-  - `前端接入建议`
-  - `风险 / 未确认项`
+```text
+业务页面
+  -> 扩展 content script / page-world observer
+  -> 统一后端 /api/<platform>/<script>/*
+  -> 脚本 backend
+  -> 公共 AI dispatcher / provider / pricing / queue
+  -> 脱敏响应与 AI 调用日志
+  -> 扩展面板供人工确认
+```
 
-### Page-structure 单页模板
+页面观察桥只采集完成当前功能所需的最小数据。cookie、authorization、完整签名 URL 和完整音频 URL 不进入前端持久化、文档或普通日志。
 
-- 固定章节：
-  - `页面标识 / 路由 / 前置条件`
-  - `页面总览`
-  - `DOM 树 / 区域结构`
-  - `稳定选择器表`
-  - `动态区域 / 重渲染风险`
-  - `可挂载点建议`
-  - `页面区域与接口映射`
-  - `写操作边界 / 未确认项`
+## 前后端边界
 
-### 通用写法
+扩展负责：
 
-- 只写当前有效结论，不写日期型历史流水。
-- 章节顺序和字段命名保持固定，方便 AI 和人工快速扫读。
-- 必须明确稳定锚点、禁止依赖项、脱敏规则和未确认边界。
+- 页面识别、数据采集与 UI 展示。
+- 调用后端并展示加载、成功、失败和空状态。
+- 用户明确触发后的页面写入或下载。
 
-## 当前平台入口
+后端负责：
 
-### Alibaba LabelX
+- 模型调用、队列、超时、价格估算和响应归一化。
+- 管理员鉴权、日志聚合、CSV 与下载接口。
+- 业务词表读取、结构校验和无词表降级。
 
-- 目录：`platform-resources/alibaba-labelx/`
-- 平台共用资料：
-  - `backend/`
-  - `network/README.md`
-  - `page-structure/README.md`
-- 脚本：
-  - `asr-judgement/`
-  - `asr-transcription/`
+AI 建议默认不自动保存、不自动提交、不自动审核、不自动流转。具体例外必须同时满足项目规则和脚本 README 的明确契约。
 
-### DataBaker
+## 资料阅读规则
 
-- 目录：`platform-resources/data-baker/`
-- 平台共用资料：
-  - `backend/`
-  - `network/`
-  - `page-structure/`
-- 脚本：
-  - `round-one-quality/`
+1. 先阅读平台根 README。
+2. 再阅读对应脚本 README。
+3. 页面挂载问题查看 `page-structure/`。
+4. 请求与写回问题查看 `network/`。
+5. 模型与参数问题查看脚本后端和 [百炼官方文档入口](../docs/external-docs-aliyun-bailian.md)。
 
-### DataBaker CVPC
+参考文档只保留当前有效结论；过程记录统一写入根 [log.md](../log.md)。
 
-- 目录：`platform-resources/data-baker-cvpc/`
-- 平台共用资料：
-  - `network/`
-  - `page-structure/`
-- 脚本：
-  - `liuzhou-helper/`
+## 开发验证
 
-### Magic Data
+```powershell
+npm run test:backend
+npm run test:extension
+node platform-resources/backend/server.js
+```
 
-- 目录：`platform-resources/magic-data/`
-- 平台共用资料：
-  - `backend/`
-  - `network/`
-  - `page-structure/`
-- 脚本：
-  - `hakka-helper/`
-  - `minnan-helper/`
-  - `hangzhou-helper/`
-
-### Abaka AI
-
-- 目录：`platform-resources/abaka-ai/`
-- 平台共用资料：
-  - `backend/`
-  - `network/`
-  - `page-structure/`
-- 脚本：
-  - `task-page/`
-  - `task17/`
-  - `task21/`
-
-### ByteDance AIDP
-
-- 目录：`platform-resources/bytedance-aidp/`
-- 平台共用资料：
-  - `network/README.md`
-  - `page-structure/README.md`
-- 脚本：
-  - `jinhua-helper/`
-  - `suzhou-helper/`
-
-### Aishell Tech
-
-- 目录：`platform-resources/aishell-tech/`
-- 平台共用资料：
-  - `network/README.md`
-  - `page-structure/README.md`
-- 脚本：
-  - `minnan-helper/`
-  - `vietnamese-helper/`
-  - `thai-helper/`
-  - `cn-en-short-drama/`
-
-## 统一后端边界
-
-- 不新增独立后端服务；所有接口由统一后端进程承载。
-- 平台实现通过 `platform-resources/backend/registry.js` 注册。
-- 公共 AI 能力、公共下载能力、管理接口优先收口到 `platform-resources/backend/`。
-- 平台特有逻辑优先放在对应平台或脚本目录，再通过 registry 接入统一后端。
-
-## AI 与日志当前口径
-
-- 共享价格配置：`config/aliyun-bailian-model-pricing.json`
-- 已接入 AI 服务的脚本默认返回统一 `cost` 对象。
-- AI 请求记录 CSV 默认使用中文表头。
-- 详细接口、日志目录与脚本差异继续查看对应平台 / 脚本 README。
-
-## 说明
-
-- 本 README 只保留目录契约和入口。
-- 各平台当前能力、接口、页面差异、后端细则统一下钻到对应 README。
-- 历史过程、迁移记录、热修流水统一查看 `log.md`。
+真实页面能力仍需在 Chrome / Edge 中加载 `extension/` 验收，Node 测试不能替代页面环境。

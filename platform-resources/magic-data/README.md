@@ -1,42 +1,51 @@
-# Magic Data ANNOTATOR 平台资料
+# Magic Data 平台资料
 
-本目录维护 Magic Data 平台共用资料与脚本专属资料。
+本目录维护 Magic Data 杭州话脚本所需的稳定页面结构、Network 参考和脚本专属后端资料。
 
-## 当前脚本
+## 当前入口
 
-- 客家话助手：`magicDataAnnotatorAiReview`
-- 闽南语助手：`magicDataMinnanAssistant`
-- 杭州话脚本：`magicDataHangzhouAssistant`
-- 同平台默认互斥启用；`platforms.magicData.activeScriptId` 同一时刻只允许指向一个脚本。
-- 杭州话脚本当前沿用现有 beta 解锁口径，未解锁时不在脚本中心展示。
+| 内容 | 路径 |
+|---|---|
+| 扩展运行时 | `extension/sites/magic-data/hangzhou-helper/` |
+| 平台共享运行时 | `extension/sites/magic-data/shared/` |
+| 杭州话资料与后端 | `hangzhou-helper/` |
+| 稳定 Network 参考 | `network/` |
+| 稳定页面结构 | `page-structure/` |
 
-## 目录职责
+## 页面范围
 
-- `backend/`：平台共用后端能力与注册辅助。
-- `network/`：平台共用 Network 采集资料。
-- `page-structure/`：平台共用页面结构资料。
-- `hakka-helper/`：客家话助手专属资料。
-- `minnan-helper/`：闽南语助手专属资料。
-- `hangzhou-helper/`：杭州话脚本专属资料。
+平台参考覆盖欢迎页、任务列表、标注详情、质检任务，以及杭州话当前使用的：
 
-## 当前实现口径
+- `#/asrmark`
+- `#/asrmarkCheck`
 
-- 客家话 legacy `/api/magic-data/annotator/*` 继续只归属客家话助手。
-- 闽南语与杭州话都使用各自独立路径，不新增 `annotator` legacy 别名。
-- 杭州话首版以前端运行时和后端接口复制客家话能力为主：
-  - 支持 `#/asrmark` 与 `#/asrmarkCheck`
-  - 保留右侧 AI 面板、行内填入、原始输出、快捷键和当前页临时全自动链路
-  - 默认模型口径先与客家话保持一致，不新增独立模型链路
-- Magic Data 三脚本共享平台结构采集与统一后端地址入口，但 `AI 设置`、`基础设置`、`快捷键` 仍按脚本独立保存。
-- Options / popup / storage 已扩成三脚本互斥逻辑；启用杭州话时会自动关闭客家话和闽南语。
+阅读顺序：
 
-## 杭州话当前边界
+1. 先读本页。
+2. 处理杭州话业务时读 [hangzhou-helper/README.md](hangzhou-helper/README.md)。
+3. 请求问题读 [network/README.md](network/README.md)。
+4. DOM 与挂载问题读 [page-structure/README.md](page-structure/README.md)。
 
-- 当前已接入 `hangzhou-helper/backend/lexicon/hangzhou-lexicon.json` 作为杭州话运行时主词表；源 Excel `杭州方言正字表0509.xlsx` 仍不入库。
-- 词表文件缺失或 JSON 解析失败时，杭州话后端继续按无词表模式运行，`review-current` 不被阻断。
-- 词表 JSON 继续按用户维护为主；后续如需补 CSV / Excel 转换链路，再单独处理。
+## 运行时关系
 
-## 安全边界
+```text
+平台 Network / DOM
+  -> extension/sites/magic-data/shared
+  -> extension/sites/magic-data/hangzhou-helper
+  -> /api/magic-data/hangzhou-helper/*
+  -> hangzhou-helper/backend
+```
 
-- AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。
-- 文档与日志不记录 token、cookie、authorization、完整签名 URL、完整敏感文本。
+平台共享资料只服务杭州话当前依赖的页面识别、数据采集和 Network observer。脚本专属 Prompt、响应 schema、词表、日志和路由位于 `hangzhou-helper/backend/`。
+
+## 写操作边界
+
+- 页面结构与 Network 文档只记录当前有效、脱敏的请求结构。
+- 不记录 cookie、authorization、完整签名 URL、完整音频 URL 或真实客户数据。
+- AI 默认只提供辅助建议。
+- 当前页临时全自动由用户显式启动，并只通过页面真实按钮执行。
+- 不绕过页面原生 `disabled` / `readonly`。
+
+## 维护要求
+
+页面结构变化时先更新稳定参考，再修改运行时选择器。接口变化时同步核对扩展调用、后端路由、测试和杭州话 README，避免只修改单侧契约。

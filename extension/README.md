@@ -1,127 +1,95 @@
-# 标注脚本中心扩展源码目录
+# 扩展运行时
 
-本目录是 Chrome / Chromium MV3 扩展源码根目录，`manifest.json` 位于本目录下。
+`extension/` 是当前 `1.0.0` Chrome / Edge Manifest V3 扩展成品目录。该目录可以直接作为 unpacked extension 加载，也是 ZIP 打包脚本的唯一输入。
 
-## 本地加载
+## 目录结构
 
-- Edge：打开 `edge://extensions/`，开启开发人员模式，选择 `annotation-script-center/extension`
-- Chrome：打开 `chrome://extensions/`，开启开发者模式，选择 `annotation-script-center/extension`
-- 若本地直加载需要同步 build meta，在仓库根目录运行：
+| 路径 | 职责 |
+|---|---|
+| `manifest.json` | 权限、注入站点、脚本顺序、popup、Options 与 service worker |
+| `background/` | 设置 bootstrap 与 AIDP 登录状态清理 |
+| `popup/` | 当前平台/脚本识别、启停和详情页跳转 |
+| `options/` | Vue Options 构建产物与共享控件运行时 |
+| `shared/` | 常量、storage、AI 元数据、费用展示与通用请求工具 |
+| `sites/` | 三个平台四个脚本的页面运行时 |
+| `assets/` | 扩展图标与 Options 品牌资源 |
+
+## 当前注入范围
+
+### DataBaker CVPC
+
+- 站点：`https://cvpc.data-baker.com/*`
+- 脚本：`sites/data-baker-cvpc/liuzhou-helper/`
+- MAIN world：音频与平台请求观察
+- ISOLATED world：设置、数据 API、AI、分段、面板、快捷键和入口编排
+
+### ByteDance AIDP
+
+- 站点：`https://aidp.bytedance.com/*`
+- 脚本：`sites/bytedance-aidp/suzhou-helper/`、`sites/bytedance-aidp/jinhua-helper/`
+- MAIN world：共享 Network observer
+- ISOLATED world：两个脚本运行时；由 storage 中的 `activeScriptId` 决定实际启用项
+
+### Magic Data
+
+- 站点：`https://work.magicdatatech.com/*`
+- 脚本：`sites/magic-data/hangzhou-helper/`
+- MAIN world：只读 Network observer
+- ISOLATED world：页面识别、数据采集、AI 客户端、面板、快捷键和入口编排
+
+manifest 中的脚本顺序就是依赖顺序。共享常量和 storage 必须先于脚本入口加载，MAIN world observer 必须在页面请求发生前注入。
+
+## Options 与 popup
+
+- Vue 源码：`frontend/options-app/`
+- 样式入口：`frontend/options-app/src/styles/index.scss`
+- 构建命令：`node scripts/build-options-app.js`
+- 构建输出：`extension/options/`
+- popup 只识别三个当前平台，并可切换脚本启用状态或打开详情页。
+- Options 只维护 `Server` 与 `Local` 两套后端根地址。
+- 默认 Server：`https://annotation-script-center.xiangtianzhen.store`
+- 默认 Local：`http://127.0.0.1:3333`
+- storage schema：`30`
+
+脚本详情页统一采用“基础设置与快捷键在左、AI 设置在右”的布局，并通过四个 defaults 接口加载后端默认值。后端不可用时使用本地回退，不阻断编辑与保存。
+
+## 设置与运行边界
+
+- AIDP 苏州话和金华话同平台互斥。
+- 快捷键默认全部为空，只保存用户明确录制的键位。
+- 非法或越界数字会阻止整次保存，不产生部分写入。
+- Options 保存不会操作业务页数据。
+- AI 建议默认人工确认；具体写回方式以各脚本 README 为准。
+- 重新加载扩展后应刷新已经打开的业务页，避免旧 content script 上下文继续运行。
+
+## 构建与加载
+
+在仓库根目录：
 
 ```powershell
-node scripts/sync-local-build-meta.js
+node scripts/build-options-app.js
 ```
 
-## 当前目录边界
+然后打开 `chrome://extensions/` 或 `edge://extensions/`，启用开发者模式并加载仓库中的 `extension/`。
 
-- `manifest.json`
-  - 扩展入口与权限声明
-- `options/`
-  - options 工作台、系统管理入口、脚本详情页
-- `popup/`
-  - 弹窗入口
-- `sites/`
-  - 各平台运行时代码
-- `shared/`
-  - 跨平台共享模块
-- `assets/`
-  - 图标与品牌资源
+使用 `dist/annotation-script-center-v1.0.0.zip` 时，需要先解压，再加载解压后的扩展根目录。
 
-## 当前运行契约
+## 真实浏览器验收
 
-- 不为 Chrome 和 Edge 复制两套 `sites/` 业务代码。
-- 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明。
-- 后端地址统一从 options 首页 / 系统管理入口配置；脚本详情页不新增独立后端地址。
-- 同平台多个脚本默认互斥启用；需要并行启用必须由当前任务明确授权。
-- Magic Data 当前包含客家话、闽南语、杭州话三套脚本；杭州话脚本沿用现有 beta 解锁口径，未解锁时不在脚本列表展示。
-- `AI 设置`、`基础设置`、`快捷键` 保持脚本级独立保存。
-- 快捷键面板统一复用 `extension/options/options-shared-shortcut-panel.js`。
-- `?view=script` 详情页里标记了 `data-options-custom-select="true"` 的下拉统一复用 `extension/options/options-shared-select.js`；该共享组件只接管脚本详情页，不影响下载中心和系统管理页的原生下拉，并在菜单展开时只监听真实页面滚动与 `resize`，不再因为菜单内部滚动而自动关闭。
-- 默认快捷键统一为空；只有用户显式保存后才生效。
-- TTS 自动清除默认时间统一为 `60000ms`；AI / 模型请求默认超时时间统一为 `60000ms`。
-- 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。
+1. 脚本中心只显示柳州、苏州、金华、杭州四项。
+2. popup 能正确识别 CVPC、AIDP、Magic Data 页面。
+3. AIDP 切换苏州/金华时保持互斥。
+4. 四个脚本详情页能加载 defaults，断开后端时显示本地回退。
+5. 四个真实业务页面各完成一次核心辅助操作。
+6. 不发生未授权的自动保存、自动提交或自动切题。
+7. 浏览器控制台没有新增持续错误。
 
-## Options 当前结构
+## 开发验证
 
-- 路由固定为：
-  - `?view=center`
-  - `?view=downloads`
-  - `?view=script&script=<scriptId>`
-  - `?view=admin&tab=overview|backend|exports`
-- `功能面板`
-  - 平台概览、脚本启停、脚本详情入口
-- `脚本下载中心`
-  - 扩展版本分发入口
-- `系统管理`
-  - 后端地址、AI 调用使用人、导出与系统概况
-- `?view=admin` 进入时要求密码。
-- `?view=downloads` 只负责扩展包下载，不承担后台配置职责。
-- beta 通道继续走隐藏入口与口令解锁，不默认展示 beta 平台、beta 脚本与 beta 服务器地址。
-
-## 当前站点脚本
-
-```text
-sites/
-  alibaba-labelx/
-    asr-transcription/
-    asr-judgement/
-  data-baker/
-    round-one-quality/
-  data-baker-cvpc/
-    liuzhou-helper/
-  bytedance-aidp/
-    shared/
-    jinhua-helper/
-    suzhou-helper/
-  magic-data/
-    shared/
-    hakka-helper/
-    minnan-helper/
-    hangzhou-helper/
-  abaka-ai/
-    task-page/
-  aishell-tech/
-    minnan-helper/
-    vietnamese-helper/
-    thai-helper/
-    cn-en-short-drama/
+```powershell
+npm test
+node scripts/build-options-app.js
+node scripts/package-extension-zip.js
 ```
 
-- `alibaba-labelx/asr-judgement/`
-  - ASR 快判运行时
-- `alibaba-labelx/asr-transcription/`
-  - ASR 转写运行时
-- `data-baker/round-one-quality/`
-  - 标贝易采闽南语助手
-- `data-baker-cvpc/liuzhou-helper/`
-  - CVPC 柳州话助手
-- `bytedance-aidp/jinhua-helper/`
-  - ByteDance AIDP 金华话脚本
-- `bytedance-aidp/suzhou-helper/`
-  - ByteDance AIDP 苏州话脚本
-- `magic-data/hakka-helper/`
-  - Magic Data 客家话助手
-- `magic-data/minnan-helper/`
-  - Magic Data 闽南语助手
-- `magic-data/hangzhou-helper/`
-  - Magic Data 杭州话脚本（隐藏 beta）
-- `abaka-ai/task-page/`
-  - Task 页面助手
-- `aishell-tech/minnan-helper/`
-  - Aishell Tech 闽南语助手
-- `aishell-tech/vietnamese-helper/`
-  - Aishell Tech 越南语助手
-- `aishell-tech/thai-helper/`
-  - Aishell Tech 泰语助手
-- `aishell-tech/cn-en-short-drama/`
-  - Aishell Tech 中英短剧脚本（只读当前媒体信息面板）
-
-## 版本与发布
-
-- 默认保持 `extension/manifest.json` 当前版本不变。
-- 当前开发周期固定为 `0.4.0`，除非用户明确要求打包、发布或提升版本号。
-- 正式发布产物以 CRX 三件套为准：
-  - `annotation-script-center-v<version>.crx`
-  - `annotation-script-center-update.xml`
-  - `annotation-script-center-crx-latest.json`
-- 历史过程与发布流水统一查看 `log.md`。
+测试统一位于根 `tests/`，定向命令见根 [README](../README.md) 与 [tests/README.md](../tests/README.md)。

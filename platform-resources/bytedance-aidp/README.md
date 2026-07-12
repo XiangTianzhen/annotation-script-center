@@ -7,7 +7,7 @@
 - 当前脚本资料：
   - `suzhou-helper`
   - `jinhua-helper`
-- 当前状态：`beta` 平台资料 + 双脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/` 两套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
+- 当前状态：`1.0.0` 双脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/` 两套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
 - 首轮依据：
   - 用户提供的列表首页 URL
   - 用户提供的 `mark-v3` 详情页 URL
@@ -49,7 +49,7 @@
 - `network/`：当前由索引 README + 1 份稳定参考页组成，覆盖列表首页路由、分页 query 和详情跳转 URL 组装口径
 - `page-structure/`：当前由索引 README + 1 份稳定参考页组成，覆盖列表页的语义分区、初版稳定锚点和挂载边界
 - `suzhou-helper/`：当前已补脚本级资料、AI 推荐、分段建议、批量识别和暂存写回边界
-- `jinhua-helper/`：当前已补脚本级资料、AI 推荐、分段建议、批量识别、暂存写回边界和金华话词义 / 发音参考资产
+- `jinhua-helper/`：当前已补脚本级资料、AI 推荐、分段建议、批量识别和暂存写回边界
 - 当前尚未完成 Edge 专窗下的真实页面补采；所有未能安全确认的 DOM / 请求细节统一留在对应文档的 `风险 / 未确认项`
 
 ## 首轮边界

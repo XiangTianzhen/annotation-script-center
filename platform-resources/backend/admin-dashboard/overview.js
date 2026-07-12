@@ -3,10 +3,9 @@
 const { ADMIN_SESSION_TTL_SECONDS, getAdminAuthConfig, isAdminAuthConfigured } = require("../admin-auth");
 const { buildAsyncJobRuntimeMeta } = require("../ai-framework/runtime/ai-runtime-meta");
 const { listAiCallLogDatasets } = require("../ai-call-log-download/routes");
-const { listProjectDataDownloadDatasets } = require("../project-data-download/routes");
 const { summarizeRuntimeLogs } = require("../runtime-log-store");
 
-const FALLBACK_SCRIPT_DOWNLOAD_CENTER_URL = "https://script.xiangtianzhen.store/downloads/";
+const FALLBACK_SCRIPT_DOWNLOAD_CENTER_URL = "https://annotation-script-center.xiangtianzhen.store/downloads/";
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -158,7 +157,6 @@ function buildAdminDashboardOverview(input) {
       runtime: normalizeRuntime(source.runtime),
       downloads: Object.assign(
         {
-          projectDataDatasets: [],
           aiCallLogDatasets: [],
         },
         sourceDownloads,
@@ -184,7 +182,6 @@ function createLiveAdminDashboardOverview(options) {
     }),
     downloads: {
       scriptCenterUrl,
-      projectDataDatasets: listProjectDataDownloadDatasets(config.projectDataDownload || {}),
       aiCallLogDatasets: listAiCallLogDatasets(config.aiCallLogDownload || {}),
     },
     logsSummary: summarizeRuntimeLogs(),

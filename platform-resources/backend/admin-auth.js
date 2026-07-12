@@ -5,7 +5,7 @@ const {
   createSignedToken,
   timingSafeEqualHex,
   verifySignedToken,
-} = require("./project-data-download/jwt");
+} = require("./security/signed-token");
 
 const ADMIN_SESSION_TTL_SECONDS = 30 * 60;
 
@@ -27,12 +27,8 @@ function createPasswordSha256(password) {
 
 function getAdminAuthConfig() {
   return {
-    passwordSha256:
-      normalizeText(process.env.ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256) ||
-      normalizeText(process.env.ASC_DATA_DOWNLOAD_PASSWORD_SHA256),
-    jwtSecret:
-      normalizeText(process.env.ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET) ||
-      normalizeText(process.env.ASC_DATA_DOWNLOAD_JWT_SECRET),
+    passwordSha256: normalizeText(process.env.ASC_ADMIN_PASSWORD_SHA256),
+    jwtSecret: normalizeText(process.env.ASC_ADMIN_JWT_SECRET),
   };
 }
 
