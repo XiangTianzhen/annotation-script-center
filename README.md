@@ -1,29 +1,128 @@
 # 标注脚本中心
 
-当前版本为 `1.0.0`，只保留三个平台的四个正式脚本：
+用于维护 Chrome / Edge 标注辅助扩展、统一 Node.js 后端，以及三个平台的稳定页面与 Network 参考资料。
 
-- DataBaker CVPC：柳州话脚本
-- ByteDance AIDP：苏州话脚本、金华话脚本（同平台互斥）
-- Magic Data：杭州话脚本
+当前正式版本为 `1.0.0`，只包含三个平台的四个脚本。AI 结果默认用于人工辅助，不会自动领取、自动审核或自动流转任务。
 
-## 目录
+## 项目定位
 
-- `extension/`：Chrome / Edge 扩展运行时、popup 与 Options。
-- `frontend/options-app/`：Vue Options 源码。
-- `platform-resources/`：三个平台的稳定资料与四脚本后端。
-- `platform-resources/backend/server.js`：统一后端入口。
-- `docs/platforms-index.md`：平台与脚本索引。
-- `log.md`：历史改动总账。
+| 项目 | 当前入口 |
+|---|---|
+| 扩展运行时 | `extension/` |
+| Vue Options 源码 | `frontend/options-app/` |
+| 平台资料与脚本后端 | `platform-resources/` |
+| 统一后端入口 | `platform-resources/backend/server.js` |
+| 自动化测试 | `tests/` |
+| ZIP 打包脚本 | `scripts/package-extension-zip.js` |
+| 当前版本来源 | `extension/manifest.json` |
+
+## 当前脚本
+
+| 平台 | 脚本 | 脚本 ID | 主要能力 |
+|---|---|---|---|
+| DataBaker CVPC | 柳州话脚本 | `dataBakerCvpcLiuzhouAssistant` | 音频获取、两阶段 AI、分段建议、批量识别、字段辅助写入 |
+| ByteDance AIDP | 苏州话脚本 | `bytedanceAidpSuzhouHelper` | 分段建议、两阶段 AI、行内/批量识别、暂存写回 |
+| ByteDance AIDP | 金华话脚本 | `bytedanceAidpJinhuaHelper` | 分段建议、两阶段 AI、风险拦截、行内/批量识别 |
+| Magic Data | 杭州话脚本 | `magicDataHangzhouAssistant` | AI 质检、单双模型方案、词表参考、结果填入与快捷键 |
+
+ByteDance AIDP 的苏州话与金华话脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
+
+## 前置环境
+
+本地开发至少需要：
+
+- Node.js 与 npm
+- Chrome 或 Edge
+- Windows PowerShell；Linux/macOS 打包时需要系统 `zip` / `unzip`
+
+服务器运行建议准备：
+
+- Node.js
+- PM2
+- Nginx
+- HTTPS 证书
+- 忽略提交的 `config/env/backend.env` 与 `config/env/ai.env`
+
+安装 Options 开发依赖：
+
+```powershell
+npm --prefix frontend/options-app install
+```
+
+根目录 `package.json` 只提供统一测试命令，不需要执行根级依赖安装。
+
+## 快速开始
+
+### 1. 构建 Options
+
+在仓库根目录执行：
+
+```powershell
+node scripts/build-options-app.js
+```
+
+构建结果写入 `extension/options/`。修改 `frontend/options-app/` 后，需要重新执行该命令再加载扩展。
+
+### 2. 加载本地扩展
+
+Chrome：
+
+1. 打开 `chrome://extensions/`。
+2. 开启“开发者模式”。
+3. 点击“加载已解压的扩展程序”。
+4. 选择 `C:\Projects\annotation-script-center\extension`。
+
+Edge：
+
+1. 打开 `edge://extensions/`。
+2. 开启“开发人员模式”。
+3. 点击“加载解压缩的扩展”。
+4. 选择 `C:\Projects\annotation-script-center\extension`。
+
+扩展重新加载后，已经打开的业务页可能出现 `Extension context invalidated`。这是旧扩展上下文失效，需要刷新业务页面后再验证。
+
+### 3. 配置本地后端
+
+复制公开模板：
+
+```powershell
+Copy-Item config/env/backend.env.example config/env/backend.env
+Copy-Item config/env/ai.env.example config/env/ai.env
+```
+
+然后在本机填写：
+
+- `config/env/backend.env`：管理员密码哈希、管理员 JWT 密钥，以及可选的 AI 日志下载独立凭据。
+- `config/env/ai.env`：DashScope Key 和确实需要覆盖的 AI 参数。
+
+这两个真实文件均被 Git 忽略。不要把真实值复制到 README、日志、测试或提交中。
+
+### 4. 启动统一后端
+
+```powershell
+node platform-resources/backend/server.js
+```
+
+默认监听：
+
+```text
+http://127.0.0.1:3333
+```
+
+扩展 Options 支持两套后端根地址：
+
+- `Server`：默认 `https://annotation-script-center.xiangtianzhen.store`
+- `Local`：默认 `http://127.0.0.1:3333`
 
 ## 开发与验证
 
-在仓库根目录执行：
+在仓库根目录运行全部测试：
 
 ```powershell
 npm test
 ```
 
-测试统一放在根目录 `tests/`，也可以按范围单独执行：
+按分区执行：
 
 ```powershell
 npm run test:frontend
@@ -33,31 +132,159 @@ npm run test:backend
 npm run test:release
 ```
 
-Options 构建仍使用：
+常用完整检查：
 
 ```powershell
+npm test
 node scripts/build-options-app.js
+node --check scripts/package-extension-zip.js
+git diff --check
 ```
 
-统一后端默认监听 `127.0.0.1:3333`：
+长期测试统一位于 `tests/`。生产目录不放置 `*.test.*` 或 `*.spec.*`。
 
-```powershell
-node platform-resources/backend/server.js
-```
+## ZIP 打包与安装
 
-Options 只维护 `Server` 与 `Local` 两套后端根地址。
-公开 Server 与 ZIP 下载入口统一为 `https://annotation-script-center.xiangtianzhen.store`。
-
-## 发布
+在仓库根目录执行：
 
 ```powershell
 node scripts/package-extension-zip.js
 ```
 
-该命令会先重建 Vue Options、清空旧 `dist`，然后只生成：
+该命令会：
 
-- `dist/annotation-script-center-v1.0.0.zip`
+1. 重新构建 Vue Options。
+2. 清空 `dist/` 中的旧产物。
+3. 打包完整 `extension/`。
+4. 校验 ZIP 非空且根目录包含 `manifest.json`。
+5. 只生成 `dist/annotation-script-center-v1.0.0.zip`。
 
-项目不再生成签名安装包、自动更新描述文件或最新版元数据，也不再需要发布私钥。下载 ZIP 后需先解压，再在 Chrome / Edge 扩展管理页开启开发者模式并选择“加载已解压的扩展程序”。
+安装 ZIP：
 
-`config/env/backend.env` 是忽略的服务器运行时鉴权配置，仅保留管理员密码哈希与随机 JWT 密钥，不得提交真实值。
+1. 解压 ZIP 到独立目录。
+2. 打开 Chrome / Edge 扩展管理页。
+3. 开启开发者模式。
+4. 选择“加载已解压的扩展程序”。
+5. 选择解压后的扩展根目录，而不是 ZIP 文件本身。
+
+## 服务器部署
+
+以下示例假设仓库位于 `/var/www/annotation-script-center`，后端仍只监听 `127.0.0.1:3333`。
+
+### PM2 启动
+
+```bash
+cd /var/www/annotation-script-center
+pm2 start platform-resources/backend/server.js \
+  --name annotation-script-center \
+  --cwd /var/www/annotation-script-center \
+  --time
+pm2 save
+pm2 status annotation-script-center
+```
+
+需要开机自启时执行 `pm2 startup`，再执行该命令输出的系统级命令，最后重新执行 `pm2 save`。
+
+### Nginx 示例
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name annotation-script-center.xiangtianzhen.store;
+
+    client_max_body_size 100m;
+
+    location = / {
+        default_type text/plain;
+        return 200 "annotation-script-center\n";
+    }
+
+    location /downloads/ {
+        alias /var/www/annotation-script-center/dist/;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+        add_header Access-Control-Allow-Origin * always;
+        add_header Cache-Control "public, max-age=300" always;
+        types { application/zip zip; }
+        default_type application/octet-stream;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3333;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+}
+```
+
+配置完成后先检查再重载：
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+HTTPS 由服务器证书工具与 Nginx 配置维护；证书和私钥不得进入仓库。
+
+### 服务器更新
+
+```bash
+cd /var/www/annotation-script-center
+git status --short
+git pull --ff-only origin main
+pm2 restart annotation-script-center --update-env
+pm2 status annotation-script-center
+```
+
+如果 `git status --short` 显示未知修改，先停止更新，不要覆盖服务器私密配置。
+
+### 基础检查
+
+```bash
+curl -fsS http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend/health
+curl -fsS https://annotation-script-center.xiangtianzhen.store/api/magic-data/hangzhou-helper/ai/defaults
+curl -I https://annotation-script-center.xiangtianzhen.store/downloads/
+pm2 logs annotation-script-center --lines 100
+```
+
+## 目录导航
+
+| 目录 | 职责 |
+|---|---|
+| `extension/` | Manifest V3 扩展成品、popup、Options 与四脚本运行时 |
+| `frontend/options-app/` | Vue Options 源码与 SCSS |
+| `platform-resources/` | 平台资料、页面结构、Network 参考与脚本后端 |
+| `platform-resources/backend/` | 统一后端、管理员能力、公共 AI 与路由注册 |
+| `config/` | 环境模板、模型价格和本地私密配置说明 |
+| `scripts/` | Options 构建、ZIP 打包和本地工具 |
+| `tests/` | frontend、runtime、extension、backend、release 测试 |
+| `docs/` | 平台索引和外部官方文档入口 |
+| `dist/` | 当前版本 ZIP 产物 |
+
+## 文档入口
+
+- [项目规则](AGENTS.md)
+- [扩展运行时](extension/README.md)
+- [平台资料总览](platform-resources/README.md)
+- [统一后端](platform-resources/backend/README.md)
+- [配置说明](config/README.md)
+- [测试说明](tests/README.md)
+- [docs 导航](docs/README.md)
+- [平台与脚本索引](docs/platforms-index.md)
+- [百炼官方文档入口](docs/external-docs-aliyun-bailian.md)
+- [修改总账](log.md)
+
+## 安全与行为边界
+
+- 不提交 API Key、管理员密码、JWT、cookie、authorization、签名 URL、完整音频 URL 或真实业务数据。
+- AI 建议默认只供人工确认，不自动领取、自动审核或自动流转。
+- Options 保存不会触发业务页保存、提交或切题。
+- 批量能力只作用于当前页、当前任务或当前音频，并保留停止与失败统计。
+- 页面写入遵守各脚本 README 的契约，不绕过平台原生 `disabled` / `readonly` 限制。

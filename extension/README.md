@@ -1,60 +1,95 @@
 # 扩展运行时
 
-`extension/` 是 `1.0.0` Chrome / Edge 扩展成品目录。
+`extension/` 是当前 `1.0.0` Chrome / Edge Manifest V3 扩展成品目录。该目录可以直接作为 unpacked extension 加载，也是 ZIP 打包脚本的唯一输入。
+
+## 目录结构
+
+| 路径 | 职责 |
+|---|---|
+| `manifest.json` | 权限、注入站点、脚本顺序、popup、Options 与 service worker |
+| `background/` | 设置 bootstrap 与 AIDP 登录状态清理 |
+| `popup/` | 当前平台/脚本识别、启停和详情页跳转 |
+| `options/` | Vue Options 构建产物与共享控件运行时 |
+| `shared/` | 常量、storage、AI 元数据、费用展示与通用请求工具 |
+| `sites/` | 三个平台四个脚本的页面运行时 |
+| `assets/` | 扩展图标与 Options 品牌资源 |
 
 ## 当前注入范围
 
-- `sites/data-baker-cvpc/liuzhou-helper/`
-- `sites/bytedance-aidp/suzhou-helper/`
-- `sites/bytedance-aidp/jinhua-helper/`
-- `sites/bytedance-aidp/shared/page-world/network-observer.js`
-- `sites/magic-data/hangzhou-helper/`
-- `sites/magic-data/shared/page-detector.js`
-- `sites/magic-data/shared/data-collector.js`
-- `sites/magic-data/shared/page-world/network-observer.js`
+### DataBaker CVPC
 
-manifest 仅注入 DataBaker CVPC、ByteDance AIDP 和 Magic Data。AIDP 的苏州话与金华话脚本互斥；Magic Data 只有杭州话脚本。
+- 站点：`https://cvpc.data-baker.com/*`
+- 脚本：`sites/data-baker-cvpc/liuzhou-helper/`
+- MAIN world：音频与平台请求观察
+- ISOLATED world：设置、数据 API、AI、分段、面板、快捷键和入口编排
+
+### ByteDance AIDP
+
+- 站点：`https://aidp.bytedance.com/*`
+- 脚本：`sites/bytedance-aidp/suzhou-helper/`、`sites/bytedance-aidp/jinhua-helper/`
+- MAIN world：共享 Network observer
+- ISOLATED world：两个脚本运行时；由 storage 中的 `activeScriptId` 决定实际启用项
+
+### Magic Data
+
+- 站点：`https://work.magicdatatech.com/*`
+- 脚本：`sites/magic-data/hangzhou-helper/`
+- MAIN world：只读 Network observer
+- ISOLATED world：页面识别、数据采集、AI 客户端、面板、快捷键和入口编排
+
+manifest 中的脚本顺序就是依赖顺序。共享常量和 storage 必须先于脚本入口加载，MAIN world observer 必须在页面请求发生前注入。
 
 ## Options 与 popup
 
 - Vue 源码：`frontend/options-app/`
-- Vue 样式入口：`frontend/options-app/src/styles/index.scss`；公共样式按 foundation、components、layouts、pages 与 vendor 拆分，Sass 仅作为开发依赖。
+- 样式入口：`frontend/options-app/src/styles/index.scss`
+- 构建命令：`node scripts/build-options-app.js`
 - 构建输出：`extension/options/`
-- popup：只识别三个保留平台，并可打开当前脚本详情或切换启用状态。
-- 后端模式：只支持 `Server` 与 `Local`。
-- 默认 Server：`https://annotation-script-center.xiangtianzhen.store`；schema 30 保留用户保存的 Server 与 Local 地址。
-- 系统管理：保留管理员会话、ZIP 下载中心和四脚本 AI 日志导出。
-- 功能面板的平台地址按“域名 + 路径”拆行显示；侧栏、详情返回按钮和平台地址胶囊均不显示文字下划线。
-- 四个脚本详情页统一为“左侧基础设置/快捷键、右侧 AI 设置”，字段按开关、下拉框、单行输入、Prompt/stop sequences 排列。
-- 详情页会读取四个现有 defaults 接口；成功时显示“已读取后端默认配置”，失败时显示“使用本地回退”，且不会阻断编辑与保存。
-- AIDP 请求超时和前后静音时长以秒显示、毫秒保存；CVPC 静音阈值可在 `dB / % / Val` 间切换并始终以 dBFS 保存。
-- 非法或越界数字会阻止整次保存，不会部分写入；保存成功后页面会重新读取 storage 归一化结果，确保当前显示与刷新后一致。
+- popup 只识别三个当前平台，并可切换脚本启用状态或打开详情页。
+- Options 只维护 `Server` 与 `Local` 两套后端根地址。
+- 默认 Server：`https://annotation-script-center.xiangtianzhen.store`
+- 默认 Local：`http://127.0.0.1:3333`
+- storage schema：`30`
 
-## 加载与验收
+脚本详情页统一采用“基础设置与快捷键在左、AI 设置在右”的布局，并通过四个 defaults 接口加载后端默认值。后端不可用时使用本地回退，不阻断编辑与保存。
 
-1. 打开 `chrome://extensions/` 或 `edge://extensions/`。
-2. 开启开发者模式，选择“加载已解压的扩展程序”。
-3. 选择仓库中的 `extension/`。
-4. 验证脚本中心只显示四个脚本，popup 状态与当前平台一致。
-5. 分别在柳州、苏州、金华、杭州真实页面验证一次核心辅助功能。
+## 设置与运行边界
 
-如使用 `dist/annotation-script-center-v1.0.0.zip`，请先解压，再选择解压后的扩展目录；浏览器不会直接加载 ZIP 文件。
+- AIDP 苏州话和金华话同平台互斥。
+- 快捷键默认全部为空，只保存用户明确录制的键位。
+- 非法或越界数字会阻止整次保存，不产生部分写入。
+- Options 保存不会操作业务页数据。
+- AI 建议默认人工确认；具体写回方式以各脚本 README 为准。
+- 重新加载扩展后应刷新已经打开的业务页，避免旧 content script 上下文继续运行。
 
-Options 保存本身不触发业务页保存、提交或切题。AI 建议默认只供人工确认；Magic Data 仅在用户显式启动当前页全自动或已保存快捷键时，才按脚本契约操作页面真实按钮。
+## 构建与加载
+
+在仓库根目录：
+
+```powershell
+node scripts/build-options-app.js
+```
+
+然后打开 `chrome://extensions/` 或 `edge://extensions/`，启用开发者模式并加载仓库中的 `extension/`。
+
+使用 `dist/annotation-script-center-v1.0.0.zip` 时，需要先解压，再加载解压后的扩展根目录。
+
+## 真实浏览器验收
+
+1. 脚本中心只显示柳州、苏州、金华、杭州四项。
+2. popup 能正确识别 CVPC、AIDP、Magic Data 页面。
+3. AIDP 切换苏州/金华时保持互斥。
+4. 四个脚本详情页能加载 defaults，断开后端时显示本地回退。
+5. 四个真实业务页面各完成一次核心辅助操作。
+6. 不发生未授权的自动保存、自动提交或自动切题。
+7. 浏览器控制台没有新增持续错误。
 
 ## 开发验证
-
-所有测试统一位于仓库根目录 `tests/`，在仓库根目录执行：
 
 ```powershell
 npm test
 node scripts/build-options-app.js
-```
-
-仅生成版本化 ZIP 时执行：
-
-```powershell
 node scripts/package-extension-zip.js
 ```
 
-扩展、后端或 Options 的定向测试使用根 `package.json` 中对应的 `test:*` 命令，不再从运行时代码目录收集测试文件。
+测试统一位于根 `tests/`，定向命令见根 [README](../README.md) 与 [tests/README.md](../tests/README.md)。
