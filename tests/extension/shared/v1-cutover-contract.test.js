@@ -198,10 +198,7 @@ test("1.0.0 manifest references only retained runtimes", function () {
   const joined = allPaths.join("\n");
 
   assert.equal(manifest.version, "1.0.0");
-  assert.equal(
-    manifest.update_url,
-    "https://annotation-script-center.xiangtianzhen.store/downloads/annotation-script-center-update.xml"
-  );
+  assert.equal("update_url" in manifest, false);
   assert.match(joined, /sites\/data-baker-cvpc\/liuzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/suzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/jinhua-helper\//);

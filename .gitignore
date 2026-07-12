@@ -1,9 +1,6 @@
 # 构建和发布产物
 /dist/*
 !dist/annotation-script-center-v*.zip
-!/dist/annotation-script-center-v*.crx
-!/dist/annotation-script-center-update.xml
-!/dist/annotation-script-center-crx-latest.json
 *.pem
 
 # 本地统计输出
@@ -46,7 +43,6 @@
 /config/secrets/*.pem
 /config/secrets/*.key
 /config/secrets/*.p12
-/config/secrets/package-crx-release.local.json
 !/config/env/ai.env.example
 !/config/env/backend.env.example
 

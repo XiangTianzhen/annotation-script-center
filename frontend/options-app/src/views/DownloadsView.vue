@@ -69,7 +69,7 @@ onMounted(async () => {
         <div class="detail-title">
           <h2>脚本下载中心</h2>
           <p class="detail-copy">
-            这里集中分发扩展版本。默认展示最新版，历史版本可通过下拉框切换。
+            这里集中分发 ZIP 扩展包。默认展示最新版，历史版本可通过下拉框切换。
           </p>
         </div>
       </div>
@@ -89,7 +89,7 @@ onMounted(async () => {
           <article class="public-summary-card">
             <span class="summary-label">推荐版本</span>
             <strong>{{ latestRelease ? `v${latestRelease.version}` : "读取中" }}</strong>
-            <span class="summary-note">默认推荐最新版 CRX，适合直接安装或覆盖更新。</span>
+            <span class="summary-note">下载并解压最新版 ZIP，通过浏览器开发者模式加载。</span>
           </article>
           <article class="public-summary-card">
             <span class="summary-label">历史版本</span>
@@ -98,8 +98,8 @@ onMounted(async () => {
           </article>
           <article class="public-summary-card">
             <span class="summary-label">下载方式</span>
-            <strong>CRX / ZIP</strong>
-            <span class="summary-note">CRX 为主下载格式；如该版本提供 ZIP，也会同步显示辅助下载按钮。</span>
+            <strong>仅 ZIP</strong>
+            <span class="summary-note">仅提供手动下载、解压并加载的扩展包。</span>
           </article>
         </div>
 
@@ -120,7 +120,7 @@ onMounted(async () => {
                 <strong>{{ latestRelease ? `v${latestRelease.version}` : "未知版本" }}</strong>
                 <span class="summary-note">发布时间：{{ latestRelease?.createdAt || "未知" }}</span>
                 <p class="workspace-side-copy">
-                  优先下载最新版 CRX；如需历史构建或保留开发者模式解压包，可切换到历史版本并按需下载 ZIP。
+                  下载 ZIP 后先解压，再在 Chrome 或 Edge 的扩展管理页开启开发者模式并选择“加载已解压的扩展程序”。
                 </p>
               </article>
 
@@ -143,7 +143,7 @@ onMounted(async () => {
                     </div>
                     <div>
                       <strong>可下载格式</strong>
-                      <span>{{ selectedRelease.zipUrl ? "CRX / ZIP" : "仅 CRX" }}</span>
+                      <span>仅 ZIP</span>
                     </div>
                     <div>
                       <strong>版本时间</strong>
@@ -153,17 +153,9 @@ onMounted(async () => {
 
                   <div class="download-release-actions">
                     <button
-                      v-if="selectedRelease.crxUrl"
-                      type="button"
-                      class="primary-button"
-                      @click="openReleaseUrl(selectedRelease.crxUrl)"
-                    >
-                      下载 CRX
-                    </button>
-                    <button
                       v-if="selectedRelease.zipUrl"
                       type="button"
-                      class="ghost-button"
+                      class="primary-button"
                       @click="openReleaseUrl(selectedRelease.zipUrl)"
                     >
                       下载 ZIP
@@ -177,14 +169,7 @@ onMounted(async () => {
                     </button>
                   </div>
 
-                  <div
-                    v-if="releaseSource.usedFallback"
-                    class="status-text"
-                    data-tone="warning"
-                  >
-                    目录索引暂不可用，当前已回退为仅展示最新版：{{ releaseSource.fallbackReason || "未知原因" }}
-                  </div>
-                  <div v-else class="status-text">
+                  <div class="status-text">
                     如最新版本暂未出现，请稍后刷新，或通过外部目录确认服务器分发目录是否已经更新。
                   </div>
                 </div>

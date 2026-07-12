@@ -46,19 +46,18 @@ node platform-resources/backend/server.js
 ```
 
 Options 只维护 `Server` 与 `Local` 两套后端根地址。
-公开 Server 与下载更新入口统一为 `https://annotation-script-center.xiangtianzhen.store`。
+公开 Server 与 ZIP 下载入口统一为 `https://annotation-script-center.xiangtianzhen.store`。
 
 ## 发布
 
 ```powershell
-node scripts/package-crx-release.js
+node scripts/package-extension-zip.js
 ```
 
-发布脚本只生成以下四项：
+该命令会先重建 Vue Options、清空旧 `dist`，然后只生成：
 
-- `dist/annotation-script-center-v1.0.0.crx`
 - `dist/annotation-script-center-v1.0.0.zip`
-- `dist/annotation-script-center-update.xml`
-- `dist/annotation-script-center-crx-latest.json`
 
-私钥和本地私有覆盖位于忽略的 `config/secrets/`，不得读取、输出或提交其内容。
+项目不再生成签名安装包、自动更新描述文件或最新版元数据，也不再需要发布私钥。下载 ZIP 后需先解压，再在 Chrome / Edge 扩展管理页开启开发者模式并选择“加载已解压的扩展程序”。
+
+`config/env/backend.env` 是忽略的服务器运行时鉴权配置，仅保留管理员密码哈希与随机 JWT 密钥，不得提交真实值。

@@ -10,10 +10,12 @@
 - Magic Data 杭州话：`/api/magic-data/hangzhou-helper/*`
 - 管理员会话：`/api/admin/session/*`
 - 系统仪表盘：`/api/admin/dashboard/*`
-- 公开下载中心：`/api/admin/download-center/*`
+- ZIP 下载中心：`/api/admin/download-center/*`
 - 四脚本 AI 日志：`/api/admin/ai-call-log/*`
 
 `GET /api/admin/ai-call-log/options` 固定返回柳州、苏州、金华、杭州四项，不接受可见性过滤。
+
+`GET /api/admin/download-center/releases` 读取 `ASC_DOWNLOAD_BASE_URL` 指向的目录索引，只返回 `annotation-script-center-v<version>.zip`。服务器需为 `/downloads/` 开启目录索引；接口不再读取额外发布元数据。
 
 ## 公共模块
 

@@ -79,7 +79,7 @@
 - `ASC_READONLY`：只读审计，不改文件
 - `ASC_MAIN_TASK`：在 `main` 执行任务
 - `ASC_MAIN_HOTFIX`：在 `main` 小修
-- `ASC_RELEASE`：发布流程（版本、CRX、tag）
+- `ASC_RELEASE`：发布流程（版本、ZIP、tag）
 - `ASC_BRANCH_TASK`：仅用户明确要求分支时使用
 
 ### 3.2 commit 规范
@@ -134,8 +134,6 @@
 
 ### 4.2 配置目录规则
 
-- `config/package-crx-release.json`
-  - 可提交的默认 CRX 打包配置
 - `config/aliyun-bailian-model-pricing.json`
   - 可提交的模型价格配置
 - `config/env/`
@@ -367,16 +365,13 @@
 - 后续未收到明确发布指令时，不自动提升版本号。
 - `ASC_RELEASE` 前必须先完成真实浏览器验收。
 - 发布失败不得 commit / tag / push。
-- 正式发布产物固定为四项：
-  - `annotation-script-center-v<version>.crx`
+- 正式发布产物固定为一项：
   - `annotation-script-center-v<version>.zip`
-  - `annotation-script-center-update.xml`
-  - `annotation-script-center-crx-latest.json`
 - 发布流程只有单一公开 profile，不接受通道参数。
 
 ## 11. 安全与脱敏
 
-- 不提交 API Key、token、cookie、authorization、access token、JWT secret、CRX 私钥。
+- 不提交 API Key、token、cookie、authorization、access token、JWT secret 或私有配置。
 - 不提交真实客户数据、员工敏感信息、合同内容、未脱敏截图、完整签名 URL、完整音频 URL。
 - 前端不得保存 API Key、cookie、token、完整签名 URL、完整音频 URL。
 - 若用户贴出敏感信息，不写入代码、文档、日志或测试文件。
