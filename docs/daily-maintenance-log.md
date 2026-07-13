@@ -54,3 +54,11 @@
 - 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md 的维护记录，未改动业务代码、接口、页面、数据库、依赖、配置文件或环境变量
 - 后续待办：继续保持每日检查先看文档、再看工作区状态的顺序，若后续出现平台资料或运行时变更再按边界同步更新
 - 自动维护记录说明：本条为 automation-3 的日常巡检留痕，用于记录本次只做文档级维护并执行标准提交流程
+
+## 2026-07-13
+- 日期：2026-07-13
+- 项目：标注脚本中心（annotation-script-center）
+- 检查范围：已阅读 AGENTS.md、README.md、log.md、docs/README.md、docs/platforms-index.md、extension/README.md、platform-resources/README.md、platform-resources/backend/README.md，并核对当前仓库 `git status --short --branch` 为 clean
+- 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md 维护记录，未改动业务代码、接口、页面、数据库、依赖、配置文件或环境变量
+- 后续待办：继续按“先读文档、再查工作区、最后做最小维护”的顺序执行每日检查，若后续有新变更再同步更新相关文档
+- 自动维护记录说明：本条为 automation-3 的每日巡检留痕，用于记录本轮只做文档级维护并按固定提交流程处理
