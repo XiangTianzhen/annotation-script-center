@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "标注脚本中心",
-  "description": "柳州话、苏州话、金华话与杭州话标注辅助脚本中心。",
+  "description": "柳州话、苏州话、金华话、台州话与杭州话标注辅助脚本中心。",
   "version": "1.0.0",
   "permissions": [
     "storage",
@@ -131,7 +131,13 @@
         "sites/bytedance-aidp/jinhua-helper/segmentation-controller.js",
         "sites/bytedance-aidp/jinhua-helper/ui-panel.js",
         "sites/bytedance-aidp/jinhua-helper/shortcuts.js",
-        "sites/bytedance-aidp/jinhua-helper/content.js"
+        "sites/bytedance-aidp/jinhua-helper/content.js",
+        "sites/bytedance-aidp/taizhou-helper/data-api.js",
+        "sites/bytedance-aidp/taizhou-helper/ai-recommendation.js",
+        "sites/bytedance-aidp/taizhou-helper/segmentation-controller.js",
+        "sites/bytedance-aidp/taizhou-helper/ui-panel.js",
+        "sites/bytedance-aidp/taizhou-helper/shortcuts.js",
+        "sites/bytedance-aidp/taizhou-helper/content.js"
       ],
       "all_frames": false,
       "run_at": "document_start",

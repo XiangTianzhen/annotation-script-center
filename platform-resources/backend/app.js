@@ -16,6 +16,7 @@ function createPlatformResourcesServer(options) {
         "data-baker-cvpc/liuzhou-helper",
         "bytedance-aidp/suzhou-helper",
         "bytedance-aidp/jinhua-helper",
+        "bytedance-aidp/taizhou-helper",
         "magic-data/hangzhou-helper",
         "admin/session",
         "admin/dashboard",

@@ -5,6 +5,7 @@ const SCRIPT_IDS = {
   cvpc: "dataBakerCvpcLiuzhouAssistant",
   suzhou: "bytedanceAidpSuzhouHelper",
   jinhua: "bytedanceAidpJinhuaHelper",
+  taizhou: "bytedanceAidpTaizhouHelper",
   hangzhou: "magicDataHangzhouAssistant",
 };
 
@@ -12,6 +13,7 @@ const DEFAULT_ENDPOINTS = {
   [SCRIPT_IDS.cvpc]: "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
   [SCRIPT_IDS.suzhou]: "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
   [SCRIPT_IDS.jinhua]: "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
+  [SCRIPT_IDS.taizhou]: "/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
   [SCRIPT_IDS.hangzhou]: "/api/magic-data/hangzhou-helper/ai/defaults",
 };
 
@@ -19,6 +21,7 @@ const DEFAULT_BRANCHES = {
   [SCRIPT_IDS.cvpc]: "platforms.dataBakerCvpc.scripts.liuzhouAssistant",
   [SCRIPT_IDS.suzhou]: "platforms.bytedanceAidp.scripts.suzhouHelper",
   [SCRIPT_IDS.jinhua]: "platforms.bytedanceAidp.scripts.jinhuaHelper",
+  [SCRIPT_IDS.taizhou]: "platforms.bytedanceAidp.scripts.taizhouHelper",
   [SCRIPT_IDS.hangzhou]: "platforms.magicData.scripts.hangzhouHelper",
 };
 
@@ -94,6 +97,25 @@ const STATIC_LOCAL_DEFAULTS = {
       refineModels: ["qwen3.5-plus", "qwen3.5-flash"],
     },
   },
+  [SCRIPT_IDS.taizhou]: {
+    config: {
+      platformAiEnabled: false,
+      segmentContextPaddingMs: 300,
+      segmentSilenceThresholdDbfs: -31,
+      mergeContiguousSuggestedSegmentsEnabled: true,
+      segmentPreviewAutoApplyEnabled: true,
+      aiRecommendEnabled: false,
+      aiRecommendAutoFillEnabled: true,
+      aiRecommendRequestTimeoutMs: 60000,
+      aiRecommendOmniModel: "qwen3.5-omni-plus",
+      aiRecommendOmniPrompt: "",
+      defaultPlaybackRate: 1,
+      fixedWaveZoom: 2,
+    },
+    options: {
+      omniModels: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
+    },
+  },
   [SCRIPT_IDS.hangzhou]: {
     config: {
       aiReviewModelMode: "two_stage",
@@ -141,7 +163,7 @@ function text(value) {
 }
 
 function isAidpScript(scriptId) {
-  return scriptId === SCRIPT_IDS.suzhou || scriptId === SCRIPT_IDS.jinhua;
+  return scriptId === SCRIPT_IDS.suzhou || scriptId === SCRIPT_IDS.jinhua || scriptId === SCRIPT_IDS.taizhou;
 }
 
 function isPresent(value) {
@@ -239,6 +261,29 @@ function mapTwoStagePayload(scriptId, payload, local) {
   };
 }
 
+function mapOmniPayload(payload, local) {
+  const defaults = payload?.defaults || {};
+  const omni = defaults?.omni || {};
+  const params = getStageParams(omni);
+  const config = {
+    ...local.config,
+    aiRecommendRequestTimeoutMs:
+      Number(defaults.timeoutMs) || local.config.aiRecommendRequestTimeoutMs,
+    aiRecommendOmniModel: text(omni.model) || local.config.aiRecommendOmniModel,
+    aiRecommendOmniPrompt: text(omni.prompt),
+  };
+  STAGE_PARAM_DEFINITIONS.forEach((definition) => {
+    config[`aiRecommendOmni${definition.suffix}`] = toTextValue(params[definition.apiKey]);
+  });
+  config.aiRecommendOmniStopSequences = normalizeStopValue(params.stop);
+  return {
+    config,
+    options: mergeOptions(local.options, {
+      omniModels: payload?.supportedModels?.omni || omni.modelOptions,
+    }),
+  };
+}
+
 function mapMagicPayload(payload, local) {
   const defaults = payload?.defaults || {};
   const comparePrompt = text(defaults.comparePrompt) || text(defaults.reviewPrompt);
@@ -302,7 +347,9 @@ export async function loadScriptDefaults(scriptId, settings, fetchImpl = globalT
     }
     const mapped = normalizedScriptId === SCRIPT_IDS.hangzhou
       ? mapMagicPayload(payload, local)
-      : mapTwoStagePayload(normalizedScriptId, payload, local);
+      : normalizedScriptId === SCRIPT_IDS.taizhou
+        ? mapOmniPayload(payload, local)
+        : mapTwoStagePayload(normalizedScriptId, payload, local);
     return {
       status: "loaded",
       endpoint,
@@ -508,10 +555,16 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
       requiredNumber(result.aiRecommendRequestTimeoutMs, "请求超时时间（秒）", 1, 60) * 1000
     );
     result.aiRecommendEnableThinking = false;
-    clearDefaultOverrides(result, defaults, [
-      ...buildStageOverrideDefinitions("aiRecommendListen"),
-      ...buildStageOverrideDefinitions("aiRecommendRefine"),
-    ]);
+    clearDefaultOverrides(
+      result,
+      defaults,
+      normalizedScriptId === SCRIPT_IDS.taizhou
+        ? buildStageOverrideDefinitions("aiRecommendOmni")
+        : [
+            ...buildStageOverrideDefinitions("aiRecommendListen"),
+            ...buildStageOverrideDefinitions("aiRecommendRefine"),
+          ]
+    );
   } else if (normalizedScriptId === SCRIPT_IDS.cvpc) {
     result.segmentContextPaddingMs = Math.round(
       requiredNumber(result.segmentContextPaddingMs, "前后静音时长（秒）", 0, 1.5) * 1000
