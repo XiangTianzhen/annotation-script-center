@@ -1,117 +1,18 @@
-# ByteDance AIDP 台州话脚本
+# 台州话 AIDP 平台资料
 
-## 定位
+## 适用范围
 
-- 平台：`bytedance-aidp`
-- 资料目录：`taizhou-helper`
-- 目标页：
-  - `https://aidp.bytedance.com/management/*`
-  - `https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}`
-- 当前阶段：已接入运行时
-- 当前状态：已接入运行时、分段建议、单段识别直填输入框、批量识别、AI 调用记录与平台暂存写回
-  - 设置页可控制 `启用 AI 功能`、`画段后自动应用建议` 与 `识别完成后立即填入`
-  - 设置页基础设置、`AI 设置`、`快捷键` 标题已统一把详细说明收进可点击 `?`，并改为页面顶层帮助浮层避免被右栏遮挡
-  - 设置页布尔开关已统一为滑块样式，右侧状态文案会随开关在 `开启 / 关闭` 间切换；下拉选择、输入框和数字框高度已统一
-  - 设置字段固定按“开关 -> 下拉框 -> 单行参数 -> Prompt / stop sequences”排列，并统一使用当前 Vue Options 控件样式
-  - 当 `启用 AI 功能` 关闭并保存后，右侧 `AI 设置` 面板隐藏，左侧基础设置与快捷键收为单栏；重新开启后继续沿用原有 AI 参数
-  - `启用 AI 功能` 与脚本 `启用 / 关闭` 状态完全独立；关闭脚本不会改写已保存的 `aiRecommendEnabled`
-  - `请求超时时间` 前端按 `1~60` 秒输入，持久化仍写回毫秒口径的 `aiRecommendRequestTimeoutMs`
-  - 每段音频只使用一次全模态模型，并从 `/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults` 读取默认模型、Prompt 与参数；默认 `qwen3.5-omni-plus`，可切换 `qwen3.5-omni-flash`
-  - Storage schema 32 只把旧听音模型迁移为全模态模型；旧两阶段 Prompt 与参数不复用，避免语义冲突
-  - defaults 读取失败时设置页继续使用本地回退；已修改草稿不会被迟到的 defaults 响应覆盖
-  - 当前 `1.0.0` 不展示专家模式，避免暴露当前分支运行时与 storage 尚不能执行的设置
-  - 快捷键录制开始后改为顶部常驻提示；录制成功、取消和删除继续走顶部 `1s` toast
-  - 管理区 `/management/*` 已补 header 账号区 `切换账号` 按钮，会先清理 `https://aidp.bytedance.com` 与 `https://mpsso.jiyunhudong.com` 站点储存，再补清 AIDP / SSO / 第三方登录 Cookie 后刷新页面
-  - 关闭自动填入时，行内识别会先缓存结果，再由同一行 `填入` 按钮直填 textarea
-  - 命中 `唱歌` 或 `非台州话` 时，后端仍尽量返回可识别的普通话翻译文本，默认不自动填入，需由用户通过 `强制填入` 写入
-  - 批量识别会把可直接写回结果与 `待复核` 结果分开统计；`待复核` 不再混进 `跳过`
-  - 运行时现已独立读写 `taizhouHelper` 配置，并在与苏州话、金华话共享页面时保持三方互斥下的 AI 隐藏 owner 隔离
+本目录记录台州话 AIDP 脚本的后端、网络和页面资料。脚本当前处于“原始听音直填”诊断模式，用于比对百炼调用结果与平台侧模型效果。
 
-## 当前资料覆盖
+## AI 结果边界
 
-- `mark-v3` 详情页路由与 query 上下文
-- `mark-v3` 当前条读取与暂存写回契约
-- 详情页语义分区、平台 AI 板块、挂载建议与动态重渲染风险
-- 台州话脚本最小完整闭环：
-  - 脚本中心基础设置
-  - 管理区切换账号
-  - 平台 AI 显隐
-  - 分段建议
-  - 单段普通话翻译识别直填输入框
-  - 当前题当前页批量识别
-  - `SubmitTempItemAnswer` 直写 `regions[*].txt`
-  - 台州话脚本 AI 调用日志
+- `POST /api/bytedance-aidp/taizhou-helper/ai/recommend` 成功时以 `listenText` 作为唯一业务文本。
+- `listenText` 是模型原始听音结果，不翻译为普通话，也不做任何文本清洗。
+- 模型输出不是严格 JSON、或 `listenText` 为空时，不写入平台。
+- 返回可携带 usage、cost、raw 与 debug，用于诊断；不返回风险、复核或强制写入字段。
 
-## 资料文件
+## 写入边界
 
-| 文件 | 职责 |
-| --- | --- |
-| `README.md` | 台州话脚本入口、资料导航和接线边界 |
-| `network/README.md` | `mark-v3` 详情页专项 Network 索引 |
-| `network/01-mark-v3-detail-init.md` | `mark-v3` 详情页初始化与只读请求边界 |
-| `network/02-mark-v3-receive-current-item.md` | 当前条读取与临时答案读取契约 |
-| `network/03-mark-v3-submit-temp-answer.md` | 平台暂存写回契约 |
-| `page-structure/README.md` | `mark-v3` 详情页结构索引 |
-| `page-structure/01-mark-v3-detail.md` | `mark-v3` 详情页语义分区、锚点和挂载边界 |
-| `backend/README.md` | 台州话脚本分段建议与 AI 推荐后端入口 |
-
-运行时代码入口：
-
-- `extension/sites/bytedance-aidp/taizhou-helper/README.md`
-- `extension/sites/bytedance-aidp/taizhou-helper/content.js`
-- `extension/sites/bytedance-aidp/taizhou-helper/data-api.js`
-- `extension/sites/bytedance-aidp/taizhou-helper/ai-recommendation.js`
-- `extension/sites/bytedance-aidp/taizhou-helper/segmentation-controller.js`
-- `extension/sites/bytedance-aidp/taizhou-helper/ui-panel.js`
-- `extension/sites/bytedance-aidp/taizhou-helper/shortcuts.js`
-- `extension/sites/bytedance-aidp/shared/page-world/network-observer.js`
-
-## 当前运行时边界
-
-- 当前支持的平台级能力：
-  - 隐藏平台原生 AI 洞察与浮动入口
-  - 单段普通话翻译识别直填输入框
-  - 当前题当前页批量识别
-  - 分段建议与应用
-  - 清空画段
-  - 填充语言种类
-  - 详情页快捷键
-- 当前识别结果口径固定为：
-  - 单次全模态 JSON 同时返回原始听音、最终普通话、唱歌/非台州话风险与人工复核信息
-  - 最终只写 `regions[*].txt`
-  - 写入值固定为 `finalMandarinText`
-  - 输出是“普通话翻译”
-  - 同时返回 `isSinging`、`isNonTaizhouDialect`、`blockAutoFill`
-  - 默认拦截自动填入只看 `isSinging / isNonTaizhouDialect / blockAutoFill`
-  - `needHumanReview` 保留给人工判断，但不会单独阻断自动填入
-  - 不保留台州话副结果字段
-  - 不改 `regions[*].ms`
-  - 不改提交 / 下一题链路
-  - 单段识别只直填页面输入框；批量识别和分段建议应用继续走现有暂存写回
-- 当前批量能力边界：
-  - 只作用于当前题当前页 `regions`
-  - 默认并发 `5`
-  - 自动填入开启时，只在整批结束后自动写回安全结果
-  - 命中 `唱歌` 或 `非台州话` 的段保留为 `待复核`，等待后续 `强制填入`
-  - 自动填入关闭时，整批结果先缓存；若包含待复核结果，主按钮会切成 `强制填入`
-  - 当前题或快照漂移时 fail closed
-- 当前脚本级后端入口：
-  - `platform-resources/bytedance-aidp/taizhou-helper/backend/`
-- 当前 AI 调用记录已纳入后台导出数据集：
-  - `ByteDance AIDP 台州话脚本 AI 调用记录`
-  - CSV 只记录全模态模型、全模态 token 和全模态预估人民币
-
-## 当前边界
-
-- 不自动提交
-- 不自动切题
-- 不新增平台提交 API
-- 不跨页批量
-- 不绕过页面按钮 `disabled / readonly`
-- 空结果不覆盖已有非空 `txt`
-- 纯静音或完全听不清时返回空字符串
-
-## 安全边界
-
-- 不记录完整登录态、鉴权头、完整签名资源地址或原始请求包
-- AI 调用日志只保留必要摘要与阶段级 token / 人民币信息
+- 单段：扩展通过真实 textarea 事件直填 `listenText`。
+- 批量：扩展只对当前题当前页选中段，通过已观察到的 `SubmitTempItemAnswer` 暂存契约写 `regions[*].txt`。
+- 不写 `ms`，不调用保存、提交或切题接口。

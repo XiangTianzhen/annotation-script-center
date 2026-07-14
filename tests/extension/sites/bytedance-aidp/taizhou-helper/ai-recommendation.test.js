@@ -72,7 +72,6 @@ test("Taizhou recommendation keeps the audio clip pipeline and posts one Omni co
         return {
           success: true,
           listenText: "原始听音",
-          finalMandarinText: "最终普通话。",
         };
       },
     };
@@ -110,7 +109,7 @@ test("Taizhou recommendation keeps the audio clip pipeline and posts one Omni co
       params: { temperature: 0.1, stop: ["END"] },
     });
     assert.equal(Object.hasOwn(body, "aiStages"), false);
-    assert.equal(result.finalMandarinText, "最终普通话。");
+    assert.equal(result.listenText, "原始听音");
   } finally {
     globalThis.fetch = previousFetch;
     globalThis.AudioContext = previousAudioContext;

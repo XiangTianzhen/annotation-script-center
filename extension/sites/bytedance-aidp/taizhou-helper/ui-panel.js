@@ -444,8 +444,7 @@
     let batchStateNode = null;
     let batchSelectionGridNode = null;
     let batchActionRowNode = null;
-    let batchActionMode = deps.aiRecommendAutoFillEnabled === false ? "recognize" : "recognizeAndFill";
-    let aiRecommendAutoFillEnabled = deps.aiRecommendAutoFillEnabled !== false;
+    let batchActionMode = "recognizeAndWrite";
     let segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
     let panelHidden = false;
     let currentAudioCollapsed = true;
@@ -547,20 +546,8 @@
         actionButton = createButton("停止批量", false, function () {
           deps.onBatchStop?.();
         });
-      } else if (batchActionMode === "force-fill") {
-        actionButton = createButton("强制填入", true, function () {
-          deps.onBatchFill?.();
-        });
-      } else if (batchActionMode === "fill") {
-        actionButton = createButton("填入", true, function () {
-          deps.onBatchFill?.();
-        });
-      } else if (aiRecommendAutoFillEnabled) {
-        actionButton = createButton("批量识别并填入", true, function () {
-          deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
-        });
       } else {
-        actionButton = createButton("批量识别", true, function () {
+        actionButton = createButton("批量识别并填入", true, function () {
           deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
         });
       }
@@ -698,7 +685,7 @@
       panelTitleRow.appendChild(panelTitle);
       panelTitleRow.appendChild(
         createTooltipDot(
-          "当前支持普通话翻译 AI、批量识别、分段建议和平台暂存写回；单段识别只直填当前输入框，批量识别和分段建议继续走平台暂存写回。"
+          "当前支持原始听音识别、批量识别、分段建议和平台暂存写回；单段识别只直填当前输入框，批量识别和分段建议继续走平台暂存写回。"
         )
       );
       panelHead.appendChild(panelTitleRow);
@@ -924,13 +911,7 @@
         ? normalizeText(source.actionMode)
         : source.isRunning === true
           ? "running"
-          : source.hasPendingFill === true && Number(source.reviewCount || 0) > 0
-            ? "force-fill"
-            : source.hasPendingFill === true
-            ? "fill"
-            : aiRecommendAutoFillEnabled
-              ? "recognizeAndFill"
-              : "recognize";
+          : "recognizeAndWrite";
       if (batchActionMode !== effectiveActionMode) {
         batchActionMode = effectiveActionMode;
         renderBatchActionButton();
@@ -958,10 +939,7 @@
         "；失败 " +
         String(Number(source.failedCount || 0) || 0) +
         "；跳过 " +
-        String(Number(source.skippedCount || 0) || 0) +
-        (Number(source.reviewCount || 0) > 0
-          ? "；待复核 " + String(Number(source.reviewCount || 0) || 0)
-          : "");
+        String(Number(source.skippedCount || 0) || 0);
       batchStateNode.appendChild(summary);
       const failures = Array.isArray(source.failures) ? source.failures : [];
       if (failures.length > 0) {
@@ -988,7 +966,7 @@
     function sortBatchAiResults(results) {
       return (Array.isArray(results) ? results : [])
         .filter(function (item) {
-          return item && typeof item === "object" && (Number(item.segmentNumber) > 0 || normalizeText(item.finalMandarinText) || normalizeText(item.listenText));
+          return item && typeof item === "object" && (Number(item.segmentNumber) > 0 || typeof item.listenText === "string");
         })
         .slice()
         .sort(function (left, right) {
@@ -1130,47 +1108,7 @@
       }
       const omniUsage = source.usage?.omni || {};
       const omniCost = source.cost?.omni || {};
-      const reviewTags = [];
-      if (source.isSinging === true) {
-        reviewTags.push("唱歌");
-      }
-      if (source.isNonTaizhouDialect === true) {
-        reviewTags.push("非台州话");
-      }
       renderBatchAiResultTabs();
-      if (reviewTags.length > 0 || source.blockAutoFill === true) {
-        const warningCard = document.createElement("div");
-        warningCard.className = "review-warning";
-        if (reviewTags.length > 0) {
-          const tagRow = document.createElement("div");
-          tagRow.className = "review-tag-row";
-          reviewTags.forEach(function (tagText) {
-            const tagNode = document.createElement("span");
-            tagNode.className = "review-tag";
-            tagNode.textContent = tagText;
-            tagRow.appendChild(tagNode);
-          });
-          warningCard.appendChild(tagRow);
-        }
-        const warningText = document.createElement("div");
-        warningText.className = "review-warning-text";
-        warningText.textContent =
-          "检测到" +
-          (reviewTags.length > 0 ? reviewTags.join(" / ") : "待人工复核") +
-          "，默认不自动填入，请人工判断后再决定是否强制填入。";
-        warningCard.appendChild(warningText);
-        if (batchAiResults.length <= 0 && normalizeText(source.finalMandarinText)) {
-          const warningActions = document.createElement("div");
-          warningActions.className = "action-row";
-          warningActions.appendChild(
-            createButton("强制填入当前段", true, function () {
-              deps.onForceFillCurrent?.();
-            })
-          );
-          warningCard.appendChild(warningActions);
-        }
-        aiMetaNode.appendChild(warningCard);
-      }
       const layout = document.createElement("div");
       layout.className = "info-layout";
       const infoPane = document.createElement("div");
@@ -1178,8 +1116,7 @@
       const grid = document.createElement("div");
       grid.className = "info-grid";
       [
-        ["最终普通话翻译", normalizeText(source.finalMandarinText)],
-        ["原始听音", normalizeText(source.listenText)],
+        ["原始听音", typeof source.listenText === "string" ? source.listenText : ""],
         ["当前段", Number(source.segmentNumber) > 0 ? "第 " + String(source.segmentNumber) + " 段" : ""],
         ["全模态模型", source.models?.omniModel || ""],
         ["全模态输入Token", pickUsageValue(omniUsage, ["input_tokens", "prompt_tokens"])],
@@ -1188,7 +1125,7 @@
         ["全模态预估人民币", pickCostValue(omniCost, ["estimatedCostCny", "totalCny", "total_cost_cny"])],
       ]
         .filter(function (item) {
-          return normalizeText(item[0]) && normalizeText(item[1]);
+          return normalizeText(item[0]) && (typeof item[1] === "string" ? item[1] !== "" : normalizeText(item[1]));
         })
         .forEach(function (item) {
           const line = document.createElement("div");
@@ -1255,22 +1192,10 @@
       renderPreviewActionButtons();
     }
 
-    function setAiRecommendAutoFillEnabled(enabled) {
-      aiRecommendAutoFillEnabled = enabled !== false;
-      if (
-        batchActionMode !== "running" &&
-        batchActionMode !== "fill" &&
-        batchActionMode !== "force-fill"
-      ) {
-        batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
-      }
-      renderBatchActionButton();
-    }
-
     function setBatchActionState(mode) {
       const normalizedMode = normalizeText(mode);
       if (!normalizedMode) {
-        batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
+        batchActionMode = "recognizeAndWrite";
       } else {
         batchActionMode = normalizedMode;
       }
@@ -1305,8 +1230,7 @@
         mouseDownHandledSegmentNumber: 0,
       };
       segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
-      aiRecommendAutoFillEnabled = deps.aiRecommendAutoFillEnabled !== false;
-      batchActionMode = aiRecommendAutoFillEnabled ? "recognizeAndFill" : "recognize";
+      batchActionMode = "recognizeAndWrite";
       panelHidden = false;
       previewCollapsed = true;
       aiMetaCollapsed = true;
@@ -1325,7 +1249,6 @@
       renderAiMeta,
       renderBatchAiResults,
       setSegmentPreviewAutoApplyEnabled,
-      setAiRecommendAutoFillEnabled,
       setBatchActionState,
       setPanelHidden,
       togglePanelHidden,

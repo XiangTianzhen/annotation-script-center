@@ -4,9 +4,7 @@ const {
   requestOmniInputAudio,
 } = require("../../../backend/ai/providers/qwen-openai-compatible");
 const {
-  ensureChineseSentencePunctuation,
   normalizeUsage,
-  parseModelJsonText,
 } = require("../../../backend/ai/model-response-utils");
 const {
   buildPricingAvailabilitySummary,
@@ -27,42 +25,12 @@ const DEFAULT_OMNI_PARAMS = {
   seed: "",
   stop: "",
 };
-const ARABIC_DIGIT_TO_CHINESE = Object.freeze({
-  "0": "零",
-  "1": "一",
-  "2": "二",
-  "3": "三",
-  "4": "四",
-  "5": "五",
-  "6": "六",
-  "7": "七",
-  "8": "八",
-  "9": "九",
-  "０": "零",
-  "１": "一",
-  "２": "二",
-  "３": "三",
-  "４": "四",
-  "５": "五",
-  "６": "六",
-  "７": "七",
-  "８": "八",
-  "９": "九",
-});
-const EMPTY_RESULT_PATTERN =
-  /^(纯静音|静音|完全听不清|听不清|听不出来|无法听清|无法识别|无内容|无语音|没有声音)([，。？！；,.!?;:]*)$/;
 const DEFAULT_OMNI_PROMPT = [
-  "你是浙江台州方言音频识别与普通话转换助手。请直接理解当前音频片段的实际语义，再写成自然普通话。",
-  "台州各地口音差异较大；没有可确认的语音或上下文证据时，不猜测词义、不虚构方言词映射。",
+  "你是浙江台州方言音频识别助手。只写出当前音频片段中实际听到的文本原文。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：listenText, finalMandarinText, isSinging, isNonTaizhouDialect, blockAutoFill, needHumanReview, notes。",
-  "listenText 只保留原始听音草稿，不做润色、数字汉字化、标点规整或重复字裁剪；听到多少写多少。",
-  "finalMandarinText 写可确认的自然普通话，不自由改写、不扩写、不截取局部短句。",
-  "不知名人名、地名、公司名或其他无法精准锁定的事物，用 ##名称## 包起来。",
-  "请显式判断主说话人是否唱歌，以及主要内容是否不是台州话；命中任一项仍保留可识别文本，但 blockAutoFill 必须为 true。",
-  "抖音音效不截取。纯静音或完全听不清时，listenText 和 finalMandarinText 都返回空字符串。",
-  "finalMandarinText 标点只允许使用 ，。？！不允许其他标点；句末只允许使用 。？！；不要使用阿拉伯数字，统一改写为汉字数字。",
-  "finalMandarinText 中明显的口吃式同字或同音节连续重复最多保留三次；有语义的正常重复不要误删。",
+  "JSON 字段固定为：listenText。",
+  "listenText 必须逐字保留模型听到的内容；不要翻译成普通话，不要润色、补写、删减、改数字、规整标点或压缩重复字。",
+  "纯静音或完全听不清时，listenText 返回空字符串。",
 ].join("\n");
 const PRICING_SUMMARY = Object.freeze(
   buildPricingAvailabilitySummary({
@@ -75,7 +43,7 @@ function normalizeText(value) {
 }
 
 function normalizeListenText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
+  return typeof value === "string" ? value : "";
 }
 
 function toFiniteNumber(value, fallback) {
@@ -88,108 +56,6 @@ function createHttpError(statusCode, message, code) {
   error.statusCode = Number(statusCode) || 500;
   error.code = normalizeText(code) || "request-failed";
   return error;
-}
-
-function normalizeList(value, limit) {
-  const result = [];
-  (Array.isArray(value) ? value : [value]).forEach(function (item) {
-    const text = normalizeText(item);
-    if (!text || result.indexOf(text) >= 0) {
-      return;
-    }
-    result.push(text);
-  });
-  return typeof limit === "number" && limit > 0 ? result.slice(0, limit) : result;
-}
-
-function convertArabicDigitsToChinese(value) {
-  return String(value || "").replace(/[0-9０-９]/g, function (digit) {
-    return ARABIC_DIGIT_TO_CHINESE[digit] || digit;
-  });
-}
-
-function stripUnsupportedMandarinSymbols(value) {
-  let result = "";
-  for (const char of String(value || "")) {
-    if (
-      /\s/u.test(char) ||
-      /[\p{L}\p{N}]/u.test(char) ||
-      char === "，" ||
-      char === "。" ||
-      char === "？" ||
-      char === "！" ||
-      char === "#"
-    ) {
-      result += char;
-    }
-  }
-  return result;
-}
-
-function normalizeLineText(value) {
-  return stripUnsupportedMandarinSymbols(
-    convertArabicDigitsToChinese(
-      String(value || "")
-        .replace(/[\r\n]+/g, " ")
-        .replace(/[《》]/g, "")
-        .replace(/[“”"「」『』（）()[\]{}]/g, "")
-        .replace(/[、]/g, "，")
-        .replace(/,/g, "，")
-        .replace(/\?/g, "？")
-        .replace(/!/g, "！")
-        .replace(/\./g, "。")
-        .replace(/[…]/g, "。")
-        .replace(/[；;：:]/g, "，")
-        .replace(/\s+/g, " ")
-    )
-  ).trim();
-}
-
-function compressObviousStutters(text) {
-  return String(text || "")
-    .replace(/([\u3400-\u9fffA-Za-z])\1{3,}/g, function (_all, char) {
-      return char + char + char;
-    })
-    .replace(/([\u3400-\u9fffA-Za-z]{2,4})\1{3,}/g, function (_all, word) {
-      return word + word + word;
-    });
-}
-
-function normalizeMandarinResultText(value) {
-  const text = normalizeLineText(value);
-  if (!text || EMPTY_RESULT_PATTERN.test(text)) {
-    return "";
-  }
-  const normalized = ensureChineseSentencePunctuation(
-    text
-      .replace(/，+/g, "，")
-      .replace(/。+/g, "。")
-      .replace(/？+/g, "？")
-      .replace(/！+/g, "！")
-      .replace(/[，]+([。？！])/g, "$1")
-      .replace(/([。？！])[，]+/g, "$1")
-      .replace(/\s*([，。？！])\s*/g, "$1")
-      .replace(/^[，。？！]+/g, "")
-      .trim()
-  )
-    .replace(/[，]+([。？！])/g, "$1")
-    .replace(/([。？！])[，]+/g, "$1")
-    .replace(/\s*([，。？！])\s*/g, "$1")
-    .trim();
-  return compressObviousStutters(normalized);
-}
-
-function normalizeNotes(value) {
-  return normalizeList(
-    (Array.isArray(value) ? value : [value]).map(function (item) {
-      return normalizeLineText(item);
-    }),
-    8
-  );
-}
-
-function normalizeBooleanFlag(value) {
-  return value === true || (typeof value === "string" && value.trim().toLowerCase() === "true");
 }
 
 function normalizeErrorDebugObject(value) {
@@ -309,22 +175,9 @@ function appendPromptRequirements(prompt, requiredLines) {
 }
 
 function normalizeOmniOutput(value) {
-  const source = value && typeof value === "object" ? value : { finalMandarinText: value };
-  const isSinging = normalizeBooleanFlag(source.isSinging);
-  const isNonTaizhouDialect = normalizeBooleanFlag(source.isNonTaizhouDialect);
+  const source = value && typeof value === "object" ? value : {};
   return {
-    listenText: normalizeListenText(
-      source.listenText || source.heardText || source.audioText || source.transcript || ""
-    ),
-    finalMandarinText: normalizeMandarinResultText(
-      source.finalMandarinText || source.refinedMandarinText || source.mandarinText || source.text || ""
-    ),
-    isSinging,
-    isNonTaizhouDialect,
-    blockAutoFill: normalizeBooleanFlag(source.blockAutoFill) || isSinging || isNonTaizhouDialect,
-    needHumanReview:
-      normalizeBooleanFlag(source.needHumanReview) || isSinging || isNonTaizhouDialect,
-    notes: normalizeNotes(source.notes),
+    listenText: normalizeListenText(source.listenText),
   };
 }
 
@@ -334,9 +187,8 @@ function buildOmniPrompt(request, assetsContext) {
       request.aiOmni?.prompt || DEFAULT_OMNI_PROMPT,
       [
         "仅根据当前音频片段输出 JSON。",
-        "listenText 保留原始听音；finalMandarinText 输出普通话翻译。",
-        "标点只允许使用 ，。？！不允许其他标点；不要使用阿拉伯数字。",
-        "唱歌或非台州话时 blockAutoFill 必须为 true。",
+        "JSON 只允许包含 listenText。",
+        "listenText 必须原样记录听到的文本；不得翻译、润色、补写、删减或清洗。",
       ]
     ),
     userPrompt: [
@@ -358,7 +210,7 @@ function buildOmniPrompt(request, assetsContext) {
         null,
         2
       ),
-      "请直接完成听音、普通话转换与风险判断，只返回约定 JSON。",
+      "请直接完成听音，只返回约定 JSON。",
     ].filter(Boolean).join("\n"),
   };
 }
@@ -367,8 +219,6 @@ function createRuntimeDeps(overrides) {
   const source = overrides && typeof overrides === "object" ? overrides : {};
   return {
     now: typeof source.now === "function" ? source.now : Date.now,
-    parseModelJsonText:
-      typeof source.parseModelJsonText === "function" ? source.parseModelJsonText : parseModelJsonText,
     normalizeUsage:
       typeof source.normalizeUsage === "function" ? source.normalizeUsage : normalizeUsage,
     requestOmniInputAudio:
@@ -378,17 +228,11 @@ function createRuntimeDeps(overrides) {
 
 function parseOmniJsonWithFallback(rawText, requestId, deps) {
   try {
-    return deps.parseModelJsonText(rawText || "", {
-      requestId: requestId || SCRIPT_ID,
-      stage: "omni",
-    });
+    const parsed = JSON.parse(String(rawText || ""));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : { listenText: "" };
   } catch (_error) {
     return {
-      listenText: rawText || "",
-      finalMandarinText: rawText || "",
-      blockAutoFill: true,
-      needHumanReview: true,
-      notes: ["模型未返回标准 JSON，已保留原始文本并阻止自动填入。"],
+      listenText: "",
     };
   }
 }
@@ -412,12 +256,6 @@ async function runOmni(request, assetsContext, deps) {
   const normalized = normalizeOmniOutput(parsed);
   return {
     listenText: normalized.listenText,
-    finalMandarinText: normalized.finalMandarinText,
-    isSinging: normalized.isSinging,
-    isNonTaizhouDialect: normalized.isNonTaizhouDialect,
-    blockAutoFill: normalized.blockAutoFill,
-    needHumanReview: normalized.needHumanReview,
-    notes: normalized.notes,
     rawText: String(result.rawText || ""),
     debugRawJson: parsed && typeof parsed === "object" ? parsed : null,
     timing: {
@@ -446,18 +284,8 @@ async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
   const omniResult = await runOmni(request, assetsContext || {}, deps);
-  const isSinging = omniResult.isSinging === true;
-  const isNonTaizhouDialect = omniResult.isNonTaizhouDialect === true;
-  const blockAutoFill = omniResult.blockAutoFill === true || isSinging || isNonTaizhouDialect;
   return {
-    listenText: normalizeText(omniResult.listenText),
-    finalMandarinText: normalizeText(omniResult.finalMandarinText),
-    isSinging,
-    isNonTaizhouDialect,
-    blockAutoFill,
-    needHumanReview:
-      omniResult.needHumanReview === true || isSinging || isNonTaizhouDialect || blockAutoFill,
-    notes: normalizeNotes(omniResult.notes),
+    listenText: normalizeListenText(omniResult.listenText),
     timing: {
       omniMs: Number(omniResult.timing?.omniMs || 0) || 0,
       totalMs: Math.max(0, deps.now() - startedAt),
@@ -490,7 +318,7 @@ function createHealthPayload(assetsContext) {
     contract: {
       writeField: "TempAnswer.Content.data.regions[*].txt",
       stages: ["omni"],
-      writeMode: "manual-or-autofill",
+      writeMode: "direct-current-or-batch-temp-answer",
     },
     reference: {
       rulesSource: "taizhou-rules.md",
@@ -540,17 +368,11 @@ function buildRecommendSuccessBody(context) {
   return {
     success: true,
     requestId: normalizeText(source.requestId || source.normalizedRequest?.requestId),
-    listenText: normalizeText(result.listenText),
-    finalMandarinText: normalizeText(result.finalMandarinText),
-    isSinging: result.isSinging === true,
-    isNonTaizhouDialect: result.isNonTaizhouDialect === true,
-    blockAutoFill: result.blockAutoFill === true,
+    listenText: normalizeListenText(result.listenText),
     usage: result.usage && typeof result.usage === "object" ? result.usage : {},
     cost: result.cost && typeof result.cost === "object" ? result.cost : {},
     timing: result.timing && typeof result.timing === "object" ? result.timing : {},
     models: result.models && typeof result.models === "object" ? result.models : {},
-    notes: normalizeNotes(result.notes),
-    needHumanReview: result.needHumanReview === true,
     raw: result.raw && typeof result.raw === "object" ? result.raw : {},
     debug: result.debug && typeof result.debug === "object" ? result.debug : {},
   };
@@ -571,15 +393,6 @@ function buildRecommendErrorBody(context) {
       body[key] = value;
     }
   });
-  if (normalizeText(error.listenText)) {
-    body.listenText = normalizeText(error.listenText);
-  }
-  if (normalizeText(error.finalMandarinText)) {
-    body.finalMandarinText = normalizeText(error.finalMandarinText);
-  }
-  if (Array.isArray(error.notes)) {
-    body.notes = normalizeNotes(error.notes);
-  }
   return body;
 }
 
@@ -589,9 +402,7 @@ module.exports = {
   SCRIPT_ID,
   SUPPORTED_OMNI_MODELS,
   __testOnly: {
-    compressObviousStutters,
     normalizeListenText,
-    normalizeMandarinResultText,
     normalizeOmniOutput,
   },
   buildAssetsContext,

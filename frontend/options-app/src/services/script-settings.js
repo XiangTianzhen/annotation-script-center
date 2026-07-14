@@ -385,7 +385,7 @@ function aidpSections(scriptId) {
       key: "ai",
       title: "AI 设置",
       help: isTaizhou
-        ? "配置单次全模态识别的模型、Prompt 和生成参数。"
+        ? "配置单次全模态原始听音识别的模型、Prompt 和生成参数。"
         : `配置听音与${usesMandarinTranslation ? "普通话翻译" : "普通话听写"}收口两阶段参数。`,
       groups: [
         {
@@ -393,12 +393,14 @@ function aidpSections(scriptId) {
           title: "基础设置",
           layout: "two",
           fields: [
-            {
-              kind: "boolean",
-              path: "aiRecommendAutoFillEnabled",
-              label: "识别完成后自动填入",
-              help: "识别成功后填入当前输入框，不触发平台保存、提交或切题。",
-            },
+            ...(!isTaizhou
+              ? [{
+                  kind: "boolean",
+                  path: "aiRecommendAutoFillEnabled",
+                  label: "识别完成后自动填入",
+                  help: "识别成功后填入当前输入框，不触发平台保存、提交或切题。",
+                }]
+              : []),
             {
               kind: "boolean",
               path: "aiRecommendEnableThinking",
@@ -430,7 +432,7 @@ function aidpSections(scriptId) {
                   promptLabel: "全模态 Prompt",
                   optionsKey: "omniModels",
                   modelOptions: LISTEN_MODEL_OPTIONS,
-                  modelHelp: "每段音频仅调用一次 Qwen Omni，同时返回原始听音、最终普通话和风险判断。",
+                  modelHelp: "每段音频仅调用一次 Qwen Omni，只返回原始听音文本。",
                 }),
               },
             ]

@@ -152,7 +152,10 @@ describe("script-settings helpers", () => {
     expect(contract("bytedanceAidpJinhuaHelper")).toEqual(aidpExpected);
     expect(contract("bytedanceAidpTaizhouHelper")).toEqual({
       "basic/page-behavior": aidpExpected["basic/page-behavior"],
-      "ai/ai-base": aidpExpected["ai/ai-base"],
+      "ai/ai-base": [
+        "aiRecommendEnableThinking",
+        "aiRecommendRequestTimeoutMs",
+      ],
       "ai/omni": [
         "aiRecommendOmniModel",
         "aiRecommendOmniTemperature",

@@ -6,17 +6,13 @@
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
   const FILL_LANGUAGE_EMPTY_MESSAGE = "当前没有空的语言种类需要填充。";
   const WRITE_CURRENT_TEXT_SUCCESS_MESSAGE =
-    "已通过平台暂存接口写回普通话翻译，请刷新页面复核。";
+    "已通过平台暂存接口写回原始听音文本，请刷新页面复核。";
   const WRITE_BATCH_TEXT_SUCCESS_MESSAGE =
-    "已通过平台暂存接口批量写回普通话翻译，请刷新页面复核。";
+    "已通过平台暂存接口批量写回原始听音文本，请刷新页面复核。";
   const WRITE_CURRENT_TEXT_SKIP_EXISTING_MESSAGE = "当前段 AI 结果为空，已保留原有文本。";
   const WRITE_CURRENT_TEXT_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未写入任何文本。";
-  const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的普通话翻译。";
+  const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的原始听音文本。";
   const WRITE_CURRENT_TEXT_DOM_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未填入任何文本。";
-  const AUTO_FILL_DOM_SKIP_STALE_MESSAGE =
-    "当前题或分段状态已变化，已保留识别结果，请点击“填入”或“强制填入”后再试。";
-  const AUTO_FILL_DOM_SKIP_EXISTING_MESSAGE =
-    "目标输入框已有文本，已保留识别结果，请点击“填入”或“强制填入”后再试。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议。";
   const PREVIEW_STALE_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
   const UNSAFE_TABLE_MESSAGE = "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。";
@@ -28,6 +24,10 @@
 
   function normalizeText(value) {
     return String(value || "").trim();
+  }
+
+  function preserveListenText(value) {
+    return typeof value === "string" ? value : "";
   }
 
   function clone(value) {
@@ -147,7 +147,7 @@
       startMs: startMs,
       endMs: endMs,
       disabled: source.disabled === true,
-      text: normalizeText(source.txt),
+      text: preserveListenText(source.txt),
       language: normalizeText(source.ms),
       raw: clone(source),
     };
@@ -171,7 +171,7 @@
           item.segmentNumber,
           item.startMs,
           item.endMs,
-          normalizeText(item.text),
+          preserveListenText(item.text),
           normalizeText(item.language),
         ].join(":");
       })
@@ -931,7 +931,7 @@
         return {
           segmentNumber: segmentNumber,
           regionId: regionId,
-          finalMandarinText: normalizeText(source.finalMandarinText || source.text),
+          listenText: preserveListenText(source.listenText),
         };
       })
       .filter(Boolean);
@@ -960,8 +960,8 @@
       if (!matchedUpdate) {
         return region;
       }
-      const nextText = normalizeText(matchedUpdate.finalMandarinText);
-      if (!nextText) {
+      const nextText = preserveListenText(matchedUpdate.listenText);
+      if (nextText === "") {
         skippedCount += 1;
         return region;
       }
@@ -1255,97 +1255,9 @@
       };
     }
 
-    async function writeCurrentRegionText(input) {
-      const source = input && typeof input === "object" ? input : {};
-      const context = await getCurrentContext();
-      if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
-        return {
-          ok: false,
-          message: DETAIL_CONTEXT_MISSING_MESSAGE,
-          writtenCount: 0,
-          skippedCount: 0,
-        };
-      }
-      if (normalizeText(source.selectionKey) !== normalizeText(context.selectionKey)) {
-        return {
-          ok: false,
-          message: PREVIEW_STALE_MESSAGE,
-          writtenCount: 0,
-          skippedCount: 0,
-        };
-      }
-      if (!normalizeText(submitSnapshot?.url)) {
-        return {
-          ok: false,
-          message: SUBMIT_AUTH_MISSING_MESSAGE,
-          writtenCount: 0,
-          skippedCount: 0,
-        };
-      }
-      const targetSegmentNumber = Math.max(
-        0,
-        Math.round(Number(source.segmentNumber || context.activeSegmentNumber || 0)) || 0
-      );
-      if (targetSegmentNumber <= 0) {
-        return {
-          ok: false,
-          message: ACTIVE_SEGMENT_MISSING_MESSAGE,
-          writtenCount: 0,
-          skippedCount: 0,
-        };
-      }
-      const updateResult = updateTempAnswerWithRegionTexts(context.tempAnswer, context, {
-        segmentNumber: targetSegmentNumber,
-        finalMandarinText: source.finalMandarinText,
-      });
-      if (updateResult.writtenCount <= 0) {
-        const targetRegion = (Array.isArray(context.tempAnswer?.data?.regions)
-          ? context.tempAnswer.data.regions
-          : []
-        ).find(function (item) {
-          return Number(item?.no || 0) === targetSegmentNumber;
-        }) || null;
-        const existingText = normalizeText(targetRegion?.txt);
-        return {
-          ok: true,
-          message: existingText
-            ? WRITE_CURRENT_TEXT_SKIP_EXISTING_MESSAGE
-            : WRITE_CURRENT_TEXT_SKIP_EMPTY_MESSAGE,
-          writtenCount: 0,
-          skippedCount: updateResult.skippedCount > 0 ? updateResult.skippedCount : 1,
-        };
-      }
-      const requestBody = buildSubmitRequestBody(submitSnapshot, context, updateResult.nextAnswer);
-      const result = await postSubmit(fetchImpl, submitSnapshot, requestBody);
-      if (!result.ok) {
-        return {
-          ok: false,
-          message: result.message,
-          writtenCount: 0,
-          skippedCount: updateResult.skippedCount,
-        };
-      }
-      submitSnapshot = withSnapshotEventSequence(
-        parseSubmitSnapshot({
-          url: submitSnapshot.url,
-          headers: submitSnapshot.headers,
-          body: requestBody,
-        })
-      );
-      return {
-        ok: true,
-        message: WRITE_CURRENT_TEXT_SUCCESS_MESSAGE,
-        writtenCount: updateResult.writtenCount,
-        skippedCount: updateResult.skippedCount,
-      };
-    }
 
     async function fillCurrentRegionTextIntoDom(input) {
       const source = input && typeof input === "object" ? input : {};
-      const autoFillGuard =
-        source.autoFillGuard && typeof source.autoFillGuard === "object"
-          ? source.autoFillGuard
-          : null;
       const targetSegmentNumber = Math.max(0, Math.round(Number(source.segmentNumber || 0)) || 0);
       if (targetSegmentNumber <= 0) {
         return {
@@ -1355,34 +1267,14 @@
           skippedCount: 0,
         };
       }
-      const nextText = normalizeText(source.finalMandarinText);
-      if (!nextText) {
+      const nextText = preserveListenText(source.listenText);
+      if (nextText === "") {
         return {
           ok: true,
           message: WRITE_CURRENT_TEXT_DOM_SKIP_EMPTY_MESSAGE,
           filledCount: 0,
           skippedCount: 1,
         };
-      }
-      if (autoFillGuard) {
-        const context = await getCurrentContext();
-        const expectedSelectionKey = normalizeText(autoFillGuard.selectionKey);
-        const expectedCurrentSignature = normalizeText(autoFillGuard.currentSignature);
-        if (
-          !expectedSelectionKey ||
-          !expectedCurrentSignature ||
-          expectedSelectionKey !== normalizeText(context.selectionKey) ||
-          expectedCurrentSignature !== normalizeText(context.currentSignature)
-        ) {
-          return {
-            ok: true,
-            message: AUTO_FILL_DOM_SKIP_STALE_MESSAGE,
-            filledCount: 0,
-            skippedCount: 1,
-            autoFillSkipped: true,
-            skipReason: "stale-context",
-          };
-        }
       }
       const textarea = findSegmentTextarea(documentLike, targetSegmentNumber);
       if (!textarea) {
@@ -1391,19 +1283,6 @@
           message: "当前没有找到第 " + String(targetSegmentNumber) + " 段输入框，请重新画段后再试。",
           filledCount: 0,
           skippedCount: 0,
-        };
-      }
-      if (
-        autoFillGuard?.onlyFillEmpty === true &&
-        normalizeText(textarea.value || textarea.textContent)
-      ) {
-        return {
-          ok: true,
-          message: AUTO_FILL_DOM_SKIP_EXISTING_MESSAGE,
-          filledCount: 0,
-          skippedCount: 1,
-          autoFillSkipped: true,
-          skipReason: "target-not-empty",
         };
       }
       focusControl(textarea);
@@ -1521,7 +1400,6 @@
       applySegmentPreview,
       clearCurrentSegments,
       fillEmptyRegionLanguages,
-      writeCurrentRegionText,
       fillCurrentRegionTextIntoDom,
       writeBatchRegionTexts,
       destroy,

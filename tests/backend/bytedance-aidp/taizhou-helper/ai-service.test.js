@@ -24,38 +24,14 @@ function createRequest(overrides) {
   }, overrides || {}));
 }
 
-test("Taizhou omni result keeps raw listening text and forcibly cleans final Mandarin", function () {
+test("Taizhou omni result preserves listenText byte-for-byte and omits conversion fields", function () {
   const result = aiService.__testOnly.normalizeOmniOutput({
-    listenText: " 第3段：3、2、1！！！哈哈哈哈 ",
-    finalMandarinText: "他说：今天有3个问题；先看1、2、3! 这这这这个。",
+    listenText: "  第3段：3、2、1！！！哈哈哈哈  ",
   });
 
-  assert.equal(result.listenText, "第3段：3、2、1！！！哈哈哈哈");
-  assert.equal(result.finalMandarinText, "他说，今天有三个问题，先看一，二，三！这这这个。");
-});
-
-test("Taizhou omni result preserves meaningful repeated clauses and unknown entity wrappers", function () {
-  const result = aiService.__testOnly.normalizeOmniOutput({
-    finalMandarinText: "吃得，吃得我肚子痛。##阿布公司##?",
+  assert.deepEqual(result, {
+    listenText: "  第3段：3、2、1！！！哈哈哈哈  ",
   });
-
-  assert.equal(result.finalMandarinText, "吃得，吃得我肚子痛。##阿布公司##？");
-});
-
-test("Taizhou omni result compresses obvious consecutive repeated short words", function () {
-  const result = aiService.__testOnly.normalizeOmniOutput({
-    finalMandarinText: "这个这个这个这个事情要说清楚。",
-  });
-
-  assert.equal(result.finalMandarinText, "这个这个这个事情要说清楚。");
-});
-
-test("Taizhou omni result returns an empty final text for silence", function () {
-  const result = aiService.__testOnly.normalizeOmniOutput({
-    finalMandarinText: "完全听不清",
-  });
-
-  assert.equal(result.finalMandarinText, "");
 });
 
 test("Taizhou defaults expose one Qwen Omni configuration with Plus selected", function () {
@@ -63,9 +39,8 @@ test("Taizhou defaults expose one Qwen Omni configuration with Plus selected", f
   const omni = payload.defaults?.omni || {};
 
   assert.equal(omni.model, "qwen3.5-omni-plus");
-  assert.match(String(omni.prompt || ""), /listenText, finalMandarinText/);
-  assert.match(String(omni.prompt || ""), /不要使用阿拉伯数字/);
-  assert.match(String(omni.prompt || ""), /标点只允许使用 ，。？！不允许其他标点/);
+  assert.match(String(omni.prompt || ""), /JSON 字段固定为：listenText/);
+  assert.doesNotMatch(String(omni.prompt || ""), /finalMandarinText|普通话转换|阿拉伯数字|标点只允许/);
   assert.deepEqual(payload.supportedModels?.omni, ["qwen3.5-omni-plus", "qwen3.5-omni-flash"]);
   assert.deepEqual(payload.contract?.stages, ["omni"]);
 });
@@ -106,11 +81,6 @@ test("Taizhou recommendation invokes Qwen Omni once and returns one cost record"
         model: "qwen3.5-omni-plus",
         rawText: JSON.stringify({
           listenText: "第3段：3、2、1！！！",
-          finalMandarinText: "第3段：3、2、1！！！",
-          isSinging: false,
-          isNonTaizhouDialect: false,
-          blockAutoFill: false,
-          needHumanReview: false,
         }),
         usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
       };
@@ -122,18 +92,18 @@ test("Taizhou recommendation invokes Qwen Omni once and returns one cost record"
 
   assert.equal(callCount, 1);
   assert.match(receivedPrompt.systemPrompt, /自定义全模态 Prompt/);
-  assert.match(receivedPrompt.systemPrompt, /不要使用阿拉伯数字/);
+  assert.doesNotMatch(receivedPrompt.systemPrompt, /普通话转换|阿拉伯数字|标点只允许/);
   assert.equal(receivedOptions.model, "qwen3.5-omni-plus");
   assert.equal(receivedOptions.enableThinking, false);
   assert.equal(result.listenText, "第3段：3、2、1！！！");
-  assert.equal(result.finalMandarinText, "第三段，三，二，一！");
+  assert.equal(Object.hasOwn(result, "finalMandarinText"), false);
   assert.deepEqual(result.models, { omniModel: "qwen3.5-omni-plus" });
   assert.equal(result.usage.omni.total_tokens, 30);
   assert.ok(result.cost.omni);
-  assert.equal(result.raw.omni.includes("finalMandarinText"), true);
+  assert.equal(result.raw.omni.includes("listenText"), true);
 });
 
-test("Taizhou blocks auto fill when the single Omni response is not valid JSON", async function () {
+test("Taizhou ignores a non-JSON response instead of treating it as fillable text", async function () {
   const result = await aiService.recommend(createRequest(), {}, {
     normalizeUsage: function (usage) {
       return usage || {};
@@ -147,9 +117,8 @@ test("Taizhou blocks auto fill when the single Omni response is not valid JSON",
     },
   });
 
-  assert.equal(result.needHumanReview, true);
-  assert.equal(result.blockAutoFill, true);
-  assert.match(result.notes.join("\n"), /标准 JSON/);
+  assert.equal(result.listenText, "");
+  assert.equal(Object.hasOwn(result, "finalMandarinText"), false);
 });
 
 test("Taizhou Omni call clamps the timeout at sixty seconds", async function () {
@@ -164,7 +133,7 @@ test("Taizhou Omni call clamps the timeout at sixty seconds", async function () 
       timeouts.push(options.timeoutMs);
       return {
         model: "qwen3.5-omni-plus",
-        rawText: JSON.stringify({ finalMandarinText: "普通话文本。" }),
+        rawText: JSON.stringify({ listenText: "普通话文本。" }),
         usage: {},
       };
     },

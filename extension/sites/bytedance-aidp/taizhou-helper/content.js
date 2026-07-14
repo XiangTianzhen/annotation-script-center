@@ -376,7 +376,6 @@
           DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED,
         segmentPreviewAutoApplyEnabled: DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED,
         aiRecommendEnabled: true,
-        aiRecommendAutoFillEnabled: DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED,
         aiRecommendEndpoint:
           CONSTANTS.BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_SERVER_ENDPOINT ||
           "https://annotation-script-center.xiangtianzhen.store/api/bytedance-aidp/taizhou-helper/ai/recommend",
@@ -420,10 +419,6 @@
           : defaults.segmentPreviewAutoApplyEnabled !== false,
       aiRecommendEnabled:
         (current.aiRecommendEnabled ?? defaults.aiRecommendEnabled) !== false,
-      aiRecommendAutoFillEnabled:
-        current.aiRecommendAutoFillEnabled === false
-          ? false
-          : defaults.aiRecommendAutoFillEnabled !== false,
       aiRecommendEndpoint:
         normalizeText(current.aiRecommendEndpoint) || endpointBuilder(AI_PATH, settings),
       aiRecommendRequestTimeoutMs: normalizeAiRequestTimeoutMs(
@@ -2916,14 +2911,8 @@
     }
     const state = getSegmentRecognizeActionState(options, segmentNumber);
     const normalizedMode = normalizeText(state.mode);
-    const mode =
-      normalizedMode === "force-fill"
-        ? "force-fill"
-        : normalizedMode === "fill"
-          ? "fill"
-          : "recognize";
-    button.textContent =
-      mode === "force-fill" ? "强制填入" : mode === "fill" ? "填入" : "识别音频";
+    const mode = normalizedMode === "recognize" ? "recognize" : "recognize";
+    button.textContent = "识别音频";
     button.setAttribute(SEGMENT_RECOGNIZE_ACTION_ATTR, mode);
   }
 
@@ -2948,16 +2937,7 @@
     button.addEventListener("click", function () {
       const state = getSegmentRecognizeActionState(recognizeOptions, segmentNumber);
       const normalizedMode = normalizeText(state.mode);
-      const mode =
-        normalizedMode === "force-fill"
-          ? "force-fill"
-          : normalizedMode === "fill"
-            ? "fill"
-            : "recognize";
-      if ((mode === "fill" || mode === "force-fill") && typeof recognizeOptions.onFill === "function") {
-        recognizeOptions.onFill(segmentNumber);
-        return;
-      }
+      const mode = normalizedMode === "recognize" ? "recognize" : "recognize";
       if (typeof recognizeOptions.onRecognize === "function") {
         recognizeOptions.onRecognize(segmentNumber);
       }
@@ -3290,238 +3270,42 @@
     return {
       selectionKey: normalizeText(source.selectionKey),
       segmentNumber: Number(source.segmentNumber || 0) || 0,
-      listenText: normalizeText(source.listenText),
-      finalMandarinText: normalizeText(source.finalMandarinText),
-      isSinging: source.isSinging === true,
-      isNonTaizhouDialect: source.isNonTaizhouDialect === true,
-      blockAutoFill: source.blockAutoFill === true,
+      listenText: typeof source.listenText === "string" ? source.listenText : "",
       usage: source.usage && typeof source.usage === "object" ? source.usage : {},
       cost: source.cost && typeof source.cost === "object" ? source.cost : {},
       timing: source.timing && typeof source.timing === "object" ? source.timing : {},
       models: source.models && typeof source.models === "object" ? source.models : {},
       raw: source.raw && typeof source.raw === "object" ? source.raw : {},
       debug: source.debug && typeof source.debug === "object" ? source.debug : {},
-      notes: Array.isArray(source.notes) ? source.notes.slice() : [],
     };
   }
 
-  function getRecommendationReviewReasons(recommendation) {
-    const source = recommendation && typeof recommendation === "object" ? recommendation : {};
-    const reasons = [];
-    if (source.isSinging === true) {
-      reasons.push("唱歌");
-    }
-    if (source.isNonTaizhouDialect === true) {
-      reasons.push("非台州话");
-    }
-    return reasons;
-  }
-
-  function shouldBlockRecommendationAutoFill(recommendation) {
-    const source = recommendation && typeof recommendation === "object" ? recommendation : {};
-    return (
-      source.blockAutoFill === true ||
-      source.isSinging === true ||
-      source.isNonTaizhouDialect === true
-    );
-  }
-
-  function formatRecommendationReviewReasonText(recommendation) {
-    const reasons = getRecommendationReviewReasons(recommendation);
-    return reasons.length > 0 ? reasons.join(" / ") : "待人工复核";
-  }
-
-  function buildAutoFillGuard(context) {
-    return {
-      selectionKey: normalizeText(context?.selectionKey),
-      currentSignature: normalizeText(context?.currentSignature),
-      onlyFillEmpty: true,
-    };
-  }
-
-  async function maybeAutoFillCurrentRecommendation(runtimeContext, recommendation, requestContext) {
-    if (runtimeContext?.config?.aiRecommendAutoFillEnabled === false) {
-      return {
-        attempted: false,
-        ok: false,
-        reason: "disabled",
-      };
-    }
-    if (shouldBlockRecommendationAutoFill(recommendation)) {
-      return {
-        attempted: false,
-        ok: false,
-        reason: "blocked-auto-fill",
-      };
+  async function fillCurrentRecommendation(runtimeContext, recommendation) {
+    if (recommendation?.listenText === "") {
+      runtimeContext?.ui?.setStatus?.("识别结果为空，未填入任何文本。", "warning");
+      return { ok: true, filledCount: 0, skippedCount: 1 };
     }
     if (!runtimeContext?.dataApi?.fillCurrentRegionTextIntoDom) {
-      return {
-        attempted: true,
-        ok: false,
-        result: {
-          ok: false,
-          message: "当前版本缺少单段直填能力，请刷新扩展后重试。",
-        },
-      };
+      const result = { ok: false, message: "当前版本缺少单段直填能力，请刷新扩展后重试。" };
+      runtimeContext?.ui?.setStatus?.(result.message, "error");
+      return result;
     }
     const result = await runtimeContext.dataApi.fillCurrentRegionTextIntoDom({
       segmentNumber: recommendation.segmentNumber,
-      finalMandarinText: recommendation.finalMandarinText,
-      autoFillGuard: buildAutoFillGuard(requestContext),
+      listenText: recommendation.listenText,
     });
-    if (!result.ok) {
-      runtimeContext.ui?.setStatus?.(
-        "识别结果已生成，但自动填入失败：" + normalizeText(result.message || "未知错误"),
-        "error"
-      );
-      return {
-        attempted: true,
-        ok: false,
-        result: result,
-      };
-    }
     runtimeContext.ui?.setStatus?.(result.message, result.filledCount > 0 ? "success" : "warning");
-    return {
-      attempted: true,
-      ok: true,
-      result: result,
-    };
+    return result;
   }
 
-  function buildRowRecommendCacheKey(selectionKey, segmentNumber) {
-    return normalizeText(selectionKey) + "::" + String(Math.max(1, Math.round(Number(segmentNumber || 0)) || 1));
-  }
-
-  function buildSegmentsSignature(segments) {
-    return (Array.isArray(segments) ? segments : [])
-      .map(function (item) {
-        return [
-          Math.max(1, Math.round(Number(item?.segmentNumber || 0)) || 1),
-          Math.max(0, Math.round(Number(item?.startMs || 0)) || 0),
-          Math.max(0, Math.round(Number(item?.endMs || 0)) || 0),
-        ].join(":");
-      })
-      .join("|");
-  }
-
-  function clearRowRecommendCache(runtimeContext) {
-    if (runtimeContext?.rowRecommendCache && typeof runtimeContext.rowRecommendCache.clear === "function") {
-      runtimeContext.rowRecommendCache.clear();
-    }
-  }
-
-  function retainManualRowRecommendationCache(runtimeContext, selectionKey) {
-    const cache = runtimeContext?.rowRecommendCache;
-    if (!cache || typeof cache.forEach !== "function" || typeof cache.delete !== "function") {
-      return;
-    }
-    cache.forEach(function (cached, cacheKey) {
-      const keep =
-        normalizeText(cached?.selectionKey) === selectionKey &&
-        (cached?.manualFillRequired === true || shouldBlockRecommendationAutoFill(cached));
-      if (!keep) {
-        cache.delete(cacheKey);
-      }
-    });
-  }
-
-  function syncRowRecommendCacheContext(runtimeContext, context) {
-    if (!runtimeContext) {
-      return false;
-    }
-    const nextSelectionKey = normalizeText(context?.selectionKey);
-    const nextSegmentsSignature = buildSegmentsSignature(context?.currentSegments);
-    const selectionChanged = normalizeText(runtimeContext.rowRecommendScopeKey) !== nextSelectionKey;
-    const segmentsChanged =
-      normalizeText(runtimeContext.rowRecommendSegmentsSignature) !== nextSegmentsSignature;
-    const changed = selectionChanged || segmentsChanged;
-    runtimeContext.rowRecommendScopeKey = nextSelectionKey;
-    runtimeContext.rowRecommendSegmentsSignature = nextSegmentsSignature;
-    if (selectionChanged) {
-      clearRowRecommendCache(runtimeContext);
-    } else if (segmentsChanged) {
-      retainManualRowRecommendationCache(runtimeContext, nextSelectionKey);
-    }
-    return changed;
-  }
-
-  function getCachedRowRecommendation(runtimeContext, selectionKey, segmentNumber) {
-    if (!runtimeContext?.rowRecommendCache || typeof runtimeContext.rowRecommendCache.get !== "function") {
-      return null;
-    }
-    return runtimeContext.rowRecommendCache.get(
-      buildRowRecommendCacheKey(selectionKey, segmentNumber)
-    ) || null;
-  }
-
-  function cacheRowRecommendation(runtimeContext, selectionKey, recommendation) {
-    if (!runtimeContext?.rowRecommendCache || typeof runtimeContext.rowRecommendCache.set !== "function") {
-      return;
-    }
-    runtimeContext.rowRecommendCache.set(
-      buildRowRecommendCacheKey(selectionKey, recommendation.segmentNumber),
-      {
-        selectionKey: selectionKey,
-        segmentNumber: recommendation.segmentNumber,
-        finalMandarinText: recommendation.finalMandarinText,
-        isSinging: recommendation.isSinging === true,
-        isNonTaizhouDialect: recommendation.isNonTaizhouDialect === true,
-        blockAutoFill: recommendation.blockAutoFill === true,
-        manualFillRequired: recommendation.manualFillRequired === true,
-        displayPayload: Object.assign({}, recommendation),
-      }
-    );
-  }
-
-  function deleteCachedRowRecommendation(runtimeContext, selectionKey, segmentNumber) {
-    if (!runtimeContext?.rowRecommendCache || typeof runtimeContext.rowRecommendCache.delete !== "function") {
-      return;
-    }
-    runtimeContext.rowRecommendCache.delete(
-      buildRowRecommendCacheKey(selectionKey, segmentNumber)
-    );
-  }
 
   function buildSegmentRecognizeButtonOptions() {
     return {
       onRecognize: function (segmentNumber) {
         void handleRowRecommendAction(segmentNumber);
       },
-      onFill: function (segmentNumber) {
-        void handleFillRowRecommendAction(segmentNumber);
-      },
-      getActionState: function (segmentNumber) {
-        if (!helperRuntime) {
-          return {
-            mode: "recognize",
-          };
-        }
-        const cached = getCachedRowRecommendation(
-          helperRuntime,
-          helperRuntime.rowRecommendScopeKey,
-          segmentNumber
-        );
-        if (!cached) {
-          return {
-            mode: "recognize",
-          };
-        }
-        if (shouldBlockRecommendationAutoFill(cached)) {
-          return {
-            mode: "force-fill",
-          };
-        }
-        if (
-          cached.manualFillRequired === true ||
-          helperRuntime.config?.aiRecommendAutoFillEnabled === false
-        ) {
-          return {
-            mode: "fill",
-          };
-        }
-        return {
-          mode: "recognize",
-        };
+      getActionState: function () {
+        return { mode: "recognize" };
       },
     };
   }
@@ -3687,12 +3471,8 @@
     const ai = deps.ai || null;
     const ui = deps.ui || null;
     let activeRun = null;
-    let pendingFill = null;
-    let autoFillEnabled =
-      typeof deps.getAutoFillEnabled === "function" ? deps.getAutoFillEnabled() !== false : true;
-
     function getIdleActionMode() {
-      return autoFillEnabled ? "recognizeAndFill" : "recognize";
+      return "recognizeAndWrite";
     }
 
     function pickBatchAiActiveSegment(results) {
@@ -3706,68 +3486,20 @@
       return 0;
     }
 
-    function getPendingActionMode(source) {
-      return Number(source?.reviewCount || 0) > 0 ? "force-fill" : "fill";
-    }
-
-    function buildPendingFillMessage(updateCount, reviewCount) {
-      const safeCount = Math.max(0, Number(updateCount || 0) - Number(reviewCount || 0));
-      if (reviewCount > 0 && safeCount > 0) {
-        return (
-          "已生成 " +
-          String(safeCount) +
-          " 段可直接写回结果，另有 " +
-          String(reviewCount) +
-          " 段待复核，点击“强制填入”可写回当前结果。"
-        );
-      }
-      if (reviewCount > 0) {
-        return (
-          "已生成 " +
-          String(reviewCount) +
-          " 段待复核结果，默认不自动填入，点击“强制填入”可写回当前结果。"
-        );
-      }
-      return (
-        "已生成 " + String(updateCount) + " 段识别结果，点击“填入”可写回当前结果。"
-      );
-    }
-
-    function buildForceFillStatusMessage(baseMessage, reviewCount) {
-      const normalizedBase = normalizeText(baseMessage);
-      if (Number(reviewCount || 0) <= 0) {
-        return normalizedBase || "批量写回已完成。";
-      }
-      if (normalizedBase) {
-        return normalizedBase + " 待复核 " + String(reviewCount) + " 段，请继续人工复核。";
-      }
-      return "已强制填入待复核结果，请继续人工复核。";
-    }
-
     function render(run, phaseText, actionMode) {
       const source = run && typeof run === "object" ? run : {};
       const normalizedActionMode = normalizeText(actionMode) || getIdleActionMode();
       ui?.renderBatchState?.({
         phaseText: phaseText,
         actionMode: normalizedActionMode,
-        hasPendingFill: normalizedActionMode === "fill" || normalizedActionMode === "force-fill",
         totalCount: Number(source.totalCount || 0) || 0,
         concurrency: Number(source.concurrency || 0) || 0,
         succeededCount: Number(source.succeededCount || 0) || 0,
         failedCount: Number(source.failedCount || 0) || 0,
         skippedCount: Number(source.skippedCount || 0) || 0,
-        reviewCount: Number(source.reviewCount || 0) || 0,
         currentSegmentNumber: Number(source.currentSegmentNumber || 0) || 0,
         failures: Array.isArray(source.failures) ? source.failures.slice() : [],
       });
-    }
-
-    function clearPendingFill(keepBatchResults) {
-      pendingFill = null;
-      if (keepBatchResults !== true) {
-        ui?.renderBatchAiResults?.([], 0);
-      }
-      render(null, "", getIdleActionMode());
     }
 
     async function runRecognition(selectedNumbers) {
@@ -3809,13 +3541,9 @@
         succeededCount: 0,
         failedCount: 0,
         skippedCount: 0,
-        reviewCount: 0,
         failures: [],
         updates: [],
-        directUpdates: [],
-        reviewUpdates: [],
         results: [],
-        reviewResults: [],
         stopRequested: false,
       };
       activeRun = run;
@@ -3857,18 +3585,12 @@
           if (entry.ok) {
             const payload = buildRecommendationDisplayPayload(entry.value);
             run.results.push(payload);
-            if (payload.finalMandarinText) {
+            if (payload.listenText !== "") {
               const update = {
                 segmentNumber: payload.segmentNumber,
-                finalMandarinText: payload.finalMandarinText,
+                listenText: payload.listenText,
               };
-              if (shouldBlockRecommendationAutoFill(payload)) {
-                run.reviewUpdates.push(update);
-                run.reviewResults.push(payload);
-                run.reviewCount += 1;
-              } else {
-                run.directUpdates.push(update);
-              }
+              run.updates.push(update);
               run.succeededCount += 1;
             } else {
               run.skippedCount += 1;
@@ -3893,7 +3615,6 @@
         normalizeText(liveContext?.currentSignature) !== run.currentSignature
       ) {
         activeRun = null;
-        clearPendingFill();
         return {
           ok: false,
           message: "当前题或分段状态已变化，已取消批量写回，请刷新后重试。",
@@ -3903,13 +3624,9 @@
       run.results.sort(function (left, right) {
         return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
       });
-      run.directUpdates.sort(function (left, right) {
+      run.updates.sort(function (left, right) {
         return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
       });
-      run.reviewUpdates.sort(function (left, right) {
-        return (Number(left.segmentNumber || 0) || 0) - (Number(right.segmentNumber || 0) || 0);
-      });
-      run.updates = run.directUpdates.concat(run.reviewUpdates);
       activeRun = null;
       ui?.renderBatchAiResults?.(run.results, pickBatchAiActiveSegment(run.results));
       return {
@@ -3922,12 +3639,9 @@
         succeededCount: run.succeededCount,
         failedCount: run.failedCount,
         skippedCount: run.skippedCount,
-        reviewCount: run.reviewCount,
         failures: run.failures.slice(),
         results: run.results.slice(),
         updates: run.updates.slice(),
-        directUpdates: run.directUpdates.slice(),
-        reviewUpdates: run.reviewUpdates.slice(),
         stopRequested: run.stopRequested === true,
       };
     }
@@ -3940,38 +3654,12 @@
       });
     }
 
-    async function start(selectedNumbers, runtimeOptions) {
-      const options = runtimeOptions && typeof runtimeOptions === "object" ? runtimeOptions : {};
-      const shouldAutoFill = options.autoFill === false ? false : options.autoFill === true ? true : autoFillEnabled;
+    async function start(selectedNumbers) {
       const result = await runRecognition(selectedNumbers);
       if (!result?.ok) {
         return result;
       }
-      if (!shouldAutoFill || result.stopRequested === true) {
-        pendingFill =
-          Array.isArray(result.updates) && result.updates.length > 0
-            ? {
-                selectionKey: normalizeText(result.selectionKey),
-                currentSignature: normalizeText(result.currentSignature),
-                totalCount: Number(result.totalCount || 0) || 0,
-                concurrency: Number(result.concurrency || 0) || 0,
-                succeededCount: Number(result.succeededCount || 0) || 0,
-                failedCount: Number(result.failedCount || 0) || 0,
-                skippedCount: Number(result.skippedCount || 0) || 0,
-                reviewCount: Number(result.reviewCount || 0) || 0,
-                failures: Array.isArray(result.failures) ? result.failures.slice() : [],
-                results: Array.isArray(result.results) ? result.results.slice() : [],
-                directUpdates: Array.isArray(result.directUpdates)
-                  ? result.directUpdates.slice()
-                  : [],
-                reviewUpdates: Array.isArray(result.reviewUpdates)
-                  ? result.reviewUpdates.slice()
-                  : [],
-                updates: result.updates.slice(),
-              }
-            : null;
-        const hasPendingFill = Boolean(pendingFill && pendingFill.updates.length > 0);
-        const pendingActionMode = hasPendingFill ? getPendingActionMode(pendingFill) : getIdleActionMode();
+      if (result.stopRequested === true) {
         render(
           {
             totalCount: result.totalCount,
@@ -3979,199 +3667,43 @@
             succeededCount: result.succeededCount,
             failedCount: result.failedCount,
             skippedCount: result.skippedCount,
-            reviewCount: result.reviewCount,
             failures: result.failures,
           },
-          hasPendingFill ? (result.stopRequested ? "批量识别已停止" : "批量识别已完成") : "",
-          pendingActionMode
+          "批量识别已停止",
+          getIdleActionMode()
         );
-        if (hasPendingFill) {
-          const pendingMessage = buildPendingFillMessage(
-            pendingFill.updates.length,
-            pendingFill.reviewCount
-          );
-          const successMessage = result.stopRequested
-            ? "批量识别已停止，" + pendingMessage
-            : pendingMessage;
-          ui?.setStatus?.(successMessage, result.stopRequested ? "warning" : "success");
-          return Object.assign({}, result, {
-            message: successMessage,
-            pendingFill: true,
-            writtenCount: 0,
-          });
-        }
-        const warningMessage = result.stopRequested
-          ? "批量识别已停止，但当前没有可填入的文本。"
-          : "批量识别已完成，但当前没有可填入的文本。";
-        ui?.setStatus?.(warningMessage, "warning");
+        const message = "批量识别已停止，已返回结果未写回平台。";
+        ui?.setStatus?.(message, "warning");
         return Object.assign({}, result, {
-          message: warningMessage,
-          pendingFill: false,
+          message: message,
           writtenCount: 0,
         });
       }
-
-      if (Array.isArray(result.reviewUpdates) && result.reviewUpdates.length > 0) {
-        let saveResult = {
-          ok: true,
-          message: "",
-          writtenCount: 0,
-          skippedCount: 0,
-        };
-        let pendingSignature = normalizeText(result.currentSignature);
-        if (Array.isArray(result.directUpdates) && result.directUpdates.length > 0) {
-          saveResult = await writeUpdates(
-            result.selectionKey,
-            result.currentSignature,
-            result.directUpdates
-          );
-          if (saveResult.ok) {
-            const expectedCurrentSignature = normalizeText(saveResult.expectedCurrentSignature);
-            const postWriteContext = await dataApi.getCurrentContext();
-            if (
-              expectedCurrentSignature &&
-              normalizeText(postWriteContext?.selectionKey) === normalizeText(result.selectionKey) &&
-              normalizeText(postWriteContext?.currentSignature) === expectedCurrentSignature
-            ) {
-              pendingSignature = expectedCurrentSignature;
-            }
-          }
-        }
-        const mergedSkippedCount =
-          Number(result.skippedCount || 0) + Number(saveResult.skippedCount || 0);
-        pendingFill = {
-          selectionKey: normalizeText(result.selectionKey),
-          currentSignature: pendingSignature,
-          totalCount: Number(result.totalCount || 0) || 0,
-          concurrency: Number(result.concurrency || 0) || 0,
-          succeededCount: Number(result.succeededCount || 0) || 0,
-          failedCount: Number(result.failedCount || 0) || 0,
-          skippedCount: mergedSkippedCount,
-          reviewCount: Number(result.reviewCount || 0) || 0,
-          failures: Array.isArray(result.failures) ? result.failures.slice() : [],
-          results: Array.isArray(result.results) ? result.results.slice() : [],
-          directUpdates: [],
-          reviewUpdates: result.reviewUpdates.slice(),
-          updates: result.reviewUpdates.slice(),
-        };
-        render(
-          pendingFill,
-          saveResult.ok ? "批量写回完成" : "批量写回失败",
-          getPendingActionMode(pendingFill)
-        );
-        let reviewMessage = "";
-        if (saveResult.ok && saveResult.writtenCount > 0) {
-          reviewMessage =
-            "已自动填入 " +
-            String(saveResult.writtenCount) +
-            " 段，另有 " +
-            String(result.reviewCount) +
-            " 段待复核，点击“强制填入”可写回剩余结果。";
-          ui?.setStatus?.(reviewMessage, "warning");
-        } else if (saveResult.ok) {
-          reviewMessage =
-            "当前识别结果命中" +
-            String(result.reviewCount) +
-            " 段待复核，默认不自动填入，点击“强制填入”可写回当前结果。";
-          ui?.setStatus?.(reviewMessage, "warning");
-        } else {
-          reviewMessage = normalizeText(saveResult.message) || "批量写回失败。";
-          ui?.setStatus?.(reviewMessage, "error");
-        }
-        return Object.assign({}, result, saveResult, {
-          message: reviewMessage,
-          pendingFill: true,
-          writtenCount: Number(saveResult.writtenCount || 0) || 0,
-          skippedCount: mergedSkippedCount,
-        });
-      }
-
       const saveResult = await writeUpdates(
         result.selectionKey,
         result.currentSignature,
         result.updates
       );
+      const skippedCount = result.skippedCount + Number(saveResult.skippedCount || 0);
       render(
         {
           totalCount: result.totalCount,
           concurrency: result.concurrency,
           succeededCount: result.succeededCount,
           failedCount: result.failedCount,
-          skippedCount: result.skippedCount + Number(saveResult.skippedCount || 0),
-          reviewCount: result.reviewCount,
+          skippedCount: skippedCount,
           failures: result.failures,
         },
         saveResult.ok ? "批量写回完成" : "批量写回失败",
         getIdleActionMode()
       );
-      if (saveResult.ok && saveResult.writtenCount > 0) {
-        ui?.setStatus?.(saveResult.message, "success");
-      } else if (saveResult.ok) {
-        ui?.setStatus?.(saveResult.message, "warning");
-      } else {
-        ui?.setStatus?.(saveResult.message, "error");
-      }
+      ui?.setStatus?.(
+        saveResult.message,
+        saveResult.ok && saveResult.writtenCount > 0 ? "success" : saveResult.ok ? "warning" : "error"
+      );
       return Object.assign({}, result, saveResult, {
-        pendingFill: false,
-        skippedCount: result.skippedCount + Number(saveResult.skippedCount || 0),
+        skippedCount: skippedCount,
       });
-    }
-
-    async function fillPending() {
-      if (activeRun) {
-        return {
-          ok: false,
-          message: "当前仍有批量识别正在运行，请等待结束后再填入。",
-        };
-      }
-      if (!pendingFill || !Array.isArray(pendingFill.updates) || pendingFill.updates.length <= 0) {
-        render(null, "", getIdleActionMode());
-        return {
-          ok: false,
-          message: "当前没有可填入的批量识别结果。",
-        };
-      }
-      const liveContext = await dataApi.getCurrentContext();
-      if (
-        normalizeText(liveContext?.selectionKey) !== pendingFill.selectionKey ||
-        normalizeText(liveContext?.currentSignature) !== pendingFill.currentSignature
-      ) {
-        clearPendingFill();
-        return {
-          ok: false,
-          message: "当前题或分段状态已变化，已取消批量写回，请刷新后重试。",
-        };
-      }
-      render(pendingFill, "批量写回进行中", "running");
-      const saveResult = await writeUpdates(
-        pendingFill.selectionKey,
-        pendingFill.currentSignature,
-        pendingFill.updates
-      );
-      const mergedSkippedCount =
-        Number(pendingFill.skippedCount || 0) + Number(saveResult.skippedCount || 0);
-      render(
-        Object.assign({}, pendingFill, {
-          skippedCount: mergedSkippedCount,
-        }),
-        saveResult.ok ? "批量写回完成" : "批量写回失败",
-        getIdleActionMode()
-      );
-      const finalMessage = buildForceFillStatusMessage(saveResult.message, pendingFill.reviewCount);
-      if (saveResult.ok && saveResult.writtenCount > 0) {
-        ui?.setStatus?.(finalMessage, "success");
-      } else if (saveResult.ok) {
-        ui?.setStatus?.(finalMessage, "warning");
-      } else {
-        ui?.setStatus?.(finalMessage, "error");
-      }
-      const result = Object.assign({}, pendingFill, saveResult, {
-        message: finalMessage,
-        pendingFill: false,
-        skippedCount: mergedSkippedCount,
-      });
-      pendingFill = null;
-      return result;
     }
 
     function stop() {
@@ -4184,41 +3716,13 @@
       return true;
     }
 
-    function setAutoFillEnabled(enabled) {
-      autoFillEnabled = enabled !== false;
-      if (!activeRun) {
-        render(
-          pendingFill,
-          "",
-          pendingFill && Array.isArray(pendingFill.updates) && pendingFill.updates.length > 0
-            ? getPendingActionMode(pendingFill)
-            : getIdleActionMode()
-        );
-      }
-    }
-
-    function syncContext(context) {
-      const selectionKey = normalizeText(context?.selectionKey);
-      const currentSignature = normalizeText(context?.currentSignature);
-      if (
-        pendingFill &&
-        (pendingFill.selectionKey !== selectionKey || pendingFill.currentSignature !== currentSignature)
-      ) {
-        clearPendingFill();
-      }
-    }
-
     function dispose() {
       activeRun = null;
-      pendingFill = null;
     }
 
     return {
       start,
-      fillPending,
       stop,
-      setAutoFillEnabled,
-      syncContext,
       dispose,
     };
   }
@@ -4543,8 +4047,6 @@
           return;
         }
         const context = await helperRuntime.dataApi.getCurrentContext();
-        syncRowRecommendCacheContext(helperRuntime, context);
-        helperRuntime.batchController?.syncContext?.(context);
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
           helperRuntime.playbackScopeKey ||
@@ -4616,50 +4118,13 @@
     }
   }
 
-  async function handleAiRecommendAutoFillToggle(nextEnabled) {
-    if (!helperRuntime) {
-      return;
-    }
-    const previousEnabled = helperRuntime.config?.aiRecommendAutoFillEnabled !== false;
-    helperRuntime.config = Object.assign({}, helperRuntime.config || {}, {
-      aiRecommendAutoFillEnabled: nextEnabled !== false,
-    });
-    if (!STORAGE || typeof STORAGE.patchSettings !== "function") {
-      return;
-    }
-    try {
-      const settings = await STORAGE.patchSettings({
-        platforms: {
-          bytedanceAidp: {
-            scripts: {
-              taizhouHelper: {
-                id: SCRIPT_ID,
-                aiRecommendAutoFillEnabled: nextEnabled !== false,
-              },
-            },
-          },
-        },
-      });
-      runtimePolicy = resolveRuntimePolicy(settings);
-      ensureHelperRuntime(settings);
-    } catch (error) {
-      helperRuntime.config = Object.assign({}, helperRuntime.config || {}, {
-        aiRecommendAutoFillEnabled: previousEnabled,
-      });
-      helperRuntime.ui?.setAiRecommendAutoFillEnabled?.(previousEnabled);
-      helperRuntime.ui?.setStatus?.(
-        "保存自动填入开关失败：" + (error && error.message ? error.message : String(error)),
-        "error"
-      );
-    }
-  }
 
   async function handleRecommendAction() {
     if (!helperRuntime || !helperRuntime.ai) {
       return;
     }
     helperRuntime.ui.mount();
-    helperRuntime.ui.setStatus("正在识别当前段普通话翻译...", "");
+    helperRuntime.ui.setStatus("正在识别当前段原始听音...", "");
     try {
       const context = await helperRuntime.dataApi.getCurrentContext();
       helperRuntime.ui.renderAudioContext(context);
@@ -4670,29 +4135,11 @@
         );
         return;
       }
-      const requestContext = buildActiveSegmentRequestContext(context);
-      const recommendation = await helperRuntime.ai.recommend(requestContext);
+      const recommendation = await helperRuntime.ai.recommend(buildActiveSegmentRequestContext(context));
       helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
       helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
       helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
-      const autoFillResult = await maybeAutoFillCurrentRecommendation(
-        helperRuntime,
-        helperRuntime.lastRecommendation,
-        context
-      );
-      if (autoFillResult.attempted) {
-        return;
-      }
-      if (autoFillResult.reason === "blocked-auto-fill") {
-        helperRuntime.ui.setStatus(
-          "识别结果已生成，检测到" +
-            formatRecommendationReviewReasonText(helperRuntime.lastRecommendation) +
-            "，默认不自动填入，请人工复核后点击“强制填入当前段”。",
-          "warning"
-        );
-        return;
-      }
-      helperRuntime.ui.setStatus("识别结果已生成，可继续复核或暂存。", "success");
+      await fillCurrentRecommendation(helperRuntime, helperRuntime.lastRecommendation);
     } catch (error) {
       helperRuntime.ui.setStatus(
         "识别失败：" + (error && error.message ? error.message : String(error)),
@@ -4721,14 +4168,10 @@
     helperRuntime.rowRecommendInFlight = true;
     helperRuntime.rowRecommendSegmentNumber = targetSegmentNumber;
     helperRuntime.ui.mount();
-    helperRuntime.ui.setStatus("正在识别第 " + String(targetSegmentNumber) + " 段普通话翻译...", "");
+    helperRuntime.ui.setStatus("正在识别第 " + String(targetSegmentNumber) + " 段原始听音...", "");
     try {
       const context = await helperRuntime.dataApi.getCurrentContext();
-      const cacheContextChanged = syncRowRecommendCacheContext(helperRuntime, context);
       helperRuntime.ui.renderAudioContext(context);
-      if (cacheContextChanged) {
-        syncRowRecognizeButtons();
-      }
       if (!normalizeText(context?.audioUrl)) {
         helperRuntime.ui.setStatus(
           "当前还没拿到音频地址，请等待页面初始化完成，或刷新当前详情页后重试。",
@@ -4736,79 +4179,13 @@
         );
         return;
       }
-      const requestContext = buildSegmentRequestContext(context, targetSegmentNumber);
-      const recommendation = await helperRuntime.ai.recommend(requestContext);
+      const recommendation = await helperRuntime.ai.recommend(
+        buildSegmentRequestContext(context, targetSegmentNumber)
+      );
       helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
       helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
       helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
-      const selectionKey = normalizeText(context?.selectionKey);
-      if (
-        helperRuntime.config?.aiRecommendAutoFillEnabled === false ||
-        shouldBlockRecommendationAutoFill(helperRuntime.lastRecommendation)
-      ) {
-        if (!normalizeText(helperRuntime.lastRecommendation.finalMandarinText)) {
-          deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
-          syncRowRecognizeButtons();
-          helperRuntime.ui.setStatus(
-            "第 " + String(targetSegmentNumber) + " 段识别结果为空，当前没有可填入的文本。",
-            "warning"
-          );
-          return;
-        }
-        cacheRowRecommendation(helperRuntime, selectionKey, helperRuntime.lastRecommendation);
-        syncRowRecognizeButtons();
-        if (shouldBlockRecommendationAutoFill(helperRuntime.lastRecommendation)) {
-          helperRuntime.ui.setStatus(
-            "已生成第 " +
-              String(targetSegmentNumber) +
-              " 段识别结果，检测到" +
-              formatRecommendationReviewReasonText(helperRuntime.lastRecommendation) +
-              "，点击“强制填入”可写入输入框。",
-            "warning"
-          );
-          return;
-        }
-        helperRuntime.ui.setStatus(
-          "已生成第 " + String(targetSegmentNumber) + " 段识别结果，点击“填入”可写入输入框。",
-          "success"
-        );
-        return;
-      }
-      if (!helperRuntime.dataApi?.fillCurrentRegionTextIntoDom) {
-        helperRuntime.ui.setStatus("当前版本缺少单段直填能力，请刷新扩展后重试。", "error");
-        return;
-      }
-      const result = await helperRuntime.dataApi.fillCurrentRegionTextIntoDom({
-        segmentNumber: helperRuntime.lastRecommendation.segmentNumber,
-        finalMandarinText: helperRuntime.lastRecommendation.finalMandarinText,
-        autoFillGuard: buildAutoFillGuard(context),
-      });
-      if (!result.ok) {
-        helperRuntime.ui.setStatus(
-          "第 " +
-            String(targetSegmentNumber) +
-            " 段识别已生成，但写回失败：" +
-            normalizeText(result.message || "未知错误"),
-          "error"
-        );
-        return;
-      }
-      if (result.filledCount > 0) {
-        deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
-      } else if (
-        result.autoFillSkipped === true &&
-        normalizeText(helperRuntime.lastRecommendation.finalMandarinText)
-      ) {
-        cacheRowRecommendation(
-          helperRuntime,
-          selectionKey,
-          Object.assign({}, helperRuntime.lastRecommendation, {
-            manualFillRequired: true,
-          })
-        );
-      }
-      syncRowRecognizeButtons();
-      helperRuntime.ui.setStatus(result.message, result.filledCount > 0 ? "success" : "warning");
+      await fillCurrentRecommendation(helperRuntime, helperRuntime.lastRecommendation);
     } catch (error) {
       helperRuntime.ui.setStatus(
         "第 " +
@@ -4823,84 +4200,6 @@
         helperRuntime.rowRecommendSegmentNumber = 0;
       }
     }
-  }
-
-  async function handleFillRowRecommendAction(segmentNumber) {
-    if (!helperRuntime?.dataApi?.fillCurrentRegionTextIntoDom) {
-      helperRuntime?.ui?.setStatus?.("当前版本缺少单段直填能力，请刷新扩展后重试。", "error");
-      return;
-    }
-    const targetSegmentNumber = Math.max(0, Math.round(Number(segmentNumber || 0)) || 0);
-    if (targetSegmentNumber <= 0) {
-      helperRuntime?.ui?.setStatus?.("当前没有可填入的目标段，请刷新页面后重试。", "error");
-      return;
-    }
-    try {
-      const context = await helperRuntime.dataApi.getCurrentContext();
-      const cacheContextChanged = syncRowRecommendCacheContext(helperRuntime, context);
-      helperRuntime.ui.renderAudioContext(context);
-      if (cacheContextChanged) {
-        syncRowRecognizeButtons();
-      }
-      const selectionKey = normalizeText(context?.selectionKey);
-      const cached = getCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
-      if (!cached) {
-        helperRuntime.ui.setStatus(
-          "请先完成第 " + String(targetSegmentNumber) + " 段识别，再点击“填入”或“强制填入”。",
-          "error"
-        );
-        syncRowRecognizeButtons();
-        return;
-      }
-      if (cached.displayPayload) {
-        helperRuntime.lastRecommendation = Object.assign({}, cached.displayPayload);
-        helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
-        helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
-      }
-      const result = await helperRuntime.dataApi.fillCurrentRegionTextIntoDom({
-        segmentNumber: targetSegmentNumber,
-        finalMandarinText: cached.finalMandarinText,
-      });
-      if (result.ok) {
-        deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
-        syncRowRecognizeButtons();
-      }
-      helperRuntime.ui.setStatus(result.message, result.filledCount > 0 ? "success" : result.ok ? "warning" : "error");
-      if (result.ok && result.filledCount > 0 && shouldBlockRecommendationAutoFill(cached)) {
-        helperRuntime.ui.setStatus(
-          "已强制填入第 " + String(targetSegmentNumber) + " 段，请继续人工复核。",
-          "success"
-        );
-      }
-    } catch (error) {
-      helperRuntime.ui.setStatus(
-        "第 " +
-          String(targetSegmentNumber) +
-          " 段填入失败：" +
-          (error && error.message ? error.message : String(error)),
-        "error"
-      );
-    }
-  }
-
-  async function handleWriteCurrentRecommendAction(forceFill) {
-    if (!helperRuntime || !helperRuntime.lastRecommendation) {
-      helperRuntime?.ui?.setStatus?.("请先生成识别结果。", "error");
-      return;
-    }
-    if (!helperRuntime.dataApi?.fillCurrentRegionTextIntoDom) {
-      helperRuntime.ui.setStatus("当前版本缺少单段直填能力，请刷新扩展后重试。", "error");
-      return;
-    }
-    const result = await helperRuntime.dataApi.fillCurrentRegionTextIntoDom({
-      segmentNumber: helperRuntime.lastRecommendation.segmentNumber,
-      finalMandarinText: helperRuntime.lastRecommendation.finalMandarinText,
-    });
-    if (result.ok && result.filledCount > 0 && forceFill === true) {
-      helperRuntime.ui.setStatus("已强制填入当前段，请继续人工复核。", "success");
-      return;
-    }
-    helperRuntime.ui.setStatus(result.message, result.filledCount > 0 ? "success" : result.ok ? "warning" : "error");
   }
 
   async function handleBatchRecommendAction(selectedNumbers) {
@@ -4922,36 +4221,6 @@
     }
   }
 
-  async function handleBatchFillAction() {
-    if (!helperRuntime?.batchController) {
-      return;
-    }
-    helperRuntime.ui.mount();
-    helperRuntime.ui.setStatus("正在填入最近一次批量识别结果...", "");
-    try {
-      const result = await helperRuntime.batchController.fillPending();
-      if (!result?.ok) {
-        helperRuntime.ui.setStatus(
-          normalizeText(result?.message || "当前没有可填入的批量识别结果。"),
-          "error"
-        );
-        return;
-      }
-      if (result.writtenCount > 0) {
-        scheduleRuntimeReload(helperRuntime);
-        return;
-      }
-      helperRuntime.ui.setStatus(
-        normalizeText(result.message || "当前没有新的批量结果需要填入。"),
-        "warning"
-      );
-    } catch (error) {
-      helperRuntime.ui.setStatus(
-        "批量填入失败：" + (error && error.message ? error.message : String(error)),
-        "error"
-      );
-    }
-  }
 
   async function handlePreviewAction() {
     if (!helperRuntime) {
@@ -5157,10 +4426,6 @@
       helperRuntime.ui.setSegmentPreviewAutoApplyEnabled?.(
         helperConfig.segmentPreviewAutoApplyEnabled
       );
-      helperRuntime.ui.setAiRecommendAutoFillEnabled?.(helperConfig.aiRecommendAutoFillEnabled);
-      helperRuntime.batchController?.setAutoFillEnabled?.(
-        helperConfig.aiRecommendAutoFillEnabled
-      );
       if (typeof document !== "undefined" && !isWavePlaybackActive(document)) {
         runWithProtectedScrollState(document, function () {
           helperRuntime.ui.mount();
@@ -5196,22 +4461,12 @@
     });
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: helperConfig.segmentPreviewAutoApplyEnabled,
-      aiRecommendAutoFillEnabled: helperConfig.aiRecommendAutoFillEnabled,
-      onToggleAiRecommendAutoFill: function (nextEnabled) {
-        void handleAiRecommendAutoFillToggle(nextEnabled);
-      },
       onRecommend: function () {
         if (helperConfig.aiRecommendEnabled === false) {
           ui.setStatus("当前已关闭台州话 AI 功能。", "error");
           return;
         }
         void handleRecommendAction();
-      },
-      onWriteCurrentRecommend: function () {
-        void handleWriteCurrentRecommendAction(false);
-      },
-      onForceFillCurrent: function () {
-        void handleWriteCurrentRecommendAction(true);
       },
       onBatchRecommend: function (selectedNumbers) {
         if (helperConfig.aiRecommendEnabled === false) {
@@ -5222,9 +4477,6 @@
       },
       onBatchStop: function () {
         helperRuntime?.batchController?.stop?.();
-      },
-      onBatchFill: function () {
-        void handleBatchFillAction();
       },
       onPreview: function () {
         void handlePreviewAction();
@@ -5269,9 +4521,6 @@
       dataApi: dataApi,
       ai: ai,
       ui: ui,
-      getAutoFillEnabled: function () {
-        return helperConfig.aiRecommendAutoFillEnabled;
-      },
     });
     helperRuntime = {
       dataApi: dataApi,
@@ -5289,10 +4538,7 @@
       batchSelectionKey: "",
       rowRecommendInFlight: false,
       rowRecommendSegmentNumber: 0,
-      rowRecommendScopeKey: "",
-      rowRecommendSegmentsSignature: "",
       rowRecognizeLayoutSignature: "",
-      rowRecommendCache: new Map(),
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
       },
@@ -5553,7 +4799,7 @@
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
       createSegmentRecognizeButton: createSegmentRecognizeButton,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
-      maybeAutoFillCurrentRecommendation: maybeAutoFillCurrentRecommendation,
+      fillCurrentRecommendation: fillCurrentRecommendation,
       buildSegmentRecognizeButtonOptions: buildSegmentRecognizeButtonOptions,
       handleRecommendAction: handleRecommendAction,
       handleRowRecommendAction: handleRowRecommendAction,

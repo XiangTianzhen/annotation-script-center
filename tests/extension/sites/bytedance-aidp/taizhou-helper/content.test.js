@@ -1185,7 +1185,6 @@ test("ByteDance AIDP content resolves Taizhou AI config with normalized Omni par
         scripts: {
           taizhouHelper: {
             aiRecommendEnabled: true,
-            aiRecommendAutoFillEnabled: false,
             aiRecommendEndpoint: "http://127.0.0.1:3333/api/bytedance-aidp/taizhou-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: 999999,
             aiRecommendOmniModel: "qwen3.5-omni-flash",
@@ -1201,7 +1200,6 @@ test("ByteDance AIDP content resolves Taizhou AI config with normalized Omni par
   });
 
   assert.equal(config.aiRecommendEnabled, true);
-  assert.equal(config.aiRecommendAutoFillEnabled, false);
   assert.equal(config.aiRecommendRequestTimeoutMs, 60000);
   assert.equal(config.aiOmni.model, "qwen3.5-omni-flash");
   assert.equal(config.aiOmni.prompt, "omni prompt");
@@ -2006,53 +2004,7 @@ test("ByteDance AIDP content row recognize button dispatches the matching segmen
   assert.deepEqual(clickedSegments, [2]);
 });
 
-test("ByteDance AIDP content switches row recognize button into fill mode when cached text is pending", function () {
-  const contentModule = loadContentModule();
-  const recognizeSegments = [];
-  const fillSegments = [];
-  const rowOne = createAidpSegmentTableRow(1);
-  const rowTwo = createAidpSegmentTableRow(2);
-  const table = new FakeElement({
-    tagName: "table",
-    children: [
-      new FakeElement({
-        tagName: "tr",
-        children: [
-          new FakeElement({ tagName: "th", text: "序号" }),
-          new FakeElement({ tagName: "th", text: "区间" }),
-          new FakeElement({ tagName: "th", text: "转写文本" }),
-          new FakeElement({ tagName: "th", text: "语音种类" }),
-          new FakeElement({ tagName: "th", text: "音频段" }),
-          new FakeElement({ tagName: "th", text: "操作" }),
-        ],
-      }),
-      rowOne,
-      rowTwo,
-    ],
-  });
-  const root = createFakeDocument([table]);
 
-  contentModule.__testOnly.ensureSegmentRecognizeButtons(root, {
-    onRecognize(segmentNumber) {
-      recognizeSegments.push(segmentNumber);
-    },
-    onFill(segmentNumber) {
-      fillSegments.push(segmentNumber);
-    },
-    getActionState(segmentNumber) {
-      return segmentNumber === 2 ? { mode: "fill" } : { mode: "recognize" };
-    },
-  });
-  const recognizeButtons = root.querySelectorAll("[data-asc-segment-recognize-button='true']");
-
-  assert.equal(recognizeButtons[0].textContent, "识别音频");
-  assert.equal(recognizeButtons[1].textContent, "填入");
-  recognizeButtons[1].click();
-  recognizeButtons[0].click();
-
-  assert.deepEqual(fillSegments, [2]);
-  assert.deepEqual(recognizeSegments, [1]);
-});
 
 test("ByteDance AIDP content injects per-row recognize buttons into Arco virtualized segment rows", function () {
   const contentModule = loadContentModule();
@@ -2442,405 +2394,52 @@ test("ByteDance AIDP content keeps preview when auto-apply is disabled", async f
   });
 });
 
-test("ByteDance AIDP content keeps blocked current recommendation for manual force fill", async function () {
+test("ByteDance AIDP single recognition fills the textarea with the exact listenText", async function () {
   const contentModule = loadContentModule();
-  let fillCalls = 0;
-  const autoFillResult = await contentModule.__testOnly.maybeAutoFillCurrentRecommendation(
-    {
-      config: {
-        aiRecommendAutoFillEnabled: true,
+  const fillCalls = [];
+  const statusCalls = [];
+  const runtime = {
+    dataApi: {
+      async fillCurrentRegionTextIntoDom(payload) {
+        fillCalls.push(payload);
+        return { ok: true, message: "已填入。", filledCount: 1, skippedCount: 0 };
       },
+    },
+    ui: {
+      setStatus(message, tone) {
+        statusCalls.push({ message, tone });
+      },
+    },
+  };
+
+  const result = await contentModule.__testOnly.fillCurrentRecommendation(runtime, {
+    segmentNumber: 2,
+    listenText: "  台州听音 3！！！  ",
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(fillCalls, [{ segmentNumber: 2, listenText: "  台州听音 3！！！  " }]);
+  assert.equal(statusCalls.at(-1).tone, "success");
+});
+
+test("ByteDance AIDP empty listenText never writes the textarea", async function () {
+  const contentModule = loadContentModule();
+  let writeCount = 0;
+  const result = await contentModule.__testOnly.fillCurrentRecommendation(
+    {
       dataApi: {
         async fillCurrentRegionTextIntoDom() {
-          fillCalls += 1;
-          return {
-            ok: true,
-            message: "should not run",
-            filledCount: 1,
-            skippedCount: 0,
-          };
+          writeCount += 1;
+          return { ok: true, filledCount: 1 };
         },
       },
+      ui: { setStatus() {} },
     },
-    {
-      segmentNumber: 3,
-      finalMandarinText: "歌词还是需要人工决定要不要填。",
-      isSinging: true,
-      blockAutoFill: true,
-    }
+    { segmentNumber: 1, listenText: "" }
   );
 
-  assert.deepEqual(autoFillResult, {
-    attempted: false,
-    ok: false,
-    reason: "blocked-auto-fill",
-  });
-  assert.equal(fillCalls, 0);
-});
-
-test("ByteDance AIDP current and row auto-fill pass request snapshots and retain guarded row results", async function () {
-  const contentModule = loadContentModule();
-  const fillCalls = [];
-  const statusCalls = [];
-  const requestContext = {
-    audioUrl: "https://example.test/audio.m4a",
-    selectionKey: "selection-before-auto-fill",
-    currentSignature: "signature-before-auto-fill",
-    taskId: "task-before-auto-fill",
-    itemId: "item-before-auto-fill",
-    entryId: "entry-before-auto-fill",
-    templateID: "template-before-auto-fill",
-    activeSegmentNumber: 1,
-    activeSegment: {
-      segmentNumber: 1,
-      startMs: 0,
-      endMs: 1200,
-      text: "",
-      language: "目标方言",
-    },
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  };
-  const helperRuntime = {
-    config: {
-      aiRecommendEnabled: true,
-      aiRecommendAutoFillEnabled: true,
-    },
-    ai: {
-      async recommend(request) {
-        return {
-          selectionKey: requestContext.selectionKey,
-          segmentNumber: request.segmentNumber,
-          listenText: "听音结果",
-          finalMandarinText: "安全普通话结果",
-        };
-      },
-    },
-    dataApi: {
-      async getCurrentContext() {
-        return requestContext;
-      },
-      async fillCurrentRegionTextIntoDom(payload) {
-        fillCalls.push(payload);
-        return {
-          ok: true,
-          message: "自动填入已跳过，识别结果已保留。",
-          filledCount: 0,
-          skippedCount: 1,
-          autoFillSkipped: true,
-          skipReason: "stale-context",
-        };
-      },
-    },
-    ui: {
-      mount() {},
-      renderAudioContext() {},
-      renderCurrentRecommendation() {},
-      renderAiMeta() {},
-      setStatus(message, tone) {
-        statusCalls.push({ message, tone });
-      },
-    },
-    rowRecommendCache: new Map(),
-  };
-
-  contentModule.__testOnly.setHelperRuntimeForTest(helperRuntime);
-  try {
-    await contentModule.__testOnly.handleRecommendAction();
-    await contentModule.__testOnly.handleRowRecommendAction(1);
-
-    assert.equal(fillCalls.length, 2);
-    assert.deepEqual(
-      fillCalls.map(function (payload) {
-        return payload.autoFillGuard;
-      }),
-      [
-        {
-          selectionKey: requestContext.selectionKey,
-          currentSignature: requestContext.currentSignature,
-          onlyFillEmpty: true,
-        },
-        {
-          selectionKey: requestContext.selectionKey,
-          currentSignature: requestContext.currentSignature,
-          onlyFillEmpty: true,
-        },
-      ]
-    );
-    assert.equal(
-      helperRuntime.rowRecommendCache.has(requestContext.selectionKey + "::1"),
-      true
-    );
-    assert.equal(
-      contentModule.__testOnly.buildSegmentRecognizeButtonOptions().getActionState(1).mode,
-      "fill"
-    );
-    assert.equal(
-      statusCalls.some(function (item) {
-        return item.tone === "success" && /已填入/.test(String(item.message || ""));
-      }),
-      false
-    );
-  } finally {
-    contentModule.__testOnly.setHelperRuntimeForTest(null);
-  }
-});
-
-test("ByteDance AIDP row auto-fill keeps a guarded same-item result available after segments change", async function () {
-  const contentModule = loadContentModule();
-  const fillCalls = [];
-  const statusCalls = [];
-  const requestContext = {
-    audioUrl: "https://example.test/audio.m4a",
-    selectionKey: "selection-guarded-row-result",
-    currentSignature: "signature-before-redraw",
-    taskId: "task-guarded-row-result",
-    itemId: "item-guarded-row-result",
-    entryId: "entry-guarded-row-result",
-    templateID: "template-guarded-row-result",
-    activeSegmentNumber: 1,
-    activeSegment: {
-      segmentNumber: 1,
-      startMs: 0,
-      endMs: 1200,
-      text: "",
-      language: "目标方言",
-    },
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  };
-  const changedContext = Object.assign({}, requestContext, {
-    currentSignature: "signature-after-redraw",
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 100,
-        endMs: 1100,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  });
-  let contextReadCount = 0;
-  const helperRuntime = {
-    config: {
-      aiRecommendEnabled: true,
-      aiRecommendAutoFillEnabled: true,
-    },
-    ai: {
-      async recommend(request) {
-        return {
-          selectionKey: requestContext.selectionKey,
-          segmentNumber: request.segmentNumber,
-          listenText: "听音结果",
-          finalMandarinText: "需要用户确认的普通话结果",
-        };
-      },
-    },
-    dataApi: {
-      async getCurrentContext() {
-        contextReadCount += 1;
-        return contextReadCount === 1 ? requestContext : changedContext;
-      },
-      async fillCurrentRegionTextIntoDom(payload) {
-        fillCalls.push(payload);
-        if (payload.autoFillGuard) {
-          return {
-            ok: true,
-            message: "自动填入已跳过，识别结果已保留。",
-            filledCount: 0,
-            skippedCount: 1,
-            autoFillSkipped: true,
-            skipReason: "stale-context",
-          };
-        }
-        return {
-          ok: true,
-          message: "已填入第 1 段输入框。",
-          filledCount: 1,
-          skippedCount: 0,
-        };
-      },
-    },
-    ui: {
-      mount() {},
-      renderAudioContext() {},
-      renderCurrentRecommendation() {},
-      renderAiMeta() {},
-      setStatus(message, tone) {
-        statusCalls.push({ message, tone });
-      },
-    },
-    rowRecommendCache: new Map(),
-  };
-
-  contentModule.__testOnly.setHelperRuntimeForTest(helperRuntime);
-  try {
-    await contentModule.__testOnly.handleRowRecommendAction(1);
-    assert.equal(
-      contentModule.__testOnly.buildSegmentRecognizeButtonOptions().getActionState(1).mode,
-      "fill"
-    );
-
-    contentModule.__testOnly.buildSegmentRecognizeButtonOptions().onFill(1);
-    await new Promise(function (resolve) {
-      setImmediate(resolve);
-    });
-
-    assert.equal(fillCalls.length, 2, "同题分段变化后仍应执行用户显式填入");
-    assert.equal(fillCalls[1].autoFillGuard, undefined, "显式填入不应携带自动写入保护");
-    assert.equal(
-      statusCalls.some(function (item) {
-        return /请先完成第 1 段识别/.test(String(item.message || ""));
-      }),
-      false
-    );
-  } finally {
-    contentModule.__testOnly.setHelperRuntimeForTest(null);
-  }
-});
-
-test("ByteDance AIDP row force-fill keeps a blocked same-item result available after segments change", async function () {
-  const contentModule = loadContentModule();
-  const fillCalls = [];
-  const statusCalls = [];
-  const requestContext = {
-    audioUrl: "https://example.test/audio.m4a",
-    selectionKey: "selection-blocked-row-result",
-    currentSignature: "signature-before-risk-redraw",
-    taskId: "task-blocked-row-result",
-    itemId: "item-blocked-row-result",
-    entryId: "entry-blocked-row-result",
-    templateID: "template-blocked-row-result",
-    activeSegmentNumber: 1,
-    activeSegment: {
-      segmentNumber: 1,
-      startMs: 0,
-      endMs: 1200,
-      text: "",
-      language: "目标方言",
-    },
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  };
-  const changedContext = Object.assign({}, requestContext, {
-    currentSignature: "signature-after-risk-redraw",
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 100,
-        endMs: 1100,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  });
-  let contextReadCount = 0;
-  const helperRuntime = {
-    config: {
-      aiRecommendEnabled: true,
-      aiRecommendAutoFillEnabled: true,
-    },
-    ai: {
-      async recommend(request) {
-        return {
-          selectionKey: requestContext.selectionKey,
-          segmentNumber: request.segmentNumber,
-          listenText: "可识别唱歌文本",
-          finalMandarinText: "保留给人工确认的结果",
-          isSinging: true,
-          blockAutoFill: true,
-        };
-      },
-    },
-    dataApi: {
-      async getCurrentContext() {
-        contextReadCount += 1;
-        return contextReadCount === 1 ? requestContext : changedContext;
-      },
-      async fillCurrentRegionTextIntoDom(payload) {
-        fillCalls.push(payload);
-        return {
-          ok: true,
-          message: "已填入第 1 段输入框。",
-          filledCount: 1,
-          skippedCount: 0,
-        };
-      },
-    },
-    ui: {
-      mount() {},
-      renderAudioContext() {},
-      renderCurrentRecommendation() {},
-      renderAiMeta() {},
-      setStatus(message, tone) {
-        statusCalls.push({ message, tone });
-      },
-    },
-    rowRecommendCache: new Map(),
-  };
-
-  contentModule.__testOnly.setHelperRuntimeForTest(helperRuntime);
-  try {
-    await contentModule.__testOnly.handleRowRecommendAction(1);
-    assert.equal(
-      contentModule.__testOnly.buildSegmentRecognizeButtonOptions().getActionState(1).mode,
-      "force-fill"
-    );
-
-    contentModule.__testOnly.buildSegmentRecognizeButtonOptions().onFill(1);
-    await new Promise(function (resolve) {
-      setImmediate(resolve);
-    });
-
-    assert.equal(fillCalls.length, 1, "同题分段变化后仍应执行用户显式强制填入");
-    assert.equal(fillCalls[0].autoFillGuard, undefined, "强制填入不应携带自动写入保护");
-    assert.equal(
-      statusCalls.some(function (item) {
-        return /请先完成第 1 段识别/.test(String(item.message || ""));
-      }),
-      false
-    );
-  } finally {
-    contentModule.__testOnly.setHelperRuntimeForTest(null);
-  }
-});
-
-test("ByteDance AIDP row recognize button switches to force-fill label for blocked cached results", function () {
-  const contentModule = loadContentModule();
-  const root = createFakeDocument([]);
-  const button = contentModule.__testOnly.createSegmentRecognizeButton(root, 4, {
-    getActionState() {
-      return {
-        mode: "force-fill",
-      };
-    },
-  });
-
-  assert.ok(button);
-  assert.equal(button.textContent, "强制填入");
-  assert.equal(button.getAttribute("data-asc-segment-recognize-action"), "force-fill");
+  assert.equal(result.filledCount, 0);
+  assert.equal(writeCount, 0);
 });
 
 test("ByteDance AIDP content exposes exactly the expected shortcut action handlers", async function () {
@@ -3004,109 +2603,9 @@ test("ByteDance AIDP content hides both panel root and native segment table cont
   );
 });
 
-test("ByteDance AIDP batch controller caches results without writeback when auto-fill is disabled", async function () {
-  const contentModule = loadContentModule();
-  const renderStates = [];
-  const statusCalls = [];
-  const writeCalls = [];
-  const currentContext = {
-    audioUrl: "https://example.test/audio.m4a",
-    selectionKey: "selection-1",
-    currentSignature: "signature-1",
-    taskId: "task-1",
-    itemId: "item-1",
-    entryId: "entry-1",
-    templateID: "template-1",
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-      {
-        segmentNumber: 2,
-        startMs: 1200,
-        endMs: 2400,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  };
-  const controller = contentModule.__testOnly.createBatchRecommendController({
-    dataApi: {
-      async getCurrentContext() {
-        return currentContext;
-      },
-      async writeBatchRegionTexts(payload) {
-        writeCalls.push(payload);
-        return {
-          ok: true,
-          message: "unexpected write",
-          writtenCount: 2,
-          skippedCount: 0,
-        };
-      },
-    },
-    ai: {
-      createSharedAudioSource(audioUrl) {
-        return { audioUrl };
-      },
-      async recommendForSegment(requestContext) {
-        const segmentNumber = Number(requestContext.segmentNumber || 0) || 0;
-        return {
-          selectionKey: currentContext.selectionKey,
-          segmentNumber,
-          listenText: "第" + String(segmentNumber) + "段听音",
-          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
-          debug: { segmentNumber },
-        };
-      },
-    },
-    ui: {
-      renderBatchState(snapshot) {
-        renderStates.push(snapshot);
-      },
-      setStatus(message, tone) {
-        statusCalls.push({ message, tone });
-      },
-    },
-  });
-
-  const result = await controller.start([1, 2], {
-    autoFill: false,
-  });
-
-  assert.equal(writeCalls.length, 0);
-  assert.equal(result.ok, true);
-  assert.equal(result.pendingFill, true);
-  assert.equal(result.results.length, 2);
-  assert.deepEqual(
-    result.updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [1, 2]
-  );
-  assert.equal(
-    renderStates.some(function (item) {
-      return item && item.actionMode === "fill";
-    }),
-    true
-  );
-  assert.equal(
-    statusCalls.some(function (item) {
-      return /点击“填入”/.test(String(item.message || ""));
-    }),
-    true
-  );
-});
-
-test("ByteDance AIDP batch controller writes once after recognition when auto-fill is enabled", async function () {
+test("ByteDance AIDP batch controller writes every non-empty original listenText once", async function () {
   const contentModule = loadContentModule();
   const writeCalls = [];
-  const renderStates = [];
-  const statusCalls = [];
   const currentContext = {
     audioUrl: "https://example.test/audio.m4a",
     selectionKey: "selection-2",
@@ -3116,382 +2615,77 @@ test("ByteDance AIDP batch controller writes once after recognition when auto-fi
     entryId: "entry-2",
     templateID: "template-2",
     currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-      {
-        segmentNumber: 2,
-        startMs: 1200,
-        endMs: 2400,
-        text: "",
-        language: "目标方言",
-      },
+      { segmentNumber: 1, startMs: 0, endMs: 1200, text: "", language: "目标方言" },
+      { segmentNumber: 2, startMs: 1200, endMs: 2400, text: "", language: "目标方言" },
     ],
   };
   const controller = contentModule.__testOnly.createBatchRecommendController({
     dataApi: {
-      async getCurrentContext() {
-        return currentContext;
-      },
+      async getCurrentContext() { return currentContext; },
       async writeBatchRegionTexts(payload) {
         writeCalls.push(payload);
-        return {
-          ok: true,
-          message: "已写回 2 段。",
-          writtenCount: 2,
-          skippedCount: 0,
-        };
+        return { ok: true, message: "已写回 2 段。", writtenCount: 2, skippedCount: 0 };
       },
     },
     ai: {
-      createSharedAudioSource(audioUrl) {
-        return { audioUrl };
-      },
+      createSharedAudioSource(audioUrl) { return { audioUrl }; },
       async recommendForSegment(requestContext) {
-        const segmentNumber = Number(requestContext.segmentNumber || 0) || 0;
+        const number = Number(requestContext.segmentNumber || 0) || 0;
         return {
           selectionKey: currentContext.selectionKey,
-          segmentNumber,
-          listenText: "第" + String(segmentNumber) + "段听音",
-          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
-          isSinging: segmentNumber === 2,
-          blockAutoFill: segmentNumber === 2,
+          segmentNumber: number,
+          listenText: number === 1 ? "  第1段听音  " : "第2段听音",
         };
       },
     },
-    ui: {
-      renderBatchState(snapshot) {
-        renderStates.push(snapshot);
-      },
-      setStatus(message, tone) {
-        statusCalls.push({ message, tone });
-      },
-    },
+    ui: { renderBatchState() {}, setStatus() {} },
   });
 
-  const result = await controller.start([1, 2], {
-    autoFill: true,
-  });
+  const result = await controller.start([1, 2]);
 
   assert.equal(result.ok, true);
   assert.equal(writeCalls.length, 1);
-  assert.deepEqual(
-    writeCalls[0].updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [1]
-  );
-  assert.equal(result.pendingFill, true);
-  assert.equal(result.reviewCount, 1);
-  assert.equal(
-    renderStates.some(function (item) {
-      return item && item.actionMode === "force-fill";
-    }),
-    true
-  );
-  assert.equal(
-    statusCalls.some(function (item) {
-      return /待复核/.test(String(item.message || ""));
-    }),
-    true
-  );
+  assert.deepEqual(writeCalls[0].updates, [
+    { segmentNumber: 1, listenText: "  第1段听音  " },
+    { segmentNumber: 2, listenText: "第2段听音" },
+  ]);
+  assert.equal(result.writtenCount, 2);
 });
 
-test("ByteDance AIDP batch controller refreshes the pending signature before forced review writeback", async function () {
+test("ByteDance AIDP stopped batch keeps returned listenText out of platform writeback", async function () {
   const contentModule = loadContentModule();
-  const writeCalls = [];
-  const initialContext = {
+  const writes = [];
+  const context = {
     audioUrl: "https://example.test/audio.m4a",
-    selectionKey: "selection-mixed-review",
-    currentSignature: "signature-before-safe-write",
-    taskId: "task-mixed-review",
-    itemId: "item-mixed-review",
-    entryId: "entry-mixed-review",
-    templateID: "template-mixed-review",
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-      {
-        segmentNumber: 2,
-        startMs: 1200,
-        endMs: 2400,
-        text: "",
-        language: "目标方言",
-      },
-    ],
+    selectionKey: "stopped",
+    currentSignature: "stopped-signature",
+    currentSegments: [{ segmentNumber: 1, startMs: 0, endMs: 1000, text: "", language: "" }],
   };
-  const postSafeWriteContext = Object.assign({}, initialContext, {
-    currentSignature: "signature-after-safe-write",
-  });
-  const contexts = [
-    initialContext,
-    initialContext,
-    postSafeWriteContext,
-    postSafeWriteContext,
-  ];
-  let contextReadIndex = 0;
+  let started;
+  let resolveRecognition;
   const controller = contentModule.__testOnly.createBatchRecommendController({
     dataApi: {
-      async getCurrentContext() {
-        const context = contexts[Math.min(contextReadIndex, contexts.length - 1)];
-        contextReadIndex += 1;
-        return context;
-      },
-      async writeBatchRegionTexts(payload) {
-        writeCalls.push(payload);
-        return {
-          ok: true,
-          message: "已写回。",
-          writtenCount: 1,
-          skippedCount: 0,
-          expectedCurrentSignature: postSafeWriteContext.currentSignature,
-        };
-      },
+      async getCurrentContext() { return context; },
+      async writeBatchRegionTexts(payload) { writes.push(payload); return { ok: true, writtenCount: 1 }; },
     },
     ai: {
-      createSharedAudioSource(audioUrl) {
-        return { audioUrl };
-      },
-      async recommendForSegment(requestContext) {
-        const segmentNumber = Number(requestContext.segmentNumber || 0) || 0;
-        return {
-          selectionKey: initialContext.selectionKey,
-          segmentNumber,
-          listenText: "第" + String(segmentNumber) + "段听音",
-          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
-          isSinging: segmentNumber === 2,
-          blockAutoFill: segmentNumber === 2,
-        };
+      createSharedAudioSource() { return {}; },
+      recommendForSegment() {
+        return new Promise((resolve) => { started = resolve; }).then(() => ({ segmentNumber: 1, listenText: "返回文本" }));
       },
     },
-    ui: {},
+    ui: { renderBatchState() {}, setStatus() {} },
   });
-
-  const startResult = await controller.start([1, 2], {
-    autoFill: true,
-  });
-  const forceFillResult = await controller.fillPending();
-
-  assert.equal(startResult.ok, true);
-  assert.equal(writeCalls.length, 2);
-  assert.deepEqual(
-    writeCalls[0].updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [1]
-  );
-  assert.equal(writeCalls[1].currentSignature, postSafeWriteContext.currentSignature);
-  assert.deepEqual(
-    writeCalls[1].updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [2]
-  );
-  assert.equal(forceFillResult.ok, true);
-  assert.equal(forceFillResult.writtenCount, 1);
-});
-
-test("ByteDance AIDP batch controller fails closed when an external same-item change follows safe writeback", async function () {
-  const contentModule = loadContentModule();
-  const writeCalls = [];
-  const initialContext = {
-    audioUrl: "https://example.test/audio.m4a",
-    selectionKey: "selection-external-change",
-    currentSignature: "signature-before-safe-write",
-    taskId: "task-external-change",
-    itemId: "item-external-change",
-    entryId: "entry-external-change",
-    templateID: "template-external-change",
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-      {
-        segmentNumber: 2,
-        startMs: 1200,
-        endMs: 2400,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  };
-  const postExternalChangeContext = Object.assign({}, initialContext, {
-    currentSignature: "signature-after-external-change",
-  });
-  const contexts = [
-    initialContext,
-    initialContext,
-    postExternalChangeContext,
-    postExternalChangeContext,
-  ];
-  let contextReadIndex = 0;
-  const controller = contentModule.__testOnly.createBatchRecommendController({
-    dataApi: {
-      async getCurrentContext() {
-        const context = contexts[Math.min(contextReadIndex, contexts.length - 1)];
-        contextReadIndex += 1;
-        return context;
-      },
-      async writeBatchRegionTexts(payload) {
-        writeCalls.push(payload);
-        return {
-          ok: true,
-          message: "已写回。",
-          writtenCount: 1,
-          skippedCount: 0,
-          expectedCurrentSignature: "signature-after-safe-write",
-        };
-      },
-    },
-    ai: {
-      createSharedAudioSource(audioUrl) {
-        return { audioUrl };
-      },
-      async recommendForSegment(requestContext) {
-        const segmentNumber = Number(requestContext.segmentNumber || 0) || 0;
-        return {
-          selectionKey: initialContext.selectionKey,
-          segmentNumber,
-          listenText: "第" + String(segmentNumber) + "段听音",
-          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
-          isSinging: segmentNumber === 2,
-          blockAutoFill: segmentNumber === 2,
-        };
-      },
-    },
-    ui: {},
-  });
-
-  const startResult = await controller.start([1, 2], {
-    autoFill: true,
-  });
-  const forceFillResult = await controller.fillPending();
-
-  assert.equal(startResult.ok, true);
-  assert.equal(startResult.pendingFill, true);
-  assert.equal(writeCalls.length, 1);
-  assert.deepEqual(
-    writeCalls[0].updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [1]
-  );
-  assert.equal(forceFillResult.ok, false);
-  assert.match(forceFillResult.message, /已取消批量写回/);
-});
-
-test("ByteDance AIDP batch controller keeps stopped in-flight safe results pending instead of auto-writing", async function () {
-  const contentModule = loadContentModule();
-  const writeCalls = [];
-  const renderStates = [];
-  const currentContext = {
-    audioUrl: "https://example.test/audio.m4a",
-    selectionKey: "selection-stopped-in-flight",
-    currentSignature: "signature-stopped-in-flight",
-    taskId: "task-stopped-in-flight",
-    itemId: "item-stopped-in-flight",
-    entryId: "entry-stopped-in-flight",
-    templateID: "template-stopped-in-flight",
-    currentSegments: [
-      {
-        segmentNumber: 1,
-        startMs: 0,
-        endMs: 1200,
-        text: "",
-        language: "目标方言",
-      },
-    ],
-  };
-  let notifyRecommendationStarted;
-  let resolveRecommendation;
-  const recommendationStarted = new Promise(function (resolve) {
-    notifyRecommendationStarted = resolve;
-  });
-  const controller = contentModule.__testOnly.createBatchRecommendController({
-    dataApi: {
-      async getCurrentContext() {
-        return currentContext;
-      },
-      async writeBatchRegionTexts(payload) {
-        writeCalls.push(payload);
-        return {
-          ok: true,
-          message: "已写回。",
-          writtenCount: payload.updates.length,
-          skippedCount: 0,
-        };
-      },
-    },
-    ai: {
-      createSharedAudioSource(audioUrl) {
-        return { audioUrl };
-      },
-      recommendForSegment(requestContext) {
-        return new Promise(function (resolve) {
-          resolveRecommendation = resolve;
-          notifyRecommendationStarted();
-        }).then(function () {
-          return {
-            selectionKey: currentContext.selectionKey,
-            segmentNumber: Number(requestContext.segmentNumber || 0) || 0,
-            listenText: "已返回的听音结果",
-            finalMandarinText: "已返回的安全普通话结果",
-          };
-        });
-      },
-    },
-    ui: {
-      renderBatchState(snapshot) {
-        renderStates.push(snapshot);
-      },
-    },
-  });
-
-  const startPromise = controller.start([1]);
-  await recommendationStarted;
+  const pending = controller.start([1]);
+  for (let index = 0; index < 4 && !started; index += 1) {
+    await Promise.resolve();
+  }
+  assert.equal(typeof started, "function");
   assert.equal(controller.stop(), true);
-  resolveRecommendation();
-  const result = await startPromise;
-
-  assert.equal(writeCalls.length, 0, "停止后的在途结果不得自动写回");
-  assert.equal(result.ok, true);
-  assert.equal(result.pendingFill, true);
-  assert.equal(result.writtenCount, 0);
-  assert.deepEqual(
-    result.updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [1]
-  );
-  assert.equal(
-    renderStates.some(function (item) {
-      return item && item.actionMode === "fill";
-    }),
-    true
-  );
-
-  const fillResult = await controller.fillPending();
-  assert.equal(fillResult.ok, true);
-  assert.equal(writeCalls.length, 1);
-  assert.deepEqual(
-    writeCalls[0].updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [1]
-  );
+  started();
+  const result = await pending;
+  assert.equal(result.stopRequested, true);
+  assert.equal(writes.length, 0);
 });
 
 test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Space play-pause toggle", function () {

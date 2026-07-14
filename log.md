@@ -4,6 +4,8 @@
 
 ## 2026-07-14
 
+- 重构(bytedance-aidp): 台州话切换为原始听音直填诊断模式。后端仅接受严格 JSON 的 `listenText`，移除普通话转换、文本清洗、风险/复核、强制填入和自动填入分支；单段直填 textarea，批量仅暂存写入当前页 `regions[*].txt`，全程不保存、不提交、不切题。
+- 测试(bytedance-aidp): 覆盖 `listenText` 原样保留、空/非法 JSON 不写入、单段直填、批量单次暂存写回、停止批量不二次写回，以及台州 Options 不显示自动填入开关。
 - 重构(bytedance-aidp): 台州话识别改为每段单次 Qwen Omni 调用，默认 `qwen3.5-omni-plus`，仅允许切换至 `qwen3.5-omni-flash`；听音、普通话转换、风险判断和复核信息合并为同一 JSON。
 - 优化(bytedance-aidp): Storage schema 升至 32；仅把旧台州听音模型迁移到全模态模型，旧两阶段 Prompt 与生成参数不复用。前端请求、AI 面板和 CSV 日志统一为 `omni` 模型、usage、cost、raw 与 debug 字段。
 - 修复(bytedance-aidp): 最终普通话文本增加代码级标点白名单、数字汉字化、无效字符移除及明显口吃式单字/短词重复压缩；JSON 解析失败时强制人工复核并阻止自动填入。
