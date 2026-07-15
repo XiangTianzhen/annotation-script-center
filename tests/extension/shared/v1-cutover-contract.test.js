@@ -15,6 +15,7 @@ const RETAINED_PLATFORM_IDS = ["bytedanceAidp", "dataBakerCvpc", "magicData"];
 const RETAINED_SCRIPT_IDS = [
   "bytedanceAidpJinhuaHelper",
   "bytedanceAidpSuzhouHelper",
+  "bytedanceAidpTaizhouHelper",
   "dataBakerCvpcLiuzhouAssistant",
   "magicDataHangzhouAssistant",
 ];
@@ -62,7 +63,7 @@ function loadStorage(initialSettings) {
   };
 }
 
-test("1.0.0 catalog contains only the four promoted scripts", function () {
+test("1.0.0 catalog contains the five promoted scripts", function () {
   const constants = loadConstants();
   const platformIds = Object.values(constants.PLATFORM_LIBRARY)
     .map((item) => item.id)
@@ -73,7 +74,7 @@ test("1.0.0 catalog contains only the four promoted scripts", function () {
   assert.deepEqual(platformIds, RETAINED_PLATFORM_IDS);
   assert.deepEqual(scriptIds, RETAINED_SCRIPT_IDS);
   assert.equal(scripts.every((item) => !("visibility" in item)), true);
-  assert.equal(constants.SCHEMA_VERSION, 30);
+  assert.equal(constants.SCHEMA_VERSION, 32);
 });
 
 test("1.0.0 constants expose only server and local backend modes", function () {
@@ -90,29 +91,39 @@ test("1.0.0 constants expose only server and local backend modes", function () {
   );
 });
 
-test("1.0.0 runtime accessibility follows retained script enablement and AIDP mutual exclusion", function () {
+test("1.0.0 runtime accessibility follows retained script enablement and AIDP three-way mutual exclusion", function () {
   const constants = loadConstants();
   const settings = cloneForRuntimeTest(constants.DEFAULT_SETTINGS);
 
   assert.equal(constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", {}), true);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", {}), true);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpJinhuaHelper", {}), false);
+  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpTaizhouHelper", {}), false);
   assert.equal(constants.isScriptRuntimeAccessible("magicDataHangzhouAssistant", {}), false);
 
   assert.equal(constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", settings), true);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", settings), true);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpJinhuaHelper", settings), false);
+  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpTaizhouHelper", settings), false);
   assert.equal(constants.isScriptRuntimeAccessible("magicDataHangzhouAssistant", settings), false);
 
   settings.platforms.bytedanceAidp.activeScriptId = "bytedanceAidpJinhuaHelper";
   settings.platforms.bytedanceAidp.scripts.suzhouHelper.enabled = false;
   settings.platforms.bytedanceAidp.scripts.jinhuaHelper.enabled = true;
+  settings.platforms.bytedanceAidp.scripts.taizhouHelper.enabled = false;
   settings.platforms.magicData.activeScriptId = "magicDataHangzhouAssistant";
   settings.platforms.magicData.scripts.hangzhouHelper.enabled = true;
   settings.platforms.magicData.scripts.hangzhouHelper.aiReviewEnabled = true;
 
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", settings), false);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpJinhuaHelper", settings), true);
+  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpTaizhouHelper", settings), false);
+
+  settings.platforms.bytedanceAidp.activeScriptId = "bytedanceAidpTaizhouHelper";
+  settings.platforms.bytedanceAidp.scripts.jinhuaHelper.enabled = false;
+  settings.platforms.bytedanceAidp.scripts.taizhouHelper.enabled = true;
+  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpJinhuaHelper", settings), false);
+  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpTaizhouHelper", settings), true);
   assert.equal(constants.isScriptRuntimeAccessible("magicDataHangzhouAssistant", settings), true);
 });
 
@@ -123,7 +134,7 @@ function cloneForRuntimeTest(value) {
 test("1.0.0 settings normalization preserves retained settings and drops unknown state", async function () {
   const harness = loadStorage({
     meta: {
-      schemaVersion: 30,
+      schemaVersion: 31,
       backendEndpointMode: "server",
       backendBaseUrls: {
         server: "https://server.example.test",
@@ -145,6 +156,7 @@ test("1.0.0 settings normalization preserves retained settings and drops unknown
         scripts: {
           suzhouHelper: { enabled: false },
           jinhuaHelper: { enabled: true, segmentContextPaddingMs: 280 },
+          taizhouHelper: { enabled: false },
         },
       },
       magicData: {
@@ -163,7 +175,7 @@ test("1.0.0 settings normalization preserves retained settings and drops unknown
   try {
     const settings = await harness.storage.getSettings();
     assert.deepEqual(Object.keys(settings.platforms).sort(), RETAINED_PLATFORM_IDS);
-    assert.equal(settings.meta.schemaVersion, 30);
+    assert.equal(settings.meta.schemaVersion, 32);
     assert.equal(settings.meta.backendEndpointMode, "server");
     assert.deepEqual(settings.meta.backendBaseUrls, {
       server: "https://server.example.test",
@@ -188,7 +200,7 @@ test("1.0.0 settings normalization preserves retained settings and drops unknown
   }
 });
 
-test("1.0.0 manifest references only retained runtimes", function () {
+test("1.0.0 manifest references every retained runtime", function () {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const scriptPaths = (manifest.content_scripts || []).flatMap((entry) => entry.js || []);
   const resourcePaths = (manifest.web_accessible_resources || []).flatMap(
@@ -202,6 +214,7 @@ test("1.0.0 manifest references only retained runtimes", function () {
   assert.match(joined, /sites\/data-baker-cvpc\/liuzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/suzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/jinhua-helper\//);
+  assert.match(joined, /sites\/bytedance-aidp\/taizhou-helper\//);
   assert.match(joined, /sites\/magic-data\/hangzhou-helper\//);
   assert.doesNotMatch(
     joined,

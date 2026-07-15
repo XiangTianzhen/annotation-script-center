@@ -32,7 +32,7 @@ const exportSummaryCards = computed(() => [
   },
   {
     label: "导出范围",
-    value: "四脚本 AI 日志",
+    value: "五脚本 AI 日志",
     note: "扩展版本下载位于公开脚本下载中心，这里只保留 AI 日志导出。",
   },
 ]);
@@ -79,7 +79,7 @@ onMounted(loadOptions);
 <template>
   <AdminPageFrame
     title="数据导出"
-    description="这里只保留四个正式脚本的 AI 请求记录导出；扩展版本下载位于公开脚本下载中心。"
+    description="这里只保留五个正式脚本的 AI 请求记录导出；扩展版本下载位于公开脚本下载中心。"
   >
       <div id="admin-download-summary" class="admin-summary-grid">
         <article

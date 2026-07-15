@@ -9,6 +9,7 @@ import {
 
 const SUZHOU_ID = "bytedanceAidpSuzhouHelper";
 const JINHUA_ID = "bytedanceAidpJinhuaHelper";
+const TAIZHOU_ID = "bytedanceAidpTaizhouHelper";
 const CVPC_ID = "dataBakerCvpcLiuzhouAssistant";
 const HANGZHOU_ID = "magicDataHangzhouAssistant";
 
@@ -35,6 +36,28 @@ function aidpPayload() {
     supportedModels: {
       listen: ["qwen3.5-omni-flash"],
       refine: ["qwen3.5-plus"],
+    },
+  };
+}
+
+function taizhouOmniPayload() {
+  return {
+    success: true,
+    defaults: {
+      timeoutMs: 60000,
+      omni: {
+        model: "qwen3.5-omni-plus",
+        prompt: "后端全模态 Prompt",
+        params: {
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          stop: ["END", "STOP"],
+        },
+      },
+    },
+    supportedModels: {
+      omni: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
     },
   };
 }
@@ -87,6 +110,31 @@ describe("script defaults and draft adapters", () => {
     expect(state.config.aiRecommendRefinePrompt).toBe("后端收口 Prompt");
   });
 
+  test("loads the Taizhou defaults route with the single Qwen Omni contract", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => taizhouOmniPayload(),
+    }));
+
+    const state = await loadScriptDefaults(TAIZHOU_ID, {}, fetchImpl);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://backend.example.test/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(state.status).toBe("loaded");
+    expect(state.config.aiRecommendOmniModel).toBe("qwen3.5-omni-plus");
+    expect(state.config.aiRecommendOmniPrompt).toBe("后端全模态 Prompt");
+    expect(state.config.aiRecommendOmniTemperature).toBe("0.1");
+    expect(state.config.aiRecommendOmniStopSequences).toBe("END\nSTOP");
+    expect(state.options.omniModels.map((item) => item.value)).toEqual([
+      "qwen3.5-omni-plus",
+      "qwen3.5-omni-flash",
+    ]);
+    expect(state.config).not.toHaveProperty("aiRecommendListenPrompt");
+    expect(state.config).not.toHaveProperty("aiRecommendRefinePrompt");
+  });
+
   test("maps the CVPC flat stage parameters and stop sequences", async () => {
     const state = await loadScriptDefaults(
       CVPC_ID,
@@ -135,7 +183,7 @@ describe("script defaults and draft adapters", () => {
     expect(state.config.aiRecommendRefineStopSequences).toBe("DONE");
   });
 
-  test("keeps the four existing defaults routes fixed", () => {
+  test("keeps the five existing defaults routes fixed", () => {
     expect(SCRIPT_DEFAULT_ENDPOINTS).toEqual({
       dataBakerCvpcLiuzhouAssistant:
         "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
@@ -143,6 +191,8 @@ describe("script defaults and draft adapters", () => {
         "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
       bytedanceAidpJinhuaHelper:
         "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
+      bytedanceAidpTaizhouHelper:
+        "/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
       magicDataHangzhouAssistant:
         "/api/magic-data/hangzhou-helper/ai/defaults",
     });
@@ -226,6 +276,52 @@ describe("script defaults and draft adapters", () => {
       "qwen3.5-plus",
       "qwen3.5-flash",
     ]);
+  });
+
+  test("Taizhou fallback exposes only the allowed Omni models with Plus selected", async () => {
+    const state = await loadScriptDefaults(
+      TAIZHOU_ID,
+      {},
+      vi.fn(async () => {
+        throw new Error("offline");
+      })
+    );
+
+    expect(state.config.aiRecommendOmniModel).toBe("qwen3.5-omni-plus");
+    expect(state.options.omniModels.map((item) => item.value)).toEqual([
+      "qwen3.5-omni-plus",
+      "qwen3.5-omni-flash",
+    ]);
+    expect(state.config).not.toHaveProperty("aiRecommendListenModel");
+  });
+
+  test("serializes Taizhou Omni defaults as empty overrides", () => {
+    const defaults = {
+      status: "loaded",
+      config: {
+        aiRecommendOmniPrompt: "后端全模态 Prompt",
+        aiRecommendOmniTemperature: "0.1",
+        aiRecommendOmniStopSequences: "END\nSTOP",
+      },
+      options: {},
+    };
+    const persisted = serializeScriptDraft(
+      TAIZHOU_ID,
+      {
+        platformAiEnabled: true,
+        segmentContextPaddingMs: 0.3,
+        segmentSilenceThresholdDbfs: -31,
+        aiRecommendRequestTimeoutMs: 60,
+        aiRecommendOmniPrompt: "后端全模态 Prompt",
+        aiRecommendOmniTemperature: "0.1",
+        aiRecommendOmniStopSequences: "END, STOP",
+      },
+      defaults
+    );
+
+    expect(persisted.aiRecommendOmniPrompt).toBe("");
+    expect(persisted.aiRecommendOmniTemperature).toBe("");
+    expect(persisted.aiRecommendOmniStopSequences).toBe("");
   });
 
   test("hydrates effective AIDP values and serializes backend defaults as empty overrides", () => {

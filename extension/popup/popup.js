@@ -10,6 +10,8 @@
     constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
   const jinhuaScriptId =
     constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper";
+  const taizhouScriptId =
+    constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID || "bytedanceAidpTaizhouHelper";
   const hangzhouScriptId =
     constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID || "magicDataHangzhouAssistant";
   const cvpcHost = constants.DATA_BAKER_CVPC_PLATFORM?.host || "cvpc.databaker.com";
@@ -48,6 +50,9 @@
     if (scriptId === jinhuaScriptId) {
       return settings?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || {};
     }
+    if (scriptId === taizhouScriptId) {
+      return settings?.platforms?.bytedanceAidp?.scripts?.taizhouHelper || {};
+    }
     if (scriptId === hangzhouScriptId) {
       return settings?.platforms?.magicData?.scripts?.hangzhouHelper || {};
     }
@@ -56,7 +61,7 @@
 
   function getPlatformConfig(settings, scriptId) {
     if (scriptId === cvpcScriptId) return settings?.platforms?.dataBakerCvpc || {};
-    if (scriptId === suzhouScriptId || scriptId === jinhuaScriptId) {
+    if (scriptId === suzhouScriptId || scriptId === jinhuaScriptId || scriptId === taizhouScriptId) {
       return settings?.platforms?.bytedanceAidp || {};
     }
     if (scriptId === hangzhouScriptId) return settings?.platforms?.magicData || {};
@@ -72,10 +77,12 @@
   function resolveAidpScript(settings) {
     const platform = settings?.platforms?.bytedanceAidp || {};
     const active = String(platform.activeScriptId || "").trim();
+    if (active === taizhouScriptId) return taizhouScriptId;
     if (active === jinhuaScriptId) return jinhuaScriptId;
     if (active === suzhouScriptId) return suzhouScriptId;
+    const taizhouEnabled = platform.scripts?.taizhouHelper?.enabled === true;
     const jinhuaEnabled = platform.scripts?.jinhuaHelper?.enabled === true;
-    return jinhuaEnabled ? jinhuaScriptId : suzhouScriptId;
+    return taizhouEnabled ? taizhouScriptId : jinhuaEnabled ? jinhuaScriptId : suzhouScriptId;
   }
 
   function getDetectedContext(rawUrl, settings) {

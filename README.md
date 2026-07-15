@@ -2,7 +2,7 @@
 
 用于维护 Chrome / Edge 标注辅助扩展、统一 Node.js 后端，以及三个平台的稳定页面与 Network 参考资料。
 
-当前正式版本为 `1.0.0`，只包含三个平台的四个脚本。AI 结果默认用于人工辅助，不会自动领取、自动审核或自动流转任务。
+当前扩展版本为 `1.0.0`；本仓库维护三个平台的五个脚本。AI 结果默认用于人工辅助，不会自动领取、自动审核或自动流转任务。
 
 ## 项目定位
 
@@ -23,9 +23,10 @@
 | DataBaker CVPC | 柳州话脚本 | `dataBakerCvpcLiuzhouAssistant` | 音频获取、两阶段 AI、分段建议、批量识别、字段辅助写入 |
 | ByteDance AIDP | 苏州话脚本 | `bytedanceAidpSuzhouHelper` | 分段建议、两阶段 AI、行内/批量识别、暂存写回 |
 | ByteDance AIDP | 金华话脚本 | `bytedanceAidpJinhuaHelper` | 分段建议、两阶段 AI、风险拦截、行内/批量识别 |
+| ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、分段建议、行内/批量识别 |
 | Magic Data | 杭州话脚本 | `magicDataHangzhouAssistant` | AI 质检、单双模型方案、词表参考、结果填入与快捷键 |
 
-ByteDance AIDP 的苏州话与金华话脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
+ByteDance AIDP 的苏州话、金华话与台州话三套脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
 
 ## 前置环境
 
@@ -294,7 +295,7 @@ pm2 logs annotation-script-center --lines 100
 
 | 目录 | 职责 |
 |---|---|
-| `extension/` | Manifest V3 扩展成品、popup、Options 与四脚本运行时 |
+| `extension/` | Manifest V3 扩展成品、popup、Options 与五脚本运行时 |
 | `frontend/options-app/` | Vue Options 源码与 SCSS |
 | `platform-resources/` | 平台资料、页面结构、Network 参考与脚本后端 |
 | `platform-resources/backend/` | 统一后端、管理员能力、公共 AI 与路由注册 |

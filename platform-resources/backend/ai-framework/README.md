@@ -2,7 +2,7 @@
 
 `platform-resources/backend/ai-framework/` 提供脚本 AI 后端的通用 request/response 契约、route factory、pipeline runtime、资源 loader 和 adapter registry。
 
-该框架只负责稳定编排，不包含柳州、苏州、金华或杭州的具体 Prompt 与字段规则。
+该框架只负责稳定编排，不包含柳州、苏州、金华、台州或杭州的具体 Prompt 与字段规则。
 
 ## 目录结构
 

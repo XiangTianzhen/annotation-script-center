@@ -27,6 +27,8 @@ server.listen(config.port, config.host, function () {
     "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
     "/api/bytedance-aidp/jinhua-helper/ai/recommend/health",
     "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
+    "/api/bytedance-aidp/taizhou-helper/ai/recommend/health",
+    "/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
     "/api/magic-data/hangzhou-helper/ai/review-current/health",
     "/api/magic-data/hangzhou-helper/ai/defaults",
     "/api/admin/session/unlock",
