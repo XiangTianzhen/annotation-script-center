@@ -70,7 +70,7 @@ Copy-Item config/env/ai.env.example config/env/ai.env
 node scripts/package-extension-zip.js
 ```
 
-打包脚本构建 Options、清空旧 `dist`、压缩 `extension/` 并校验 `manifest.json`，最终只保留版本化 ZIP。该流程不读取 `config/secrets/`。
+打包脚本构建 Options、清空旧 `dist`、压缩 `extension/`，并统一使用 ZIP 标准 `/` 包内路径。发布前会校验 `manifest.json` 及其全部引用脚本均已写入 ZIP，最终只保留版本化 ZIP。该流程不读取 `config/secrets/`。
 
 ## 安全检查
 

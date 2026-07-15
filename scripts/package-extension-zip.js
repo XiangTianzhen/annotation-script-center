@@ -39,24 +39,43 @@ function escapePowerShell(value) {
   return String(value || "").replace(/'/g, "''");
 }
 
-function cleanDistDirectory() {
-  fs.mkdirSync(DIST_DIR, { recursive: true });
-  fs.readdirSync(DIST_DIR).forEach(function (entry) {
-    fs.rmSync(path.join(DIST_DIR, entry), { recursive: true, force: true });
+function resolveDirectory(value, fallbackDirectory) {
+  const rawValue = String(value || "").trim();
+  return rawValue ? path.resolve(rawValue) : fallbackDirectory;
+}
+
+function cleanDistDirectory(distDirectory) {
+  fs.mkdirSync(distDirectory, { recursive: true });
+  fs.readdirSync(distDirectory).forEach(function (entry) {
+    fs.rmSync(path.join(distDirectory, entry), { recursive: true, force: true });
   });
 }
 
-function createZip(zipPath) {
+function createZip(zipPath, extensionDirectory) {
   if (process.platform === "win32") {
     const command = [
-      `Set-Location -LiteralPath '${escapePowerShell(EXTENSION_DIR)}'`,
-      `Compress-Archive -Path * -DestinationPath '${escapePowerShell(zipPath)}' -Force`,
+      "$ErrorActionPreference='Stop'",
+      "Add-Type -AssemblyName System.IO.Compression",
+      "Add-Type -AssemblyName System.IO.Compression.FileSystem",
+      `$source='${escapePowerShell(extensionDirectory)}'`,
+      `$destination='${escapePowerShell(zipPath)}'`,
+      "if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Force }",
+      "$zip=[System.IO.Compression.ZipFile]::Open($destination,[System.IO.Compression.ZipArchiveMode]::Create)",
+      "try {",
+      "  Get-ChildItem -LiteralPath $source -Recurse -File | ForEach-Object {",
+      "    $relative=$_.FullName.Substring($source.Length).TrimStart('\\')",
+      "    $entryName=$relative.Replace('\\','/')",
+      "    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$_.FullName,$entryName) | Out-Null",
+      "  }",
+      "} finally {",
+      "  $zip.Dispose()",
+      "}",
     ].join("; ");
     runCommand("powershell.exe", ["-NoProfile", "-Command", command]);
-    return "powershell";
+    return "powershell-ziparchive";
   }
 
-  runCommand("zip", ["-r", zipPath, "."], { cwd: EXTENSION_DIR });
+  runCommand("zip", ["-r", zipPath, "."], { cwd: extensionDirectory });
   return "zip";
 }
 
@@ -80,29 +99,69 @@ function listZipEntries(zipPath) {
     .filter(Boolean);
 }
 
+function collectManifestScriptPaths(manifest) {
+  const scriptPaths = [];
+  if (manifest?.background?.service_worker) {
+    scriptPaths.push(manifest.background.service_worker);
+  }
+  (manifest?.content_scripts || []).forEach(function (contentScript) {
+    (contentScript?.js || []).forEach(function (scriptPath) {
+      scriptPaths.push(scriptPath);
+    });
+  });
+  return [...new Set(scriptPaths.map((scriptPath) => String(scriptPath || "").trim()).filter(Boolean))];
+}
+
+function validateZipEntries(entries, manifest) {
+  const entryList = Array.isArray(entries) ? entries : [];
+  if (entryList.some((entry) => entry.includes("\\"))) {
+    throw new Error("ZIP 校验失败：包内路径必须使用 /，不能使用 \\\\。");
+  }
+
+  const entrySet = new Set(entryList);
+  if (!entrySet.has("manifest.json")) {
+    throw new Error("ZIP 校验失败：根目录缺少 manifest.json");
+  }
+
+  const missingScriptPaths = collectManifestScriptPaths(manifest).filter(
+    (scriptPath) => !entrySet.has(scriptPath)
+  );
+  if (missingScriptPaths.length > 0) {
+    throw new Error(`ZIP 校验失败：manifest 引用脚本缺失：${missingScriptPaths.join(", ")}`);
+  }
+}
+
 function packageExtensionZip(options) {
   const config = options && typeof options === "object" ? options : {};
+  const extensionDirectory = resolveDirectory(config.sourceDir, EXTENSION_DIR);
+  const distDirectory = resolveDirectory(config.outputDir, DIST_DIR);
   if (config.skipBuild !== true) {
+    if (extensionDirectory !== EXTENSION_DIR) {
+      throw new Error("使用 sourceDir 隔离打包时必须传入 skipBuild: true。");
+    }
     buildOptionsApp();
   }
 
-  const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
+  const manifestPath = path.join(extensionDirectory, "manifest.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const filename = buildZipFilename(manifest.version);
-  cleanDistDirectory();
+  cleanDistDirectory(distDirectory);
 
-  const outputPath = path.join(DIST_DIR, filename);
-  const tool = createZip(outputPath);
+  const outputPath = path.join(distDirectory, filename);
+  const tool = createZip(outputPath, extensionDirectory);
   const stat = fs.statSync(outputPath);
   const entries = listZipEntries(outputPath);
-  if (stat.size <= 0 || !entries.includes("manifest.json")) {
-    throw new Error("ZIP 校验失败：产物为空或根目录缺少 manifest.json");
+  if (stat.size <= 0) {
+    throw new Error("ZIP 校验失败：产物为空");
   }
+  validateZipEntries(entries, manifest);
 
   return {
     filename,
     outputPath,
     sizeBytes: stat.size,
     entriesCount: entries.length,
+    entries,
     tool,
   };
 }

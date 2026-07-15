@@ -176,8 +176,9 @@ node scripts/package-extension-zip.js
 1. 重新构建 Vue Options。
 2. 清空 `dist/` 中的旧产物。
 3. 打包完整 `extension/`。
-4. 校验 ZIP 非空且根目录包含 `manifest.json`。
-5. 只生成 `dist/annotation-script-center-v1.0.0.zip`。
+4. 统一 ZIP 包内路径为标准 `/` 分隔符。
+5. 校验 ZIP 非空、根目录包含 `manifest.json`，且 manifest 引用的所有脚本均已打入 ZIP。
+6. 只生成 `dist/annotation-script-center-v1.0.0.zip`。
 
 安装 ZIP：
 
@@ -186,6 +187,8 @@ node scripts/package-extension-zip.js
 3. 开启开发者模式。
 4. 选择“加载已解压的扩展程序”。
 5. 选择解压后的扩展根目录，而不是 ZIP 文件本身。
+
+ZIP 同时会以标准路径格式接受目标 Edge 版本的拖拽导入验收；“解压后加载”仍是项目保留的标准安装方式。
 
 ## 服务器部署
 

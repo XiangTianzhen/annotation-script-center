@@ -75,6 +75,8 @@ node scripts/build-options-app.js
 
 使用 `dist/annotation-script-center-v1.0.0.zip` 时，需要先解压，再加载解压后的扩展根目录。
 
+发布 ZIP 的包内路径统一使用标准 `/` 分隔符，打包时会确认 manifest 引用的 background 与 content scripts 完整存在；该兼容性用于目标 Edge 版本的拖拽导入验收，但不替代上述解压加载流程。
+
 ## 真实浏览器验收
 
 1. 脚本中心只显示柳州、苏州、金华、台州、杭州五项。
