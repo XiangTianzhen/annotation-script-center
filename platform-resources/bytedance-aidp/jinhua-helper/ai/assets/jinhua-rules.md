@@ -1,9 +1,6 @@
-# 金华话原始听音规则
+# 金华话 Prompt 参考说明
 
-- 每段音频仅调用一次 Qwen Omni。
-- 输出必须是严格 JSON 对象，且业务字段只允许为 `listenText`。
-- `listenText` 逐字记录听到的原文。
-- 不翻译成普通话，不润色，不补写，不删减。
-- 不改数字，不规整标点，不压缩重复字，不 trim 或折叠空白。
-- 纯静音或完全听不清时返回空字符串。
-- 不输出唱歌、方言类别、风险、复核、强制填入或自动填入判断。
+- 当前有效转写规则只由后端 `GET /api/bytedance-aidp/jinhua-helper/ai/recommend/defaults` 返回的默认 Prompt，或使用者在 Options 保存的非空本地 Prompt 决定。
+- 使用者保存的非空 Prompt 会完整覆盖后端默认主体；清空或改回默认值后，运行时回退后端默认 Prompt。
+- 本文件仅用于保留金华话项目资料的加载与诊断标识，不直接作为模型 systemPrompt，也不追加任何转写语义限制。
+- 每段音频仍只调用一次 Qwen Omni；不可编辑的传输层要求模型只返回包含 `listenText` 的 JSON 对象。

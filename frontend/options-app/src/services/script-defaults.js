@@ -422,7 +422,9 @@ export function hydrateScriptDraft(scriptId, storedConfig, defaults = {}) {
     draft.platformAiEnabled = draft.platformAiEnabled !== true;
     draft.segmentContextPaddingMs = round(Number(draft.segmentContextPaddingMs || 0) / 1000, 3);
     draft.aiRecommendRequestTimeoutMs = round(Number(draft.aiRecommendRequestTimeoutMs || 60000) / 1000, 3);
-    draft.aiRecommendEnableThinking = false;
+    draft.aiRecommendEnableThinking =
+      (normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou) &&
+      draft.aiRecommendEnableThinking === true;
   } else if (normalizedScriptId === SCRIPT_IDS.cvpc) {
     draft.segmentContextPaddingMs = round(Number(draft.segmentContextPaddingMs || 0) / 1000, 3);
     draft.segmentSilenceThresholdUnit = normalizeThresholdUnit(draft.segmentSilenceThresholdUnit);
@@ -549,7 +551,9 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
     result.aiRecommendRequestTimeoutMs = Math.round(
       requiredNumber(result.aiRecommendRequestTimeoutMs, "请求超时时间（秒）", 1, 60) * 1000
     );
-    result.aiRecommendEnableThinking = false;
+    result.aiRecommendEnableThinking =
+      (normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou) &&
+      result.aiRecommendEnableThinking === true;
     clearDefaultOverrides(
       result,
       defaults,

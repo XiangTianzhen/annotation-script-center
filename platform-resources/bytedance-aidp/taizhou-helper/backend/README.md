@@ -4,7 +4,7 @@
 
 `POST /api/bytedance-aidp/taizhou-helper/ai/recommend`
 
-请求包含当前段音频和单次 Qwen Omni 配置。默认模型为 `qwen3.5-omni-plus`，仅允许 `qwen3.5-omni-plus` 与 `qwen3.5-omni-flash`，thinking 固定关闭，超时上限 60000ms。
+请求包含当前段音频和单次 Qwen Omni 配置。默认模型为 `qwen3.5-omni-plus`，仅允许 `qwen3.5-omni-plus` 与 `qwen3.5-omni-flash`，thinking 默认关闭；扩展仅可通过 `aiOmni.enableThinking: true` 开启，其他值均按关闭处理，超时上限仍为 60000ms。
 
 ## 响应契约
 

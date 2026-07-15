@@ -379,6 +379,7 @@
           CONSTANTS.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT ||
           "https://annotation-script-center.xiangtianzhen.store/api/bytedance-aidp/jinhua-helper/ai/recommend",
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
+        aiRecommendEnableThinking: false,
         aiRecommendOmniModel: "qwen3.5-omni-plus",
         aiRecommendOmniPrompt: "",
         defaultPlaybackRate: DEFAULT_PLAYBACK_RATE,
@@ -425,6 +426,7 @@
         defaults.aiRecommendRequestTimeoutMs || DEFAULT_TIMEOUT_MS
       ),
       aiOmni: {
+        enableThinking: current.aiRecommendEnableThinking === true,
         model: normalizeStageModel(
           current.aiRecommendOmniModel,
           defaults.aiRecommendOmniModel || "qwen3.5-omni-plus"

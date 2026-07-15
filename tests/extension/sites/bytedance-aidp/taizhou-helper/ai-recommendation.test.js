@@ -85,6 +85,7 @@ test("Taizhou recommendation keeps the audio clip pipeline and posts one Omni co
       aiUsageOperatorName: "张三",
       aiOmni: {
         model: "qwen3.5-omni-plus",
+        enableThinking: true,
         prompt: "单次全模态 Prompt",
         params: { temperature: 0.1, stop: ["END"] },
       },
@@ -105,6 +106,7 @@ test("Taizhou recommendation keeps the audio clip pipeline and posts one Omni co
     assert.match(body.audioDataUrl, /^data:audio\/wav;base64,/);
     assert.deepEqual(body.aiOmni, {
       model: "qwen3.5-omni-plus",
+      enableThinking: true,
       prompt: "单次全模态 Prompt",
       params: { temperature: 0.1, stop: ["END"] },
     });

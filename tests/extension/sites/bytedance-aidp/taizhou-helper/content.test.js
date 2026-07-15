@@ -1187,6 +1187,7 @@ test("ByteDance AIDP content resolves Taizhou AI config with normalized Omni par
             aiRecommendEnabled: true,
             aiRecommendEndpoint: "http://127.0.0.1:3333/api/bytedance-aidp/taizhou-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: 999999,
+            aiRecommendEnableThinking: true,
             aiRecommendOmniModel: "qwen3.5-omni-flash",
             aiRecommendOmniPrompt: "omni prompt",
             aiRecommendOmniTopP: 0.6,
@@ -1202,6 +1203,7 @@ test("ByteDance AIDP content resolves Taizhou AI config with normalized Omni par
   assert.equal(config.aiRecommendEnabled, true);
   assert.equal(config.aiRecommendRequestTimeoutMs, 60000);
   assert.equal(config.aiOmni.model, "qwen3.5-omni-flash");
+  assert.equal(config.aiOmni.enableThinking, true);
   assert.equal(config.aiOmni.prompt, "omni prompt");
   assert.equal(config.aiOmni.params.top_p, 0.6);
   assert.equal(config.aiOmni.params.max_tokens, 888);

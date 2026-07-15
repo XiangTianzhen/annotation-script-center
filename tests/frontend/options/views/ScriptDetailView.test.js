@@ -53,7 +53,7 @@ describe("ScriptDetailView 1.0 layout", () => {
       status: "loaded",
       config: {
         aiRecommendRequestTimeoutMs: 60000,
-        aiRecommendOmniPrompt: "后端原始听音 Prompt",
+        aiRecommendOmniPrompt: "后端金华转写 Prompt",
       },
       options: {},
       error: "",
@@ -117,7 +117,7 @@ describe("ScriptDetailView 1.0 layout", () => {
     };
   });
 
-  test("renders the legacy three-panel layout with help dots for jinhua", () => {
+  test("renders the Jinhua editable transcription Prompt labels with help dots", () => {
     routeState.scriptId = "bytedanceAidpJinhuaHelper";
     const wrapper = mount(ScriptDetailView);
 
@@ -126,9 +126,19 @@ describe("ScriptDetailView 1.0 layout", () => {
     expect(wrapper.text()).toContain("基础设置");
     expect(wrapper.text()).toContain("AI 设置");
     expect(wrapper.text()).toContain("快捷键");
-    expect(wrapper.text()).toContain("原始听音");
+    expect(wrapper.text()).toContain("金华话转写");
+    expect(wrapper.text()).toContain("金华话转写 Prompt");
+    expect(wrapper.text()).not.toContain("原始听音");
     expect(wrapper.text()).not.toContain("普通话翻译收口");
     expect(wrapper.text()).not.toContain("高级 JSON 编辑");
+  });
+
+  test("keeps the Taizhou single-Omni settings labelled as raw listening", () => {
+    routeState.scriptId = "bytedanceAidpTaizhouHelper";
+    const wrapper = mount(ScriptDetailView);
+
+    expect(wrapper.text()).toContain("原始听音");
+    expect(wrapper.text()).not.toContain("金华话转写");
   });
 
   test("shows the backend defaults load result in the AI heading", async () => {

@@ -118,6 +118,7 @@ function normalizeOmniConfig(rawOmni) {
         : defaults.model,
     prompt: String(source.prompt || defaults.prompt || ""),
     params: normalizeOmniParams(source.params),
+    enableThinking: source.enableThinking === true,
   };
 }
 
@@ -249,7 +250,7 @@ async function runOmni(request, assetsContext, deps) {
     {
       model: request.aiOmni.model,
       timeoutMs: request.timeoutMs,
-      enableThinking: false,
+      enableThinking: request.aiOmni.enableThinking,
     }
   );
   const parsed = parseOmniJsonWithFallback(result.rawText || "", request.requestId, deps);
@@ -348,12 +349,13 @@ function createDefaultsPayload() {
       frequency_penalty: true,
       seed: true,
       stop: true,
-      enable_thinking: false,
+      enable_thinking: true,
     },
     contract: {
       stages: ["omni"],
       outputMode: "text",
       enableThinking: false,
+      supportsThinking: true,
     },
     pricing: Object.assign({}, PRICING_SUMMARY),
   };

@@ -128,3 +128,8 @@
 - 修复(release): Windows ZIP 打包改为逐文件写入标准 `/` 路径，避免 Edge 拖拽导入时无法按 manifest 找到脚本。
 - 测试(release): 新增实际归档回归测试，校验 ZIP 不含反斜杠路径且完整包含 manifest 引用脚本；支持临时源目录与输出目录隔离打包。
 - 文档(release): 明确 ZIP 路径兼容性校验，并保留解压后加载作为标准安装方式。
+- 优化(jinhua): 后端内置金华话转写 Prompt，支持使用者保存本地自定义 Prompt 完整覆盖默认主体，并保留 JSON `listenText` 传输契约。
+- 测试(jinhua): 覆盖默认 Prompt、用户 Prompt 原样透传、空白覆盖回退和扩展请求序列化。
+- 文档(jinhua): 同步金华话转写 Prompt、JSON 响应与本地覆盖边界。
+- 优化(bytedance-aidp): 金华话与台州话的单次 Qwen Omni 设置新增可持久化的思考开关，默认关闭；开启时仅以严格布尔 `aiOmni.enableThinking: true` 透传，苏州话保持固定关闭，业务响应仍只展示 `listenText`。
+- 测试(bytedance-aidp): 覆盖思考开关的 Options 显示与保存、扩展请求体、后端严格布尔解析及 Qwen 调用参数。

@@ -18,7 +18,7 @@ function loadAiRecommendationModule() {
   return require(aiRecommendationModulePath);
 }
 
-test("ByteDance AIDP Jinhua AI request serializes aiOmni without legacy aiStages", async function () {
+test("ByteDance AIDP Jinhua AI request serializes the saved custom prompt without legacy aiStages", async function () {
   const moduleApi = loadAiRecommendationModule();
   const originalFetch = globalThis.fetch;
   const originalOfflineAudioContext = globalThis.OfflineAudioContext;
@@ -59,7 +59,8 @@ test("ByteDance AIDP Jinhua AI request serializes aiOmni without legacy aiStages
       aiUsageOperatorName: "tester",
       aiOmni: {
         model: "qwen3.5-omni-plus",
-        prompt: "只输出原始听音 JSON",
+        enableThinking: true,
+        prompt: "使用者自定义金华转写 Prompt",
         params: {
           temperature: 0.2,
           max_tokens: 888,
@@ -92,7 +93,8 @@ test("ByteDance AIDP Jinhua AI request serializes aiOmni without legacy aiStages
     assert.equal(requestBodies.length, 1);
     assert.deepEqual(requestBodies[0].aiOmni, {
       model: "qwen3.5-omni-plus",
-      prompt: "只输出原始听音 JSON",
+      enableThinking: true,
+      prompt: "使用者自定义金华转写 Prompt",
       params: {
         temperature: 0.2,
         max_tokens: 888,

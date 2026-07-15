@@ -387,7 +387,9 @@ function aidpSections(scriptId) {
       key: "ai",
       title: "AI 设置",
       help: isOmniOnly
-        ? "配置单次全模态原始听音识别的模型、Prompt 和生成参数。"
+        ? isJinhua
+          ? "配置单次全模态金华话转写的模型、Prompt 和生成参数。"
+          : "配置单次全模态原始听音识别的模型、Prompt 和生成参数。"
         : "配置听音与普通话听写收口两阶段参数。",
       groups: [
         {
@@ -405,9 +407,11 @@ function aidpSections(scriptId) {
               kind: "boolean",
               path: "aiRecommendEnableThinking",
               label: "思考开关",
-              disabled: true,
+              disabled: !isOmniOnly,
               defaultValue: false,
-              help: "thinking 已固定关闭。",
+              help: isOmniOnly
+                ? "默认关闭；开启后会随当前单次 Qwen Omni 请求发送。"
+                : "thinking 已固定关闭。",
             },
             {
               kind: "number",
@@ -423,15 +427,17 @@ function aidpSections(scriptId) {
         ...(isOmniOnly
           ? [{
               key: "omni",
-              title: "原始听音",
+              title: isJinhua ? "金华话转写" : "原始听音",
               layout: "two",
               fields: stageFields({
                 prefix: "aiRecommendOmni",
                 modelLabel: "全模态模型",
-                promptLabel: "原始听音 Prompt",
+                promptLabel: isJinhua ? "金华话转写 Prompt" : "原始听音 Prompt",
                 optionsKey: "omniModels",
                 modelOptions: LISTEN_MODEL_OPTIONS,
-                modelHelp: "每段音频仅调用一次 Qwen Omni，只返回原始听音文本。",
+                modelHelp: isJinhua
+                  ? "每段音频仅调用一次 Qwen Omni，按当前有效 Prompt 生成转写文本。"
+                  : "每段音频仅调用一次 Qwen Omni，只返回原始听音文本。",
               }),
             }]
           : [

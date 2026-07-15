@@ -114,6 +114,7 @@
     const model = normalizeText(source.model);
     const prompt = String(source.prompt || "");
     const params = normalizeAiOmniParams(source.params);
+    result.enableThinking = source.enableThinking === true;
     if (model) {
       result.model = model;
     }

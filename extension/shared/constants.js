@@ -64,7 +64,7 @@
     },
     [BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID]: {
       id: BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, platformId: "bytedanceAidp", label: "金华话脚本",
-      shortLabel: "金华话脚本", description: "AIDP 金华话原始听音、分段建议与快捷键辅助。",
+      shortLabel: "金华话脚本", description: "AIDP 金华话可编辑转写 Prompt、分段建议与快捷键辅助。",
       note: "不自动提交、不自动切题。", detailView: "bytedance-aidp-jinhua-helper",
       host: BYTEDANCE_AIDP_PLATFORM.host, matchUrl: "https://aidp.bytedance.com/management/task-v2/",
     },
@@ -123,7 +123,7 @@
   const baseAidp = (id, enabled) => ({
     id, enabled, platformAiEnabled: false, segmentContextPaddingMs: 300, segmentSilenceThresholdDbfs: -31,
     mergeContiguousSuggestedSegmentsEnabled: true, segmentPreviewAutoApplyEnabled: true,
-    aiRecommendEnabled: enabled, aiRecommendAutoFillEnabled: true, aiRecommendRequestTimeoutMs: 60000,
+    aiRecommendEnabled: enabled, aiRecommendAutoFillEnabled: true, aiRecommendEnableThinking: false, aiRecommendRequestTimeoutMs: 60000,
     aiRecommendListenModel: "qwen3.5-omni-flash", aiRecommendListenPrompt: "", aiRecommendListenTemperature: "",
     aiRecommendListenTopP: "", aiRecommendListenMaxTokens: "", aiRecommendListenMaxCompletionTokens: "",
     aiRecommendListenPresencePenalty: "", aiRecommendListenFrequencyPenalty: "", aiRecommendListenSeed: "",
@@ -143,7 +143,7 @@
   const taizhouAidp = (id, enabled) => ({
     id, enabled, platformAiEnabled: false, segmentContextPaddingMs: 300, segmentSilenceThresholdDbfs: -31,
     mergeContiguousSuggestedSegmentsEnabled: true, segmentPreviewAutoApplyEnabled: true,
-    aiRecommendEnabled: enabled, aiRecommendAutoFillEnabled: true, aiRecommendRequestTimeoutMs: 60000,
+    aiRecommendEnabled: enabled, aiRecommendAutoFillEnabled: true, aiRecommendEnableThinking: false, aiRecommendRequestTimeoutMs: 60000,
     aiRecommendOmniModel: "qwen3.5-omni-plus", aiRecommendOmniPrompt: "", aiRecommendOmniTemperature: "",
     aiRecommendOmniTopP: "", aiRecommendOmniMaxTokens: "", aiRecommendOmniMaxCompletionTokens: "",
     aiRecommendOmniPresencePenalty: "", aiRecommendOmniFrequencyPenalty: "", aiRecommendOmniSeed: "",

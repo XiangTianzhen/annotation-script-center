@@ -1177,6 +1177,7 @@ test("ByteDance AIDP content resolves Jinhua Omni config without legacy stages",
             aiRecommendEnabled: true,
             aiRecommendEndpoint: "http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: 999999,
+            aiRecommendEnableThinking: true,
             aiRecommendOmniModel: "qwen3.5-omni-flash",
             aiRecommendOmniPrompt: "omni prompt",
             aiRecommendOmniTopP: 0.6,
@@ -1190,6 +1191,7 @@ test("ByteDance AIDP content resolves Jinhua Omni config without legacy stages",
   assert.equal(config.aiRecommendEnabled, true);
   assert.equal(config.aiRecommendRequestTimeoutMs, 60000);
   assert.deepEqual(config.aiOmni, {
+    enableThinking: true,
     model: "qwen3.5-omni-flash",
     prompt: "omni prompt",
     params: {

@@ -63,6 +63,26 @@ describe("script-settings helpers", () => {
     });
   });
 
+  test("enables the thinking switch only for Jinhua and Taizhou single-Omni scripts", () => {
+    const getThinkingField = (scriptId) =>
+      getScriptFieldGroups(scriptId)
+        .flatMap((section) => (section.groups || []).flatMap((group) => group.fields || []))
+        .find((field) => field.path === "aiRecommendEnableThinking");
+
+    expect(getThinkingField("bytedanceAidpSuzhouHelper")).toMatchObject({
+      defaultValue: false,
+      disabled: true,
+    });
+    expect(getThinkingField("bytedanceAidpJinhuaHelper")).toMatchObject({
+      defaultValue: false,
+      disabled: false,
+    });
+    expect(getThinkingField("bytedanceAidpTaizhouHelper")).toMatchObject({
+      defaultValue: false,
+      disabled: false,
+    });
+  });
+
   test("restores the complete four-script field contracts with Jinhua original listening only", () => {
     globalThis.ASREdgeConstants = sharedConstants;
     const contract = (scriptId) =>

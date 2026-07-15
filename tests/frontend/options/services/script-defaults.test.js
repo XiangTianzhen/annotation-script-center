@@ -47,7 +47,7 @@ function jinhuaOmniPayload() {
       timeoutMs: 60000,
       omni: {
         model: "qwen3.5-omni-plus",
-        prompt: "后端原始听音 Prompt",
+        prompt: "后端金华转写 Prompt",
         params: {
           temperature: 0.1,
           top_p: 0.8,
@@ -130,7 +130,7 @@ describe("script defaults and draft adapters", () => {
     );
     expect(state.status).toBe("loaded");
     expect(state.config.aiRecommendOmniModel).toBe("qwen3.5-omni-plus");
-    expect(state.config.aiRecommendOmniPrompt).toBe("后端原始听音 Prompt");
+    expect(state.config.aiRecommendOmniPrompt).toBe("后端金华转写 Prompt");
     expect(state.config.aiRecommendOmniTemperature).toBe("0.1");
     expect(state.config.aiRecommendOmniStopSequences).toBe("END\nSTOP");
     expect(state.options.omniModels.map((item) => item.value)).toEqual([
@@ -147,7 +147,7 @@ describe("script defaults and draft adapters", () => {
         segmentContextPaddingMs: 0.3,
         segmentSilenceThresholdDbfs: -31,
         aiRecommendRequestTimeoutMs: 60,
-        aiRecommendOmniPrompt: "后端原始听音 Prompt",
+        aiRecommendOmniPrompt: "后端金华转写 Prompt",
         aiRecommendOmniTemperature: "0.1",
         aiRecommendOmniStopSequences: "END, STOP",
         aiRecommendListenPrompt: "旧听音 Prompt",
@@ -156,7 +156,7 @@ describe("script defaults and draft adapters", () => {
       {
         status: "loaded",
         config: {
-          aiRecommendOmniPrompt: "后端原始听音 Prompt",
+          aiRecommendOmniPrompt: "后端金华转写 Prompt",
           aiRecommendOmniTemperature: "0.1",
           aiRecommendOmniStopSequences: "END\nSTOP",
         },
@@ -169,6 +169,64 @@ describe("script defaults and draft adapters", () => {
     expect(persisted.aiRecommendOmniStopSequences).toBe("");
     expect(persisted.aiRecommendListenPrompt).toBe("旧听音 Prompt");
     expect(persisted.aiRecommendRefinePrompt).toBe("旧收口 Prompt");
+  });
+
+  test("keeps a Jinhua custom prompt as a local override and restores it on hydration", () => {
+    const defaults = {
+      status: "loaded",
+      config: {
+        aiRecommendOmniPrompt: "后端金华转写 Prompt",
+      },
+      options: {},
+    };
+    const persisted = serializeScriptDraft(
+      JINHUA_ID,
+      {
+        platformAiEnabled: true,
+        segmentContextPaddingMs: 0.3,
+        segmentSilenceThresholdDbfs: -31,
+        aiRecommendRequestTimeoutMs: 60,
+        aiRecommendOmniPrompt: "使用者自定义金华转写 Prompt",
+      },
+      defaults
+    );
+
+    expect(persisted.aiRecommendOmniPrompt).toBe("使用者自定义金华转写 Prompt");
+    expect(
+      hydrateScriptDraft(JINHUA_ID, persisted, defaults).aiRecommendOmniPrompt
+    ).toBe("使用者自定义金华转写 Prompt");
+  });
+
+  test("clears the Jinhua prompt override when the user clears or restores the backend default", () => {
+    const defaults = {
+      status: "loaded",
+      config: {
+        aiRecommendOmniPrompt: "后端金华转写 Prompt",
+      },
+      options: {},
+    };
+    const baseDraft = {
+      platformAiEnabled: true,
+      segmentContextPaddingMs: 0.3,
+      segmentSilenceThresholdDbfs: -31,
+      aiRecommendRequestTimeoutMs: 60,
+    };
+
+    const cleared = serializeScriptDraft(
+      JINHUA_ID,
+      { ...baseDraft, aiRecommendOmniPrompt: "" },
+      defaults
+    );
+    const restoredDefault = serializeScriptDraft(
+      JINHUA_ID,
+      { ...baseDraft, aiRecommendOmniPrompt: "后端金华转写 Prompt" },
+      defaults
+    );
+
+    expect(cleared.aiRecommendOmniPrompt).toBe("");
+    expect(restoredDefault.aiRecommendOmniPrompt).toBe("");
+    expect(hydrateScriptDraft(JINHUA_ID, cleared, defaults).aiRecommendOmniPrompt)
+      .toBe("后端金华转写 Prompt");
   });
 
   test("loads the Taizhou defaults route with the single Qwen Omni contract", async () => {
@@ -453,6 +511,35 @@ describe("script defaults and draft adapters", () => {
     const persisted = serializeScriptDraft(CVPC_ID, draft, defaults);
     expect(persisted.segmentSilenceThresholdUnit).toBe("value");
     expect(persisted.segmentSilenceThresholdDbfs).toBeCloseTo(-20, 2);
+  });
+
+  test("preserves Jinhua and Taizhou thinking preferences while keeping Suzhou disabled", () => {
+    [JINHUA_ID, TAIZHOU_ID].forEach((scriptId) => {
+      const enabledDraft = hydrateScriptDraft(
+        scriptId,
+        { aiRecommendEnableThinking: true, aiRecommendRequestTimeoutMs: 60000 },
+        { status: "fallback", config: {}, options: {} }
+      );
+      expect(enabledDraft.aiRecommendEnableThinking).toBe(true);
+      expect(
+        serializeScriptDraft(scriptId, enabledDraft, {}).aiRecommendEnableThinking
+      ).toBe(true);
+
+      const invalidDraft = hydrateScriptDraft(
+        scriptId,
+        { aiRecommendEnableThinking: "true", aiRecommendRequestTimeoutMs: 60000 },
+        { status: "fallback", config: {}, options: {} }
+      );
+      expect(invalidDraft.aiRecommendEnableThinking).toBe(false);
+    });
+
+    expect(
+      hydrateScriptDraft(
+        SUZHOU_ID,
+        { aiRecommendEnableThinking: true, aiRecommendRequestTimeoutMs: 60000 },
+        { status: "fallback", config: {}, options: {} }
+      ).aiRecommendEnableThinking
+    ).toBe(false);
   });
 
   test("normalizes Hangzhou legacy enums and keeps thinking disabled", () => {

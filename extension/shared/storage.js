@@ -139,6 +139,7 @@
       segmentPreviewAutoApplyEnabled: bool(source.segmentPreviewAutoApplyEnabled, fallback.segmentPreviewAutoApplyEnabled),
       aiRecommendEnabled: bool(source.aiRecommendEnabled, fallback.aiRecommendEnabled),
       aiRecommendAutoFillEnabled: bool(source.aiRecommendAutoFillEnabled, fallback.aiRecommendAutoFillEnabled),
+      aiRecommendEnableThinking: (isJinhua || isTaizhou) && source.aiRecommendEnableThinking === true,
       aiRecommendEndpoint: constants.buildBackendUrl(endpointPath, { meta }),
       aiRecommendRequestTimeoutMs: numberInRange(source.aiRecommendRequestTimeoutMs, fallback.aiRecommendRequestTimeoutMs, 1000, 60000),
       defaultPlaybackRate: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].includes(Number(source.defaultPlaybackRate)) ? Number(source.defaultPlaybackRate) : fallback.defaultPlaybackRate,

@@ -83,7 +83,7 @@ AI 调用通常需要 `DASHSCOPE_API_KEY`。环境加载顺序和覆盖规则见
 |---|---|---|
 | 柳州话 | `/api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`、`.../defaults` | AI 推荐、整音频分段预览 |
 | 苏州话 | `/api/bytedance-aidp/suzhou-helper/ai/recommend/health`、`.../defaults` | AI 推荐、分段建议 |
-| 金华话 | `/api/bytedance-aidp/jinhua-helper/ai/recommend/health`、`.../defaults` | 单次 Qwen Omni 原始 `listenText` 直填、分段建议 |
+| 金华话 | `/api/bytedance-aidp/jinhua-helper/ai/recommend/health`、`.../defaults` | 单次 Qwen Omni 可编辑转写 Prompt、JSON `listenText`、分段建议 |
 | 台州话 | `/api/bytedance-aidp/taizhou-helper/ai/recommend/health`、`.../defaults` | 原始听音直填、分段建议 |
 | 杭州话 | `/api/magic-data/hangzhou-helper/ai/review-current/health`、`/api/magic-data/hangzhou-helper/ai/defaults` | 当前条 AI 质检 |
 

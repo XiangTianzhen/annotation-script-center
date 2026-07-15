@@ -57,6 +57,18 @@ test("Taizhou request accepts only the supported Omni models", function () {
   assert.equal(unsupported.aiOmni.model, "qwen3.5-omni-plus");
 });
 
+test("Taizhou request defaults thinking to false and accepts only a strict true value", function () {
+  assert.equal(createRequest().aiOmni.enableThinking, false);
+  assert.equal(
+    createRequest({ aiOmni: { enableThinking: true } }).aiOmni.enableThinking,
+    true
+  );
+  assert.equal(
+    createRequest({ aiOmni: { enableThinking: "true" } }).aiOmni.enableThinking,
+    false
+  );
+});
+
 test("Taizhou recommendation invokes Qwen Omni once and returns one cost record", async function () {
   const request = createRequest({
     aiOmni: {

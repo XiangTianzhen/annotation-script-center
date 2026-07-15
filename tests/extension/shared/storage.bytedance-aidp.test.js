@@ -146,6 +146,35 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
   }
 });
 
+test("ByteDance AIDP storage retains strict thinking choices for Jinhua and Taizhou", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const settings = await harness.storage.patchSettings({
+      platforms: {
+        bytedanceAidp: {
+          scripts: {
+            suzhouHelper: { aiRecommendEnableThinking: true },
+            jinhuaHelper: { aiRecommendEnableThinking: true },
+            taizhouHelper: { aiRecommendEnableThinking: true },
+          },
+        },
+      },
+    });
+    const scripts = settings.platforms.bytedanceAidp.scripts;
+
+    assert.equal(scripts.suzhouHelper.aiRecommendEnableThinking, false);
+    assert.equal(scripts.jinhuaHelper.aiRecommendEnableThinking, true);
+    assert.equal(scripts.taizhouHelper.aiRecommendEnableThinking, true);
+
+    const reloadedScripts = (await harness.storage.getSettings()).platforms.bytedanceAidp.scripts;
+    assert.equal(reloadedScripts.jinhuaHelper.aiRecommendEnableThinking, true);
+    assert.equal(reloadedScripts.taizhouHelper.aiRecommendEnableThinking, true);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("ByteDance AIDP storage clamps suzhou helper segment padding threshold playback rate and wave zoom", async function () {
   const harness = loadStorageApi({
     platforms: {
