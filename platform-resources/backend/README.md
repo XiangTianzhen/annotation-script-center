@@ -106,6 +106,7 @@ AI 调用通常需要 `DASHSCOPE_API_KEY`。环境加载顺序和覆盖规则见
 - `ai/provider-queue.js` 按具体模型隔离并发和容量。
 - `ai/model-pricing.js` 读取 `config/aliyun-bailian-model-pricing.json`。
 - `ai/model-response-utils.js` 统一 usage、JSON 文本解析和中文句末标点。
+- 金华话、台州话仅在请求明确传入 `true` 时向百炼发送 `enable_thinking: true`；参数不受模型支持时移除该参数后重试。
 - AI 日志默认记录输入、输出、总 Token 和可用的人民币估算。
 - 普通运行日志只保留 requestId、hostname、status、model、duration 和错误摘要。
 

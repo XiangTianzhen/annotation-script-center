@@ -133,3 +133,5 @@
 - 文档(jinhua): 同步金华话转写 Prompt、JSON 响应与本地覆盖边界。
 - 优化(bytedance-aidp): 金华话与台州话的单次 Qwen Omni 设置新增可持久化的思考开关，默认关闭；开启时仅以严格布尔 `aiOmni.enableThinking: true` 透传，苏州话保持固定关闭，业务响应仍只展示 `listenText`。
 - 测试(bytedance-aidp): 覆盖思考开关的 Options 显示与保存、扩展请求体、后端严格布尔解析及 Qwen 调用参数。
+- 修复(bytedance-aidp): 公共 Qwen provider 不再忽略金华话、台州话显式开启的思考开关，现将其真实发送为百炼 `enable_thinking: true`；默认及非 `true` 值仍关闭，并保留参数不支持时移除后重试。
+- 测试(bytedance-aidp): 覆盖 Qwen 最终请求体在显式开启时包含 `enable_thinking: true`。

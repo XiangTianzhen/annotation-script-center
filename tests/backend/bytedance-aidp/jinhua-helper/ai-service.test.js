@@ -12,6 +12,13 @@ const aiService = require(resolveRepo(
   "backend",
   "ai-service.js"
 ));
+const qwenProvider = require(resolveRepo(
+  "platform-resources",
+  "backend",
+  "ai",
+  "providers",
+  "qwen-openai-compatible.js"
+));
 
 function createRequest(overrides) {
   return aiService.normalizeRecommendRequest(Object.assign({
@@ -89,6 +96,42 @@ test("Jinhua request defaults thinking to false and accepts only a strict true v
     createRequest({ aiOmni: { enableThinking: "true" } }).aiOmni.enableThinking,
     false
   );
+});
+
+test("Qwen Omni forwards an explicitly enabled thinking switch to the Bailian request", async function (t) {
+  const originalFetch = global.fetch;
+  const originalApiKey = process.env.DASHSCOPE_API_KEY;
+  let requestBody = null;
+
+  process.env.DASHSCOPE_API_KEY = "test-key";
+  global.fetch = async function (_url, options) {
+    requestBody = JSON.parse(options.body);
+    return {
+      ok: true,
+      text: async function () {
+        return JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ listenText: "测试结果" }) } }],
+          usage: {},
+        });
+      },
+    };
+  };
+  t.after(function () {
+    global.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.DASHSCOPE_API_KEY;
+    } else {
+      process.env.DASHSCOPE_API_KEY = originalApiKey;
+    }
+  });
+
+  await qwenProvider.requestOmniInputAudio(
+    { audioDataUrl: "data:audio/wav;base64,ZmFrZQ==" },
+    { systemPrompt: "测试 system Prompt", userPrompt: "测试 user Prompt" },
+    { model: "qwen3.5-omni-plus", enableThinking: true, timeoutMs: 1000 }
+  );
+
+  assert.equal(requestBody.enable_thinking, true);
 });
 
 test("Jinhua recommendation invokes Qwen Omni once and returns one cost record", async function () {

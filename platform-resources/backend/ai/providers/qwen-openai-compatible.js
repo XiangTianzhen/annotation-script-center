@@ -23,11 +23,11 @@ const {
 } = require("../sanitizer");
 
 function resolveThinkingPreference(options, config) {
-  void options;
   void config;
+  const enabled = options?.enableThinking === true;
   return {
-    source: "forced-off",
-    enabled: false,
+    source: enabled ? "request" : "forced-off",
+    enabled,
   };
 }
 
