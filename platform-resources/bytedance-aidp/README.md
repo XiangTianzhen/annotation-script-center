@@ -7,7 +7,8 @@
 - 当前脚本资料：
   - `suzhou-helper`
   - `jinhua-helper`
-- 当前状态：`1.0.0` 双脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/` 两套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
+  - `taizhou-helper`
+- 当前状态：`1.0.0` 三脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/`、`extension/sites/bytedance-aidp/taizhou-helper/` 三套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
 - 首轮依据：
   - 用户提供的列表首页 URL
   - 用户提供的 `mark-v3` 详情页 URL
@@ -18,7 +19,9 @@
 1. `https://aidp.bytedance.com/management/task-v2?page=1`
 2. `https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}?from_pathname=...&fs=...&templateID=...&templateType=...`
 3. 平台公共资料只覆盖列表页路由、分页入口、详情跳转模式与首轮挂载边界
-4. 苏州话 / 金华话脚本资料覆盖 `mark-v3` 详情页初始化、页面结构、分段建议、AI 推荐与暂存写回边界，不外扩到保存、提交、领取等写链路
+4. 苏州话 / 金华话 / 台州话脚本资料覆盖 `mark-v3` 详情页初始化、页面结构、分段建议、AI 推荐与暂存写回边界，不外扩到保存、提交、领取等写链路
+
+苏州话、金华话与台州话三套脚本同平台互斥启用；关闭当前脚本时不会自动启用另一个脚本。
 
 ## 文档约定
 
@@ -35,14 +38,21 @@
 4. `page-structure/01-task-v2-home.md`
 5. `suzhou-helper/README.md`
 6. `jinhua-helper/README.md`
-7. `suzhou-helper/network/README.md`
-8. `suzhou-helper/network/01-mark-v3-detail-init.md`
-9. `suzhou-helper/page-structure/README.md`
-10. `suzhou-helper/page-structure/01-mark-v3-detail.md`
-11. `jinhua-helper/network/README.md`
-12. `jinhua-helper/network/01-mark-v3-detail-init.md`
-13. `jinhua-helper/page-structure/README.md`
-14. `jinhua-helper/page-structure/01-mark-v3-detail.md`
+7. `taizhou-helper/README.md`
+8. `suzhou-helper/network/README.md`
+9. `suzhou-helper/network/01-mark-v3-detail-init.md`
+10. `suzhou-helper/page-structure/README.md`
+11. `suzhou-helper/page-structure/01-mark-v3-detail.md`
+12. `jinhua-helper/network/README.md`
+13. `jinhua-helper/network/01-mark-v3-detail-init.md`
+14. `jinhua-helper/page-structure/README.md`
+15. `jinhua-helper/page-structure/01-mark-v3-detail.md`
+16. `taizhou-helper/network/README.md`
+17. `taizhou-helper/network/01-mark-v3-detail-init.md`
+18. `taizhou-helper/network/02-mark-v3-receive-current-item.md`
+19. `taizhou-helper/network/03-mark-v3-submit-temp-answer.md`
+20. `taizhou-helper/page-structure/README.md`
+21. `taizhou-helper/page-structure/01-mark-v3-detail.md`
 
 ## 当前覆盖状态
 

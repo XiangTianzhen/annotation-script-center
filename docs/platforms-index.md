@@ -1,6 +1,6 @@
 # 平台与脚本索引
 
-当前只维护三个平台、四个正式脚本。
+当前只维护三个平台、五个正式脚本。
 
 ## DataBaker CVPC
 
@@ -13,11 +13,13 @@
 - 共用观察器：`extension/sites/bytedance-aidp/shared/page-world/network-observer.js`
 - 苏州话运行时：`extension/sites/bytedance-aidp/suzhou-helper/`
 - 金华话运行时：`extension/sites/bytedance-aidp/jinhua-helper/`（单次 Qwen Omni 原始 `listenText` 直填）
+- 台州话运行时：`extension/sites/bytedance-aidp/taizhou-helper/`
 - 平台资料：`platform-resources/bytedance-aidp/README.md`
 - 苏州话资料：`platform-resources/bytedance-aidp/suzhou-helper/README.md`
 - 金华话资料：`platform-resources/bytedance-aidp/jinhua-helper/README.md`
+- 台州话资料：`platform-resources/bytedance-aidp/taizhou-helper/README.md`
 
-苏州话与金华话脚本同平台互斥启用。
+苏州话、金华话与台州话脚本同平台互斥启用。
 
 ## Magic Data
 
@@ -31,4 +33,4 @@
 
 - 入口：`platform-resources/backend/server.js`
 - 契约：`platform-resources/backend/README.md`
-- 后端只注册柳州、苏州、金华、杭州四脚本路由，以及管理员会话、下载中心和 AI 日志接口。
+- 后端只注册柳州、苏州、金华、台州、杭州五脚本路由，以及管理员会话、下载中心和 AI 日志接口。

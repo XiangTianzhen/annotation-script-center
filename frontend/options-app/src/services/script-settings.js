@@ -5,6 +5,7 @@ const SCRIPT_BRANCHES = {
   dataBakerCvpcLiuzhouAssistant: ["platforms", "dataBakerCvpc", "scripts", "liuzhouAssistant"],
   bytedanceAidpSuzhouHelper: ["platforms", "bytedanceAidp", "scripts", "suzhouHelper"],
   bytedanceAidpJinhuaHelper: ["platforms", "bytedanceAidp", "scripts", "jinhuaHelper"],
+  bytedanceAidpTaizhouHelper: ["platforms", "bytedanceAidp", "scripts", "taizhouHelper"],
   magicDataHangzhouAssistant: ["platforms", "magicData", "scripts", "hangzhouHelper"],
 };
 
@@ -12,6 +13,7 @@ const SCRIPT_IDS = {
   cvpc: "dataBakerCvpcLiuzhouAssistant",
   suzhou: "bytedanceAidpSuzhouHelper",
   jinhua: "bytedanceAidpJinhuaHelper",
+  taizhou: "bytedanceAidpTaizhouHelper",
   hangzhou: "magicDataHangzhouAssistant",
 };
 
@@ -171,6 +173,14 @@ export function getScriptShortcutActions(scriptId) {
         AIDP_SHORTCUT_FALLBACK
     );
   }
+  if (scriptId === SCRIPT_IDS.taizhou) {
+    return clone(
+      constants.BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS ||
+        constants.BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS ||
+        constants.BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS ||
+        AIDP_SHORTCUT_FALLBACK
+    );
+  }
   if (scriptId === SCRIPT_IDS.hangzhou) return clone(MAGIC_SHORTCUT_ACTIONS);
   return [];
 }
@@ -298,6 +308,10 @@ function stageFields(options) {
 
 function aidpSections(scriptId) {
   const isJinhua = scriptId === SCRIPT_IDS.jinhua;
+  const isTaizhou = scriptId === SCRIPT_IDS.taizhou;
+  const isOmniOnly = isJinhua || isTaizhou;
+  const usesMandarinTranslation =
+    scriptId === SCRIPT_IDS.jinhua || scriptId === SCRIPT_IDS.taizhou;
   return [
     {
       key: "basic",
@@ -372,7 +386,7 @@ function aidpSections(scriptId) {
     {
       key: "ai",
       title: "AI 设置",
-      help: isJinhua
+      help: isOmniOnly
         ? "配置单次全模态原始听音识别的模型、Prompt 和生成参数。"
         : "配置听音与普通话听写收口两阶段参数。",
       groups: [
@@ -381,7 +395,7 @@ function aidpSections(scriptId) {
           title: "基础设置",
           layout: "two",
           fields: [
-            ...(!isJinhua ? [{
+            ...(!isOmniOnly ? [{
               kind: "boolean",
               path: "aiRecommendAutoFillEnabled",
               label: "识别完成后自动填入",
@@ -406,7 +420,7 @@ function aidpSections(scriptId) {
             },
           ],
         },
-        ...(isJinhua
+        ...(isOmniOnly
           ? [{
               key: "omni",
               title: "原始听音",
@@ -743,7 +757,11 @@ export function getScriptFieldGroups(scriptId, defaultsState = {}) {
   if (normalizedScriptId === SCRIPT_IDS.cvpc) {
     return normalizeSections(cvpcSections(), defaultsState);
   }
-  if (normalizedScriptId === SCRIPT_IDS.suzhou || normalizedScriptId === SCRIPT_IDS.jinhua) {
+  if (
+    normalizedScriptId === SCRIPT_IDS.suzhou ||
+    normalizedScriptId === SCRIPT_IDS.jinhua ||
+    normalizedScriptId === SCRIPT_IDS.taizhou
+  ) {
     return normalizeSections(aidpSections(normalizedScriptId), defaultsState);
   }
   if (normalizedScriptId === SCRIPT_IDS.hangzhou) {
@@ -753,7 +771,11 @@ export function getScriptFieldGroups(scriptId, defaultsState = {}) {
 }
 
 function isAidpScript(scriptId) {
-  return scriptId === SCRIPT_IDS.suzhou || scriptId === SCRIPT_IDS.jinhua;
+  return (
+    scriptId === SCRIPT_IDS.suzhou ||
+    scriptId === SCRIPT_IDS.jinhua ||
+    scriptId === SCRIPT_IDS.taizhou
+  );
 }
 
 export function getScriptDetailSections(scriptId, savedConfig, defaultsState = {}) {

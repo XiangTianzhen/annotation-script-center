@@ -24,6 +24,9 @@ const {
 const {
   aiCallLogger: bytedanceAidpJinhuaLogger,
 } = require("../../bytedance-aidp/jinhua-helper/backend/ai-call-log");
+const {
+  aiCallLogger: bytedanceAidpTaizhouLogger,
+} = require("../../bytedance-aidp/taizhou-helper/backend/ai-call-log");
 const { aiCallLogger: magicDataHangzhouLogger } = require("../../magic-data/hangzhou-helper/backend/ai-call-log");
 
 const OPTIONS_PATH = "/api/admin/ai-call-log/options";
@@ -128,6 +131,14 @@ function createDatasetRegistry(config) {
       defaultFileName: "bytedance-aidp-jinhua-helper-ai-calls.csv",
       getLogger: function () {
         return bytedanceAidpJinhuaLogger;
+      },
+    },
+    {
+      id: "bytedance-aidp-taizhou-helper-ai",
+      label: "ByteDance AIDP 台州话脚本 AI 调用记录",
+      defaultFileName: "bytedance-aidp-taizhou-helper-ai-calls.csv",
+      getLogger: function () {
+        return bytedanceAidpTaizhouLogger;
       },
     },
     {

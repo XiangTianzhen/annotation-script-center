@@ -1,6 +1,24 @@
 # 标注脚本中心修改总账
 
-本总账只记录 DataBaker CVPC 柳州话、ByteDance AIDP 苏州话与金华话、Magic Data 杭州话，以及四脚本共同依赖的扩展、Options、后端、测试和发布能力。
+本总账只记录 DataBaker CVPC 柳州话、ByteDance AIDP 苏州话、金华话与台州话、Magic Data 杭州话，以及五脚本共同依赖的扩展、Options、后端、测试和发布能力。
+
+## 2026-07-14
+
+- 重构(bytedance-aidp): 台州话切换为原始听音直填诊断模式。后端仅接受严格 JSON 的 `listenText`，移除普通话转换、文本清洗、风险/复核、强制填入和自动填入分支；单段直填 textarea，批量仅暂存写入当前页 `regions[*].txt`，全程不保存、不提交、不切题。
+- 测试(bytedance-aidp): 覆盖 `listenText` 原样保留、空/非法 JSON 不写入、单段直填、批量单次暂存写回、停止批量不二次写回，以及台州 Options 不显示自动填入开关。
+- 重构(bytedance-aidp): 台州话识别改为每段单次 Qwen Omni 调用，默认 `qwen3.5-omni-plus`，仅允许切换至 `qwen3.5-omni-flash`；听音、普通话转换、风险判断和复核信息合并为同一 JSON。
+- 优化(bytedance-aidp): Storage schema 升至 32；仅把旧台州听音模型迁移到全模态模型，旧两阶段 Prompt 与生成参数不复用。前端请求、AI 面板和 CSV 日志统一为 `omni` 模型、usage、cost、raw 与 debug 字段。
+- 修复(bytedance-aidp): 最终普通话文本增加代码级标点白名单、数字汉字化、无效字符移除及明显口吃式单字/短词重复压缩；JSON 解析失败时强制人工复核并阻止自动填入。
+- 测试(bytedance-aidp): 覆盖单次调用、Plus/Flash 白名单、60 秒上限、JSON 失败保护、风险阻断、文本清洗、schema 32 迁移、单 Omni 请求体、Options 映射和面板展示。
+
+## 2026-07-13
+
+- 新增(bytedance-aidp): 接入台州话独立 runtime、设置、后端路由、AI 调用日志和平台资料。
+- 优化(bytedance-aidp): 将苏州话、金华话、台州话升级为同平台三方互斥，storage schema 升至 31 且台州默认关闭。
+- 测试(bytedance-aidp): 覆盖台州话风险拦截、强制填入、批量待复核、三方互斥、Options、manifest、路由和日志数据集。
+- 修复(bytedance-aidp): 停止台州话批量识别后，已在途结果改为保留待用户显式填入，不再自动暂存写回。
+- 修复(bytedance-aidp): 台州话单段与行内自动填入在异步返回前校验题目/分段快照和输入框空值；拦截结果保留给用户显式填入。
+- 修复(bytedance-aidp): 台州话风险布尔值仅接受原生 `true` 或去空格、忽略大小写的字符串 `"true"`，refine 标点收口为 `，。？！`；补齐 schema 30 升至 31 的三方互斥迁移边界，以及 DOM 直填与 `SubmitTempItemAnswer` 暂存写回的资料契约。
 
 ## 2026-07-15
 

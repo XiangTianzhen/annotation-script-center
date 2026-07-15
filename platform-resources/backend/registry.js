@@ -10,6 +10,9 @@ const {
   registerRoutes: registerBytedanceAidpJinhuaRoutes,
 } = require("../bytedance-aidp/jinhua-helper/backend");
 const {
+  registerRoutes: registerBytedanceAidpTaizhouRoutes,
+} = require("../bytedance-aidp/taizhou-helper/backend");
+const {
   registerRoutes: registerMagicDataHangzhouRoutes,
 } = require("../magic-data/hangzhou-helper/backend");
 const { registerRoutes: registerAdminSessionRoutes } = require("./admin-session");
@@ -22,6 +25,7 @@ function registerProjectRoutes(router, options) {
   registerDataBakerCvpcLiuzhouRoutes(router, config.dataBakerCvpcLiuzhouHelper || {});
   registerBytedanceAidpSuzhouRoutes(router, config.bytedanceAidpSuzhouHelper || {});
   registerBytedanceAidpJinhuaRoutes(router, config.bytedanceAidpJinhuaHelper || {});
+  registerBytedanceAidpTaizhouRoutes(router, config.bytedanceAidpTaizhouHelper || {});
   registerMagicDataHangzhouRoutes(router, config.magicDataHangzhouHelper || {});
   registerAdminSessionRoutes(router, config.adminSession || {});
   registerAdminDashboardRoutes(router, {

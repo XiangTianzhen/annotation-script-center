@@ -1,6 +1,6 @@
 # 统一后端
 
-统一后端入口为 `platform-resources/backend/server.js`，默认只监听 `127.0.0.1:3333`。它负责组合四脚本 API、管理员能力、公共 AI、日志和 ZIP 下载中心。
+统一后端入口为 `platform-resources/backend/server.js`，默认只监听 `127.0.0.1:3333`。它负责组合五脚本 API、管理员能力、公共 AI、日志和 ZIP 下载中心。
 
 ## 主要文件
 
@@ -8,7 +8,7 @@
 |---|---|
 | `server.js` | 加载 env、创建应用并监听端口 |
 | `app.js` | HTTP 应用、Router 和公共中间处理 |
-| `registry.js` | 注册四脚本与管理员路由 |
+| `registry.js` | 注册五脚本与管理员路由 |
 | `config.js` | host、port 和后端配置归一化 |
 | `env-loader.js` | 按固定顺序加载 ignored env 文件 |
 | `ai/` | provider、模型目录、调度、队列、价格与响应工具 |
@@ -77,13 +77,14 @@ http://127.0.0.1:3333
 
 AI 调用通常需要 `DASHSCOPE_API_KEY`。环境加载顺序和覆盖规则见 [config/README.md](../../config/README.md)。
 
-## 四脚本路由
+## 五脚本路由
 
 | 脚本 | Health / Defaults | 主要能力 |
 |---|---|---|
 | 柳州话 | `/api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`、`.../defaults` | AI 推荐、整音频分段预览 |
 | 苏州话 | `/api/bytedance-aidp/suzhou-helper/ai/recommend/health`、`.../defaults` | AI 推荐、分段建议 |
 | 金华话 | `/api/bytedance-aidp/jinhua-helper/ai/recommend/health`、`.../defaults` | 单次 Qwen Omni 原始 `listenText` 直填、分段建议 |
+| 台州话 | `/api/bytedance-aidp/taizhou-helper/ai/recommend/health`、`.../defaults` | 原始听音直填、分段建议 |
 | 杭州话 | `/api/magic-data/hangzhou-helper/ai/review-current/health`、`/api/magic-data/hangzhou-helper/ai/defaults` | 当前条 AI 质检 |
 
 完整请求体、响应字段和写回边界由各脚本 README 维护，统一后端不复制脚本业务 schema。
@@ -93,9 +94,9 @@ AI 调用通常需要 `DASHSCOPE_API_KEY`。环境加载顺序和覆盖规则见
 - `/api/admin/session/*`：管理员会话解锁与状态。
 - `/api/admin/dashboard/*`：后端运行概况与脱敏运行日志。
 - `/api/admin/download-center/*`：读取公开 `/downloads/` 目录索引，只返回版本化 ZIP。
-- `/api/admin/ai-call-log/*`：四脚本 AI 日志选项、申请下载和签名文件下载。
+- `/api/admin/ai-call-log/*`：五脚本 AI 日志选项、申请下载和签名文件下载。
 
-`GET /api/admin/ai-call-log/options` 固定返回柳州、苏州、金华、杭州四项。
+`GET /api/admin/ai-call-log/options` 固定返回柳州、苏州、金华、台州、杭州五项。
 
 下载中心通过 `ASC_DOWNLOAD_BASE_URL` 指定目录；服务器必须为对应 `/downloads/` 开启目录索引，并提供 `annotation-script-center-v<version>.zip`。
 
@@ -131,6 +132,7 @@ Nginx 的 `/api/` 应代理到 `http://127.0.0.1:3333`；`/downloads/` 应 alias
 curl -fsS http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend/health
 curl -fsS http://127.0.0.1:3333/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults
 curl -fsS http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults
+curl -fsS http://127.0.0.1:3333/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults
 curl -fsS http://127.0.0.1:3333/api/magic-data/hangzhou-helper/ai/defaults
 ```
 

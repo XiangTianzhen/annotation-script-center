@@ -76,6 +76,10 @@ describe("ScriptDetailView 1.0 layout", () => {
               enabled: true,
               aiRecommendEnabled: true,
             },
+            taizhouHelper: {
+              enabled: false,
+              aiRecommendEnabled: true,
+            },
           },
         },
       },
@@ -99,6 +103,13 @@ describe("ScriptDetailView 1.0 layout", () => {
       bytedanceAidpSuzhouHelper: {
         id: "bytedanceAidpSuzhouHelper",
         label: "苏州话脚本",
+        description: "测试描述",
+        note: "测试说明",
+        platformId: "bytedanceAidp",
+      },
+      bytedanceAidpTaizhouHelper: {
+        id: "bytedanceAidpTaizhouHelper",
+        label: "台州话脚本",
         description: "测试描述",
         note: "测试说明",
         platformId: "bytedanceAidp",
@@ -154,6 +165,7 @@ describe("ScriptDetailView 1.0 layout", () => {
   test.each([
     ["bytedanceAidpSuzhouHelper", "suzhouHelper"],
     ["bytedanceAidpJinhuaHelper", "jinhuaHelper"],
+    ["bytedanceAidpTaizhouHelper", "taizhouHelper"],
   ])(
     "keeps %s AI settings visible until save, then supports showing it again",
     async (currentScriptId, branchKey) => {

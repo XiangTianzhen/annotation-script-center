@@ -66,6 +66,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     const settings = await harness.storage.getSettings();
     const suzhouScript = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
+    const taizhouScript = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
 
     assert.equal(settings.meta.schemaVersion, 33);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
@@ -76,6 +77,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     assert.deepEqual(Object.keys(settings.platforms.bytedanceAidp.scripts).sort(), [
       "jinhuaHelper",
       "suzhouHelper",
+      "taizhouHelper",
     ]);
     assert.equal(settings.platforms.bytedanceAidp.enabled, true);
     assert.equal(
@@ -130,6 +132,15 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     assert.equal(jinhuaScript.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(jinhuaScript.contractMode, "dom-guarded");
     assert.equal(jinhuaScript.shortcuts.togglePlayPause, null);
+    assert.equal(taizhouScript.id, "bytedanceAidpTaizhouHelper");
+    assert.equal(taizhouScript.enabled, false);
+    assert.equal(taizhouScript.aiRecommendEnabled, false);
+    assert.equal(
+      taizhouScript.aiRecommendEndpoint,
+      harness.constants.BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_SERVER_ENDPOINT
+    );
+    assert.equal(taizhouScript.aiRecommendOmniModel, "qwen3.5-omni-plus");
+    assert.equal(taizhouScript.aiRecommendOmniPrompt, "");
   } finally {
     harness.cleanup();
   }
@@ -246,6 +257,74 @@ test("ByteDance AIDP storage migrates Jinhua listen model to Omni and retains in
     assert.equal(script.aiRecommendAutoFillEnabled, false);
   } finally {
     harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizhou disabled", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 30 },
+    platforms: { bytedanceAidp: {
+      enabled: true,
+      activeScriptId: "bytedanceAidpJinhuaHelper",
+      scripts: { jinhuaHelper: { enabled: true } },
+    } },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const aidp = settings.platforms.bytedanceAidp;
+    assert.equal(settings.meta.schemaVersion, 33);
+    assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper");
+    assert.equal(aidp.scripts.jinhuaHelper.enabled, true);
+    assert.equal(aidp.scripts.suzhouHelper.enabled, false);
+    assert.equal(aidp.scripts.taizhouHelper.enabled, false);
+    assert.equal(aidp.scripts.taizhouHelper.aiRecommendEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage migrates the Taizhou listen model to the single Omni field without reusing two-stage prompts", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 31 },
+    platforms: { bytedanceAidp: { scripts: { taizhouHelper: {
+      aiRecommendListenModel: "qwen3.5-omni-flash",
+      aiRecommendListenPrompt: "旧听音 Prompt",
+      aiRecommendRefinePrompt: "旧收口 Prompt",
+      aiRecommendListenTemperature: "0.2",
+    } } } },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
+    assert.equal(settings.meta.schemaVersion, 33);
+    assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendOmniPrompt, "");
+    assert.equal(script.aiRecommendOmniTemperature, "");
+    assert.equal(Object.hasOwn(script, "aiRecommendListenPrompt"), false);
+    assert.equal(Object.hasOwn(script, "aiRecommendRefinePrompt"), false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage keeps explicitly enabled Jinhua for missing or invalid legacy active IDs", async function () {
+  for (const activeScriptId of [undefined, "legacy-unknown-aidp-helper"]) {
+    const bytedanceAidp = { enabled: true, scripts: { jinhuaHelper: { enabled: true } } };
+    if (activeScriptId !== undefined) bytedanceAidp.activeScriptId = activeScriptId;
+    const harness = loadStorageApi({ meta: { schemaVersion: 30 }, platforms: { bytedanceAidp } });
+    try {
+      const settings = await harness.storage.getSettings();
+      const aidp = settings.platforms.bytedanceAidp;
+      assert.equal(settings.meta.schemaVersion, 33, String(activeScriptId));
+      assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper", String(activeScriptId));
+      assert.equal(aidp.scripts.jinhuaHelper.enabled, true, String(activeScriptId));
+      assert.equal(aidp.scripts.suzhouHelper.enabled, false, String(activeScriptId));
+      assert.equal(aidp.scripts.taizhouHelper.enabled, false, String(activeScriptId));
+    } finally {
+      harness.cleanup();
+    }
   }
 });
 
@@ -555,6 +634,36 @@ test("ByteDance AIDP setScriptEnabled switches active script to jinhua and disab
     assert.equal(jinhuaScript.segmentContextPaddingMs, 300);
     assert.equal(jinhuaScript.segmentSilenceThresholdDbfs, -31);
     assert.equal(jinhuaScript.shortcuts.togglePlayPause, null);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP setScriptEnabled activates taizhou and disables both existing helpers", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      bytedanceAidp: {
+        enabled: true,
+        activeScriptId: "bytedanceAidpJinhuaHelper",
+        scripts: {
+          suzhouHelper: { enabled: false },
+          jinhuaHelper: { enabled: true },
+          taizhouHelper: { enabled: false, aiRecommendEnabled: false },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.setScriptEnabled("bytedanceAidpTaizhouHelper", true);
+    const scripts = settings.platforms.bytedanceAidp.scripts;
+
+    assert.equal(settings.platforms.bytedanceAidp.enabled, true);
+    assert.equal(settings.platforms.bytedanceAidp.activeScriptId, "bytedanceAidpTaizhouHelper");
+    assert.equal(scripts.suzhouHelper.enabled, false);
+    assert.equal(scripts.jinhuaHelper.enabled, false);
+    assert.equal(scripts.taizhouHelper.enabled, true);
+    assert.equal(scripts.taizhouHelper.aiRecommendEnabled, false);
   } finally {
     harness.cleanup();
   }

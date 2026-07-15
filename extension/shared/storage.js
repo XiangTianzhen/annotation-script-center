@@ -122,10 +122,14 @@
   function normalizeAidpScript(raw, fallback, meta, legacySchema) {
     const source = object(raw);
     const isJinhua = fallback.id === constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID;
+    const isTaizhou = fallback.id === constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID;
     const endpointPath = fallback.id === constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID
-      ? constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH : constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH;
+      ? constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH
+      : fallback.id === constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID
+        ? constants.BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH
+        : constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH;
     const migratedShortcuts = normalizeShortcutMap(source.shortcuts, fallback.shortcuts, legacySchema <= 27);
-    const next = {
+    const common = {
       ...clone(fallback),
       enabled: bool(source.enabled, fallback.enabled),
       platformAiEnabled: legacySchema < 25 ? false : bool(source.platformAiEnabled, fallback.platformAiEnabled),
@@ -137,6 +141,32 @@
       aiRecommendAutoFillEnabled: bool(source.aiRecommendAutoFillEnabled, fallback.aiRecommendAutoFillEnabled),
       aiRecommendEndpoint: constants.buildBackendUrl(endpointPath, { meta }),
       aiRecommendRequestTimeoutMs: numberInRange(source.aiRecommendRequestTimeoutMs, fallback.aiRecommendRequestTimeoutMs, 1000, 60000),
+      defaultPlaybackRate: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].includes(Number(source.defaultPlaybackRate)) ? Number(source.defaultPlaybackRate) : fallback.defaultPlaybackRate,
+      fixedWaveZoom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(Number(source.fixedWaveZoom)) ? Number(source.fixedWaveZoom) : fallback.fixedWaveZoom,
+      contractMode: "dom-guarded",
+      shortcuts: migratedShortcuts,
+    };
+    if (isTaizhou) {
+      return {
+        ...common,
+        aiRecommendOmniModel: option(
+          source.aiRecommendOmniModel || source.aiRecommendListenModel,
+          ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
+          fallback.aiRecommendOmniModel
+        ),
+        aiRecommendOmniPrompt: text(source.aiRecommendOmniPrompt, fallback.aiRecommendOmniPrompt),
+        aiRecommendOmniTemperature: numericText(source.aiRecommendOmniTemperature, fallback.aiRecommendOmniTemperature, 0, 2),
+        aiRecommendOmniTopP: numericText(source.aiRecommendOmniTopP, fallback.aiRecommendOmniTopP, 0, 1),
+        aiRecommendOmniMaxTokens: numericText(source.aiRecommendOmniMaxTokens, fallback.aiRecommendOmniMaxTokens, 1, 65536),
+        aiRecommendOmniMaxCompletionTokens: numericText(source.aiRecommendOmniMaxCompletionTokens, fallback.aiRecommendOmniMaxCompletionTokens, 1, 65536),
+        aiRecommendOmniPresencePenalty: numericText(source.aiRecommendOmniPresencePenalty, fallback.aiRecommendOmniPresencePenalty, -2, 2),
+        aiRecommendOmniFrequencyPenalty: numericText(source.aiRecommendOmniFrequencyPenalty, fallback.aiRecommendOmniFrequencyPenalty, -2, 2),
+        aiRecommendOmniSeed: numericText(source.aiRecommendOmniSeed, fallback.aiRecommendOmniSeed, 0, 2147483647),
+        aiRecommendOmniStopSequences: stopSequences(source.aiRecommendOmniStopSequences, fallback.aiRecommendOmniStopSequences),
+      };
+    }
+    const next = {
+      ...common,
       aiRecommendListenModel: option(source.aiRecommendListenModel, ["qwen3.5-omni-flash", "qwen3.5-omni-plus"], fallback.aiRecommendListenModel),
       aiRecommendRefineModel: option(source.aiRecommendRefineModel, ["qwen3.5-plus", "qwen3.5-flash"], fallback.aiRecommendRefineModel),
       aiRecommendListenPrompt: text(source.aiRecommendListenPrompt, fallback.aiRecommendListenPrompt),
@@ -157,10 +187,6 @@
       aiRecommendRefineFrequencyPenalty: numericText(source.aiRecommendRefineFrequencyPenalty, fallback.aiRecommendRefineFrequencyPenalty, -2, 2),
       aiRecommendRefineSeed: numericText(source.aiRecommendRefineSeed, fallback.aiRecommendRefineSeed, 0, 2147483647),
       aiRecommendRefineStopSequences: stopSequences(source.aiRecommendRefineStopSequences, fallback.aiRecommendRefineStopSequences),
-      defaultPlaybackRate: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].includes(Number(source.defaultPlaybackRate)) ? Number(source.defaultPlaybackRate) : fallback.defaultPlaybackRate,
-      fixedWaveZoom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(Number(source.fixedWaveZoom)) ? Number(source.fixedWaveZoom) : fallback.fixedWaveZoom,
-      contractMode: "dom-guarded",
-      shortcuts: migratedShortcuts,
     };
     if (isJinhua) {
       const omniModel = source.aiRecommendOmniModel || source.aiRecommendListenModel;
@@ -187,14 +213,32 @@
   function normalizeAidp(raw, meta, legacySchema) {
     const defaults = constants.DEFAULT_SETTINGS.platforms.bytedanceAidp;
     const source = object(raw);
-    const suzhou = normalizeAidpScript(source.scripts?.suzhouHelper, defaults.scripts.suzhouHelper, meta, legacySchema);
-    const jinhua = normalizeAidpScript(source.scripts?.jinhuaHelper, defaults.scripts.jinhuaHelper, meta, legacySchema);
-    const allowed = [constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID];
+    const sourceScripts = object(source.scripts);
+    const suzhou = normalizeAidpScript(sourceScripts.suzhouHelper, defaults.scripts.suzhouHelper, meta, legacySchema);
+    const jinhua = normalizeAidpScript(sourceScripts.jinhuaHelper, defaults.scripts.jinhuaHelper, meta, legacySchema);
+    const taizhou = normalizeAidpScript(sourceScripts.taizhouHelper, defaults.scripts.taizhouHelper, meta, legacySchema);
+    const scripts = [suzhou, jinhua, taizhou];
+    const allowed = [
+      constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
+      constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID,
+      constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID,
+    ];
     let activeScriptId = allowed.includes(source.activeScriptId) ? source.activeScriptId : "";
-    if (!activeScriptId) activeScriptId = jinhua.enabled && !suzhou.enabled ? jinhua.id : suzhou.enabled ? suzhou.id : jinhua.enabled ? jinhua.id : "";
-    if (activeScriptId === suzhou.id) jinhua.enabled = false;
-    if (activeScriptId === jinhua.id) suzhou.enabled = false;
-    return { enabled: bool(source.enabled, defaults.enabled), activeScriptId, scripts: { suzhouHelper: suzhou, jinhuaHelper: jinhua } };
+    if (!activeScriptId) {
+      activeScriptId = [
+        [constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, sourceScripts.suzhouHelper],
+        [constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, sourceScripts.jinhuaHelper],
+        [constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, sourceScripts.taizhouHelper],
+      ].find((entry) => object(entry[1]).enabled === true)?.[0] || scripts.find((script) => script.enabled)?.id || "";
+    }
+    scripts.forEach((script) => {
+      if (activeScriptId && script.id !== activeScriptId) script.enabled = false;
+    });
+    return {
+      enabled: bool(source.enabled, defaults.enabled),
+      activeScriptId,
+      scripts: { suzhouHelper: suzhou, jinhuaHelper: jinhua, taizhouHelper: taizhou },
+    };
   }
 
   function normalizeMagic(raw) {
@@ -266,12 +310,22 @@
     if (scriptId === constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID) {
       settings.platforms.dataBakerCvpc.enabled = next;
       Object.assign(settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant, { enabled: next, segmentPreviewEnabled: next, aiRecommendEnabled: next });
-    } else if (scriptId === constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || scriptId === constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID) {
-      const isSuzhou = scriptId === constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID;
+    } else if (
+      scriptId === constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID ||
+      scriptId === constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID ||
+      scriptId === constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID
+    ) {
+      const aidpScriptKeys = {
+        [constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID]: "suzhouHelper",
+        [constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID]: "jinhuaHelper",
+        [constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID]: "taizhouHelper",
+      };
+      const activeScriptKey = aidpScriptKeys[scriptId];
       settings.platforms.bytedanceAidp.enabled = next;
       settings.platforms.bytedanceAidp.activeScriptId = next ? scriptId : "";
-      settings.platforms.bytedanceAidp.scripts[isSuzhou ? "suzhouHelper" : "jinhuaHelper"].enabled = next;
-      if (next) settings.platforms.bytedanceAidp.scripts[isSuzhou ? "jinhuaHelper" : "suzhouHelper"].enabled = false;
+      Object.keys(aidpScriptKeys).forEach((id) => {
+        settings.platforms.bytedanceAidp.scripts[aidpScriptKeys[id]].enabled = next && id === scriptId;
+      });
     } else if (scriptId === constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID) {
       settings.platforms.magicData.enabled = true;
       settings.platforms.magicData.activeScriptId = next ? scriptId : "";

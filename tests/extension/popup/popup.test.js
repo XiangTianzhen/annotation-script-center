@@ -115,6 +115,7 @@ function loadPopup(documentLike, chromeLike, storageLike) {
     },
     BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID: "bytedanceAidpSuzhouHelper",
     BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID: "bytedanceAidpJinhuaHelper",
+    BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID: "bytedanceAidpTaizhouHelper",
     MAGIC_DATA_HANGZHOU_SCRIPT_ID: "magicDataHangzhouAssistant",
     DATA_BAKER_CVPC_PLATFORM: {
       host: "cvpc.databaker.com",
@@ -126,6 +127,9 @@ function loadPopup(documentLike, chromeLike, storageLike) {
       },
       bytedanceAidpJinhuaHelper: {
         label: "金华话脚本",
+      },
+      bytedanceAidpTaizhouHelper: {
+        label: "台州话脚本",
       },
       magicDataHangzhouAssistant: {
         label: "杭州话脚本",
@@ -309,6 +313,48 @@ test("popup shows the detected Jinhua script when AIDP activeScriptId switches t
   assert.deepEqual(toggleCalls, []);
   assert.deepEqual(chromeLike.createdUrls, [
     "chrome-extension://test/options/options.html#/script/bytedanceAidpJinhuaHelper",
+  ]);
+});
+test("popup shows the detected Taizhou script when AIDP activeScriptId switches to taizhou", async function () {
+  const documentLike = createDocument();
+  const chromeLike = createChrome(
+    "https://aidp.bytedance.com/management/task-v2/7632228385175129882/mark-v3/1"
+  );
+  const storageLike = {
+    async getSettings() {
+      return {
+        platforms: {
+          bytedanceAidp: {
+            enabled: true,
+            activeScriptId: "bytedanceAidpTaizhouHelper",
+            scripts: {
+              suzhouHelper: { enabled: false },
+              jinhuaHelper: { enabled: false },
+              taizhouHelper: {
+                enabled: true,
+                aiRecommendEnabled: true,
+                platformAiEnabled: false,
+                segmentPreviewAutoApplyEnabled: true,
+              },
+            },
+          },
+        },
+      };
+    },
+    async setScriptEnabled() {
+      throw new Error("not-needed");
+    },
+  };
+
+  loadPopup(documentLike, chromeLike, storageLike);
+  await documentLike.dispatchDOMContentLoaded();
+  await flushTasks();
+
+  assert.equal(documentLike.getElementById("detected-title").textContent, "台州话脚本");
+  assert.equal(documentLike.getElementById("detected-status-pill").textContent, "已启用");
+  documentLike.getElementById("open-script-settings").click();
+  assert.deepEqual(chromeLike.createdUrls, [
+    "chrome-extension://test/options/options.html#/script/bytedanceAidpTaizhouHelper",
   ]);
 });
 test("popup shows the detected Hangzhou script when Magic Data activeScriptId switches to hangzhou", async function () {

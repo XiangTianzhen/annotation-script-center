@@ -5,6 +5,7 @@ const SCRIPT_IDS = {
   cvpc: "dataBakerCvpcLiuzhouAssistant",
   suzhou: "bytedanceAidpSuzhouHelper",
   jinhua: "bytedanceAidpJinhuaHelper",
+  taizhou: "bytedanceAidpTaizhouHelper",
   hangzhou: "magicDataHangzhouAssistant",
 };
 
@@ -12,6 +13,7 @@ const DEFAULT_ENDPOINTS = {
   [SCRIPT_IDS.cvpc]: "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
   [SCRIPT_IDS.suzhou]: "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
   [SCRIPT_IDS.jinhua]: "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
+  [SCRIPT_IDS.taizhou]: "/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
   [SCRIPT_IDS.hangzhou]: "/api/magic-data/hangzhou-helper/ai/defaults",
 };
 
@@ -19,6 +21,7 @@ const DEFAULT_BRANCHES = {
   [SCRIPT_IDS.cvpc]: "platforms.dataBakerCvpc.scripts.liuzhouAssistant",
   [SCRIPT_IDS.suzhou]: "platforms.bytedanceAidp.scripts.suzhouHelper",
   [SCRIPT_IDS.jinhua]: "platforms.bytedanceAidp.scripts.jinhuaHelper",
+  [SCRIPT_IDS.taizhou]: "platforms.bytedanceAidp.scripts.taizhouHelper",
   [SCRIPT_IDS.hangzhou]: "platforms.magicData.scripts.hangzhouHelper",
 };
 
@@ -90,6 +93,25 @@ const STATIC_LOCAL_DEFAULTS = {
       omniModels: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
     },
   },
+  [SCRIPT_IDS.taizhou]: {
+    config: {
+      platformAiEnabled: false,
+      segmentContextPaddingMs: 300,
+      segmentSilenceThresholdDbfs: -31,
+      mergeContiguousSuggestedSegmentsEnabled: true,
+      segmentPreviewAutoApplyEnabled: true,
+      aiRecommendEnabled: false,
+      aiRecommendAutoFillEnabled: true,
+      aiRecommendRequestTimeoutMs: 60000,
+      aiRecommendOmniModel: "qwen3.5-omni-plus",
+      aiRecommendOmniPrompt: "",
+      defaultPlaybackRate: 1,
+      fixedWaveZoom: 2,
+    },
+    options: {
+      omniModels: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
+    },
+  },
   [SCRIPT_IDS.hangzhou]: {
     config: {
       aiReviewModelMode: "two_stage",
@@ -137,7 +159,7 @@ function text(value) {
 }
 
 function isAidpScript(scriptId) {
-  return scriptId === SCRIPT_IDS.suzhou || scriptId === SCRIPT_IDS.jinhua;
+  return scriptId === SCRIPT_IDS.suzhou || scriptId === SCRIPT_IDS.jinhua || scriptId === SCRIPT_IDS.taizhou;
 }
 
 function isPresent(value) {
@@ -320,7 +342,7 @@ export async function loadScriptDefaults(scriptId, settings, fetchImpl = globalT
     }
     const mapped = normalizedScriptId === SCRIPT_IDS.hangzhou
       ? mapMagicPayload(payload, local)
-      : normalizedScriptId === SCRIPT_IDS.jinhua
+      : normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou
         ? mapOmniPayload(payload, local)
         : mapTwoStagePayload(normalizedScriptId, payload, local);
     return {
@@ -531,7 +553,7 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
     clearDefaultOverrides(
       result,
       defaults,
-      normalizedScriptId === SCRIPT_IDS.jinhua
+      normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou
         ? buildStageOverrideDefinitions("aiRecommendOmni")
         : [
             ...buildStageOverrideDefinitions("aiRecommendListen"),

@@ -16,12 +16,14 @@
   const DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
   const BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID = "bytedanceAidpSuzhouHelper";
   const BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID = "bytedanceAidpJinhuaHelper";
+  const BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID = "bytedanceAidpTaizhouHelper";
   const MAGIC_DATA_HANGZHOU_SCRIPT_ID = "magicDataHangzhouAssistant";
 
   const DATA_BAKER_CVPC_AI_RECOMMEND_PATH = "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
   const DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH = "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
   const BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH = "/api/bytedance-aidp/suzhou-helper/ai/recommend";
   const BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH = "/api/bytedance-aidp/jinhua-helper/ai/recommend";
+  const BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH = "/api/bytedance-aidp/taizhou-helper/ai/recommend";
 
   const DATA_BAKER_CVPC_PLATFORM = {
     id: "dataBakerCvpc", label: "DataBaker CVPC", host: "cvpc.data-baker.com",
@@ -33,7 +35,7 @@
     id: "bytedanceAidp", label: "ByteDance AIDP", host: "aidp.bytedance.com",
     displayHost: "aidp.bytedance.com/management/task-v2", entryUrl: "https://aidp.bytedance.com/management/task-v2?page=1",
     matches: ["https://aidp.bytedance.com/*"], runtimeBridge: "bytedance-aidp-helpers",
-    description: "ByteDance AIDP 方言详情页辅助平台（苏州话 / 金华话）。",
+    description: "ByteDance AIDP 方言详情页辅助平台（苏州话 / 金华话 / 台州话）。",
   };
   const MAGIC_DATA_PLATFORM = {
     id: "magicData", label: "Magic Data ANNOTATOR", host: "work.magicdatatech.com",
@@ -66,6 +68,12 @@
       note: "不自动提交、不自动切题。", detailView: "bytedance-aidp-jinhua-helper",
       host: BYTEDANCE_AIDP_PLATFORM.host, matchUrl: "https://aidp.bytedance.com/management/task-v2/",
     },
+    [BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID]: {
+      id: BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, platformId: "bytedanceAidp", label: "台州话脚本",
+      shortLabel: "台州话脚本", description: "AIDP 台州话普通话翻译、分段建议与快捷键辅助。",
+      note: "不自动提交、不自动切题。", detailView: "bytedance-aidp-taizhou-helper",
+      host: BYTEDANCE_AIDP_PLATFORM.host, matchUrl: "https://aidp.bytedance.com/management/task-v2/",
+    },
     [MAGIC_DATA_HANGZHOU_SCRIPT_ID]: {
       id: MAGIC_DATA_HANGZHOU_SCRIPT_ID, platformId: "magicData", label: "杭州话脚本",
       shortLabel: "杭州话脚本", description: "Magic Data 当前条杭州话 AI 质检辅助。",
@@ -81,6 +89,7 @@
     { key: "applyPreviewSegments", label: "应用分段建议" },
   ];
   const BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
+  const BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
 
   function trimBaseUrl(value) { return String(value || "").trim().replace(/\/+$/, ""); }
   function normalizeBackendEndpointMode(value, fallback) {
@@ -131,6 +140,16 @@
     aiRecommendOmniPresencePenalty: "", aiRecommendOmniFrequencyPenalty: "", aiRecommendOmniSeed: "",
     aiRecommendOmniStopSequences: "",
   });
+  const taizhouAidp = (id, enabled) => ({
+    id, enabled, platformAiEnabled: false, segmentContextPaddingMs: 300, segmentSilenceThresholdDbfs: -31,
+    mergeContiguousSuggestedSegmentsEnabled: true, segmentPreviewAutoApplyEnabled: true,
+    aiRecommendEnabled: enabled, aiRecommendAutoFillEnabled: true, aiRecommendRequestTimeoutMs: 60000,
+    aiRecommendOmniModel: "qwen3.5-omni-plus", aiRecommendOmniPrompt: "", aiRecommendOmniTemperature: "",
+    aiRecommendOmniTopP: "", aiRecommendOmniMaxTokens: "", aiRecommendOmniMaxCompletionTokens: "",
+    aiRecommendOmniPresencePenalty: "", aiRecommendOmniFrequencyPenalty: "", aiRecommendOmniSeed: "",
+    aiRecommendOmniStopSequences: "", defaultPlaybackRate: 1, fixedWaveZoom: 2,
+    contractMode: "dom-guarded", shortcuts: Object.fromEntries(BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS.map((item) => [item.key, null])),
+  });
   const magicDefaults = {
     id: MAGIC_DATA_HANGZHOU_SCRIPT_ID, enabled: false, aiReviewEnabled: false, aiReviewModelMode: "two_stage",
     aiReviewRecognitionStrategy: "direct_dialect", aiReviewRecognitionMode: "two_stage",
@@ -163,6 +182,7 @@
       bytedanceAidp: { enabled: true, activeScriptId: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, scripts: {
         suzhouHelper: { ...baseAidp(BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, true), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH },
         jinhuaHelper: { ...jinhuaAidp(BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH },
+        taizhouHelper: { ...taizhouAidp(BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH },
       } },
       magicData: { enabled: true, activeScriptId: "", scripts: { hangzhouHelper: { ...magicDefaults } } },
     },
@@ -197,14 +217,17 @@
     }
     if (
       scriptId === BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID ||
-      scriptId === BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID
+      scriptId === BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID ||
+      scriptId === BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID
     ) {
       const fallbackPlatform = DEFAULT_SETTINGS.platforms.bytedanceAidp;
       const platform = source.platforms?.bytedanceAidp || {};
       const scriptKey =
         scriptId === BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID
           ? "jinhuaHelper"
-          : "suzhouHelper";
+          : scriptId === BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID
+            ? "taizhouHelper"
+            : "suzhouHelper";
       const fallbackScript = fallbackPlatform.scripts[scriptKey];
       const script = platform.scripts?.[scriptKey] || {};
       const activeScriptId = stringOrDefault(
@@ -246,17 +269,18 @@
     EXTENSION_NAME, STAGE_LABEL, STORAGE_KEY, SCHEMA_VERSION, DEFAULT_AI_REQUEST_TIMEOUT_MS,
     BACKEND_ENDPOINT_MODE_SERVER, BACKEND_ENDPOINT_MODE_LOCAL, DEFAULT_BACKEND_BASE_URLS,
     DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID, BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
-    BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, MAGIC_DATA_HANGZHOU_SCRIPT_ID,
+    BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, MAGIC_DATA_HANGZHOU_SCRIPT_ID,
     DATA_BAKER_CVPC_AI_RECOMMEND_PATH, DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH,
-    BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH, BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH,
+    BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH, BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH, BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH,
     DATA_BAKER_CVPC_PLATFORM, BYTEDANCE_AIDP_PLATFORM, MAGIC_DATA_PLATFORM,
     PLATFORM_LIBRARY, SCRIPT_LIBRARY, BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS,
-    BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS, DEFAULT_SETTINGS,
+    BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS, BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS, DEFAULT_SETTINGS,
     normalizeBackendEndpointMode, getBackendBaseUrlsFromSettings, getBackendEndpointModeFromSettings,
     getBackendBaseUrlByMode, buildBackendUrl, isPlatformVisible, isScriptVisible,
     isScriptRuntimeAccessible, buildPlatformEntryDescriptor,
     BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH,
     BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH,
+    BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_SERVER_ENDPOINT: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH,
   };
   globalThis.ASREdgeConstants = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

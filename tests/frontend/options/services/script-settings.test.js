@@ -18,11 +18,12 @@ const RETAINED = [
   "dataBakerCvpcLiuzhouAssistant",
   "bytedanceAidpSuzhouHelper",
   "bytedanceAidpJinhuaHelper",
+  "bytedanceAidpTaizhouHelper",
   "magicDataHangzhouAssistant",
 ];
 
 describe("script-settings helpers", () => {
-  test("maps only the four 1.0 scripts into detail schemas", () => {
+  test("maps only the five 1.0 scripts into detail schemas", () => {
     globalThis.ASREdgeConstants = sharedConstants;
     RETAINED.forEach((scriptId) => {
       expect(getScriptJsonPathLabel(scriptId)).toBeTruthy();
@@ -47,8 +48,8 @@ describe("script-settings helpers", () => {
     expect(sections[0].fields[0].kind).toBe("boolean");
   });
 
-  test("uses the saved AI master switch for both AIDP detail panels", () => {
-    ["bytedanceAidpSuzhouHelper", "bytedanceAidpJinhuaHelper"].forEach((scriptId) => {
+  test("uses the saved AI master switch for all AIDP detail panels", () => {
+    ["bytedanceAidpSuzhouHelper", "bytedanceAidpJinhuaHelper", "bytedanceAidpTaizhouHelper"].forEach((scriptId) => {
       expect(
         getScriptDetailSections(scriptId, { aiRecommendEnabled: false }).some(
           (section) => section.key === "ai"
@@ -220,6 +221,7 @@ describe("script-settings helpers", () => {
     expect(getScriptShortcutActions("dataBakerCvpcLiuzhouAssistant")).toHaveLength(18);
     expect(getScriptShortcutActions("bytedanceAidpSuzhouHelper")).toHaveLength(7);
     expect(getScriptShortcutActions("bytedanceAidpJinhuaHelper")).toHaveLength(7);
+    expect(getScriptShortcutActions("bytedanceAidpTaizhouHelper")).toHaveLength(7);
     expect(getScriptShortcutActions("magicDataHangzhouAssistant")).toHaveLength(22);
   });
 
