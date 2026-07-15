@@ -22,6 +22,7 @@
 /platform-resources/magic-data/**/phase_06_strategy_compare/
 /platform-resources/aishell-tech/minnan-helper/data/runtime/*.csv
 /platform-resources/data-baker-cvpc/liuzhou-helper/data/runtime/
+/platform-resources/bytedance-aidp/**/backend/logs/
 /.venv/
 /platform-resources/backend/.venv/
 /platform-resources/backend/.venv-funasr/

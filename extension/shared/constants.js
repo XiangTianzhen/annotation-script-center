@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 32;
+  const SCHEMA_VERSION = 33;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -64,7 +64,7 @@
     },
     [BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID]: {
       id: BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, platformId: "bytedanceAidp", label: "金华话脚本",
-      shortLabel: "金华话脚本", description: "AIDP 金华话普通话翻译、分段建议与快捷键辅助。",
+      shortLabel: "金华话脚本", description: "AIDP 金华话原始听音、分段建议与快捷键辅助。",
       note: "不自动提交、不自动切题。", detailView: "bytedance-aidp-jinhua-helper",
       host: BYTEDANCE_AIDP_PLATFORM.host, matchUrl: "https://aidp.bytedance.com/management/task-v2/",
     },
@@ -133,6 +133,13 @@
     aiRecommendRefineSeed: "", aiRecommendRefineStopSequences: "", defaultPlaybackRate: 1, fixedWaveZoom: 2,
     contractMode: "dom-guarded", shortcuts: Object.fromEntries(BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => [item.key, null])),
   });
+  const jinhuaAidp = (id, enabled) => ({
+    ...baseAidp(id, enabled),
+    aiRecommendOmniModel: "qwen3.5-omni-plus", aiRecommendOmniPrompt: "", aiRecommendOmniTemperature: "",
+    aiRecommendOmniTopP: "", aiRecommendOmniMaxTokens: "", aiRecommendOmniMaxCompletionTokens: "",
+    aiRecommendOmniPresencePenalty: "", aiRecommendOmniFrequencyPenalty: "", aiRecommendOmniSeed: "",
+    aiRecommendOmniStopSequences: "",
+  });
   const taizhouAidp = (id, enabled) => ({
     id, enabled, platformAiEnabled: false, segmentContextPaddingMs: 300, segmentSilenceThresholdDbfs: -31,
     mergeContiguousSuggestedSegmentsEnabled: true, segmentPreviewAutoApplyEnabled: true,
@@ -174,7 +181,7 @@
       } } },
       bytedanceAidp: { enabled: true, activeScriptId: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, scripts: {
         suzhouHelper: { ...baseAidp(BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, true), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH },
-        jinhuaHelper: { ...baseAidp(BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH },
+        jinhuaHelper: { ...jinhuaAidp(BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH },
         taizhouHelper: { ...taizhouAidp(BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH },
       } },
       magicData: { enabled: true, activeScriptId: "", scripts: { hangzhouHelper: { ...magicDefaults } } },

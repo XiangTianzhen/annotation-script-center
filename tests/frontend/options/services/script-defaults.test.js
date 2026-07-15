@@ -40,6 +40,28 @@ function aidpPayload() {
   };
 }
 
+function jinhuaOmniPayload() {
+  return {
+    success: true,
+    defaults: {
+      timeoutMs: 60000,
+      omni: {
+        model: "qwen3.5-omni-plus",
+        prompt: "后端原始听音 Prompt",
+        params: {
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          stop: ["END", "STOP"],
+        },
+      },
+    },
+    supportedModels: {
+      omni: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
+    },
+  };
+}
+
 function taizhouOmniPayload() {
   return {
     success: true,
@@ -94,10 +116,10 @@ describe("script defaults and draft adapters", () => {
     ]);
   });
 
-  test("loads the Jinhua defaults route with the same two-stage contract", async () => {
+  test("loads the Jinhua defaults route with the single Omni contract", async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,
-      json: async () => aidpPayload(),
+      json: async () => jinhuaOmniPayload(),
     }));
 
     const state = await loadScriptDefaults(JINHUA_ID, {}, fetchImpl);
@@ -107,7 +129,46 @@ describe("script defaults and draft adapters", () => {
       expect.objectContaining({ method: "GET" })
     );
     expect(state.status).toBe("loaded");
-    expect(state.config.aiRecommendRefinePrompt).toBe("后端收口 Prompt");
+    expect(state.config.aiRecommendOmniModel).toBe("qwen3.5-omni-plus");
+    expect(state.config.aiRecommendOmniPrompt).toBe("后端原始听音 Prompt");
+    expect(state.config.aiRecommendOmniTemperature).toBe("0.1");
+    expect(state.config.aiRecommendOmniStopSequences).toBe("END\nSTOP");
+    expect(state.options.omniModels.map((item) => item.value)).toEqual([
+      "qwen3.5-omni-plus",
+      "qwen3.5-omni-flash",
+    ]);
+  });
+
+  test("serializes Jinhua Omni defaults as empty overrides while retaining legacy storage fields", () => {
+    const persisted = serializeScriptDraft(
+      JINHUA_ID,
+      {
+        platformAiEnabled: true,
+        segmentContextPaddingMs: 0.3,
+        segmentSilenceThresholdDbfs: -31,
+        aiRecommendRequestTimeoutMs: 60,
+        aiRecommendOmniPrompt: "后端原始听音 Prompt",
+        aiRecommendOmniTemperature: "0.1",
+        aiRecommendOmniStopSequences: "END, STOP",
+        aiRecommendListenPrompt: "旧听音 Prompt",
+        aiRecommendRefinePrompt: "旧收口 Prompt",
+      },
+      {
+        status: "loaded",
+        config: {
+          aiRecommendOmniPrompt: "后端原始听音 Prompt",
+          aiRecommendOmniTemperature: "0.1",
+          aiRecommendOmniStopSequences: "END\nSTOP",
+        },
+        options: {},
+      }
+    );
+
+    expect(persisted.aiRecommendOmniPrompt).toBe("");
+    expect(persisted.aiRecommendOmniTemperature).toBe("");
+    expect(persisted.aiRecommendOmniStopSequences).toBe("");
+    expect(persisted.aiRecommendListenPrompt).toBe("旧听音 Prompt");
+    expect(persisted.aiRecommendRefinePrompt).toBe("旧收口 Prompt");
   });
 
   test("loads the Taizhou defaults route with the single Qwen Omni contract", async () => {

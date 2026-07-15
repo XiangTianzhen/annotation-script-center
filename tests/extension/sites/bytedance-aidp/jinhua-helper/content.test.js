@@ -1164,7 +1164,7 @@ test("ByteDance AIDP content resolves helper config with custom padding playback
   assert.equal(config.fixedWaveZoom, 2);
 });
 
-test("ByteDance AIDP content resolves Jinhua AI config with normalized stage params", function () {
+test("ByteDance AIDP content resolves Jinhua Omni config without legacy stages", function () {
   const contentModule = loadContentModule();
   const config = contentModule.__testOnly.resolveHelperConfig({
     meta: {
@@ -1175,17 +1175,12 @@ test("ByteDance AIDP content resolves Jinhua AI config with normalized stage par
         scripts: {
           jinhuaHelper: {
             aiRecommendEnabled: true,
-            aiRecommendAutoFillEnabled: false,
             aiRecommendEndpoint: "http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: 999999,
-            aiRecommendListenModel: "qwen3.5-omni-flash",
-            aiRecommendListenPrompt: "listen prompt",
-            aiRecommendListenTopP: 0.6,
-            aiRecommendListenMaxTokens: 888,
-            aiRecommendRefineModel: "qwen3.5-plus",
-            aiRecommendRefinePrompt: "refine prompt",
-            aiRecommendRefineTemperature: 0.2,
-            aiRecommendRefineStopSequences: "甲\n乙",
+            aiRecommendOmniModel: "qwen3.5-omni-flash",
+            aiRecommendOmniPrompt: "omni prompt",
+            aiRecommendOmniTopP: 0.6,
+            aiRecommendOmniMaxTokens: 888,
           },
         },
       },
@@ -1193,17 +1188,145 @@ test("ByteDance AIDP content resolves Jinhua AI config with normalized stage par
   });
 
   assert.equal(config.aiRecommendEnabled, true);
-  assert.equal(config.aiRecommendAutoFillEnabled, false);
   assert.equal(config.aiRecommendRequestTimeoutMs, 60000);
-  assert.equal(config.aiStages.listen.model, "qwen3.5-omni-flash");
-  assert.equal(config.aiStages.listen.prompt, "listen prompt");
-  assert.equal(config.aiStages.listen.params.top_p, 0.6);
-  assert.equal(config.aiStages.listen.params.max_tokens, 888);
-  assert.equal(config.aiStages.refine.model, "qwen3.5-plus");
-  assert.equal(config.aiStages.refine.prompt, "refine prompt");
-  assert.equal(config.aiStages.refine.params.temperature, 0.2);
-  assert.deepEqual(config.aiStages.refine.params.stop, ["甲", "乙"]);
+  assert.deepEqual(config.aiOmni, {
+    model: "qwen3.5-omni-flash",
+    prompt: "omni prompt",
+    params: {
+      top_p: 0.6,
+      max_tokens: 888,
+    },
+  });
+  assert.equal(Object.hasOwn(config, "aiStages"), false);
   assert.equal(config.aiUsageOperatorName, "张三");
+});
+
+test("ByteDance AIDP content completes its first context refresh after startup", async function () {
+  const globalKeys = [
+    "window",
+    "document",
+    "location",
+    "ASREdgeConstants",
+    "ASREdgeStorage",
+    "ASREdgeBytedanceAidpJinhuaDataApi",
+    "ASREdgeBytedanceAidpJinhuaAiRecommendation",
+    "ASREdgeBytedanceAidpJinhuaSegmentation",
+    "ASREdgeBytedanceAidpJinhuaUiPanel",
+    "ASREdgeBytedanceAidpJinhuaShortcuts",
+    "setInterval",
+    "clearInterval",
+  ];
+  const previousGlobals = new Map(
+    globalKeys.map(function (key) {
+      return [
+        key,
+        {
+          exists: Object.prototype.hasOwnProperty.call(globalThis, key),
+          value: globalThis[key],
+        },
+      ];
+    })
+  );
+  const renderAudioContexts = [];
+  const batchSelections = [];
+  const currentContext = {
+    audioUrl: "https://audio.example.test/current.m4a",
+    selectionKey: "selection-first-refresh",
+    currentSegments: [{ segmentNumber: 1 }, { segmentNumber: 2 }],
+  };
+
+  globalThis.window = {
+    setInterval: function () {
+      return 1;
+    },
+  };
+  globalThis.document = createFakeDocument([]);
+  globalThis.location = {
+    pathname: "/management/task-v2/task-1/mark-v3/item-1",
+    search: "",
+  };
+  globalThis.setInterval = function () {
+    return 1;
+  };
+  globalThis.clearInterval = function () {};
+  globalThis.ASREdgeConstants = {
+    DEFAULT_SETTINGS: {},
+    isScriptRuntimeAccessible: function () {
+      return true;
+    },
+  };
+  globalThis.ASREdgeStorage = {
+    async getSettings() {
+      return {
+        platforms: {
+          bytedanceAidp: {
+            scripts: {
+              jinhuaHelper: {
+                enabled: true,
+                platformAiEnabled: true,
+              },
+            },
+          },
+        },
+      };
+    },
+  };
+  globalThis.ASREdgeBytedanceAidpJinhuaDataApi = {
+    createRuntime: function () {
+      return {
+        async getCurrentContext() {
+          return currentContext;
+        },
+      };
+    },
+  };
+  globalThis.ASREdgeBytedanceAidpJinhuaSegmentation = {
+    createRuntime: function () {
+      return {};
+    },
+  };
+  globalThis.ASREdgeBytedanceAidpJinhuaUiPanel = {
+    createRuntime: function () {
+      return {
+        mount: function () {},
+        renderCurrentRecommendation: function () {},
+        renderAiMeta: function () {},
+        renderBatchAiResults: function () {},
+        renderBatchState: function () {},
+        renderBatchSelection: function (value) {
+          batchSelections.push(value);
+        },
+        renderAudioContext: function (value) {
+          renderAudioContexts.push(value);
+        },
+        setStatus: function () {},
+      };
+    },
+  };
+
+  try {
+    loadContentModule();
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 30);
+    });
+
+    assert.deepEqual(renderAudioContexts, [currentContext]);
+    assert.deepEqual(batchSelections.at(-1), {
+      totalSegments: 2,
+      resetSelection: true,
+    });
+  } finally {
+    delete require.cache[contentModulePath];
+    delete globalThis.ASREdgeBytedanceAidpJinhuaContent;
+    delete globalThis.__ASREdgeBytedanceAidpJinhuaInstalled;
+    previousGlobals.forEach(function (previous, key) {
+      if (previous.exists) {
+        globalThis[key] = previous.value;
+      } else {
+        delete globalThis[key];
+      }
+    });
+  }
 });
 
 test("ByteDance AIDP content stops playback rate sync without focus fallback when option click alone does not update the label", async function () {
@@ -1999,10 +2122,9 @@ test("ByteDance AIDP content row recognize button dispatches the matching segmen
   assert.deepEqual(clickedSegments, [2]);
 });
 
-test("ByteDance AIDP content switches row recognize button into fill mode when cached text is pending", function () {
+test("ByteDance AIDP content keeps row buttons on recognize mode and dispatches recognition", function () {
   const contentModule = loadContentModule();
   const recognizeSegments = [];
-  const fillSegments = [];
   const rowOne = createAidpSegmentTableRow(1);
   const rowTwo = createAidpSegmentTableRow(2);
   const table = new FakeElement({
@@ -2029,22 +2151,18 @@ test("ByteDance AIDP content switches row recognize button into fill mode when c
     onRecognize(segmentNumber) {
       recognizeSegments.push(segmentNumber);
     },
-    onFill(segmentNumber) {
-      fillSegments.push(segmentNumber);
-    },
     getActionState(segmentNumber) {
-      return segmentNumber === 2 ? { mode: "fill" } : { mode: "recognize" };
+      return segmentNumber === 2 ? { mode: "force-fill" } : { mode: "recognize" };
     },
   });
   const recognizeButtons = root.querySelectorAll("[data-asc-segment-recognize-button='true']");
 
   assert.equal(recognizeButtons[0].textContent, "识别音频");
-  assert.equal(recognizeButtons[1].textContent, "填入");
+  assert.equal(recognizeButtons[1].textContent, "识别音频");
   recognizeButtons[1].click();
   recognizeButtons[0].click();
 
-  assert.deepEqual(fillSegments, [2]);
-  assert.deepEqual(recognizeSegments, [1]);
+  assert.deepEqual(recognizeSegments, [2, 1]);
 });
 
 test("ByteDance AIDP content injects per-row recognize buttons into Arco virtualized segment rows", function () {
@@ -2435,20 +2553,17 @@ test("ByteDance AIDP content keeps preview when auto-apply is disabled", async f
   });
 });
 
-test("ByteDance AIDP content keeps blocked current recommendation for manual force fill", async function () {
+test("ByteDance AIDP content directly fills the original listen text without a risk gate", async function () {
   const contentModule = loadContentModule();
-  let fillCalls = 0;
-  const autoFillResult = await contentModule.__testOnly.maybeAutoFillCurrentRecommendation(
+  const fillCalls = [];
+  const result = await contentModule.__testOnly.fillCurrentRecommendation(
     {
-      config: {
-        aiRecommendAutoFillEnabled: true,
-      },
       dataApi: {
-        async fillCurrentRegionTextIntoDom() {
-          fillCalls += 1;
+        async fillCurrentRegionTextIntoDom(payload) {
+          fillCalls.push(payload);
           return {
             ok: true,
-            message: "should not run",
+            message: "已填入",
             filledCount: 1,
             skippedCount: 0,
           };
@@ -2457,21 +2572,23 @@ test("ByteDance AIDP content keeps blocked current recommendation for manual for
     },
     {
       segmentNumber: 3,
-      finalMandarinText: "歌词还是需要人工决定要不要填。",
-      isSinging: true,
-      blockAutoFill: true,
+      listenText: "  金华话原始听音  ",
     }
   );
 
-  assert.deepEqual(autoFillResult, {
-    attempted: false,
-    ok: false,
-    reason: "blocked-auto-fill",
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已填入",
+    filledCount: 1,
+    skippedCount: 0,
   });
-  assert.equal(fillCalls, 0);
+  assert.deepEqual(fillCalls, [{
+    segmentNumber: 3,
+    listenText: "  金华话原始听音  ",
+  }]);
 });
 
-test("ByteDance AIDP row recognize button switches to force-fill label for blocked cached results", function () {
+test("ByteDance AIDP row recognize button ignores legacy force-fill state", function () {
   const contentModule = loadContentModule();
   const root = createFakeDocument([]);
   const button = contentModule.__testOnly.createSegmentRecognizeButton(root, 4, {
@@ -2483,8 +2600,8 @@ test("ByteDance AIDP row recognize button switches to force-fill label for block
   });
 
   assert.ok(button);
-  assert.equal(button.textContent, "强制填入");
-  assert.equal(button.getAttribute("data-asc-segment-recognize-action"), "force-fill");
+  assert.equal(button.textContent, "识别音频");
+  assert.equal(button.getAttribute("data-asc-segment-recognize-action"), "recognize");
 });
 
 test("ByteDance AIDP content exposes exactly the expected shortcut action handlers", async function () {
@@ -2648,7 +2765,108 @@ test("ByteDance AIDP content hides both panel root and native segment table cont
   );
 });
 
-test("ByteDance AIDP batch controller caches results without writeback when auto-fill is disabled", async function () {
+test("ByteDance AIDP batch controller does not default an explicit empty selection to all segments", async function () {
+  const contentModule = loadContentModule();
+  const aiCalls = [];
+  const writeCalls = [];
+  const statusCalls = [];
+  const currentContext = {
+    audioUrl: "https://example.test/audio.m4a",
+    selectionKey: "selection-explicit-empty",
+    currentSignature: "signature-explicit-empty",
+    currentSegments: [
+      { segmentNumber: 1, startMs: 0, endMs: 1200 },
+      { segmentNumber: 2, startMs: 1200, endMs: 2400 },
+    ],
+  };
+  const controller = contentModule.__testOnly.createBatchRecommendController({
+    dataApi: {
+      async getCurrentContext() {
+        return currentContext;
+      },
+      async writeBatchRegionTexts(payload) {
+        writeCalls.push(payload);
+        return { ok: true, writtenCount: 2, skippedCount: 0 };
+      },
+    },
+    ai: {
+      createSharedAudioSource: function () {
+        return {};
+      },
+      async recommendForSegment(context) {
+        aiCalls.push(context.segmentNumber);
+        return {
+          selectionKey: currentContext.selectionKey,
+          segmentNumber: context.segmentNumber,
+          listenText: "原始听音",
+        };
+      },
+    },
+    ui: {
+      setStatus(message, tone) {
+        statusCalls.push({ message, tone });
+      },
+    },
+  });
+
+  const result = await controller.start([]);
+
+  assert.deepEqual(aiCalls, []);
+  assert.deepEqual(writeCalls, []);
+  assert.equal(result.ok, false);
+  assert.match(result.message, /请先选择至少一个段落/);
+  assert.deepEqual(statusCalls, [{ message: result.message, tone: "warning" }]);
+});
+
+test("ByteDance AIDP batch controller still defaults an absent selection to current-page segments", async function () {
+  const contentModule = loadContentModule();
+  const aiCalls = [];
+  const writeCalls = [];
+  const currentContext = {
+    audioUrl: "https://example.test/audio.m4a",
+    selectionKey: "selection-absent",
+    currentSignature: "signature-absent",
+    currentSegments: [
+      { segmentNumber: 1, startMs: 0, endMs: 1200 },
+      { segmentNumber: 2, startMs: 1200, endMs: 2400 },
+    ],
+  };
+  const controller = contentModule.__testOnly.createBatchRecommendController({
+    dataApi: {
+      async getCurrentContext() {
+        return currentContext;
+      },
+      async writeBatchRegionTexts(payload) {
+        writeCalls.push(payload);
+        return { ok: true, writtenCount: 2, skippedCount: 0 };
+      },
+    },
+    ai: {
+      createSharedAudioSource: function () {
+        return {};
+      },
+      async recommendForSegment(context) {
+        aiCalls.push(context.segmentNumber);
+        return {
+          selectionKey: currentContext.selectionKey,
+          segmentNumber: context.segmentNumber,
+          listenText: "原始听音",
+        };
+      },
+    },
+  });
+
+  const result = await controller.start();
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(aiCalls, [1, 2]);
+  assert.deepEqual(writeCalls[0].updates, [
+    { segmentNumber: 1, listenText: "原始听音" },
+    { segmentNumber: 2, listenText: "原始听音" },
+  ]);
+});
+
+test("ByteDance AIDP batch controller writes original listen text once regardless of legacy auto-fill input", async function () {
   const contentModule = loadContentModule();
   const renderStates = [];
   const statusCalls = [];
@@ -2687,7 +2905,7 @@ test("ByteDance AIDP batch controller caches results without writeback when auto
         writeCalls.push(payload);
         return {
           ok: true,
-          message: "unexpected write",
+          message: "已写回",
           writtenCount: 2,
           skippedCount: 0,
         };
@@ -2703,7 +2921,6 @@ test("ByteDance AIDP batch controller caches results without writeback when auto
           selectionKey: currentContext.selectionKey,
           segmentNumber,
           listenText: "第" + String(segmentNumber) + "段听音",
-          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
           debug: { segmentNumber },
         };
       },
@@ -2722,9 +2939,9 @@ test("ByteDance AIDP batch controller caches results without writeback when auto
     autoFill: false,
   });
 
-  assert.equal(writeCalls.length, 0);
+  assert.equal(writeCalls.length, 1);
   assert.equal(result.ok, true);
-  assert.equal(result.pendingFill, true);
+  assert.equal(result.pendingFill, undefined);
   assert.equal(result.results.length, 2);
   assert.deepEqual(
     result.updates.map(function (item) {
@@ -2732,21 +2949,19 @@ test("ByteDance AIDP batch controller caches results without writeback when auto
     }),
     [1, 2]
   );
-  assert.equal(
-    renderStates.some(function (item) {
-      return item && item.actionMode === "fill";
-    }),
-    true
-  );
-  assert.equal(
-    statusCalls.some(function (item) {
-      return /点击“填入”/.test(String(item.message || ""));
-    }),
-    true
-  );
+  assert.deepEqual(writeCalls[0].updates, [
+    { segmentNumber: 1, listenText: "第1段听音" },
+    { segmentNumber: 2, listenText: "第2段听音" },
+  ]);
+  assert.equal(renderStates.some(function (item) {
+    return item && item.actionMode === "fill";
+  }), false);
+  assert.equal(statusCalls.some(function (item) {
+    return /点击“填入”/.test(String(item.message || ""));
+  }), false);
 });
 
-test("ByteDance AIDP batch controller writes once after recognition when auto-fill is enabled", async function () {
+test("ByteDance AIDP batch controller does not create a second risk-write phase", async function () {
   const contentModule = loadContentModule();
   const writeCalls = [];
   const renderStates = [];
@@ -2801,9 +3016,6 @@ test("ByteDance AIDP batch controller writes once after recognition when auto-fi
           selectionKey: currentContext.selectionKey,
           segmentNumber,
           listenText: "第" + String(segmentNumber) + "段听音",
-          finalMandarinText: "第" + String(segmentNumber) + "段普通话",
-          isSinging: segmentNumber === 2,
-          blockAutoFill: segmentNumber === 2,
         };
       },
     },
@@ -2823,26 +3035,76 @@ test("ByteDance AIDP batch controller writes once after recognition when auto-fi
 
   assert.equal(result.ok, true);
   assert.equal(writeCalls.length, 1);
-  assert.deepEqual(
-    writeCalls[0].updates.map(function (item) {
-      return item.segmentNumber;
-    }),
-    [1]
-  );
-  assert.equal(result.pendingFill, true);
-  assert.equal(result.reviewCount, 1);
-  assert.equal(
-    renderStates.some(function (item) {
-      return item && item.actionMode === "force-fill";
-    }),
-    true
-  );
-  assert.equal(
-    statusCalls.some(function (item) {
-      return /待复核/.test(String(item.message || ""));
-    }),
-    true
-  );
+  assert.deepEqual(writeCalls[0].updates, [
+    { segmentNumber: 1, listenText: "第1段听音" },
+    { segmentNumber: 2, listenText: "第2段听音" },
+  ]);
+  assert.equal(result.pendingFill, undefined);
+  assert.equal(result.reviewCount, undefined);
+  assert.equal(renderStates.some(function (item) {
+    return item && (item.actionMode === "force-fill" || item.actionMode === "fill");
+  }), false);
+  assert.equal(statusCalls.some(function (item) {
+    return /待复核/.test(String(item.message || ""));
+  }), false);
+});
+
+test("ByteDance AIDP batch controller does not write returned results after stop", async function () {
+  const contentModule = loadContentModule();
+  const writeCalls = [];
+  let resolveRecognition = null;
+  const currentContext = {
+    audioUrl: "https://example.test/audio.m4a",
+    selectionKey: "selection-stop",
+    currentSignature: "signature-stop",
+    currentSegments: [
+      {
+        segmentNumber: 1,
+        startMs: 0,
+        endMs: 1200,
+        text: "",
+        language: "目标方言",
+      },
+    ],
+  };
+  const controller = contentModule.__testOnly.createBatchRecommendController({
+    dataApi: {
+      async getCurrentContext() {
+        return currentContext;
+      },
+      async writeBatchRegionTexts(payload) {
+        writeCalls.push(payload);
+        return { ok: true, writtenCount: 1, skippedCount: 0 };
+      },
+    },
+    ai: {
+      createSharedAudioSource(audioUrl) {
+        return { audioUrl };
+      },
+      async recommendForSegment() {
+        return new Promise(function (resolve) {
+          resolveRecognition = resolve;
+        });
+      },
+    },
+  });
+
+  const startPromise = controller.start([1]);
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 0);
+  });
+  assert.equal(controller.stop(), true);
+  resolveRecognition({
+    selectionKey: currentContext.selectionKey,
+    segmentNumber: 1,
+    listenText: "停止后返回的听音",
+  });
+
+  const result = await startPromise;
+  assert.equal(result.ok, true);
+  assert.equal(result.stopRequested, true);
+  assert.equal(result.writtenCount, 0);
+  assert.deepEqual(writeCalls, []);
 });
 
 test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Space play-pause toggle", function () {

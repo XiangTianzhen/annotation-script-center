@@ -68,7 +68,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
     const taizhouScript = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 32);
+    assert.equal(settings.meta.schemaVersion, 33);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -126,6 +126,8 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
       harness.constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT
     );
     assert.equal(jinhuaScript.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(jinhuaScript.aiRecommendOmniModel, "qwen3.5-omni-plus");
+    assert.equal(jinhuaScript.aiRecommendOmniPrompt, "");
     assert.equal(jinhuaScript.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(jinhuaScript.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(jinhuaScript.contractMode, "dom-guarded");
@@ -221,18 +223,19 @@ test("ByteDance AIDP storage preserves every runtime preset, boundary and suppor
   }
 });
 
-test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizhou disabled", async function () {
+test("ByteDance AIDP storage migrates Jinhua listen model to Omni and retains inactive two-stage values", async function () {
   const harness = loadStorageApi({
-    meta: {
-      schemaVersion: 30,
-    },
+    meta: { schemaVersion: 30 },
     platforms: {
       bytedanceAidp: {
-        enabled: true,
-        activeScriptId: "bytedanceAidpJinhuaHelper",
         scripts: {
           jinhuaHelper: {
-            enabled: true,
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendListenPrompt: "旧听音 Prompt",
+            aiRecommendListenTemperature: "0.2",
+            aiRecommendRefineModel: "qwen3.5-flash",
+            aiRecommendRefinePrompt: "旧收口 Prompt",
+            aiRecommendAutoFillEnabled: false,
           },
         },
       },
@@ -241,25 +244,41 @@ test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizho
 
   try {
     const settings = await harness.storage.getSettings();
-    const aidp = settings.platforms.bytedanceAidp;
-    const scripts = aidp.scripts;
+    const script = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
 
-    assert.equal(settings.meta.schemaVersion, 32);
+    assert.equal(settings.meta.schemaVersion, 33);
+    assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendOmniPrompt, "");
+    assert.equal(script.aiRecommendOmniTemperature, "");
+    assert.equal(script.aiRecommendListenPrompt, "旧听音 Prompt");
+    assert.equal(script.aiRecommendListenTemperature, "0.2");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
+    assert.equal(script.aiRecommendRefinePrompt, "旧收口 Prompt");
+    assert.equal(script.aiRecommendAutoFillEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizhou disabled", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 30 },
+    platforms: { bytedanceAidp: {
+      enabled: true,
+      activeScriptId: "bytedanceAidpJinhuaHelper",
+      scripts: { jinhuaHelper: { enabled: true } },
+    } },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const aidp = settings.platforms.bytedanceAidp;
+    assert.equal(settings.meta.schemaVersion, 33);
     assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper");
-    assert.equal(scripts.jinhuaHelper.enabled, true);
-    assert.equal(scripts.suzhouHelper.enabled, false);
-    assert.equal(scripts.taizhouHelper.enabled, false);
-    assert.equal(scripts.taizhouHelper.aiRecommendEnabled, false);
-    assert.deepEqual(
-      Object.values(scripts)
-        .filter(function (script) {
-          return script.enabled;
-        })
-        .map(function (script) {
-          return script.id;
-        }),
-      ["bytedanceAidpJinhuaHelper"]
-    );
+    assert.equal(aidp.scripts.jinhuaHelper.enabled, true);
+    assert.equal(aidp.scripts.suzhouHelper.enabled, false);
+    assert.equal(aidp.scripts.taizhouHelper.enabled, false);
+    assert.equal(aidp.scripts.taizhouHelper.aiRecommendEnabled, false);
   } finally {
     harness.cleanup();
   }
@@ -268,24 +287,18 @@ test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizho
 test("ByteDance AIDP storage migrates the Taizhou listen model to the single Omni field without reusing two-stage prompts", async function () {
   const harness = loadStorageApi({
     meta: { schemaVersion: 31 },
-    platforms: {
-      bytedanceAidp: {
-        scripts: {
-          taizhouHelper: {
-            aiRecommendListenModel: "qwen3.5-omni-flash",
-            aiRecommendListenPrompt: "旧听音 Prompt",
-            aiRecommendRefinePrompt: "旧收口 Prompt",
-            aiRecommendListenTemperature: "0.2",
-          },
-        },
-      },
-    },
+    platforms: { bytedanceAidp: { scripts: { taizhouHelper: {
+      aiRecommendListenModel: "qwen3.5-omni-flash",
+      aiRecommendListenPrompt: "旧听音 Prompt",
+      aiRecommendRefinePrompt: "旧收口 Prompt",
+      aiRecommendListenTemperature: "0.2",
+    } } } },
   });
 
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
-    assert.equal(settings.meta.schemaVersion, 32);
+    assert.equal(settings.meta.schemaVersion, 33);
     assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendOmniPrompt, "");
     assert.equal(script.aiRecommendOmniTemperature, "");
@@ -298,37 +311,17 @@ test("ByteDance AIDP storage migrates the Taizhou listen model to the single Omn
 
 test("ByteDance AIDP storage keeps explicitly enabled Jinhua for missing or invalid legacy active IDs", async function () {
   for (const activeScriptId of [undefined, "legacy-unknown-aidp-helper"]) {
-    const bytedanceAidp = {
-      enabled: true,
-      scripts: {
-        jinhuaHelper: {
-          enabled: true,
-        },
-      },
-    };
-    if (activeScriptId !== undefined) {
-      bytedanceAidp.activeScriptId = activeScriptId;
-    }
-    const harness = loadStorageApi({
-      meta: {
-        schemaVersion: 30,
-      },
-      platforms: {
-        bytedanceAidp,
-      },
-    });
-
+    const bytedanceAidp = { enabled: true, scripts: { jinhuaHelper: { enabled: true } } };
+    if (activeScriptId !== undefined) bytedanceAidp.activeScriptId = activeScriptId;
+    const harness = loadStorageApi({ meta: { schemaVersion: 30 }, platforms: { bytedanceAidp } });
     try {
       const settings = await harness.storage.getSettings();
       const aidp = settings.platforms.bytedanceAidp;
-      const scripts = aidp.scripts;
-
-      assert.equal(settings.meta.schemaVersion, 32, String(activeScriptId));
+      assert.equal(settings.meta.schemaVersion, 33, String(activeScriptId));
       assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper", String(activeScriptId));
-      assert.equal(scripts.jinhuaHelper.enabled, true, String(activeScriptId));
-      assert.equal(scripts.suzhouHelper.enabled, false, String(activeScriptId));
-      assert.equal(scripts.taizhouHelper.enabled, false, String(activeScriptId));
-      assert.equal(scripts.taizhouHelper.aiRecommendEnabled, false, String(activeScriptId));
+      assert.equal(aidp.scripts.jinhuaHelper.enabled, true, String(activeScriptId));
+      assert.equal(aidp.scripts.suzhouHelper.enabled, false, String(activeScriptId));
+      assert.equal(aidp.scripts.taizhouHelper.enabled, false, String(activeScriptId));
     } finally {
       harness.cleanup();
     }

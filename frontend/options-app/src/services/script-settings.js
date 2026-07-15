@@ -307,7 +307,9 @@ function stageFields(options) {
 }
 
 function aidpSections(scriptId) {
+  const isJinhua = scriptId === SCRIPT_IDS.jinhua;
   const isTaizhou = scriptId === SCRIPT_IDS.taizhou;
+  const isOmniOnly = isJinhua || isTaizhou;
   const usesMandarinTranslation =
     scriptId === SCRIPT_IDS.jinhua || scriptId === SCRIPT_IDS.taizhou;
   return [
@@ -384,23 +386,21 @@ function aidpSections(scriptId) {
     {
       key: "ai",
       title: "AI 设置",
-      help: isTaizhou
+      help: isOmniOnly
         ? "配置单次全模态原始听音识别的模型、Prompt 和生成参数。"
-        : `配置听音与${usesMandarinTranslation ? "普通话翻译" : "普通话听写"}收口两阶段参数。`,
+        : "配置听音与普通话听写收口两阶段参数。",
       groups: [
         {
           key: "ai-base",
           title: "基础设置",
           layout: "two",
           fields: [
-            ...(!isTaizhou
-              ? [{
-                  kind: "boolean",
-                  path: "aiRecommendAutoFillEnabled",
-                  label: "识别完成后自动填入",
-                  help: "识别成功后填入当前输入框，不触发平台保存、提交或切题。",
-                }]
-              : []),
+            ...(!isOmniOnly ? [{
+              kind: "boolean",
+              path: "aiRecommendAutoFillEnabled",
+              label: "识别完成后自动填入",
+              help: "识别成功后填入当前输入框，不触发平台保存、提交或切题。",
+            }] : []),
             {
               kind: "boolean",
               path: "aiRecommendEnableThinking",
@@ -420,22 +420,20 @@ function aidpSections(scriptId) {
             },
           ],
         },
-        ...(isTaizhou
-          ? [
-              {
-                key: "omni",
-                title: "全模态识别",
-                layout: "two",
-                fields: stageFields({
-                  prefix: "aiRecommendOmni",
-                  modelLabel: "全模态模型",
-                  promptLabel: "全模态 Prompt",
-                  optionsKey: "omniModels",
-                  modelOptions: LISTEN_MODEL_OPTIONS,
-                  modelHelp: "每段音频仅调用一次 Qwen Omni，只返回原始听音文本。",
-                }),
-              },
-            ]
+        ...(isOmniOnly
+          ? [{
+              key: "omni",
+              title: "原始听音",
+              layout: "two",
+              fields: stageFields({
+                prefix: "aiRecommendOmni",
+                modelLabel: "全模态模型",
+                promptLabel: "原始听音 Prompt",
+                optionsKey: "omniModels",
+                modelOptions: LISTEN_MODEL_OPTIONS,
+                modelHelp: "每段音频仅调用一次 Qwen Omni，只返回原始听音文本。",
+              }),
+            }]
           : [
               {
                 key: "listen",
@@ -452,7 +450,7 @@ function aidpSections(scriptId) {
               },
               {
                 key: "refine",
-                title: usesMandarinTranslation ? "普通话翻译收口" : "普通话听写收口",
+                title: "普通话听写收口",
                 layout: "two",
                 fields: stageFields({
                   prefix: "aiRecommendRefine",
@@ -460,9 +458,7 @@ function aidpSections(scriptId) {
                   promptLabel: "收口 Prompt",
                   optionsKey: "refineModels",
                   modelOptions: REFINE_MODEL_OPTIONS,
-                  modelHelp: usesMandarinTranslation
-                    ? "将听音草稿收口为普通话翻译，不做语义润色。"
-                    : "将听音草稿收口为普通话听写稿，不做语义润色。",
+                  modelHelp: "将听音草稿收口为普通话听写稿，不做语义润色。",
                 }),
               },
             ]),

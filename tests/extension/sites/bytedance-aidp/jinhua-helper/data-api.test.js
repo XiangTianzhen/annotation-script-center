@@ -808,7 +808,7 @@ test("AIDP data api still clears current regions when table already contains tex
   assert.equal(answer.data.discard, "保留");
 });
 
-test("AIDP data api writes current segment Mandarin text back to txt only", async function () {
+test("AIDP data api writes original listen text back to txt without trimming or changing ms", async function () {
   const harness = createRuntimeHarness({
     submitRegions: [
       {
@@ -853,7 +853,7 @@ test("AIDP data api writes current segment Mandarin text back to txt only", asyn
   const result = await harness.runtime.writeCurrentRegionText({
     selectionKey: "7656690377962016562",
     segmentNumber: 2,
-    finalMandarinText: "普通话翻译",
+    listenText: "  金华话原始听音  ",
   });
   const request = harness.fetchCalls[0];
   const body = JSON.parse(request.body);
@@ -861,18 +861,19 @@ test("AIDP data api writes current segment Mandarin text back to txt only", asyn
 
   assert.deepEqual(result, {
     ok: true,
-    message: "已通过平台暂存接口写回普通话翻译，请刷新页面复核。",
+    message: "已通过平台暂存接口写回原始听音，请刷新页面复核。",
     writtenCount: 1,
     skippedCount: 0,
   });
   assert.equal(answer.data.regions[0].txt, "旧文本");
   assert.equal(answer.data.regions[0].ms, "目标方言");
-  assert.equal(answer.data.regions[1].txt, "普通话翻译");
+  assert.equal(answer.data.regions[1].txt, "  金华话原始听音  ");
   assert.equal(answer.data.regions[1].ms, "目标方言");
-  assert.equal(answer.dataMap.regions[1].txt, "普通话翻译");
+  assert.equal(answer.dataMap.regions[1].txt, "  金华话原始听音  ");
+  assert.equal(answer.dataMap.regions[1].ms, "目标方言");
 });
 
-test("AIDP data api skips empty current result when target region already has text", async function () {
+test("AIDP data api skips empty, missing, or non-string listen text without writing regions", async function () {
   const harness = createRuntimeHarness({
     submitRegions: [
       {
@@ -901,18 +902,20 @@ test("AIDP data api skips empty current result when target region already has te
     },
   });
 
-  const result = await harness.runtime.writeCurrentRegionText({
-    selectionKey: "7656690377962016562",
-    segmentNumber: 1,
-    finalMandarinText: "",
-  });
+  for (const input of [{ listenText: "" }, {}, { listenText: 42 }]) {
+    const result = await harness.runtime.writeCurrentRegionText({
+      selectionKey: "7656690377962016562",
+      segmentNumber: 1,
+      ...input,
+    });
 
-  assert.deepEqual(result, {
-    ok: true,
-    message: "当前段 AI 结果为空，已保留原有文本。",
-    writtenCount: 0,
-    skippedCount: 1,
-  });
+    assert.deepEqual(result, {
+      ok: true,
+      message: "当前段 AI 结果为空，已保留原有文本。",
+      writtenCount: 0,
+      skippedCount: 1,
+    });
+  }
   assert.equal(harness.fetchCalls.length, 0);
 });
 
@@ -950,7 +953,7 @@ test("AIDP data api fills the target segment textarea through DOM events without
 
   const result = await harness.runtime.fillCurrentRegionTextIntoDom({
     segmentNumber: 2,
-    finalMandarinText: "普通话翻译",
+    listenText: "  金华话原始听音  ",
   });
 
   assert.deepEqual(result, {
@@ -959,7 +962,7 @@ test("AIDP data api fills the target segment textarea through DOM events without
     filledCount: 1,
     skippedCount: 0,
   });
-  assert.equal(textarea.value, "普通话翻译");
+  assert.equal(textarea.value, "  金华话原始听音  ");
   assert.deepEqual(eventTypes, ["beforeinput", "input", "change", "compositionend"]);
   assert.equal(harness.fetchCalls.length, 0);
 });
@@ -987,7 +990,7 @@ test("AIDP data api fills the target textarea inside Arco virtual table rows", a
 
   const result = await harness.runtime.fillCurrentRegionTextIntoDom({
     segmentNumber: 2,
-    finalMandarinText: "普通话翻译二",
+    listenText: "金华话原始听音二",
   });
 
   assert.deepEqual(result, {
@@ -996,7 +999,7 @@ test("AIDP data api fills the target textarea inside Arco virtual table rows", a
     filledCount: 1,
     skippedCount: 0,
   });
-  assert.equal(textarea.value, "普通话翻译二");
+  assert.equal(textarea.value, "金华话原始听音二");
   assert.equal(harness.fetchCalls.length, 0);
 });
 
@@ -1022,7 +1025,7 @@ test("AIDP data api blurs the textarea after a successful DOM fill", async funct
 
   const result = await harness.runtime.fillCurrentRegionTextIntoDom({
     segmentNumber: 1,
-    finalMandarinText: "填入后失焦",
+    listenText: "填入后失焦",
   });
 
   assert.equal(result.ok, true);
@@ -1030,28 +1033,33 @@ test("AIDP data api blurs the textarea after a successful DOM fill", async funct
   assert.equal(documentLike.activeElement, null);
 });
 
-test("AIDP data api skips DOM fill when the generated text is empty", async function () {
-  const harness = createRuntimeHarness({
-    document: createFakeDocument([
-      new FakeElement({
-        tagName: "table",
-        children: [createAidpSegmentTableRow(1, "")],
-      }),
-    ]),
-  });
+test("AIDP data api skips DOM fill when listen text is empty, missing, or non-string", async function () {
+  for (const input of [{ listenText: "" }, {}, { listenText: 42 }]) {
+    const row = createAidpSegmentTableRow(1, "");
+    const textarea = row.querySelector("textarea");
+    const harness = createRuntimeHarness({
+      document: createFakeDocument([
+        new FakeElement({
+          tagName: "table",
+          children: [row],
+        }),
+      ]),
+    });
 
-  const result = await harness.runtime.fillCurrentRegionTextIntoDom({
-    segmentNumber: 1,
-    finalMandarinText: "",
-  });
+    const result = await harness.runtime.fillCurrentRegionTextIntoDom({
+      segmentNumber: 1,
+      ...input,
+    });
 
-  assert.deepEqual(result, {
-    ok: true,
-    message: "当前段 AI 结果为空，未填入任何文本。",
-    filledCount: 0,
-    skippedCount: 1,
-  });
-  assert.equal(harness.fetchCalls.length, 0);
+    assert.deepEqual(result, {
+      ok: true,
+      message: "当前段 AI 结果为空，未填入任何文本。",
+      filledCount: 0,
+      skippedCount: 1,
+    });
+    assert.equal(textarea.value, "");
+    assert.equal(harness.fetchCalls.length, 0);
+  }
 });
 
 test("AIDP data api fails DOM fill when the target textarea is missing", async function () {
@@ -1066,7 +1074,7 @@ test("AIDP data api fails DOM fill when the target textarea is missing", async f
 
   const result = await harness.runtime.fillCurrentRegionTextIntoDom({
     segmentNumber: 3,
-    finalMandarinText: "不会写入",
+    listenText: "不会写入",
   });
 
   assert.deepEqual(result, {
@@ -1078,7 +1086,7 @@ test("AIDP data api fails DOM fill when the target textarea is missing", async f
   assert.equal(harness.fetchCalls.length, 0);
 });
 
-test("AIDP data api batch write merges successful non-empty txt updates in one submit", async function () {
+test("AIDP data api batch write merges original listen text in one submit without changing ms", async function () {
   const harness = createRuntimeHarness({
     submitRegions: [
       {
@@ -1116,15 +1124,15 @@ test("AIDP data api batch write merges successful non-empty txt updates in one s
     updates: [
       {
         segmentNumber: 1,
-        finalMandarinText: "第一段听写",
+        listenText: "  第一段听写  ",
       },
       {
         segmentNumber: 2,
-        finalMandarinText: "",
+        listenText: 42,
       },
       {
         segmentNumber: 3,
-        finalMandarinText: "第三段听写",
+        listenText: "第三段听写",
       },
     ],
   });
@@ -1134,16 +1142,19 @@ test("AIDP data api batch write merges successful non-empty txt updates in one s
 
   assert.deepEqual(result, {
     ok: true,
-    message: "已通过平台暂存接口批量写回普通话翻译，请刷新页面复核。",
+    message: "已通过平台暂存接口批量写回原始听音，请刷新页面复核。",
     writtenCount: 2,
     skippedCount: 1,
   });
   assert.equal(harness.fetchCalls.length, 1);
-  assert.equal(answer.data.regions[0].txt, "第一段听写");
+  assert.equal(answer.data.regions[0].txt, "  第一段听写  ");
   assert.equal(answer.data.regions[1].txt, "保留原文");
   assert.equal(answer.data.regions[2].txt, "第三段听写");
   assert.equal(answer.data.regions[0].ms, "目标方言");
   assert.equal(answer.data.regions[1].ms, "目标方言");
   assert.equal(answer.data.regions[2].ms, "目标方言");
+  assert.equal(answer.dataMap.regions[0].ms, "目标方言");
+  assert.equal(answer.dataMap.regions[1].ms, "目标方言");
+  assert.equal(answer.dataMap.regions[2].ms, "目标方言");
 });
 

@@ -83,18 +83,14 @@ const STATIC_LOCAL_DEFAULTS = {
       mergeContiguousSuggestedSegmentsEnabled: true,
       segmentPreviewAutoApplyEnabled: true,
       aiRecommendEnabled: false,
-      aiRecommendAutoFillEnabled: true,
       aiRecommendRequestTimeoutMs: 60000,
-      aiRecommendListenModel: "qwen3.5-omni-flash",
-      aiRecommendListenPrompt: "",
-      aiRecommendRefineModel: "qwen3.5-plus",
-      aiRecommendRefinePrompt: "",
+      aiRecommendOmniModel: "qwen3.5-omni-plus",
+      aiRecommendOmniPrompt: "",
       defaultPlaybackRate: 1,
       fixedWaveZoom: 2,
     },
     options: {
-      listenModels: ["qwen3.5-omni-flash", "qwen3.5-omni-plus"],
-      refineModels: ["qwen3.5-plus", "qwen3.5-flash"],
+      omniModels: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
     },
   },
   [SCRIPT_IDS.taizhou]: {
@@ -267,8 +263,7 @@ function mapOmniPayload(payload, local) {
   const params = getStageParams(omni);
   const config = {
     ...local.config,
-    aiRecommendRequestTimeoutMs:
-      Number(defaults.timeoutMs) || local.config.aiRecommendRequestTimeoutMs,
+    aiRecommendRequestTimeoutMs: Number(defaults.timeoutMs) || local.config.aiRecommendRequestTimeoutMs,
     aiRecommendOmniModel: text(omni.model) || local.config.aiRecommendOmniModel,
     aiRecommendOmniPrompt: text(omni.prompt),
   };
@@ -347,7 +342,7 @@ export async function loadScriptDefaults(scriptId, settings, fetchImpl = globalT
     }
     const mapped = normalizedScriptId === SCRIPT_IDS.hangzhou
       ? mapMagicPayload(payload, local)
-      : normalizedScriptId === SCRIPT_IDS.taizhou
+      : normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou
         ? mapOmniPayload(payload, local)
         : mapTwoStagePayload(normalizedScriptId, payload, local);
     return {
@@ -558,7 +553,7 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
     clearDefaultOverrides(
       result,
       defaults,
-      normalizedScriptId === SCRIPT_IDS.taizhou
+      normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou
         ? buildStageOverrideDefinitions("aiRecommendOmni")
         : [
             ...buildStageOverrideDefinitions("aiRecommendListen"),

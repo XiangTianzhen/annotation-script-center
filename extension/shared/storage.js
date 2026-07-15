@@ -121,6 +121,7 @@
 
   function normalizeAidpScript(raw, fallback, meta, legacySchema) {
     const source = object(raw);
+    const isJinhua = fallback.id === constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID;
     const isTaizhou = fallback.id === constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID;
     const endpointPath = fallback.id === constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID
       ? constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH
@@ -164,7 +165,7 @@
         aiRecommendOmniStopSequences: stopSequences(source.aiRecommendOmniStopSequences, fallback.aiRecommendOmniStopSequences),
       };
     }
-    return {
+    const next = {
       ...common,
       aiRecommendListenModel: option(source.aiRecommendListenModel, ["qwen3.5-omni-flash", "qwen3.5-omni-plus"], fallback.aiRecommendListenModel),
       aiRecommendRefineModel: option(source.aiRecommendRefineModel, ["qwen3.5-plus", "qwen3.5-flash"], fallback.aiRecommendRefineModel),
@@ -187,6 +188,26 @@
       aiRecommendRefineSeed: numericText(source.aiRecommendRefineSeed, fallback.aiRecommendRefineSeed, 0, 2147483647),
       aiRecommendRefineStopSequences: stopSequences(source.aiRecommendRefineStopSequences, fallback.aiRecommendRefineStopSequences),
     };
+    if (isJinhua) {
+      const omniModel = source.aiRecommendOmniModel || source.aiRecommendListenModel;
+      Object.assign(next, {
+        aiRecommendOmniModel: option(
+          omniModel,
+          ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
+          fallback.aiRecommendOmniModel
+        ),
+        aiRecommendOmniPrompt: text(source.aiRecommendOmniPrompt, fallback.aiRecommendOmniPrompt),
+        aiRecommendOmniTemperature: numericText(source.aiRecommendOmniTemperature, fallback.aiRecommendOmniTemperature, 0, 2),
+        aiRecommendOmniTopP: numericText(source.aiRecommendOmniTopP, fallback.aiRecommendOmniTopP, 0, 1),
+        aiRecommendOmniMaxTokens: numericText(source.aiRecommendOmniMaxTokens, fallback.aiRecommendOmniMaxTokens, 1, 65536),
+        aiRecommendOmniMaxCompletionTokens: numericText(source.aiRecommendOmniMaxCompletionTokens, fallback.aiRecommendOmniMaxCompletionTokens, 1, 65536),
+        aiRecommendOmniPresencePenalty: numericText(source.aiRecommendOmniPresencePenalty, fallback.aiRecommendOmniPresencePenalty, -2, 2),
+        aiRecommendOmniFrequencyPenalty: numericText(source.aiRecommendOmniFrequencyPenalty, fallback.aiRecommendOmniFrequencyPenalty, -2, 2),
+        aiRecommendOmniSeed: numericText(source.aiRecommendOmniSeed, fallback.aiRecommendOmniSeed, 0, 2147483647),
+        aiRecommendOmniStopSequences: stopSequences(source.aiRecommendOmniStopSequences, fallback.aiRecommendOmniStopSequences),
+      });
+    }
+    return next;
   }
 
   function normalizeAidp(raw, meta, legacySchema) {

@@ -12,7 +12,7 @@
 
 - 共用观察器：`extension/sites/bytedance-aidp/shared/page-world/network-observer.js`
 - 苏州话运行时：`extension/sites/bytedance-aidp/suzhou-helper/`
-- 金华话运行时：`extension/sites/bytedance-aidp/jinhua-helper/`
+- 金华话运行时：`extension/sites/bytedance-aidp/jinhua-helper/`（单次 Qwen Omni 原始 `listenText` 直填）
 - 台州话运行时：`extension/sites/bytedance-aidp/taizhou-helper/`
 - 平台资料：`platform-resources/bytedance-aidp/README.md`
 - 苏州话资料：`platform-resources/bytedance-aidp/suzhou-helper/README.md`
