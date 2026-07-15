@@ -493,7 +493,7 @@ test("AIDP jinhua ui panel switches preview buttons from settings-only auto-appl
   }
 });
 
-test("AIDP jinhua ui panel renders Mandarin transcript wording and AI return copy action", async function () {
+test("AIDP jinhua ui panel renders original listenText and AI return copy action", async function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -522,59 +522,49 @@ test("AIDP jinhua ui panel renders Mandarin transcript wording and AI return cop
     runtime.renderCurrentRecommendation({
       segmentNumber: 2,
       listenText: "阿拉等会去吃饭。",
-      finalMandarinText: "我们等会去吃饭。",
     });
     runtime.renderAiMeta({
       models: {
-        listenModel: "qwen3.5-omni-flash",
-        refineModel: "qwen3.5-plus",
+        omniModel: "qwen3.5-omni-plus",
       },
       usage: {
-        listen: {
+        omni: {
           input_tokens: 11,
           output_tokens: 22,
           total_tokens: 33,
         },
-        refine: {
-          input_tokens: 44,
-          output_tokens: 55,
-          total_tokens: 99,
-        },
       },
       cost: {
-        listen: {
+        omni: {
           estimatedCostCny: 0.001,
         },
-        refine: {
-          estimatedCostCny: 0.002,
-        },
-        totalEstimatedCostCny: 0.003,
       },
       raw: {
-        listen: "{\"listenText\":\"阿拉等会去吃饭。\"}",
-        refine: "{\"finalMandarinText\":\"我们等会去吃饭。\"}",
+        omni: "{\"listenText\":\"阿拉等会去吃饭。\"}",
       },
       debug: {
         reason: "unit-test",
       },
     });
 
-    assert.match(panelRoot.textContent, /最终普通话翻译/);
-    assert.match(panelRoot.textContent, /听音阶段结果/);
+    assert.match(panelRoot.textContent, /原始听音/);
+    assert.match(panelRoot.textContent, /原始听音/);
     assert.match(panelRoot.textContent, /第 2 段/);
-    assert.match(panelRoot.textContent, /听音预估人民币/);
-    assert.match(panelRoot.textContent, /收口预估人民币/);
-    assert.match(panelRoot.textContent, /总预估人民币/);
+    assert.match(panelRoot.textContent, /全模态模型/);
+    assert.match(panelRoot.textContent, /全模态输入Token/);
+    assert.match(panelRoot.textContent, /全模态预估人民币/);
     assert.match(panelRoot.textContent, /AI返回内容/);
     assert.match(panelRoot.textContent, /复制内容/);
+    assert.match(panelRoot.textContent, /"raw":/);
+    assert.match(panelRoot.textContent, /"omni":/);
     assert.match(panelRoot.textContent, /unit-test/);
-    assert.doesNotMatch(panelRoot.textContent, /raw\.listen/);
     const copyButton = findNode(panelRoot, function (node) {
       return node.tagName === "BUTTON" && node.textContent.includes("复制内容");
     });
     assert.ok(copyButton);
     copyButton.click();
     await Promise.resolve();
+    assert.match(copiedText, /"raw":/);
     assert.match(copiedText, /"reason": "unit-test"/);
   } finally {
     globalThis.document = previousDocument;
@@ -592,53 +582,7 @@ test("AIDP jinhua ui panel renders Mandarin transcript wording and AI return cop
   }
 });
 
-test("AIDP jinhua ui panel shows review warning tags and force-fill action for blocked current recommendation", function () {
-  const harness = createHarness();
-  const previousDocument = globalThis.document;
-  const previousHTMLElement = globalThis.HTMLElement;
-  globalThis.document = harness.document;
-  globalThis.HTMLElement = FakeNode;
-  const forceFillCalls = [];
 
-  try {
-    const module = loadUiPanelModule();
-    const runtime = module.createRuntime({
-      onForceFillCurrent() {
-        forceFillCalls.push("force-fill");
-      },
-    });
-    assert.equal(runtime.mount(), true);
-
-    const panelRoot = findMountedPanelRoot(harness.body);
-    runtime.renderCurrentRecommendation({
-      segmentNumber: 5,
-      listenText: "这一段像在唱歌。",
-      finalMandarinText: "这一段像在唱歌，但是还能听出歌词。",
-      isSinging: true,
-      isNonJinhuaDialect: true,
-      blockAutoFill: true,
-    });
-    runtime.renderAiMeta({
-      debug: {
-        reason: "blocked",
-      },
-    });
-
-    assert.match(panelRoot.textContent, /唱歌/);
-    assert.match(panelRoot.textContent, /非金华话/);
-    assert.match(panelRoot.textContent, /默认不自动填入/);
-
-    const forceFillButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.textContent.includes("强制填入当前段");
-    });
-    assert.ok(forceFillButton);
-    forceFillButton.click();
-    assert.deepEqual(forceFillCalls, ["force-fill"]);
-  } finally {
-    globalThis.document = previousDocument;
-    globalThis.HTMLElement = previousHTMLElement;
-  }
-});
 
 test("AIDP jinhua ui panel removes current-segment section and keeps preview-batch above audio-meta", function () {
   const harness = createHarness();
@@ -721,87 +665,29 @@ test("AIDP jinhua ui panel toggles batch selection with a normal click without r
   }
 });
 
-test("AIDP jinhua ui panel uses a single batch primary button that follows auto-fill and running states", function () {
+test("AIDP jinhua ui panel keeps one batch recognition-and-write control", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
   globalThis.document = harness.document;
   globalThis.HTMLElement = FakeNode;
-
   try {
     const module = loadUiPanelModule();
-    const runtime = module.createRuntime({
-      aiRecommendAutoFillEnabled: true,
-    });
+    const runtime = module.createRuntime({});
     assert.equal(runtime.mount(), true);
-
     const panelRoot = findMountedPanelRoot(harness.body);
-    runtime.renderBatchSelection({
-      totalSegments: 4,
-      resetSelection: true,
-    });
-
-    let primaryButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
-    });
-    assert.ok(primaryButton);
-    assert.equal(primaryButton.textContent, "批量识别并填入");
-    assert.equal(panelRoot.textContent.includes("当前没有批量任务。"), false);
-
-    runtime.renderBatchState({
-      isRunning: true,
-      phaseText: "批量识别进行中",
-      totalCount: 4,
-      concurrency: 5,
-      succeededCount: 1,
-      failedCount: 0,
-      skippedCount: 0,
-    });
-    primaryButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
-    });
-    assert.ok(primaryButton);
-    assert.equal(primaryButton.textContent, "停止批量");
-
-    runtime.setAiRecommendAutoFillEnabled(false);
-    runtime.renderBatchState({
-      isRunning: false,
-      hasPendingFill: false,
-      phaseText: "",
-      totalCount: 4,
-      concurrency: 5,
-      succeededCount: 0,
-      failedCount: 0,
-      skippedCount: 0,
-    });
-    primaryButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
-    });
-    assert.ok(primaryButton);
-    assert.equal(primaryButton.textContent, "批量识别");
-
-    runtime.renderBatchState({
-      isRunning: false,
-      hasPendingFill: true,
-      phaseText: "",
-      totalCount: 4,
-      concurrency: 5,
-      succeededCount: 3,
-      failedCount: 0,
-      skippedCount: 1,
-      reviewCount: 1,
-    });
-    primaryButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
-    });
-    assert.ok(primaryButton);
-    assert.equal(primaryButton.textContent, "强制填入");
-    assert.match(panelRoot.textContent, /待复核 1/);
+    runtime.renderBatchSelection({ totalSegments: 4, resetSelection: true });
+    let button = findNode(panelRoot, (node) => node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true");
+    assert.equal(button.textContent, "批量识别并填入");
+    runtime.renderBatchState({ isRunning: true, phaseText: "批量识别进行中", totalCount: 4 });
+    button = findNode(panelRoot, (node) => node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true");
+    assert.equal(button.textContent, "停止批量");
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
+
 
 test("AIDP jinhua ui panel renders batch AI tabs and switches the active segment by click", function () {
   const harness = createHarness();
@@ -873,4 +759,3 @@ test("AIDP jinhua ui panel renders batch AI tabs and switches the active segment
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
-

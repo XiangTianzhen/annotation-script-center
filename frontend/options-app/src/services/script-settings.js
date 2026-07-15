@@ -372,19 +372,21 @@ function aidpSections(scriptId) {
     {
       key: "ai",
       title: "AI 设置",
-      help: `配置听音与${isJinhua ? "普通话翻译" : "普通话听写"}收口两阶段参数。`,
+      help: isJinhua
+        ? "配置单次全模态原始听音识别的模型、Prompt 和生成参数。"
+        : "配置听音与普通话听写收口两阶段参数。",
       groups: [
         {
           key: "ai-base",
           title: "基础设置",
           layout: "two",
           fields: [
-            {
+            ...(!isJinhua ? [{
               kind: "boolean",
               path: "aiRecommendAutoFillEnabled",
               label: "识别完成后自动填入",
               help: "识别成功后填入当前输入框，不触发平台保存、提交或切题。",
-            },
+            }] : []),
             {
               kind: "boolean",
               path: "aiRecommendEnableThinking",
@@ -404,34 +406,48 @@ function aidpSections(scriptId) {
             },
           ],
         },
-        {
-          key: "listen",
-          title: "听音",
-          layout: "two",
-          fields: stageFields({
-            prefix: "aiRecommendListen",
-            modelLabel: "听音模型",
-            promptLabel: "听音 Prompt",
-            optionsKey: "listenModels",
-            modelOptions: LISTEN_MODEL_OPTIONS,
-            modelHelp: "只根据当前段音频生成保守的原始听写草稿。",
-          }),
-        },
-        {
-          key: "refine",
-          title: isJinhua ? "普通话翻译收口" : "普通话听写收口",
-          layout: "two",
-          fields: stageFields({
-            prefix: "aiRecommendRefine",
-            modelLabel: "收口模型",
-            promptLabel: "收口 Prompt",
-            optionsKey: "refineModels",
-            modelOptions: REFINE_MODEL_OPTIONS,
-            modelHelp: isJinhua
-              ? "将听音草稿收口为普通话翻译，不做语义润色。"
-              : "将听音草稿收口为普通话听写稿，不做语义润色。",
-          }),
-        },
+        ...(isJinhua
+          ? [{
+              key: "omni",
+              title: "原始听音",
+              layout: "two",
+              fields: stageFields({
+                prefix: "aiRecommendOmni",
+                modelLabel: "全模态模型",
+                promptLabel: "原始听音 Prompt",
+                optionsKey: "omniModels",
+                modelOptions: LISTEN_MODEL_OPTIONS,
+                modelHelp: "每段音频仅调用一次 Qwen Omni，只返回原始听音文本。",
+              }),
+            }]
+          : [
+              {
+                key: "listen",
+                title: "听音",
+                layout: "two",
+                fields: stageFields({
+                  prefix: "aiRecommendListen",
+                  modelLabel: "听音模型",
+                  promptLabel: "听音 Prompt",
+                  optionsKey: "listenModels",
+                  modelOptions: LISTEN_MODEL_OPTIONS,
+                  modelHelp: "只根据当前段音频生成保守的原始听写草稿。",
+                }),
+              },
+              {
+                key: "refine",
+                title: "普通话听写收口",
+                layout: "two",
+                fields: stageFields({
+                  prefix: "aiRecommendRefine",
+                  modelLabel: "收口模型",
+                  promptLabel: "收口 Prompt",
+                  optionsKey: "refineModels",
+                  modelOptions: REFINE_MODEL_OPTIONS,
+                  modelHelp: "将听音草稿收口为普通话听写稿，不做语义润色。",
+                }),
+              },
+            ]),
       ],
     },
   ];

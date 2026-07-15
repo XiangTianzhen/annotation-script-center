@@ -2,6 +2,13 @@
 
 本总账只记录 DataBaker CVPC 柳州话、ByteDance AIDP 苏州话与金华话、Magic Data 杭州话，以及四脚本共同依赖的扩展、Options、后端、测试和发布能力。
 
+## 2026-07-15
+
+- 重构(jinhua): 金华话从两阶段普通话翻译切换为单次 Qwen Omni 原始听音直填；业务结果只保留逐字符原样的 `listenText`。
+- 重构(jinhua): 移除风险、待填入、强制填入与自动填入运行路径；批量只更新当前页选中段的 `regions[*].txt`，不修改 `ms`、不提交、不切题。
+- 配置(jinhua): storage schema 升级至 `33`，旧两阶段配置仅作为非运行时兼容数据保留；Options 只展示原始听音 Omni 设置与调用诊断信息。
+- 测试(jinhua): 覆盖单次 Omni 白名单与严格 JSON、逐字符直填、零选中批量、停止无二次写回及旧配置隔离。
+
 ## 2026-06-12
 
 - 修复(data-baker-cvpc): 将“未填写补 Valid”改为平台直写，并保留失败提示与页面状态同步。

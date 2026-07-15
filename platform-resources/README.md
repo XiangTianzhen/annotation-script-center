@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `data-baker-cvpc/` | 柳州话 | `extension/sites/data-baker-cvpc/liuzhou-helper/` | `/api/data-baker-cvpc/liuzhou-helper/*` |
 | `bytedance-aidp/` | 苏州话 | `extension/sites/bytedance-aidp/suzhou-helper/` | `/api/bytedance-aidp/suzhou-helper/*` |
-| `bytedance-aidp/` | 金华话 | `extension/sites/bytedance-aidp/jinhua-helper/` | `/api/bytedance-aidp/jinhua-helper/*` |
+| `bytedance-aidp/` | 金华话（单次 Omni 原始听音直填） | `extension/sites/bytedance-aidp/jinhua-helper/` | `/api/bytedance-aidp/jinhua-helper/*` |
 | `magic-data/` | 杭州话 | `extension/sites/magic-data/hangzhou-helper/` | `/api/magic-data/hangzhou-helper/*` |
 
 平台与脚本入口索引见 [docs/platforms-index.md](../docs/platforms-index.md)。

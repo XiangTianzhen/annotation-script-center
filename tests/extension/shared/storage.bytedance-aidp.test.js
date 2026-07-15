@@ -67,7 +67,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     const suzhouScript = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
 
-    assert.equal(settings.meta.schemaVersion, 30);
+    assert.equal(settings.meta.schemaVersion, 33);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -124,6 +124,8 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
       harness.constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT
     );
     assert.equal(jinhuaScript.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(jinhuaScript.aiRecommendOmniModel, "qwen3.5-omni-plus");
+    assert.equal(jinhuaScript.aiRecommendOmniPrompt, "");
     assert.equal(jinhuaScript.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(jinhuaScript.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(jinhuaScript.contractMode, "dom-guarded");
@@ -205,6 +207,43 @@ test("ByteDance AIDP storage preserves every runtime preset, boundary and suppor
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
     assert.equal(script.defaultPlaybackRate, 1.75);
     assert.equal(script.fixedWaveZoom, 10);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage migrates Jinhua listen model to Omni and retains inactive two-stage values", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 30 },
+    platforms: {
+      bytedanceAidp: {
+        scripts: {
+          jinhuaHelper: {
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendListenPrompt: "旧听音 Prompt",
+            aiRecommendListenTemperature: "0.2",
+            aiRecommendRefineModel: "qwen3.5-flash",
+            aiRecommendRefinePrompt: "旧收口 Prompt",
+            aiRecommendAutoFillEnabled: false,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
+
+    assert.equal(settings.meta.schemaVersion, 33);
+    assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendOmniPrompt, "");
+    assert.equal(script.aiRecommendOmniTemperature, "");
+    assert.equal(script.aiRecommendListenPrompt, "旧听音 Prompt");
+    assert.equal(script.aiRecommendListenTemperature, "0.2");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
+    assert.equal(script.aiRecommendRefinePrompt, "旧收口 Prompt");
+    assert.equal(script.aiRecommendAutoFillEnabled, false);
   } finally {
     harness.cleanup();
   }

@@ -6,12 +6,12 @@
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
   const FILL_LANGUAGE_EMPTY_MESSAGE = "当前没有空的语言种类需要填充。";
   const WRITE_CURRENT_TEXT_SUCCESS_MESSAGE =
-    "已通过平台暂存接口写回普通话翻译，请刷新页面复核。";
+    "已通过平台暂存接口写回原始听音，请刷新页面复核。";
   const WRITE_BATCH_TEXT_SUCCESS_MESSAGE =
-    "已通过平台暂存接口批量写回普通话翻译，请刷新页面复核。";
+    "已通过平台暂存接口批量写回原始听音，请刷新页面复核。";
   const WRITE_CURRENT_TEXT_SKIP_EXISTING_MESSAGE = "当前段 AI 结果为空，已保留原有文本。";
   const WRITE_CURRENT_TEXT_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未写入任何文本。";
-  const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的普通话翻译。";
+  const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的原始听音。";
   const WRITE_CURRENT_TEXT_DOM_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未填入任何文本。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议。";
   const PREVIEW_STALE_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
@@ -918,7 +918,7 @@
         return {
           segmentNumber: segmentNumber,
           regionId: regionId,
-          finalMandarinText: normalizeText(source.finalMandarinText || source.text),
+          listenText: source.listenText,
         };
       })
       .filter(Boolean);
@@ -947,8 +947,8 @@
       if (!matchedUpdate) {
         return region;
       }
-      const nextText = normalizeText(matchedUpdate.finalMandarinText);
-      if (!nextText) {
+      const nextText = matchedUpdate.listenText;
+      if (typeof nextText !== "string" || nextText === "") {
         skippedCount += 1;
         return region;
       }
@@ -1269,7 +1269,7 @@
       }
       const updateResult = updateTempAnswerWithRegionTexts(context.tempAnswer, context, {
         segmentNumber: targetSegmentNumber,
-        finalMandarinText: source.finalMandarinText,
+        listenText: source.listenText,
       });
       if (updateResult.writtenCount <= 0) {
         const targetRegion = (Array.isArray(context.tempAnswer?.data?.regions)
@@ -1322,8 +1322,8 @@
           skippedCount: 0,
         };
       }
-      const nextText = normalizeText(source.finalMandarinText);
-      if (!nextText) {
+      const nextText = source.listenText;
+      if (typeof nextText !== "string" || nextText === "") {
         return {
           ok: true,
           message: WRITE_CURRENT_TEXT_DOM_SKIP_EMPTY_MESSAGE,

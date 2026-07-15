@@ -62,7 +62,7 @@ describe("script-settings helpers", () => {
     });
   });
 
-  test("restores the complete four-script field contracts without jinhua expert mode", () => {
+  test("restores the complete four-script field contracts with Jinhua original listening only", () => {
     globalThis.ASREdgeConstants = sharedConstants;
     const contract = (scriptId) =>
       Object.fromEntries(
@@ -148,12 +148,31 @@ describe("script-settings helpers", () => {
       "ai/refine": aidpExpected["ai/refine"],
     });
     expect(contract("bytedanceAidpSuzhouHelper")).toEqual(aidpExpected);
-    expect(contract("bytedanceAidpJinhuaHelper")).toEqual(aidpExpected);
+    expect(contract("bytedanceAidpJinhuaHelper")).toEqual({
+      "basic/page-behavior": aidpExpected["basic/page-behavior"],
+      "ai/ai-base": [
+        "aiRecommendEnableThinking",
+        "aiRecommendRequestTimeoutMs",
+      ],
+      "ai/omni": [
+        "aiRecommendOmniModel",
+        "aiRecommendOmniTemperature",
+        "aiRecommendOmniTopP",
+        "aiRecommendOmniMaxTokens",
+        "aiRecommendOmniMaxCompletionTokens",
+        "aiRecommendOmniPresencePenalty",
+        "aiRecommendOmniFrequencyPenalty",
+        "aiRecommendOmniSeed",
+        "aiRecommendOmniPrompt",
+        "aiRecommendOmniStopSequences",
+      ],
+    });
 
     const jinhuaFields = getScriptFieldGroups("bytedanceAidpJinhuaHelper").flatMap(
       (section) => (section.groups || []).flatMap((group) => group.fields || [])
     );
     expect(jinhuaFields.some((field) => /expert|专家/i.test(`${field.path} ${field.label}`))).toBe(false);
+    expect(jinhuaFields.some((field) => /aiRecommendListen|aiRecommendRefine|AutoFill/.test(field.path))).toBe(false);
 
     expect(contract("magicDataHangzhouAssistant")).toEqual({
       "basic/assistant-note": ["hangzhouAiReviewNotice"],

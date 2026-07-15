@@ -53,8 +53,7 @@ describe("ScriptDetailView 1.0 layout", () => {
       status: "loaded",
       config: {
         aiRecommendRequestTimeoutMs: 60000,
-        aiRecommendListenPrompt: "后端听音 Prompt",
-        aiRecommendRefinePrompt: "后端收口 Prompt",
+        aiRecommendOmniPrompt: "后端原始听音 Prompt",
       },
       options: {},
       error: "",
@@ -116,6 +115,8 @@ describe("ScriptDetailView 1.0 layout", () => {
     expect(wrapper.text()).toContain("基础设置");
     expect(wrapper.text()).toContain("AI 设置");
     expect(wrapper.text()).toContain("快捷键");
+    expect(wrapper.text()).toContain("原始听音");
+    expect(wrapper.text()).not.toContain("普通话翻译收口");
     expect(wrapper.text()).not.toContain("高级 JSON 编辑");
   });
 
@@ -134,18 +135,18 @@ describe("ScriptDetailView 1.0 layout", () => {
       })
     );
     const wrapper = mount(ScriptDetailView);
-    const prompt = wrapper.find('[data-field-path="aiRecommendListenPrompt"] textarea');
+    const prompt = wrapper.find('[data-field-path="aiRecommendOmniPrompt"] textarea');
     await prompt.setValue("用户尚未保存的 Prompt");
 
     resolveDefaults({
       status: "loaded",
-      config: { aiRecommendListenPrompt: "稍后到达的后端 Prompt" },
+      config: { aiRecommendOmniPrompt: "稍后到达的后端 Prompt" },
       options: {},
       error: "",
     });
     await flushPromises();
 
-    expect(wrapper.find('[data-field-path="aiRecommendListenPrompt"] textarea').element.value).toBe(
+    expect(wrapper.find('[data-field-path="aiRecommendOmniPrompt"] textarea').element.value).toBe(
       "用户尚未保存的 Prompt"
     );
   });
@@ -202,7 +203,7 @@ describe("ScriptDetailView 1.0 layout", () => {
     await flushPromises();
 
     await wrapper
-      .find('[data-field-path="aiRecommendListenTopP"] input')
+      .find('[data-field-path="aiRecommendOmniTopP"] input')
       .setValue("1.2");
     await wrapper.find(".detail-actions .secondary-button").trigger("click");
     await flushPromises();
@@ -245,7 +246,7 @@ describe("ScriptDetailView 1.0 layout", () => {
               jinhuaHelper: {
                 ...settingsStore.settings.platforms.bytedanceAidp.scripts.jinhuaHelper,
                 ...patch.platforms.bytedanceAidp.scripts.jinhuaHelper,
-                aiRecommendListenPrompt: "storage normalized prompt",
+                aiRecommendOmniPrompt: "storage normalized prompt",
               },
             },
           },
@@ -256,13 +257,13 @@ describe("ScriptDetailView 1.0 layout", () => {
     const wrapper = mount(ScriptDetailView);
     await flushPromises();
 
-    const prompt = wrapper.find('[data-field-path="aiRecommendListenPrompt"] textarea');
+    const prompt = wrapper.find('[data-field-path="aiRecommendOmniPrompt"] textarea');
     await prompt.setValue("user prompt");
     await wrapper.find(".detail-actions .secondary-button").trigger("click");
     await flushPromises();
 
     expect(
-      wrapper.find('[data-field-path="aiRecommendListenPrompt"] textarea').element.value
+      wrapper.find('[data-field-path="aiRecommendOmniPrompt"] textarea').element.value
     ).toBe("storage normalized prompt");
   });
 

@@ -80,18 +80,14 @@ const STATIC_LOCAL_DEFAULTS = {
       mergeContiguousSuggestedSegmentsEnabled: true,
       segmentPreviewAutoApplyEnabled: true,
       aiRecommendEnabled: false,
-      aiRecommendAutoFillEnabled: true,
       aiRecommendRequestTimeoutMs: 60000,
-      aiRecommendListenModel: "qwen3.5-omni-flash",
-      aiRecommendListenPrompt: "",
-      aiRecommendRefineModel: "qwen3.5-plus",
-      aiRecommendRefinePrompt: "",
+      aiRecommendOmniModel: "qwen3.5-omni-plus",
+      aiRecommendOmniPrompt: "",
       defaultPlaybackRate: 1,
       fixedWaveZoom: 2,
     },
     options: {
-      listenModels: ["qwen3.5-omni-flash", "qwen3.5-omni-plus"],
-      refineModels: ["qwen3.5-plus", "qwen3.5-flash"],
+      omniModels: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
     },
   },
   [SCRIPT_IDS.hangzhou]: {
@@ -239,6 +235,28 @@ function mapTwoStagePayload(scriptId, payload, local) {
   };
 }
 
+function mapOmniPayload(payload, local) {
+  const defaults = payload?.defaults || {};
+  const omni = defaults?.omni || {};
+  const params = getStageParams(omni);
+  const config = {
+    ...local.config,
+    aiRecommendRequestTimeoutMs: Number(defaults.timeoutMs) || local.config.aiRecommendRequestTimeoutMs,
+    aiRecommendOmniModel: text(omni.model) || local.config.aiRecommendOmniModel,
+    aiRecommendOmniPrompt: text(omni.prompt),
+  };
+  STAGE_PARAM_DEFINITIONS.forEach((definition) => {
+    config[`aiRecommendOmni${definition.suffix}`] = toTextValue(params[definition.apiKey]);
+  });
+  config.aiRecommendOmniStopSequences = normalizeStopValue(params.stop);
+  return {
+    config,
+    options: mergeOptions(local.options, {
+      omniModels: payload?.supportedModels?.omni || omni.modelOptions,
+    }),
+  };
+}
+
 function mapMagicPayload(payload, local) {
   const defaults = payload?.defaults || {};
   const comparePrompt = text(defaults.comparePrompt) || text(defaults.reviewPrompt);
@@ -302,7 +320,9 @@ export async function loadScriptDefaults(scriptId, settings, fetchImpl = globalT
     }
     const mapped = normalizedScriptId === SCRIPT_IDS.hangzhou
       ? mapMagicPayload(payload, local)
-      : mapTwoStagePayload(normalizedScriptId, payload, local);
+      : normalizedScriptId === SCRIPT_IDS.jinhua
+        ? mapOmniPayload(payload, local)
+        : mapTwoStagePayload(normalizedScriptId, payload, local);
     return {
       status: "loaded",
       endpoint,
@@ -508,10 +528,16 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
       requiredNumber(result.aiRecommendRequestTimeoutMs, "请求超时时间（秒）", 1, 60) * 1000
     );
     result.aiRecommendEnableThinking = false;
-    clearDefaultOverrides(result, defaults, [
-      ...buildStageOverrideDefinitions("aiRecommendListen"),
-      ...buildStageOverrideDefinitions("aiRecommendRefine"),
-    ]);
+    clearDefaultOverrides(
+      result,
+      defaults,
+      normalizedScriptId === SCRIPT_IDS.jinhua
+        ? buildStageOverrideDefinitions("aiRecommendOmni")
+        : [
+            ...buildStageOverrideDefinitions("aiRecommendListen"),
+            ...buildStageOverrideDefinitions("aiRecommendRefine"),
+          ]
+    );
   } else if (normalizedScriptId === SCRIPT_IDS.cvpc) {
     result.segmentContextPaddingMs = Math.round(
       requiredNumber(result.segmentContextPaddingMs, "前后静音时长（秒）", 0, 1.5) * 1000
