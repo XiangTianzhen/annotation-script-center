@@ -7,7 +7,7 @@
 - 脚本 ID：`magicDataHangzhouAssistant`
 - 配置路径：`platforms.magicData.scripts.hangzhouHelper`
 - 活动脚本：`platforms.magicData.activeScriptId`
-- 当前版本：`1.0.0`
+- 当前版本：`1.1.0`
 - 后端命名空间：`/api/magic-data/hangzhou-helper/*`
 
 ## 文件职责

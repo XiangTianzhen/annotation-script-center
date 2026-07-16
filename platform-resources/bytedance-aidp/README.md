@@ -8,7 +8,7 @@
   - `suzhou-helper`
   - `jinhua-helper`
   - `taizhou-helper`
-- 当前状态：`1.0.0` 三脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/`、`extension/sites/bytedance-aidp/taizhou-helper/` 三套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
+- 当前状态：`1.1.0` 三脚本运行时；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/`、`extension/sites/bytedance-aidp/jinhua-helper/`、`extension/sites/bytedance-aidp/taizhou-helper/` 三套 isolated runtime，并共用 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js` 捕获当前条读取与暂存写回契约
 - 首轮依据：
   - 用户提供的列表首页 URL
   - 用户提供的 `mark-v3` 详情页 URL

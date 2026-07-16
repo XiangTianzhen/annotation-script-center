@@ -140,11 +140,17 @@ test("ZIP packager supports isolated source and output directories", function (t
   fs.renameSync(path.join(fixtureRoot, "extension"), sourceDir);
 
   const fixturePackager = require(fixturePackagerPath);
+  const fixtureManifest = JSON.parse(
+    fs.readFileSync(path.join(sourceDir, "manifest.json"), "utf8")
+  );
   const result = fixturePackager.packageExtensionZip({
     skipBuild: true,
     sourceDir,
     outputDir,
   });
 
-  assert.equal(result.outputPath, path.join(outputDir, "annotation-script-center-v1.0.0.zip"));
+  assert.equal(
+    result.outputPath,
+    path.join(outputDir, fixturePackager.buildZipFilename(fixtureManifest.version))
+  );
 });

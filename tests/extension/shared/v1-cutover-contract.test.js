@@ -209,7 +209,7 @@ test("1.0.0 manifest references every retained runtime", function () {
   const allPaths = scriptPaths.concat(resourcePaths);
   const joined = allPaths.join("\n");
 
-  assert.equal(manifest.version, "1.0.0");
+  assert.equal(manifest.version, "1.1.0");
   assert.equal("update_url" in manifest, false);
   assert.match(joined, /sites\/data-baker-cvpc\/liuzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/suzhou-helper\//);

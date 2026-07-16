@@ -26,7 +26,7 @@ describe("App 1.0 public shell", () => {
     globalThis.chrome = {
       runtime: {
         getManifest() {
-          return { version: "1.0.0" };
+          return { version: "1.1.0" };
         },
       },
     };
@@ -38,7 +38,7 @@ describe("App 1.0 public shell", () => {
 
     const appStore = useAppStore();
     appStore.extensionName = "标注脚本中心";
-    appStore.version = "1.0.0";
+    appStore.version = "1.1.0";
     appStore.showToast = vi.fn();
 
     useAuthStore().session = null;
@@ -70,6 +70,6 @@ describe("App 1.0 public shell", () => {
 
   test("shows the current public version", () => {
     const wrapper = mount(App);
-    expect(wrapper.find("#workspace-version").text()).toBe("v1.0.0");
+    expect(wrapper.find("#workspace-version").text()).toBe("v1.1.0");
   });
 });

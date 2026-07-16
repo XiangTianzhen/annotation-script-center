@@ -139,3 +139,4 @@
 - 测试(bytedance-aidp): 覆盖思考开关的 Options 显示与保存、扩展请求体、后端严格布尔解析及 Qwen 调用参数。
 - 修复(bytedance-aidp): 公共 Qwen provider 不再忽略金华话、台州话显式开启的思考开关，现将其真实发送为百炼 `enable_thinking: true`；默认及非 `true` 值仍关闭，并保留参数不支持时移除后重试。
 - 测试(bytedance-aidp): 覆盖 Qwen 最终请求体在显式开启时包含 `enable_thinking: true`。
+- 发布(1.1.0): 金华话与台州话提升 Omni 输出文本质量：模型原始字符串原样映射至 `listenText`，非空自定义 Prompt 不再被后端追加规则覆盖，使用者可准确控制普通话转换与输出格式；本地 Edge 验收通过。
