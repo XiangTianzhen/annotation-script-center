@@ -32,19 +32,19 @@ function createRequest(overrides) {
   }, overrides || {}));
 }
 
-test("Jinhua Omni result preserves listenText byte-for-byte and omits conversion fields", function () {
-  const result = aiService.__testOnly.normalizeOmniOutput({
-    listenText: "  第3段：3、2、1！！！哈哈哈哈  ",
-  });
+test("Jinhua Omni result preserves raw text byte-for-byte and omits conversion fields", function () {
+  const rawText = "  raw text with spaces  \nnext line  ";
+  const result = aiService.__testOnly.normalizeOmniOutput(rawText);
 
   assert.deepEqual(result, {
-    listenText: "  第3段：3、2、1！！！哈哈哈哈  ",
+    listenText: rawText,
   });
 });
 
 test("Jinhua defaults expose the configured dialect-to-Mandarin prompt", function () {
   const payload = aiService.createDefaultsPayload();
   const omni = payload.defaults?.omni || {};
+  const defaultPrompt = String(omni.prompt || "");
 
   assert.equal(omni.model, "qwen3.5-omni-plus");
   assert.match(String(omni.prompt || ""), /你是一位精通\*\*金华地区方言\*\*（吴语金衢片）与普通话转换的语言专家/);
@@ -55,6 +55,7 @@ test("Jinhua defaults expose the configured dialect-to-Mandarin prompt", functio
   assert.match(String(omni.prompt || ""), /\*\*最终输出\*\*：`1\. 我金华上班。`/);
   assert.match(String(omni.prompt || ""), /请等待用户输入音频文本或指令，即刻开始执行上述流程/);
   assert.doesNotMatch(String(omni.prompt || ""), /JSON 字段固定为：listenText/);
+  assert.doesNotMatch(defaultPrompt, /(?:JSON|listenText)/i);
   assert.deepEqual(payload.supportedModels?.omni, ["qwen3.5-omni-plus", "qwen3.5-omni-flash"]);
   assert.deepEqual(payload.contract?.stages, ["omni"]);
 });
@@ -156,9 +157,7 @@ test("Jinhua recommendation invokes Qwen Omni once and returns one cost record",
       receivedOptions = options;
       return {
         model: "qwen3.5-omni-plus",
-        rawText: JSON.stringify({
-          listenText: "第3段：3、2、1！！！",
-        }),
+        rawText: "raw model transcription",
         usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
       };
     },
@@ -169,19 +168,25 @@ test("Jinhua recommendation invokes Qwen Omni once and returns one cost record",
 
   assert.equal(callCount, 1);
   assert.equal(receivedPrompt.systemPrompt, "自定义全模态 Prompt");
-  assert.match(receivedPrompt.userPrompt, /只返回 JSON 对象/);
-  assert.match(receivedPrompt.userPrompt, /仅包含 listenText 字段/);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /只返回 JSON/);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /仅包含 listenText/);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /只输出当前音频片段的最终转写文本/);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /不得输出 JSON/);
+  assert.match(receivedPrompt.userPrompt, /单次全模态识别上下文/);
+  assert.match(receivedPrompt.userPrompt, /参考资料已加载：jinhua-rules\.md/);
+  assert.match(receivedPrompt.userPrompt, /"segment"/);
   assert.equal(receivedOptions.model, "qwen3.5-omni-plus");
   assert.equal(receivedOptions.enableThinking, false);
-  assert.equal(result.listenText, "第3段：3、2、1！！！");
+  assert.equal(result.listenText, "raw model transcription");
   assert.equal(Object.hasOwn(result, "finalMandarinText"), false);
   assert.deepEqual(result.models, { omniModel: "qwen3.5-omni-plus" });
   assert.equal(result.usage.omni.total_tokens, 30);
   assert.ok(result.cost.omni);
-  assert.equal(result.raw.omni.includes("listenText"), true);
+  assert.equal(result.raw.omni, "raw model transcription");
+  assert.equal(Object.hasOwn(result.debug, "omni"), false);
 });
 
-test("Jinhua blank custom prompt falls back to the backend default while retaining the JSON envelope", async function () {
+test("Jinhua blank custom prompt falls back to the backend default without a JSON envelope", async function () {
   const defaultPrompt = aiService.createDefaultsPayload().defaults?.omni?.prompt;
   const request = createRequest({
     aiOmni: {
@@ -190,7 +195,7 @@ test("Jinhua blank custom prompt falls back to the backend default while retaini
   });
   let receivedPrompt = null;
 
-  await aiService.recommend(request, {}, {
+  const result = await aiService.recommend(request, {}, {
     normalizeUsage: function (usage) {
       return usage || {};
     },
@@ -198,18 +203,51 @@ test("Jinhua blank custom prompt falls back to the backend default while retaini
       receivedPrompt = prompt;
       return {
         model: "qwen3.5-omni-plus",
-        rawText: JSON.stringify({ listenText: "默认 Prompt 转写结果" }),
+        rawText: "default Prompt transcription",
         usage: {},
       };
     },
   });
 
   assert.equal(receivedPrompt.systemPrompt, defaultPrompt);
-  assert.match(receivedPrompt.userPrompt, /仅包含 listenText 字段/);
+  assert.doesNotMatch(receivedPrompt.systemPrompt, /(?:JSON|listenText)/i);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /只返回 JSON/);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /仅包含 listenText/);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /只输出当前音频片段的最终转写文本/);
+  assert.doesNotMatch(receivedPrompt.userPrompt, /不得输出 JSON/);
+  assert.match(receivedPrompt.userPrompt, /单次全模态识别上下文/);
+  assert.equal(result.listenText, "default Prompt transcription");
 });
 
-test("Jinhua ignores non-JSON output and an empty listenText instead of returning fillable text", async function () {
-  for (const rawText of ["不是 JSON 的模型输出", JSON.stringify({ listenText: "" })]) {
+test("Jinhua maps every Omni text response to listenText byte-for-byte", async function () {
+  const rawTexts = [
+    "  raw text with spaces  \nnext line  ",
+    "**Markdown result**\n\nExplanation: model output",
+    JSON.stringify({ listenText: "legacy JSON result" }),
+    "",
+  ];
+
+  for (const rawText of rawTexts) {
+    const result = await aiService.recommend(createRequest(), {}, {
+      normalizeUsage: function (usage) {
+        return usage || {};
+      },
+      requestOmniInputAudio: async function () {
+        return {
+          model: "qwen3.5-omni-plus",
+          rawText,
+          usage: {},
+        };
+      },
+    });
+
+    assert.equal(result.listenText, rawText);
+    assert.equal(Object.hasOwn(result, "finalMandarinText"), false);
+  }
+});
+
+test("Jinhua converts non-string Omni responses into empty text without throwing", async function () {
+  for (const rawText of [undefined, null, { unexpected: "object" }]) {
     const result = await aiService.recommend(createRequest(), {}, {
       normalizeUsage: function (usage) {
         return usage || {};
@@ -224,7 +262,7 @@ test("Jinhua ignores non-JSON output and an empty listenText instead of returnin
     });
 
     assert.equal(result.listenText, "");
-    assert.equal(Object.hasOwn(result, "finalMandarinText"), false);
+    assert.equal(result.raw.omni, "");
   }
 });
 

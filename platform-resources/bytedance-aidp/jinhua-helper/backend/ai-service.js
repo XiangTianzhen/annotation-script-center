@@ -193,11 +193,6 @@ const DEFAULT_OMNI_PROMPT = [
   "",
   "请等待用户输入音频文本或指令，即刻开始执行上述流程。",
 ].join("\n");
-const OUTPUT_ENVELOPE_PROMPT = [
-  "请根据 systemPrompt 和以下音频上下文完成转写。",
-  "只返回 JSON 对象，且仅包含 listenText 字段。",
-  "listenText 的值必须是最终转写文本；不得添加其他字段、Markdown 或解释。",
-].join("");
 const PRICING_SUMMARY = Object.freeze(
   buildPricingAvailabilitySummary({
     omni: SUPPORTED_OMNI_MODELS,
@@ -333,9 +328,8 @@ function buildAssetsContext(assets) {
 }
 
 function normalizeOmniOutput(value) {
-  const source = value && typeof value === "object" ? value : {};
   return {
-    listenText: normalizeListenText(source.listenText),
+    listenText: normalizeListenText(value),
   };
 }
 
@@ -361,7 +355,6 @@ function buildOmniPrompt(request, assetsContext) {
         null,
         2
       ),
-      OUTPUT_ENVELOPE_PROMPT,
     ].filter(Boolean).join("\n"),
   };
 }
@@ -375,15 +368,6 @@ function createRuntimeDeps(overrides) {
     requestOmniInputAudio:
       typeof source.requestOmniInputAudio === "function" ? source.requestOmniInputAudio : requestOmniInputAudio,
   };
-}
-
-function parseOmniJsonWithFallback(rawText) {
-  try {
-    const parsed = JSON.parse(String(rawText || ""));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : { listenText: "" };
-  } catch (_error) {
-    return { listenText: "" };
-  }
 }
 
 async function runOmni(request, assetsContext, deps) {
@@ -401,12 +385,11 @@ async function runOmni(request, assetsContext, deps) {
       enableThinking: request.aiOmni.enableThinking,
     }
   );
-  const parsed = parseOmniJsonWithFallback(result.rawText || "");
-  const normalized = normalizeOmniOutput(parsed);
+  const rawText = typeof result.rawText === "string" ? result.rawText : "";
+  const normalized = normalizeOmniOutput(rawText);
   return {
     listenText: normalized.listenText,
-    rawText: String(result.rawText || ""),
-    debugRawJson: parsed && typeof parsed === "object" ? parsed : null,
+    rawText,
     timing: {
       omniMs: Math.max(0, deps.now() - startedAt),
     },
@@ -446,7 +429,6 @@ async function recommend(request, assetsContext, overrides) {
       omni: omniResult.rawText,
     },
     debug: {
-      omni: normalizeErrorDebugObject(omniResult.debugRawJson),
       rulesSource: "jinhua-rules.md",
     },
   };

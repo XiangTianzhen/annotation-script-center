@@ -27,10 +27,9 @@ const DEFAULT_OMNI_PARAMS = {
 };
 const DEFAULT_OMNI_PROMPT = [
   "你是浙江台州方言音频识别助手。只写出当前音频片段中实际听到的文本原文。",
-  "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：listenText。",
-  "listenText 必须逐字保留模型听到的内容；不要翻译成普通话，不要润色、补写、删减、改数字、规整标点或压缩重复字。",
-  "纯静音或完全听不清时，listenText 返回空字符串。",
+  "只输出当前片段的最终转写文本；不得输出 JSON、字段名、Markdown、解释或多余文字。",
+  "最终转写文本必须逐字保留模型听到的内容；不要翻译成普通话，不要润色、补写、删减、改数字、规整标点或压缩重复字。",
+  "纯静音或完全听不清时，直接输出空字符串。",
 ].join("\n");
 const PRICING_SUMMARY = Object.freeze(
   buildPricingAvailabilitySummary({
@@ -111,12 +110,13 @@ function normalizeOmniConfig(rawOmni) {
   const defaults = buildOmniDefaults();
   const source = rawOmni && typeof rawOmni === "object" ? rawOmni : {};
   const requestedModel = normalizeText(source.model || defaults.model);
+  const requestedPrompt = typeof source.prompt === "string" ? source.prompt : "";
   return {
     model:
       SUPPORTED_OMNI_MODELS.indexOf(requestedModel) >= 0
         ? requestedModel
         : defaults.model,
-    prompt: String(source.prompt || defaults.prompt || ""),
+    prompt: normalizeText(requestedPrompt) ? requestedPrompt : defaults.prompt,
     params: normalizeOmniParams(source.params),
     enableThinking: source.enableThinking === true,
   };
@@ -165,37 +165,19 @@ function buildAssetsContext(assets) {
   };
 }
 
-function appendPromptRequirements(prompt, requiredLines) {
-  return [String(prompt || "").trim()]
-    .concat(Array.isArray(requiredLines) ? requiredLines : [])
-    .map(function (item) {
-      return String(item || "").trim();
-    })
-    .filter(Boolean)
-    .join("\n");
-}
-
 function normalizeOmniOutput(value) {
-  const source = value && typeof value === "object" ? value : {};
   return {
-    listenText: normalizeListenText(source.listenText),
+    listenText: normalizeListenText(value),
   };
 }
 
 function buildOmniPrompt(request, assetsContext) {
   return {
-    systemPrompt: appendPromptRequirements(
-      request.aiOmni?.prompt || DEFAULT_OMNI_PROMPT,
-      [
-        "仅根据当前音频片段输出 JSON。",
-        "JSON 只允许包含 listenText。",
-        "listenText 必须原样记录听到的文本；不得翻译、润色、补写、删减或清洗。",
-      ]
-    ),
+    systemPrompt: String(request.aiOmni?.prompt || DEFAULT_OMNI_PROMPT),
     userPrompt: [
       "单次全模态识别上下文：",
       normalizeText(assetsContext?.rulesText)
-        ? "参考资料已加载：taizhou-rules.md（按其当前边界处理，不编造方言映射）。"
+        ? "参考资料已加载：taizhou-rules.md。"
         : "",
       JSON.stringify(
         {
@@ -211,7 +193,6 @@ function buildOmniPrompt(request, assetsContext) {
         null,
         2
       ),
-      "请直接完成听音，只返回约定 JSON。",
     ].filter(Boolean).join("\n"),
   };
 }
@@ -225,17 +206,6 @@ function createRuntimeDeps(overrides) {
     requestOmniInputAudio:
       typeof source.requestOmniInputAudio === "function" ? source.requestOmniInputAudio : requestOmniInputAudio,
   };
-}
-
-function parseOmniJsonWithFallback(rawText, requestId, deps) {
-  try {
-    const parsed = JSON.parse(String(rawText || ""));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : { listenText: "" };
-  } catch (_error) {
-    return {
-      listenText: "",
-    };
-  }
 }
 
 async function runOmni(request, assetsContext, deps) {
@@ -253,12 +223,11 @@ async function runOmni(request, assetsContext, deps) {
       enableThinking: request.aiOmni.enableThinking,
     }
   );
-  const parsed = parseOmniJsonWithFallback(result.rawText || "", request.requestId, deps);
-  const normalized = normalizeOmniOutput(parsed);
+  const rawText = typeof result.rawText === "string" ? result.rawText : "";
+  const normalized = normalizeOmniOutput(rawText);
   return {
     listenText: normalized.listenText,
-    rawText: String(result.rawText || ""),
-    debugRawJson: parsed && typeof parsed === "object" ? parsed : null,
+    rawText,
     timing: {
       omniMs: Math.max(0, deps.now() - startedAt),
     },
@@ -298,7 +267,6 @@ async function recommend(request, assetsContext, overrides) {
       omni: omniResult.rawText,
     },
     debug: {
-      omni: normalizeErrorDebugObject(omniResult.debugRawJson),
       rulesSource: "taizhou-rules.md",
     },
   };

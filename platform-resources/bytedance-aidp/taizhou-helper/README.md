@@ -7,8 +7,8 @@
 ## AI 结果边界
 
 - `POST /api/bytedance-aidp/taizhou-helper/ai/recommend` 成功时以 `listenText` 作为唯一业务文本。
-- `listenText` 是模型原始听音结果，不翻译为普通话，也不做任何文本清洗。
-- 模型输出不是严格 JSON、或 `listenText` 为空时，不写入平台。
+- 默认 Prompt 用于原始听音直填；非空本地自定义 Prompt 会原样作为完整 systemPrompt，完全决定模型语义和输出格式。后端只附带片段、时间范围、字段/编辑上下文和规则资料已加载标识，不追加转换、听写或输出格式规则；`listenText` 是扩展/API 兼容字段，不是模型 JSON 字段。
+- 后端仅在模型原始输出为字符串时逐字符映射 `listenText`，不做 JSON.parse、trim、文本清洗、解释提取或猜测。所有非空字符串均原样写入，包括意外的 JSON、Markdown 或解释文字；空字符串或非字符串不写入平台。
 - 返回可携带 usage、cost、raw 与 debug，用于诊断；不返回风险、复核或强制写入字段。
 
 ## 写入边界

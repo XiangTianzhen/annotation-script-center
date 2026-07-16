@@ -26,6 +26,10 @@
 - 重构(jinhua): 移除风险、待填入、强制填入与自动填入运行路径；批量只更新当前页选中段的 `regions[*].txt`，不修改 `ms`、不提交、不切题。
 - 配置(jinhua): storage schema 升级至 `33`，旧两阶段配置仅作为非运行时兼容数据保留；Options 只展示原始听音 Omni 设置与调用诊断信息。
 - 测试(jinhua): 覆盖单次 Omni 白名单与严格 JSON、逐字符直填、零选中批量、停止无二次写回及旧配置隔离。
+- 修复(bytedance-aidp): 金华话与台州话的 Qwen Omni 改为直接输出最终转写纯文本；后端仅把字符串原始输出逐字符映射到扩展/API 兼容字段 `listenText`，不再 JSON 解析、trim、清洗、提取或猜测。所有非空字符串（包括意外的 JSON、Markdown、解释）均原样传递；空字符串或非字符串不写入，`raw.omni` 继续用于诊断，保存的自定义 Prompt 不迁移、不覆盖。
+- 测试(bytedance-aidp): 覆盖金华话、台州话的纯文本与含空白输出逐字符映射、意外 JSON/Markdown/解释原样传递、空/非字符串不写入，以及默认和实际请求 Prompt 不再要求 JSON；保持 60 秒超时、模型白名单、thinking、usage/cost 回归覆盖。
+- 修复(bytedance-aidp): 金华话与台州话的非空自定义 Prompt 改为原样作为完整 systemPrompt；后端只附带音频片段、时间范围和标注上下文，不再追加不翻译、原样听写、纯文本或其他输出格式规则。清空自定义 Prompt 后仍回退各自默认 Prompt，模型原始字符串继续逐字符映射到 `listenText`。
+- 测试(bytedance-aidp): 覆盖自定义 Prompt 完整透传、用户消息仅含上下文且不含后端追加规则，并回归验证默认 Prompt 回退、原样响应映射、thinking、超时、模型白名单与费用统计。
 
 ## 2026-06-12
 
