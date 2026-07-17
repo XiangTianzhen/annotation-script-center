@@ -69,27 +69,9 @@
 
 .admin-ai-key-slots {
   display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(37, 99, 235, 0.16);
-  background: rgba(239, 246, 255, 0.58);
-}
-
-.admin-ai-key-slots-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.admin-ai-key-slots-head > div {
-  display: grid;
   gap: 8px;
 }
 
-.admin-ai-key-slots-head span,
-.admin-ai-key-note,
 .admin-ai-key-current {
   color: var(--text-secondary);
   font-size: 13px;
@@ -97,8 +79,7 @@
 }
 
 .admin-ai-key-switcher,
-.admin-ai-key-control,
-.admin-ai-key-choice-group {
+.admin-ai-key-control {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -107,30 +88,16 @@
 
 .admin-ai-key-switcher {
   justify-content: space-between;
+  width: 100%;
   padding: 12px;
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
 }
 
-.admin-ai-key-choice {
-  min-width: 48px;
-  padding: 8px 14px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 10px;
-  background: #ffffff;
-  color: var(--text-secondary);
-  font-weight: 700;
-
-  &.selected {
-    border-color: rgba(37, 99, 235, 0.56);
-    background: rgba(219, 234, 254, 0.8);
-    color: var(--brand-primary);
-  }
-}
-
 .admin-ai-key-switcher .primary-button {
   min-width: 132px;
+  margin-left: auto;
 }
 
 .field-card input.wide-field,

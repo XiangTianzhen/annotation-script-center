@@ -185,6 +185,49 @@ onMounted(function () {
               当前生效：{{ currentModeLabel }}{{ effectiveBaseUrl ? `（${effectiveBaseUrl}）` : "" }}
             </div>
 
+            <section v-if="isServerMode" id="admin-ai-key-slots" class="admin-ai-key-slots">
+              <div v-if="adminStore.aiKeySlotsError" class="status-text" role="status">
+                {{ adminStore.aiKeySlotsError }}
+              </div>
+
+              <template v-else>
+                <div v-if="adminStore.aiKeySlotsLoading" class="status-text">
+                  正在读取密钥状态...
+                </div>
+
+                <div class="admin-ai-key-switcher">
+                  <div class="admin-ai-key-control">
+                    <strong>AI 密钥</strong>
+                    <div class="admin-ai-key-choice-group segmented-control" role="group" aria-label="AI 密钥选择">
+                      <button
+                        v-for="slot in aiKeySlotChoices"
+                        :key="slot.id"
+                        type="button"
+                        class="segmented-button"
+                        :class="{ active: selectedAiKeySlotId === slot.id }"
+                        :data-ai-key-choice="slot.id"
+                        :aria-pressed="selectedAiKeySlotId === slot.id ? 'true' : 'false'"
+                        :disabled="!slot.configured || adminStore.aiKeySlotSwitchingId !== ''"
+                        @click="selectAiKeySlot(slot.id)"
+                      >
+                        {{ slot.name }}
+                      </button>
+                    </div>
+                    <span class="admin-ai-key-current">当前使用：{{ activeAiKeySlotName }}</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="primary-button"
+                    data-ai-key-save
+                    :disabled="!canSaveAiKeySlot"
+                    @click="saveAiKeySlot"
+                  >
+                    {{ adminStore.aiKeySlotSwitchingId ? "正在保存..." : "保存当前密钥" }}
+                  </button>
+                </div>
+              </template>
+            </section>
+
             <div class="field-actions">
               <button
                 type="button"
@@ -209,52 +252,6 @@ onMounted(function () {
             <div class="field-actions">
               <button type="button" class="primary-button" @click="save">保存后端根地址</button>
             </div>
-          </section>
-
-          <section v-if="isServerMode" id="admin-ai-key-slots" class="admin-ai-key-slots">
-            <div class="admin-ai-key-slots-head">
-              <div>
-                <strong>AI 密钥切换</strong>
-                <span>点击吴或王只选择目标；保存后才切换后续新发起的 AI 调用。</span>
-              </div>
-              <span v-if="adminStore.aiKeySlotsLoading" class="status-text">正在读取状态...</span>
-            </div>
-
-            <div v-if="adminStore.aiKeySlotsError" class="status-text" role="status">
-              {{ adminStore.aiKeySlotsError }}
-            </div>
-
-            <div v-else class="admin-ai-key-switcher">
-              <div class="admin-ai-key-control">
-                <strong>AI 密钥</strong>
-                <div class="admin-ai-key-choice-group" role="group" aria-label="AI 密钥选择">
-                  <button
-                    v-for="slot in aiKeySlotChoices"
-                    :key="slot.id"
-                    type="button"
-                    class="admin-ai-key-choice"
-                    :class="{ selected: selectedAiKeySlotId === slot.id }"
-                    :data-ai-key-choice="slot.id"
-                    :aria-pressed="selectedAiKeySlotId === slot.id ? 'true' : 'false'"
-                    :disabled="!slot.configured || adminStore.aiKeySlotSwitchingId !== ''"
-                    @click="selectAiKeySlot(slot.id)"
-                  >
-                    {{ slot.name }}
-                  </button>
-                </div>
-                <span class="admin-ai-key-current">当前使用：{{ activeAiKeySlotName }}</span>
-              </div>
-              <button
-                type="button"
-                class="primary-button"
-                data-ai-key-save
-                :disabled="!canSaveAiKeySlot"
-                @click="saveAiKeySlot"
-              >
-                {{ adminStore.aiKeySlotSwitchingId ? "正在保存..." : "保存当前密钥" }}
-              </button>
-            </div>
-            <span v-if="!adminStore.aiKeySlotsLoading" class="admin-ai-key-note">系统不会显示、保存或传输密钥内容。</span>
           </section>
         </div>
       </section>

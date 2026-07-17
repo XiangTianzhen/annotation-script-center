@@ -199,7 +199,7 @@ describe("Admin legacy shells", () => {
     expect(exportsWrapper.findAll("select[data-options-custom-select='true']")).toHaveLength(1);
   });
 
-  test("server backend view selects 王 locally and saves it only after confirmation", async () => {
+  test("server backend view embeds the compact key control above root-address actions", async () => {
     routeState.path = "/admin/backend";
     const adminStore = useAdminStore();
     const wangActiveSlots = {
@@ -218,7 +218,24 @@ describe("Admin legacy shells", () => {
     await flushPromises();
 
     expect(wrapper.find("#admin-ai-key-slots").exists()).toBe(true);
+    const endpointCard = wrapper.find(".home-endpoint-card");
+    expect(endpointCard.find("#admin-ai-key-slots").exists()).toBe(true);
+    const endpointCardChildren = Array.from(endpointCard.element.children);
+    const currentStatusIndex = endpointCardChildren.findIndex((element) =>
+      element.classList.contains("status-text")
+    );
+    const aiKeySlotIndex = endpointCardChildren.findIndex(
+      (element) => element.id === "admin-ai-key-slots"
+    );
+    const rootAddressToggleIndex = endpointCardChildren.findIndex((element) =>
+      element.querySelector(".ghost-button")
+    );
+    expect(aiKeySlotIndex).toBeGreaterThan(currentStatusIndex);
+    expect(rootAddressToggleIndex).toBeGreaterThan(aiKeySlotIndex);
     expect(wrapper.findAll("[data-ai-key-choice]")).toHaveLength(2);
+    expect(wrapper.find(".admin-ai-key-choice-group").classes()).toContain("segmented-control");
+    expect(wrapper.find("[data-ai-key-choice='key-1']").classes()).toContain("segmented-button");
+    expect(wrapper.find("[data-ai-key-choice='key-2']").classes()).toContain("segmented-button");
     expect(wrapper.find("[data-ai-key-choice='key-1']").text()).toBe("吴");
     expect(wrapper.find("[data-ai-key-choice='key-2']").text()).toBe("王");
     expect(wrapper.find("[data-ai-key-choice='key-1']").attributes("aria-pressed")).toBe("true");
@@ -257,6 +274,19 @@ describe("Admin legacy shells", () => {
     await flushPromises();
 
     expect(wrapper.find("[data-ai-key-choice='key-2']").attributes("disabled")).toBeDefined();
+  });
+
+  test("server backend view keeps the key controller visible while refreshing its status", async () => {
+    routeState.path = "/admin/backend";
+    const adminStore = useAdminStore();
+    adminStore.aiKeySlotsLoading = true;
+    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
+    const wrapper = mount(AdminBackendView);
+    await flushPromises();
+
+    expect(wrapper.find("#admin-ai-key-slots").text()).toContain("正在读取密钥状态");
+    expect(wrapper.findAll("[data-ai-key-choice]")).toHaveLength(2);
+    expect(wrapper.find("[data-ai-key-save]").exists()).toBe(true);
   });
 
   test("saving a key choice exits the admin session when the server returns 401", async () => {
@@ -319,14 +349,23 @@ describe("Admin legacy shells", () => {
   });
 
   test("AI key selector style remains compact and wraps on narrow screens", () => {
-    const source = fs.readFileSync(
+    const adminStyleSource = fs.readFileSync(
       resolveRepo("frontend", "options-app", "src", "styles", "layouts", "_admin.scss"),
       "utf8"
     );
+    const formStyleSource = fs.readFileSync(
+      resolveRepo("frontend", "options-app", "src", "styles", "components", "_forms.scss"),
+      "utf8"
+    );
+    const buttonStyleSource = fs.readFileSync(
+      resolveRepo("frontend", "options-app", "src", "styles", "components", "_buttons.scss"),
+      "utf8"
+    );
 
-    expect(source).toContain(".admin-ai-key-switcher");
-    expect(source).toContain(".admin-ai-key-choice-group");
-    expect(source).toContain("flex-wrap: wrap");
-    expect(source).not.toContain(".admin-ai-key-slot-card");
+    expect(adminStyleSource).toContain(".admin-ai-key-switcher");
+    expect(adminStyleSource).toContain("flex-wrap: wrap");
+    expect(adminStyleSource).not.toContain(".admin-ai-key-choice");
+    expect(formStyleSource).toContain(".segmented-control");
+    expect(buttonStyleSource).toContain(".segmented-button");
   });
 });
