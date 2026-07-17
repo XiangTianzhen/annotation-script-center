@@ -1,10 +1,21 @@
 import { defineStore } from "pinia";
-import { requestAdminJson } from "@/services/admin-service";
+import {
+  loadAiKeySlots,
+  requestAdminJson,
+  switchAiKeySlot,
+} from "@/services/admin-service";
 import { buildBackendUrl, getConstants } from "@/services/globals";
 import { clone } from "@/utils/clone";
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function getAiKeySlotErrorMessage(result, fallbackMessage) {
+  if (Number(result?.response?.status) === 404) {
+    return "服务器尚未部署双密钥接口，无法保存。";
+  }
+  return normalizeText(result?.body?.message || fallbackMessage);
 }
 
 function getDownloadClientInfo() {
@@ -20,6 +31,10 @@ export const useAdminStore = defineStore("admin", {
     dashboardLoading: false,
     dashboardError: "",
     backendDraft: null,
+    aiKeySlots: null,
+    aiKeySlotsLoading: false,
+    aiKeySlotsError: "",
+    aiKeySlotSwitchingId: "",
     aiCallLogStatus: "",
   }),
   actions: {
@@ -91,6 +106,54 @@ export const useAdminStore = defineStore("admin", {
       this.syncDraft(settingsStore.settings);
       appStore.showToast("后端设置已保存。", "success");
       return true;
+    },
+    async loadAiKeySlots(settings, session) {
+      this.aiKeySlotsLoading = true;
+      this.aiKeySlotsError = "";
+      try {
+        const result = await loadAiKeySlots(settings || {}, session);
+        if (result.authFailed) {
+          this.aiKeySlotsError = "管理员会话已失效，请重新输入密码。";
+          return { authFailed: true };
+        }
+        if (!result.response?.ok || result.body?.success !== true) {
+          this.aiKeySlotsError = getAiKeySlotErrorMessage(result, "服务器 AI 密钥状态加载失败。");
+          return null;
+        }
+        this.aiKeySlots = result.body.data || null;
+        return this.aiKeySlots;
+      } catch (error) {
+        this.aiKeySlotsError = "服务器 AI 密钥状态加载失败。";
+        return null;
+      } finally {
+        this.aiKeySlotsLoading = false;
+      }
+    },
+    async switchAiKeySlot(settings, session, slotId) {
+      const targetSlotId = normalizeText(slotId);
+      if (!targetSlotId) {
+        return null;
+      }
+      this.aiKeySlotSwitchingId = targetSlotId;
+      this.aiKeySlotsError = "";
+      try {
+        const result = await switchAiKeySlot(settings || {}, session, targetSlotId);
+        if (result.authFailed) {
+          this.aiKeySlotsError = "管理员会话已失效，请重新输入密码。";
+          return { authFailed: true };
+        }
+        if (!result.response?.ok || result.body?.success !== true) {
+          this.aiKeySlotsError = getAiKeySlotErrorMessage(result, "服务器 AI 密钥切换失败。");
+          return null;
+        }
+        this.aiKeySlots = result.body.data || null;
+        return this.aiKeySlots;
+      } catch (error) {
+        this.aiKeySlotsError = "服务器 AI 密钥切换失败。";
+        return null;
+      } finally {
+        this.aiKeySlotSwitchingId = "";
+      }
     },
     async requestAiCallLogDownload(settings, session, payload) {
       return requestAdminJson("/api/admin/ai-call-log/request", settings || {}, session, {

@@ -101,10 +101,29 @@ test("Jinhua request defaults thinking to false and accepts only a strict true v
 
 test("Qwen Omni forwards an explicitly enabled thinking switch to the Bailian request", async function (t) {
   const originalFetch = global.fetch;
-  const originalApiKey = process.env.DASHSCOPE_API_KEY;
+  const originalExistsSync = fs.existsSync;
+  const originalReadFileSync = fs.readFileSync;
+  const keyPath = resolveRepo("config", "secrets", "dashscope-key-1.env");
+  const statePath = resolveRepo("config", "secrets", "dashscope-active-key.json");
   let requestBody = null;
 
-  process.env.DASHSCOPE_API_KEY = "test-key";
+  fs.existsSync = function (filePath) {
+    const resolvedPath = String(filePath || "");
+    if (resolvedPath === keyPath || resolvedPath === statePath) {
+      return true;
+    }
+    return originalExistsSync.apply(this, arguments);
+  };
+  fs.readFileSync = function (filePath) {
+    const resolvedPath = String(filePath || "");
+    if (resolvedPath === keyPath) {
+      return "DASHSCOPE_API_KEY=test-key\n";
+    }
+    if (resolvedPath === statePath) {
+      return "{\"activeSlotId\":\"key-1\"}";
+    }
+    return originalReadFileSync.apply(this, arguments);
+  };
   global.fetch = async function (_url, options) {
     requestBody = JSON.parse(options.body);
     return {
@@ -119,11 +138,8 @@ test("Qwen Omni forwards an explicitly enabled thinking switch to the Bailian re
   };
   t.after(function () {
     global.fetch = originalFetch;
-    if (originalApiKey === undefined) {
-      delete process.env.DASHSCOPE_API_KEY;
-    } else {
-      process.env.DASHSCOPE_API_KEY = originalApiKey;
-    }
+    fs.existsSync = originalExistsSync;
+    fs.readFileSync = originalReadFileSync;
   });
 
   await qwenProvider.requestOmniInputAudio(

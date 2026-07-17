@@ -16,6 +16,7 @@ const {
   registerRoutes: registerMagicDataHangzhouRoutes,
 } = require("../magic-data/hangzhou-helper/backend");
 const { registerRoutes: registerAdminSessionRoutes } = require("./admin-session");
+const { registerAdminAiKeySlotRoutes } = require("./admin-ai-key-slots");
 const { registerRoutes: registerAdminDashboardRoutes } = require("./admin-dashboard");
 const { registerRoutes: registerAdminDownloadCenterRoutes } = require("./admin-download-center");
 const { registerRoutes: registerAiCallLogDownloadRoutes } = require("./ai-call-log-download");
@@ -28,6 +29,7 @@ function registerProjectRoutes(router, options) {
   registerBytedanceAidpTaizhouRoutes(router, config.bytedanceAidpTaizhouHelper || {});
   registerMagicDataHangzhouRoutes(router, config.magicDataHangzhouHelper || {});
   registerAdminSessionRoutes(router, config.adminSession || {});
+  registerAdminAiKeySlotRoutes(router, config.aiKeySlots || {});
   registerAdminDashboardRoutes(router, {
     aiCallLogDownload: config.aiCallLogDownload || {},
   });

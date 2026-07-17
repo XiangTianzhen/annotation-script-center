@@ -144,6 +144,7 @@ function runPythonClient(payload, timeoutMs, clientConfig) {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
       env: Object.assign({}, process.env, {
+        DASHSCOPE_API_KEY: config.apiKey,
         PYTHONIOENCODING: "utf-8",
         PYTHONUTF8: "1",
       }),

@@ -19,6 +19,7 @@ function createPlatformResourcesServer(options) {
         "bytedance-aidp/taizhou-helper",
         "magic-data/hangzhou-helper",
         "admin/session",
+        "admin/ai-key-slots",
         "admin/dashboard",
         "admin/dashboard/runtime-logs",
         "admin/download-center",

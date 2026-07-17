@@ -275,6 +275,7 @@ function runPythonClient(payload, timeoutMs, clientConfig, options) {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
       env: Object.assign({}, process.env, {
+        DASHSCOPE_API_KEY: config.apiKey,
         PYTHONIOENCODING: "utf-8",
         PYTHONUTF8: "1",
       }),
@@ -388,7 +389,9 @@ function normalizeModelResult(model, result) {
 
 async function requestChatCompletion(requestBody, options) {
   const config = getQwenProviderConfig();
-  const pythonConfig = getQwenPythonClientConfig();
+  const pythonConfig = Object.assign({}, getQwenPythonClientConfig(), {
+    apiKey: config.apiKey,
+  });
   if (!config.apiKey) {
     const error = new Error("missing-api-key");
     error.code = "missing-api-key";

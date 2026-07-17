@@ -1,5 +1,7 @@
 "use strict";
 
+const { getActiveDashscopeApiKey } = require("../../../backend/dashscope-key-slots");
+
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_COMPARE_MODEL = "qwen3.5-flash";
@@ -215,7 +217,7 @@ function applyAiOptionsToRequestBody(requestBody, aiOptions) {
 }
 
 function getClientConfig() {
-  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const apiKey = String(getActiveDashscopeApiKey() || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
   const listenModel = sanitizeModelName(readProfileEnv("LISTEN_MODEL", ""), DEFAULT_LISTEN_MODEL);
   const compareModel = sanitizeModelName(readProfileEnv("COMPARE_MODEL", ""), DEFAULT_COMPARE_MODEL);

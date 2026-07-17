@@ -180,6 +180,24 @@ export async function requestAdminJson(path, settings, session, options = {}) {
   };
 }
 
+export async function loadAiKeySlots(settings, session) {
+  return requestAdminJson("/api/admin/ai-key-slots", settings || {}, session, {
+    method: "GET",
+  });
+}
+
+export async function switchAiKeySlot(settings, session, slotId) {
+  return requestAdminJson("/api/admin/ai-key-slots/active", settings || {}, session, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      slotId: normalizeText(slotId),
+    }),
+  });
+}
+
 export async function loadDownloadCenterReleases(settings) {
   const response = await fetch(buildBackendUrl("/api/admin/download-center/releases", settings || {}), {
     method: "GET",

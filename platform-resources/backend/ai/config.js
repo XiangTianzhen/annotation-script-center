@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("path");
+const { getActiveDashscopeApiKey } = require("../dashscope-key-slots");
 const {
   buildModelOptionsByFamily,
   getModelDocs,
@@ -308,7 +309,7 @@ function resolveDataBakerDefaultSingleModel() {
 }
 
 function getQwenProviderConfig() {
-  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const apiKey = String(getActiveDashscopeApiKey() || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
   const omniModel = String(process.env.DATABAKER_AI_OMNI_MODEL || DEFAULT_OMNI_MODEL).trim();
   const compareModel = String(process.env.DATABAKER_AI_COMPARE_MODEL || DEFAULT_COMPARE_MODEL).trim();
@@ -328,7 +329,7 @@ function getQwenProviderConfig() {
 }
 
 function getQwenPythonConfig() {
-  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const apiKey = String(getActiveDashscopeApiKey() || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
   const pythonBin = String(
     process.env.DATABAKER_QWEN_PYTHON_BIN || process.env.DATABAKER_AI_QWEN_PYTHON_BIN || ""
@@ -350,7 +351,7 @@ function getQwenPythonConfig() {
 }
 
 function getFunAsrPythonConfig() {
-  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const apiKey = String(getActiveDashscopeApiKey() || "").trim();
   const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
   const pythonBin = String(process.env.DATABAKER_FUNASR_PYTHON_BIN || "").trim();
   return {
@@ -372,7 +373,7 @@ function getFunAsrPythonConfig() {
 }
 
 function getFunAsrRestConfig() {
-  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const apiKey = String(getActiveDashscopeApiKey() || "").trim();
   const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
   const apiBase = getFunAsrRestBaseUrl();
   return {
