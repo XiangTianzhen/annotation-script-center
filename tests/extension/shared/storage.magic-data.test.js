@@ -67,7 +67,7 @@ test("Magic Data storage defaults expose only the promoted Hangzhou helper", asy
     const platform = settings.platforms.magicData;
     const hangzhouScript = platform.scripts.hangzhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 33);
+    assert.equal(settings.meta.schemaVersion, 34);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -84,6 +84,9 @@ test("Magic Data storage defaults expose only the promoted Hangzhou helper", asy
     assert.equal(hangzhouScript.aiReviewListenModel, "qwen3.5-omni-flash");
     assert.equal(hangzhouScript.aiReviewCompareModel, "qwen3.5-flash");
     assert.equal(hangzhouScript.aiReviewSingleModel, "qwen3.5-omni-flash");
+    assert.equal(hangzhouScript.aiReviewListenIncludeLexiconReference, true);
+    assert.equal(hangzhouScript.aiReviewCompareIncludeLexiconReference, true);
+    assert.equal(hangzhouScript.aiReviewSingleIncludeLexiconReference, true);
     assert.equal(hangzhouScript.showHeardText, true);
     assert.equal(hangzhouScript.showEstimatedIncome, true);
     assert.equal(hangzhouScript.aiReviewRequestTimeoutMs, 60000);
@@ -96,6 +99,59 @@ test("Magic Data storage defaults expose only the promoted Hangzhou helper", asy
       settings.scriptCenter.projects.magicDataHangzhouAssistant.aiReviewEnabled,
       false
     );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Magic Data storage migrates schema 33 shared AI settings into stage settings", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 33 },
+    platforms: {
+      magicData: {
+        scripts: {
+          hangzhouHelper: {
+            aiReviewTemperature: "0.4",
+            aiReviewStopSequences: "END",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.magicData.scripts.hangzhouHelper;
+    for (const prefix of ["Listen", "Compare", "Single"]) {
+      assert.equal(script[`aiReview${prefix}IncludeLexiconReference`], true);
+      assert.equal(script[`aiReview${prefix}Temperature`], "0.4");
+      assert.equal(script[`aiReview${prefix}StopSequences`], "END");
+    }
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Magic Data storage preserves schema 34 stage lexicon switch overrides", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 34 },
+    platforms: {
+      magicData: {
+        scripts: {
+          hangzhouHelper: {
+            aiReviewListenIncludeLexiconReference: false,
+            aiReviewCompareIncludeLexiconReference: false,
+            aiReviewSingleIncludeLexiconReference: false,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.magicData.scripts.hangzhouHelper;
+    assert.equal(script.aiReviewListenIncludeLexiconReference, false);
+    assert.equal(script.aiReviewCompareIncludeLexiconReference, false);
+    assert.equal(script.aiReviewSingleIncludeLexiconReference, false);
   } finally {
     harness.cleanup();
   }

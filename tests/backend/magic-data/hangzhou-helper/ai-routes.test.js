@@ -11,8 +11,15 @@ const routesModule = require(resolveRepo(
   "backend",
   "ai-routes.js"
 ));
+const aiClient = require(resolveRepo(
+  "platform-resources",
+  "magic-data",
+  "hangzhou-helper",
+  "backend",
+  "ai-client-qwen.js"
+));
 
-test("Magic Data Hangzhou success lexicon meta keeps rewrite mode", function () {
+test("Magic Data Hangzhou success lexicon meta reports prompt-reference stage counts", function () {
   const helper = routesModule.__test__?.buildReviewLexiconMeta;
   assert.equal(typeof helper, "function");
 
@@ -20,19 +27,45 @@ test("Magic Data Hangzhou success lexicon meta keeps rewrite mode", function () 
     {
       enabled: true,
       status: "ready",
-      matchedCount: 2,
-      matches: [{ suggested: "屋下" }],
+      rowCount: 264,
+      stages: {
+        listen: { enabled: true, contextEntryCount: 2 },
+        refine: { enabled: false, contextEntryCount: 0 },
+      },
     },
-    "aggressive"
+    "prompt_reference_only"
   );
 
   assert.deepEqual(result, {
     enabled: true,
     status: "ready",
-    matchedCount: 2,
-    matches: [{ suggested: "屋下" }],
-    rewriteMode: "aggressive",
+    rowCount: 264,
+    mode: "prompt_reference_only",
+    stages: {
+      listen: { enabled: true, contextEntryCount: 2 },
+      refine: { enabled: false, contextEntryCount: 0 },
+    },
+    lexiconMatches: [],
+    conversionWarnings: [],
   });
+});
+
+test("Magic Data Hangzhou stage generation is applied to the provider request body", function () {
+  const requestBody = {
+    temperature: 0.1,
+    top_p: 0.8,
+    max_tokens: 1200,
+  };
+  aiClient.__test__.applyAiOptionsToRequestBody(requestBody, {
+    temperature: 0.3,
+    top_p: 0.6,
+    max_tokens: 900,
+    stop: ["结束"],
+  });
+  assert.equal(requestBody.temperature, 0.3);
+  assert.equal(requestBody.top_p, 0.6);
+  assert.equal(requestBody.max_tokens, 900);
+  assert.deepEqual(requestBody.stop, ["结束"]);
 });
 
 test("Magic Data Hangzhou response normalization keeps final suggestion fields unchanged when lexicon is absent", function () {

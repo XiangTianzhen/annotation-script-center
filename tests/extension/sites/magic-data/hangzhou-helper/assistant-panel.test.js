@@ -12,6 +12,39 @@ const panelModule = require(resolveRepo(
   "assistant-panel.js"
 ));
 
+test("buildAiStagesPayload creates independent listen refine and single contracts", function () {
+  const helper = panelModule.__test__?.buildAiStagesPayload;
+  assert.equal(typeof helper, "function");
+
+  const stages = helper({
+    aiReviewListenModel: "qwen3.5-omni-flash",
+    aiReviewListenPrompt: "听音主提示",
+    aiReviewListenTemperature: "0.2",
+    aiReviewListenIncludeLexiconReference: false,
+    aiReviewListenLexiconPrompt: "听音词表提示",
+    aiReviewCompareModel: "qwen3.5-flash",
+    aiReviewComparePrompt: "普通话整理提示",
+    aiReviewCompareTopP: "0.7",
+    aiReviewCompareIncludeLexiconReference: true,
+    aiReviewCompareLexiconPrompt: "整理词表提示",
+    aiReviewSingleModel: "qwen3.5-omni-flash",
+    aiReviewSinglePrompt: "单模型提示",
+    aiReviewSingleMaxTokens: "1200",
+    aiReviewSingleIncludeLexiconReference: true,
+    aiReviewSingleLexiconPrompt: "单模型词表提示",
+  });
+
+  assert.deepEqual(stages.listen, {
+    model: "qwen3.5-omni-flash",
+    prompt: "听音主提示",
+    generation: { temperature: 0.2 },
+    lexicon: { enabled: false, prompt: "听音词表提示" },
+  });
+  assert.equal(stages.refine.generation.top_p, 0.7);
+  assert.equal(stages.refine.lexicon.enabled, true);
+  assert.equal(stages.single.generation.max_tokens, 1200);
+});
+
 test("resolveFillAllSuggestionsOutcome treats Hangzhou no-op fills as success", function () {
   const helper = panelModule.__test__?.resolveFillAllSuggestionsOutcome;
   assert.equal(typeof helper, "function");

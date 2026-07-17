@@ -69,7 +69,7 @@
     };
   }
 
-  function normalizeCvpc(raw, meta) {
+  function normalizeCvpc(raw, meta, legacySchema) {
     const defaults = constants.DEFAULT_SETTINGS.platforms.dataBakerCvpc;
     const sourcePlatform = object(raw);
     const source = object(sourcePlatform.scripts?.liuzhouAssistant);
@@ -96,7 +96,10 @@
       aiRecommendRefineModel: option(source.aiRecommendRefineModel, ["qwen3.5-plus", "qwen3.5-flash"], fallback.aiRecommendRefineModel),
       aiRecommendListenPrompt: text(source.aiRecommendListenPrompt, fallback.aiRecommendListenPrompt),
       aiRecommendRefinePrompt: text(source.aiRecommendRefinePrompt, fallback.aiRecommendRefinePrompt),
-      aiRecommendListenIncludeLexiconReference: bool(source.aiRecommendListenIncludeLexiconReference, fallback.aiRecommendListenIncludeLexiconReference),
+      aiRecommendListenIncludeLexiconReference: legacySchema < 34
+        ? true
+        : bool(source.aiRecommendListenIncludeLexiconReference, fallback.aiRecommendListenIncludeLexiconReference),
+      aiRecommendListenLexiconPrompt: text(source.aiRecommendListenLexiconPrompt, fallback.aiRecommendListenLexiconPrompt),
       aiRecommendListenTemperature: numericText(source.aiRecommendListenTemperature, fallback.aiRecommendListenTemperature, 0, 2),
       aiRecommendListenTopP: numericText(source.aiRecommendListenTopP, fallback.aiRecommendListenTopP, 0, 1),
       aiRecommendListenMaxTokens: numericText(source.aiRecommendListenMaxTokens, fallback.aiRecommendListenMaxTokens, 1, 65536),
@@ -113,6 +116,10 @@
       aiRecommendRefineFrequencyPenalty: numericText(source.aiRecommendRefineFrequencyPenalty, fallback.aiRecommendRefineFrequencyPenalty, -2, 2),
       aiRecommendRefineSeed: numericText(source.aiRecommendRefineSeed, fallback.aiRecommendRefineSeed, -2147483648, 2147483647),
       aiRecommendRefineStopSequences: stopSequences(source.aiRecommendRefineStopSequences, fallback.aiRecommendRefineStopSequences),
+      aiRecommendRefineIncludeLexiconReference: legacySchema < 34
+        ? true
+        : bool(source.aiRecommendRefineIncludeLexiconReference, fallback.aiRecommendRefineIncludeLexiconReference),
+      aiRecommendRefineLexiconPrompt: text(source.aiRecommendRefineLexiconPrompt, fallback.aiRecommendRefineLexiconPrompt),
       contractMode: "dom-guarded",
       shortcuts: normalizeShortcutMap(source.shortcuts, {}, false),
     };
@@ -242,7 +249,7 @@
     };
   }
 
-  function normalizeMagic(raw) {
+  function normalizeMagic(raw, legacySchema) {
     const defaults = constants.DEFAULT_SETTINGS.platforms.magicData;
     const source = object(raw);
     const scriptSource = object(source.scripts?.hangzhouHelper);
@@ -270,6 +277,50 @@
     );
     next.aiReviewEnableThinking = false;
     next.enableThinking = false;
+    const generationSuffixes = [
+      ["Temperature", 0, 2],
+      ["TopP", 0, 1],
+      ["MaxTokens", 1, 8192],
+      ["MaxCompletionTokens", 1, 8192],
+      ["PresencePenalty", -2, 2],
+      ["FrequencyPenalty", -2, 2],
+      ["Seed", 0, 2147483647],
+    ];
+    ["Listen", "Compare", "Single"].forEach((prefix) => {
+      const legacyPrompt = prefix === "Listen"
+        ? scriptSource.aiReviewListenPrompt
+        : prefix === "Compare"
+          ? scriptSource.aiReviewComparePrompt
+          : "";
+      next[`aiReview${prefix}Prompt`] = text(
+        scriptSource[`aiReview${prefix}Prompt`],
+        text(legacyPrompt, fallback[`aiReview${prefix}Prompt`])
+      );
+      next[`aiReview${prefix}LexiconPrompt`] = text(
+        scriptSource[`aiReview${prefix}LexiconPrompt`],
+        fallback[`aiReview${prefix}LexiconPrompt`]
+      );
+      next[`aiReview${prefix}IncludeLexiconReference`] = legacySchema < 34
+        ? true
+        : bool(
+            scriptSource[`aiReview${prefix}IncludeLexiconReference`],
+            fallback[`aiReview${prefix}IncludeLexiconReference`]
+          );
+      generationSuffixes.forEach(([suffix, min, max]) => {
+        const stageKey = `aiReview${prefix}${suffix}`;
+        const legacyKey = `aiReview${suffix}`;
+        next[stageKey] = numericText(
+          scriptSource[stageKey],
+          legacySchema < 34 ? scriptSource[legacyKey] : fallback[stageKey],
+          min,
+          max
+        );
+      });
+      next[`aiReview${prefix}StopSequences`] = stopSequences(
+        scriptSource[`aiReview${prefix}StopSequences`],
+        legacySchema < 34 ? scriptSource.aiReviewStopSequences : fallback[`aiReview${prefix}StopSequences`]
+      );
+    });
     const activeScriptId = source.activeScriptId === constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID && next.enabled ? constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID : "";
     return { enabled: bool(source.enabled, defaults.enabled), activeScriptId, scripts: { hangzhouHelper: next } };
   }
@@ -278,10 +329,10 @@
     const source = object(input);
     const legacySchema = Number(source.meta?.schemaVersion || 0);
     const meta = normalizeMeta(source.meta);
-    const magicData = normalizeMagic(source.platforms?.magicData);
+    const magicData = normalizeMagic(source.platforms?.magicData, legacySchema);
     return {
       platforms: {
-        dataBakerCvpc: normalizeCvpc(source.platforms?.dataBakerCvpc, meta),
+        dataBakerCvpc: normalizeCvpc(source.platforms?.dataBakerCvpc, meta, legacySchema),
         bytedanceAidp: normalizeAidp(source.platforms?.bytedanceAidp, meta, legacySchema),
         magicData,
       },

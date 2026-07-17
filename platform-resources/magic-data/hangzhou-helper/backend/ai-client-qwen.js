@@ -572,7 +572,7 @@ async function requestListen(input, prompt, options) {
     presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
     frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
-  applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
+  applyAiOptionsToRequestBody(requestBody, options?.aiOptions || input?.aiOptions);
   const result = await requestChatCompletionWithFallback(requestBody, options);
   return {
     model,
@@ -633,7 +633,7 @@ async function requestCompare(input, prompt, options) {
     presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
     frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
-  applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
+  applyAiOptionsToRequestBody(requestBody, options?.aiOptions || input?.aiOptions);
   const result = await requestChatCompletionWithFallback(requestBody, options);
   return {
     model,
@@ -658,4 +658,7 @@ module.exports = {
   sanitizeModelName,
   requestCompare,
   requestListen,
+  __test__: {
+    applyAiOptionsToRequestBody,
+  },
 };

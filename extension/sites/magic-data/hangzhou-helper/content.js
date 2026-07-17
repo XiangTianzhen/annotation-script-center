@@ -28,6 +28,13 @@
     enableThinking: false,
     aiReviewListenPrompt: "",
     aiReviewComparePrompt: "",
+    aiReviewSinglePrompt: "",
+    aiReviewListenIncludeLexiconReference: true,
+    aiReviewListenLexiconPrompt: "",
+    aiReviewCompareIncludeLexiconReference: true,
+    aiReviewCompareLexiconPrompt: "",
+    aiReviewSingleIncludeLexiconReference: true,
+    aiReviewSingleLexiconPrompt: "",
     aiReviewTemperature: "",
     aiReviewTopP: "",
     aiReviewMaxTokens: "",
@@ -177,12 +184,12 @@
       typeof source.aiReviewEnableThinking === "boolean"
         ? source.aiReviewEnableThinking === true
         : source.enableThinking === true;
-    return {
+    const result = {
       enabled: source.enabled !== false,
       aiReviewEnabled: source.aiReviewEnabled !== false,
       aiReviewModelMode: modelMode,
-      aiReviewRecognitionStrategy: recognitionStrategy,
-      aiReviewRecognitionMode: recognitionMode,
+      aiReviewRecognitionStrategy: "direct_dialect",
+      aiReviewRecognitionMode: modelMode,
       aiReviewListenModel: listenModel,
       aiReviewCompareModel: compareModel,
       aiReviewSingleModel: singleModel,
@@ -195,6 +202,7 @@
       enableThinking: enableThinking,
       aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
       aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
+      aiReviewSinglePrompt: normalizePromptText(source.aiReviewSinglePrompt || ""),
       aiReviewTemperature: String(source.aiReviewTemperature || "").trim(),
       aiReviewTopP: String(source.aiReviewTopP || "").trim(),
       aiReviewMaxTokens: String(source.aiReviewMaxTokens || "").trim(),
@@ -205,6 +213,14 @@
       aiReviewStopSequences: String(source.aiReviewStopSequences || "").trim().slice(0, 960),
       shortcuts: shortcuts,
     };
+    ["Listen", "Compare", "Single"].forEach(function (prefix) {
+      result[`aiReview${prefix}IncludeLexiconReference`] = source[`aiReview${prefix}IncludeLexiconReference`] !== false;
+      result[`aiReview${prefix}LexiconPrompt`] = normalizePromptText(source[`aiReview${prefix}LexiconPrompt`] || "").slice(0, 4000);
+      ["Temperature", "TopP", "MaxTokens", "MaxCompletionTokens", "PresencePenalty", "FrequencyPenalty", "Seed", "StopSequences"].forEach(function (suffix) {
+        result[`aiReview${prefix}${suffix}`] = String(source[`aiReview${prefix}${suffix}`] || "").trim().slice(0, 960);
+      });
+    });
+    return result;
   }
 
   async function loadMagicDataSettings() {

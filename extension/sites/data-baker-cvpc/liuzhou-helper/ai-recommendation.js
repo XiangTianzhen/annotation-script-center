@@ -126,8 +126,14 @@
       if (prompt) {
         normalizedStage.prompt = prompt;
       }
-      if (stage.includeLexiconReference === true || stage.includeLexiconReference === false) {
-        normalizedStage.includeLexiconReference = stage.includeLexiconReference === true;
+      const lexicon = stage.lexicon && typeof stage.lexicon === "object" ? stage.lexicon : null;
+      if (lexicon) {
+        normalizedStage.lexicon = {
+          enabled: lexicon.enabled !== false,
+          ...(normalizeText(lexicon.prompt) ? { prompt: String(lexicon.prompt).trim().slice(0, 4000) } : {}),
+        };
+      } else if (stage.includeLexiconReference === true || stage.includeLexiconReference === false) {
+        normalizedStage.lexicon = { enabled: stage.includeLexiconReference === true };
       }
       if (Object.keys(params).length > 0) {
         normalizedStage.params = params;

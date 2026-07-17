@@ -927,7 +927,10 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
           referenceSourceFile: "liuzhou-pronunciation-reference.csv",
           rowCount: 8,
           warningMessage: "",
-          listenReferenceEnabled: true,
+          stages: {
+            listen: { enabled: true, contextEntryCount: 8 },
+            refine: { enabled: false, contextEntryCount: 0 },
+          },
         },
         timing: {
           totalMs: 1234,
@@ -979,7 +982,7 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /模型：qwen3\.5-omni-flash/);
     assert.match(middleText, /模型：qwen3\.5-plus/);
     assert.match(middleText, /词表状态与模式/);
-    assert.match(middleText, /主词表已加载 \/ 听音参考 开启 \/ 文本修正固定携带/);
+    assert.match(middleText, /主词表已加载 \/ 听音词表 开启 \/ 普通话整理词表 关闭/);
     assert.match(middleText, /输入：10/);
     assert.match(middleText, /输出：6/);
     assert.match(middleText, /输入：4/);

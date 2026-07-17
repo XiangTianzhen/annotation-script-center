@@ -74,7 +74,7 @@
   - `音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
   - `AI信息` 当前默认折叠但始终保留结构，点击 `展开查看 AI 信息` 后再展开查看附加信息和完整原始返回 JSON；即使模型输出 JSON 解析失败，这个区块也会保留
   - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / 词表状态与模式 / AI 返回原始内容`
-  - `词表状态与模式` 当前固定显示 `主词表状态 / 听音参考 开启|关闭 / 文本修正固定携带`；听音参考只跟随 `aiStages.listen.includeLexiconReference`。
+  - `词表状态与模式` 显示主词表状态及 `aiStages.listen/refine.lexicon.enabled` 两个独立阶段开关。
   - `AI 返回原始内容` 当前优先展示后端返回的 `debug/raw` 字段；成功态若没有单独返回 raw/debug，则回退展示当前结果对象的安全 JSON
   - `AI 返回原始内容` 当前新增 `复制原始返回` 按钮；复制内容固定前缀为 `AI返回原始内容为：`
   - 若 Qwen 返回 `providerCode=data_inspection_failed`，当前会把原先笼统的 `Qwen SSE 返回错误` 收口成 `Qwen 输出触发内容风控（内容审查拦截）`，避免误判成普通网络或 SSE 故障
@@ -82,7 +82,7 @@
   - 人民币估算当前统一读取 `config/aliyun-bailian-model-pricing.json`，价格口径固定为 `中国内地 / 华北2（北京）`
   - 当前只录入 `qwen3.5-omni-plus / qwen3.5-omni-flash / qwen3.5-plus / qwen3.5-flash` 4 个模型价格；其余模型统一返回 `没有数据源`
   - 当模型结构化 JSON 解析失败但原始返回仍有可读文本时，后端当前会保守兜底出 `柳州话修正参考 / 普通话顺滑参考`，并强制 `needHumanReview=true`，便于直接复制后人工确认
-  - 听音阶段当前会额外返回最多 `3` 条近音候选；文本修正阶段会结合页面上下文、JSON 主词表和参考 CSV 的释义/读音做保守纠正。若仍有歧义，`AI信息` 会追加 `近音候选参考`，并强制 `needHumanReview=true`
+  - 听音阶段当前会额外返回最多 `3` 条近音候选；两个阶段只筛选 JSON 主词表中最多 `30` 条相关词条写入 Prompt，无命中时传空上下文，参考 CSV 不参与运行时结果。
   - 后端返回 `audioDialectTokens / refinedDialectTokens` 时，`AI信息` 与字段结果卡当前会优先按 chip 渲染柳州话标签；token 缺失时再回退旧字符串展示
   - 两张结果卡在无结果时不显示占位文案；有结果时改成“文本左、按钮右”的紧凑布局，并统一使用系统蓝主调强化样式
   - `未填写补 Valid / 应用分段建议` 当前改成橙色实底 background 按钮，避免白底低对比
@@ -177,7 +177,7 @@
     - `rawResponse / debugRawJson` 继续只返回脱敏后的原始调试内容，不返回 token、cookie 或签名 URL 明文
   - 近音纠错：
     - `listen` 当前除 `audioDialectText` 外，还会额外返回最多 `3` 条 `candidatePhrases`
-    - `refine` 当前会结合页面上下文、JSON 主词表和参考 CSV 的 prompt-only 词条，输出最终 `refinedDialectText / refinedMandarinText`
+    - `refine` 会结合听音结果、页面上下文和 JSON 主词表的 prompt-only 相关词条，输出最终 `refinedDialectText / refinedMandarinText`
     - `refine` 当前会在模型输出后额外做一层确定性收口，但只作用于最终答案层：
       - `audioDialectText / audioDialectTokens / candidateAlternatives` 保持原始听音参考
       - 只对 `refinedDialectText / refinedDialectTokens / refinedMandarinText` 应用标准写法与普通话顺滑规则

@@ -327,14 +327,9 @@ describe("script defaults and draft adapters", () => {
           success: true,
           defaults: {
             modelMode: "omni_single",
-            recognitionStrategy: "mandarin_to_dialect",
             modelModeOptions: [
               { value: "two_stage", label: "双模型" },
               { value: "omni_single", label: "单模型" },
-            ],
-            recognitionStrategyOptions: [
-              { value: "direct_dialect", label: "方言直听" },
-              { value: "mandarin_to_dialect", label: "普通话转方言" },
             ],
             listenModel: "qwen3.5-omni-flash",
             listenModelOptions: ["qwen3.5-omni-flash"],
@@ -343,10 +338,26 @@ describe("script defaults and draft adapters", () => {
             singleModel: "qwen3.5-omni-flash",
             singleModelOptions: ["qwen3.5-omni-flash"],
             timeoutMs: 60000,
-            temperature: 0.2,
-            top_p: 0.7,
-            listenPrompt: "杭州听音",
-            reviewPrompt: "杭州比较",
+            stages: {
+              listen: {
+                model: "qwen3.5-omni-flash",
+                prompt: "杭州听音",
+                generation: { temperature: 0.2, top_p: 0.7 },
+                lexicon: { enabled: true, prompt: "听音词表提示" },
+              },
+              refine: {
+                model: "qwen3.5-flash",
+                prompt: "杭州普通话整理",
+                generation: { temperature: 0.1 },
+                lexicon: { enabled: false, prompt: "整理词表提示" },
+              },
+              single: {
+                model: "qwen3.5-omni-flash",
+                prompt: "杭州单模型",
+                generation: { max_tokens: 1200 },
+                lexicon: { enabled: true, prompt: "单模型词表提示" },
+              },
+            },
           },
         }),
       }))
@@ -354,10 +365,14 @@ describe("script defaults and draft adapters", () => {
 
     expect(state.status).toBe("loaded");
     expect(state.config.aiReviewModelMode).toBe("omni_single");
-    expect(state.config.aiReviewRecognitionStrategy).toBe("mandarin_to_dialect");
     expect(state.config.aiReviewListenPrompt).toBe("杭州听音");
-    expect(state.config.aiReviewComparePrompt).toBe("杭州比较");
-    expect(state.config.aiReviewTemperature).toBe("0.2");
+    expect(state.config.aiReviewComparePrompt).toBe("杭州普通话整理");
+    expect(state.config.aiReviewSinglePrompt).toBe("杭州单模型");
+    expect(state.config.aiReviewListenTemperature).toBe("0.2");
+    expect(state.config.aiReviewCompareTemperature).toBe("0.1");
+    expect(state.config.aiReviewSingleMaxTokens).toBe("1200");
+    expect(state.config.aiReviewListenIncludeLexiconReference).toBe(true);
+    expect(state.config.aiReviewCompareIncludeLexiconReference).toBe(false);
     expect(state.options.singleModels).toEqual([
       { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
     ]);
@@ -542,7 +557,7 @@ describe("script defaults and draft adapters", () => {
     ).toBe(false);
   });
 
-  test("normalizes Hangzhou legacy enums and keeps thinking disabled", () => {
+  test("normalizes Hangzhou model mode and keeps the retired recognition field untouched", () => {
     const draft = hydrateScriptDraft(
       HANGZHOU_ID,
       {
@@ -553,18 +568,18 @@ describe("script defaults and draft adapters", () => {
       { status: "fallback", config: {}, options: {} }
     );
     expect(draft.aiReviewModelMode).toBe("omni_single");
-    expect(draft.aiReviewRecognitionStrategy).toBe("mandarin_to_dialect");
+    expect(draft.aiReviewRecognitionStrategy).toBe("mandarin_bridge");
     expect(serializeScriptDraft(HANGZHOU_ID, draft, {}).aiReviewEnableThinking).toBe(false);
   });
 
-  test("clears Hangzhou prompt, generation and stop overrides that equal backend defaults", () => {
+  test("clears Hangzhou stage prompt, generation and stop overrides that equal backend defaults", () => {
     const defaults = {
       status: "loaded",
       config: {
         aiReviewListenPrompt: "后端听音 Prompt",
         aiReviewComparePrompt: "后端比较 Prompt",
-        aiReviewTemperature: "0.1",
-        aiReviewStopSequences: "END\nSTOP",
+        aiReviewListenTemperature: "0.1",
+        aiReviewListenStopSequences: "END\nSTOP",
       },
       options: {},
     };
@@ -572,20 +587,19 @@ describe("script defaults and draft adapters", () => {
       HANGZHOU_ID,
       {
         aiReviewModelMode: "two_stage",
-        aiReviewRecognitionStrategy: "direct_dialect",
         aiReviewRequestTimeoutMs: 60000,
         aiReviewListenPrompt: "后端听音 Prompt",
         aiReviewComparePrompt: "用户比较 Prompt",
-        aiReviewTemperature: "0.1",
-        aiReviewStopSequences: "END, STOP",
+        aiReviewListenTemperature: "0.1",
+        aiReviewListenStopSequences: "END, STOP",
       },
       defaults
     );
 
     expect(persisted.aiReviewListenPrompt).toBe("");
     expect(persisted.aiReviewComparePrompt).toBe("用户比较 Prompt");
-    expect(persisted.aiReviewTemperature).toBe("");
-    expect(persisted.aiReviewStopSequences).toBe("");
+    expect(persisted.aiReviewListenTemperature).toBe("");
+    expect(persisted.aiReviewListenStopSequences).toBe("");
   });
 
   test("rejects invalid optional generation values before persistence", () => {

@@ -22,22 +22,9 @@ const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "普通中文统一简体；命中词表建议用字优先保留。",
   "只输出 JSON，不输出 Markdown 或解释文字。",
 ].join("\n");
-const DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE = [
-  "你是杭州话音频识别助手。",
-  "请先把杭州话语音识别为普通话表达，不要直接生成杭州话字形。",
-  "输出仅用于后续词表转换和三项质检。",
-  "所有普通中文字段一律输出简体中文，禁止输出普通繁体字。",
-  "严格输出 JSON，不输出 Markdown 或额外解释。",
-].join("\n");
-const DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE = [
-  "当前任务是识别转换 + 三项预测质检。",
-  "先基于识别到的普通话文本，结合词表和平台上下文，生成建议杭州话文本。",
-  "命中词表的杭州话建议用字优先保留词表写法，不强制繁体。",
-  "词表未覆盖时不要强行转换为生僻杭州字，可保留稳妥表达并标记待人工复核。",
-  "所有普通中文字段一律输出简体中文，禁止输出普通繁体字；只有命中杭州话词表统一用字时才保留该写法。",
-  "再检查三项：说话人属性、杭州话内容、普通话文本。",
-  "严格输出 JSON，不输出 Markdown 或额外解释。",
-].join("\n");
+const DEFAULT_LISTEN_LEXICON_PROMPT = "请对照下方字词表，根据音频真实读音选择方言用字；即使语句不通顺也不要改写为普通话。音频证据优先，词表仅作参考，未命中时不得编造。";
+const DEFAULT_REFINE_LEXICON_PROMPT = "请借助下方字词表理解方言词义，再结合完整语句整理对应的通顺普通话文本；不要把方言用字直接当作普通话照抄，不得改变原意。";
+const DEFAULT_SINGLE_LEXICON_PROMPT = DEFAULT_LISTEN_LEXICON_PROMPT + " 同时请依据方言文本的完整语义整理通顺普通话，不要直接照抄方言用字。";
 
 function getLexiconText(lexiconContext) {
   return String(lexiconContext?.text || "").trim();
@@ -53,10 +40,11 @@ function normalizePromptTemplate(value, fallback) {
 
 function buildListenPrompt(request, lexiconContext) {
   const template = normalizePromptTemplate(
-    request?.aiOptions?.listenPrompt,
+    request?.aiStages?.listen?.prompt || request?.aiOptions?.listenPrompt,
     DEFAULT_LISTEN_TEMPLATE
   );
-  const lexiconText = getLexiconText(lexiconContext);
+  const lexiconEnabled = request?.aiStages?.listen?.lexicon?.enabled !== false;
+  const lexiconText = lexiconEnabled ? getLexiconText(lexiconContext) : "";
   const meta = {
     taskItemId: request.taskItemId,
     samplingRecordId: request.samplingRecordId,
@@ -84,6 +72,7 @@ function buildListenPrompt(request, lexiconContext) {
   ];
 
   if (lexiconText) {
+    promptLines.push(request?.aiStages?.listen?.lexicon?.prompt || DEFAULT_LISTEN_LEXICON_PROMPT);
     promptLines.push("杭州话词表上下文（仅提示，不做强替换）：", lexiconText);
   }
 
@@ -99,10 +88,11 @@ function buildListenPrompt(request, lexiconContext) {
 
 function buildComparePrompt(request, listen, lexiconContext) {
   const template = normalizePromptTemplate(
-    request?.aiOptions?.comparePrompt,
+    request?.aiStages?.refine?.prompt || request?.aiOptions?.comparePrompt,
     DEFAULT_COMPARE_TEMPLATE
   );
-  const lexiconText = getLexiconText(lexiconContext);
+  const lexiconEnabled = request?.aiStages?.refine?.lexicon?.enabled !== false;
+  const lexiconText = lexiconEnabled ? getLexiconText(lexiconContext) : "";
   const input = {
     reviewMode: request.reviewMode || "rule_first",
     rulesProfile: request.rulesProfile,
@@ -141,6 +131,7 @@ function buildComparePrompt(request, listen, lexiconContext) {
   ];
 
   if (lexiconText) {
+    promptLines.push(request?.aiStages?.refine?.lexicon?.prompt || DEFAULT_REFINE_LEXICON_PROMPT);
     promptLines.push("杭州话词表上下文：", lexiconText);
   }
 
@@ -155,10 +146,11 @@ function buildComparePrompt(request, listen, lexiconContext) {
 
 function buildOmniSinglePrompt(request, lexiconContext) {
   const template = normalizePromptTemplate(
-    request?.aiOptions?.listenPrompt || request?.aiOptions?.comparePrompt,
+    request?.aiStages?.single?.prompt || request?.aiOptions?.listenPrompt || request?.aiOptions?.comparePrompt,
     DEFAULT_OMNI_SINGLE_TEMPLATE
   );
-  const lexiconText = getLexiconText(lexiconContext);
+  const lexiconEnabled = request?.aiStages?.single?.lexicon?.enabled !== false;
+  const lexiconText = lexiconEnabled ? getLexiconText(lexiconContext) : "";
   const input = {
     rulesProfile: request.rulesProfile || "hangzhou",
     projectName: request.projectName || "",
@@ -186,6 +178,7 @@ function buildOmniSinglePrompt(request, lexiconContext) {
   ];
 
   if (lexiconText) {
+    promptLines.push(request?.aiStages?.single?.lexicon?.prompt || DEFAULT_SINGLE_LEXICON_PROMPT);
     promptLines.push("杭州话词表上下文：", lexiconText);
   }
 
@@ -198,103 +191,16 @@ function buildOmniSinglePrompt(request, lexiconContext) {
   };
 }
 
-function buildRecognitionConvertListenPrompt(request, lexiconContext) {
-  const template = normalizePromptTemplate(
-    request?.aiOptions?.listenPrompt,
-    DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE
-  );
-  const lexiconText = getLexiconText(lexiconContext);
-  const input = {
-    taskItemId: request.taskItemId,
-    samplingRecordId: request.samplingRecordId,
-    projectName: request.projectName,
-    speaker: request.speaker,
-    effectiveStartTime: request.effectiveStartTime,
-    effectiveEndTime: request.effectiveEndTime,
-    effectiveTime: request.effectiveTime,
-    audioDuration: request.audioDuration,
-    platformDialectText: request.platformDialectText,
-    platformMandarinText: request.platformMandarinText,
-  };
-  const promptLines = [
-    template,
-    "先判断音频是否有效，再输出识别到的普通话文本。",
-    "JSON 必须包含字段：recognizedMandarinText, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, pureDialectGuess, confidence。",
-    "validityDecision 只能是 valid|invalid|uncertain。",
-    "genderGuess 只能是 男|女|uncertain。",
-    "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
-    "纯方言判断口径从宽：只要音频里能听到明确方言表达、方言词或方言读法，就判为 纯方言；只有整段几乎都是普通话表达时才判为 口音普通话。",
-    "pureDialectGuess 只能是 纯方言|口音普通话|uncertain。",
-    "recognizedMandarinText 必须使用简体中文，禁止输出普通繁体字。",
-  ];
-  if (lexiconText) {
-    promptLines.push("词表上下文（仅辅助理解，不要求在本阶段输出杭州话）：", lexiconText);
-  }
-  promptLines.push("输入信息：", JSON.stringify(input, null, 2));
-  return {
-    ruleVersion: RULE_VERSION,
-    systemPrompt:
-      "你是杭州话语音识别助手。严格输出 JSON，不要输出 Markdown，不要输出额外解释。",
-    userPrompt: promptLines.join("\n"),
-  };
-}
-
-function buildRecognitionConvertComparePrompt(request, context) {
-  const template = normalizePromptTemplate(
-    request?.aiOptions?.comparePrompt,
-    DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE
-  );
-  const lexiconText = getLexiconText(context?.lexiconContext);
-  const input = {
-    rulesProfile: request.rulesProfile || "hangzhou",
-    recognizedMandarinText: context?.recognizedMandarinText || "",
-    convertedDialectText: context?.convertedDialectText || "",
-    platformBaseline: {
-      dialectText: request.platformDialectText || "",
-      mandarinText: request.platformMandarinText || "",
-      gender: request?.speaker?.gender || "",
-      ageRange: request?.speaker?.ageRange || "",
-      pureDialect: request?.speaker?.pureDialect || "",
-    },
-    listenEvidence: context?.listenEvidence || {},
-    lexiconMatches: Array.isArray(context?.lexiconMatches) ? context.lexiconMatches : [],
-  };
-  const promptLines = [
-    template,
-    "输出结构必须包含：speakerCheck, dialectTextCheck, mandarinTextCheck, overall, heard。",
-    "speakerCheck 内必须有 gender、ageRange、pureDialect，字段：isCorrect, platformValue, suggestedValue, reason, confidence。",
-    "dialectTextCheck / mandarinTextCheck 字段：isCorrect, platformValue, suggestedValue, reason, confidence。",
-    "overall 字段：reviewConclusion(pass|need_review|risky|invalid_audio), shouldReview, summary。",
-    "heard 字段：heardDialectText, heardMandarinMeaning。",
-    "同时输出 recognizedMandarinText, convertedDialectText, lexiconMatches, conversionWarnings。",
-    "命中词表的杭州话建议用字优先保留词表写法，不强制繁体。",
-    "所有普通中文字段必须使用简体中文，禁止输出普通繁体字；只有命中词表统一用字时才保留。",
-    "词表找不到对应写法时不要编造冷门杭州字，保守输出并在 conversionWarnings 标记 needHumanReview=true。",
-    "不要为了更像杭州话而无依据改写，普通话文本与杭州话文本必须语义一致。",
-    "纯方言判断口径从宽：只要音频证据里出现明确方言字词、方言说法或方言发音，就建议为 纯方言；只有整段几乎都是普通话时，才建议为 口音普通话。",
-  ];
-  if (lexiconText) {
-    promptLines.push("杭州话词表上下文：", lexiconText);
-  }
-  promptLines.push("输入信息：", JSON.stringify(input, null, 2));
-  return {
-    ruleVersion: RULE_VERSION,
-    systemPrompt: "你是杭州话识别转换质检助手。只能输出 JSON，不能输出额外文本。",
-    userPrompt: promptLines.join("\n"),
-  };
-}
-
 module.exports = {
   RULE_VERSION,
   DEFAULT_LISTEN_TEMPLATE,
   DEFAULT_COMPARE_TEMPLATE,
   DEFAULT_OMNI_SINGLE_TEMPLATE,
-  DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE,
-  DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE,
+  DEFAULT_LISTEN_LEXICON_PROMPT,
+  DEFAULT_REFINE_LEXICON_PROMPT,
+  DEFAULT_SINGLE_LEXICON_PROMPT,
   buildComparePrompt,
   buildListenPrompt,
   buildOmniSinglePrompt,
-  buildRecognitionConvertListenPrompt,
-  buildRecognitionConvertComparePrompt,
 };
 

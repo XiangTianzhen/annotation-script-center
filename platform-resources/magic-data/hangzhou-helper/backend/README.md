@@ -18,6 +18,8 @@
 - 响应结构保持当前 Magic Data AI 质检口径，包含结构化结果、脱敏调试信息、usage/cost 与词表状态。
 - `speakerCheck` 当前包含 `gender / ageRange / pureDialect` 三项；其中 `pureDialect` 对应平台说话人属性里的“音频是否是纯方言”。
 - Prompt、`rulesProfile` 与服务名已切到杭州话语义，但默认模型口径先与客家话保持一致。
+- 新请求优先读取 `aiStages.listen/refine/single`；defaults 通过 `defaults.stages` 返回每阶段模型、Prompt、生成参数和默认开启的词表配置。
+- 双模型分两次调用，单模型只调用一次；旧识别转换字段仅作请求兼容，不再进入业务路径。
 
 ## 词表
 
@@ -27,6 +29,8 @@
   - `lexicon.status=missing`
   - `review-current` 继续按无词表模式运行
   - 不额外报错阻断请求
+- 词表只作为阶段 Prompt 参考；每阶段最多附带 `30` 条相关词条，无命中、关闭、缺失或非法时按无词表模式继续。
+- 响应 `lexicon.stages` 返回各阶段 `enabled/contextEntryCount`；旧 `lexiconMatches/conversionWarnings` 保持空数组并视为弃用字段。
 
 ## 配置
 
@@ -36,7 +40,6 @@
 - `MAGIC_DATA_HANGZHOU_AI_ENABLE_THINKING`
 - `MAGIC_DATA_HANGZHOU_AI_MOCK`
 - `MAGIC_DATA_HANGZHOU_AI_CALL_LOG_DIR`
-- `MAGIC_DATA_HANGZHOU_AI_LEXICON_REWRITE_MODE`
 
 以上配置都可继续回退到同名 `MAGIC_DATA_AI_*` 通用前缀。
 

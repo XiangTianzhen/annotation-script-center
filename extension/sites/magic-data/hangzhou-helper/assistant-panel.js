@@ -518,6 +518,56 @@
     return true;
   }
 
+  function buildStageGeneration(settings, prefix) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const result = {};
+    [
+      ["Temperature", "temperature", 0, 2, false],
+      ["TopP", "top_p", 0, 1, false],
+      ["MaxTokens", "max_tokens", 1, 8192, true],
+      ["MaxCompletionTokens", "max_completion_tokens", 1, 8192, true],
+      ["PresencePenalty", "presence_penalty", -2, 2, false],
+      ["FrequencyPenalty", "frequency_penalty", -2, 2, false],
+      ["Seed", "seed", 0, 2147483647, true],
+    ].forEach(function ([suffix, key, min, max, integer]) {
+      const value = Number(source[`aiReview${prefix}${suffix}`]);
+      if (!Number.isFinite(value) || value < min || value > max) return;
+      result[key] = integer ? Math.floor(value) : value;
+    });
+    const stop = String(source[`aiReview${prefix}StopSequences`] || "")
+      .split(/\r?\n/)
+      .map(function (item) { return String(item || "").trim().slice(0, 80); })
+      .filter(Boolean)
+      .slice(0, 8);
+    if (stop.length > 0) result.stop = stop;
+    return result;
+  }
+
+  function buildAiStagesPayload(settings) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const definitions = {
+      listen: ["Listen", "qwen3.5-omni-flash"],
+      refine: ["Compare", "qwen3.5-flash"],
+      single: ["Single", "qwen3.5-omni-flash"],
+    };
+    return Object.fromEntries(Object.entries(definitions).map(function ([stageKey, definition]) {
+      const prefix = definition[0];
+      const model = String(source[`aiReview${prefix}Model`] || definition[1]).trim().slice(0, 80);
+      const prompt = String(source[`aiReview${prefix}Prompt`] || "").trim().slice(0, 8000);
+      const lexiconPrompt = String(source[`aiReview${prefix}LexiconPrompt`] || "").trim().slice(0, 4000);
+      const stage = {
+        model: model,
+        ...(prompt ? { prompt: prompt } : {}),
+        generation: buildStageGeneration(source, prefix),
+        lexicon: {
+          enabled: source[`aiReview${prefix}IncludeLexiconReference`] !== false,
+          ...(lexiconPrompt ? { prompt: lexiconPrompt } : {}),
+        },
+      };
+      return [stageKey, stage];
+    }));
+  }
+
   function createRuntime(deps) {
     const options = deps && typeof deps === "object" ? deps : {};
     const runtimeSettingsDefault = {
@@ -1740,13 +1790,14 @@
           recognitionMode: recognitionMode,
           pipelineMode: recognitionMode,
           modelMode: modelMode,
-          recognitionStrategy: recognitionStrategy,
+          recognitionStrategy: "direct_dialect",
           listenModel: listenModel,
           compareModel: compareModel,
           singleModel: singleModel,
           reviewModel: compareModel,
           showHeardText: runtimeSettings.showHeardText !== false,
           enableThinking: enableThinking,
+          aiStages: buildAiStagesPayload(runtimeSettings),
           aiOptions: (function () {
             const optionsPayload = {
               listenModel: listenModel,
@@ -2233,6 +2284,7 @@
     buildOverallRows: buildOverallRows,
     buildSpeakerDetailRows: buildSpeakerDetailRows,
     normalizePureDialectOptionValue: normalizePureDialectOptionValue,
+    buildAiStagesPayload: buildAiStagesPayload,
     unwrapResultEnvelope: unwrapResultEnvelope,
     shouldDisableShowRawOutput: function (isLoading) {
       return isLoading === true;

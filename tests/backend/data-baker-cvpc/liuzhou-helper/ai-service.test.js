@@ -12,6 +12,69 @@ const aiService = require(resolveRepo(
   "ai-service.js"
 ));
 
+test("Liuzhou defaults enable independent lexicon references for both stages", function () {
+  const stages = aiService.createDefaultsPayload().defaults.stages;
+  assert.equal(stages.listen.lexicon.enabled, true);
+  assert.match(stages.listen.lexicon.prompt, /真实读音/);
+  assert.equal(stages.refine.lexicon.enabled, true);
+  assert.match(stages.refine.lexicon.prompt, /普通话/);
+});
+
+test("Liuzhou request normalizes stage generation and lexicon contracts", function () {
+  const request = aiService.normalizeRecommendRequest({
+    audioDataUrl: "data:audio/wav;base64,AA==",
+    aiStages: {
+      listen: {
+        generation: { temperature: 0.2 },
+        lexicon: { enabled: false, prompt: "听音词表提示" },
+      },
+      refine: {
+        generation: { top_p: 0.7 },
+        lexicon: { enabled: true, prompt: "整理词表提示" },
+      },
+    },
+  });
+
+  assert.equal(request.aiStages.listen.params.temperature, 0.2);
+  assert.deepEqual(request.aiStages.listen.lexicon, { enabled: false, prompt: "听音词表提示" });
+  assert.equal(request.aiStages.refine.params.top_p, 0.7);
+  assert.equal(request.aiStages.refine.lexicon.enabled, true);
+});
+
+test("Liuzhou lexicon context only includes relevant JSON entries and never rewrites text in code", function () {
+  const assetsContext = aiService.buildAssetsContext({
+    lexiconJson: {
+      schemaVersion: "1.0",
+      language: "柳州话",
+      mode: "prompt_reference_only",
+      sourceFiles: [],
+      updatedAt: "2026-07-17",
+      entries: Array.from({ length: 35 }, function (_item, index) {
+        return {
+          id: "entry-" + index,
+          normalized: "词" + index,
+          display: "词" + index,
+          mandarin: "意思" + index,
+          aliases: [],
+          notes: [],
+          tags: [],
+          attributes: {},
+        };
+      }),
+    },
+  });
+
+  assert.deepEqual(aiService.__testOnly.buildRelevantLexiconContext(assetsContext, ["完全无关"]), []);
+  assert.equal(
+    aiService.__testOnly.buildRelevantLexiconContext(
+      assetsContext,
+      [Array.from({ length: 35 }, (_item, index) => "词" + index).join(" ")]
+    ).length,
+    30
+  );
+  assert.equal(aiService.__testOnly.buildMandarinDraftFromLexicon(assetsContext, "词1去。"), "词1去。");
+});
+
 test("normalizeRefineStageOutput normalizes final dialect standard forms for high-frequency Liuzhou words", function () {
   const result = aiService.__testOnly.normalizeRefineStageOutput({
     refinedDialectText: "更要紧去啊。",

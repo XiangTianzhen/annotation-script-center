@@ -70,7 +70,7 @@ test("CVPC storage defaults expose promoted liuzhou helper settings", async func
       server: "https://annotation-script-center.xiangtianzhen.store",
       local: "http://127.0.0.1:3333",
     });
-    assert.equal(settings.meta.schemaVersion, 33);
+    assert.equal(settings.meta.schemaVersion, 34);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -104,11 +104,61 @@ test("CVPC storage defaults expose promoted liuzhou helper settings", async func
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendListenPrompt, "");
-    assert.equal(script.aiRecommendListenIncludeLexiconReference, false);
+    assert.equal(script.aiRecommendListenIncludeLexiconReference, true);
+    assert.equal(script.aiRecommendListenLexiconPrompt, "");
     assert.equal(script.aiRecommendRefinePrompt, "");
+    assert.equal(script.aiRecommendRefineIncludeLexiconReference, true);
+    assert.equal(script.aiRecommendRefineLexiconPrompt, "");
     assert.equal(script.aiRecommendModel, undefined);
     assert.equal(script.contractMode, "dom-guarded");
     assert.deepEqual(script.shortcuts, {});
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage migrates schema 33 lexicon switches to enabled", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 33 },
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            aiRecommendListenIncludeLexiconReference: false,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+    assert.equal(script.aiRecommendListenIncludeLexiconReference, true);
+    assert.equal(script.aiRecommendRefineIncludeLexiconReference, true);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage preserves schema 34 lexicon switch overrides", async function () {
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 34 },
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            aiRecommendListenIncludeLexiconReference: false,
+            aiRecommendRefineIncludeLexiconReference: false,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const script = (await harness.storage.getSettings()).platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+    assert.equal(script.aiRecommendListenIncludeLexiconReference, false);
+    assert.equal(script.aiRecommendRefineIncludeLexiconReference, false);
   } finally {
     harness.cleanup();
   }

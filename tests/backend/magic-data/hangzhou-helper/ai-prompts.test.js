@@ -11,6 +11,61 @@ const promptsModule = require(resolveRepo(
   "backend",
   "ai-prompts.js"
 ));
+const requestModule = require(resolveRepo(
+  "platform-resources",
+  "magic-data",
+  "hangzhou-helper",
+  "backend",
+  "ai-review-request.js"
+));
+
+test("Magic Data Hangzhou request prioritizes stage contracts and retires recognition conversion", function () {
+  const request = requestModule.normalizeReviewRequest({
+    audioUrl: "https://audio.example.test/a.wav",
+    platformDialectText: "阿拉去吃饭",
+    recognitionStrategy: "mandarin_to_dialect",
+    aiStages: {
+      listen: {
+        model: "qwen3.5-omni-flash",
+        prompt: "听音主提示",
+        generation: { temperature: 0.2 },
+        lexicon: { enabled: false, prompt: "听音词表提示" },
+      },
+      refine: {
+        model: "qwen3.5-flash",
+        prompt: "普通话整理提示",
+        generation: { top_p: 0.7 },
+        lexicon: { enabled: true, prompt: "整理词表提示" },
+      },
+    },
+  });
+
+  assert.equal(request.recognitionStrategy, "direct_dialect");
+  assert.equal(request.aiStages.listen.generation.temperature, 0.2);
+  assert.equal(request.aiStages.listen.lexicon.enabled, false);
+  assert.equal(request.aiStages.refine.prompt, "普通话整理提示");
+});
+
+test("Magic Data Hangzhou listen prompt only includes lexicon when its stage enables it", function () {
+  const request = {
+    taskItemId: "task-1",
+    platformDialectText: "阿拉去吃饭",
+    platformMandarinText: "我们去吃饭",
+    aiStages: {
+      listen: {
+        prompt: "听音主提示",
+        lexicon: { enabled: false, prompt: "听音词表提示" },
+      },
+    },
+  };
+  const disabled = promptsModule.buildListenPrompt(request, { text: "阿拉=我们" });
+  assert.doesNotMatch(disabled.userPrompt, /阿拉=我们/);
+
+  request.aiStages.listen.lexicon.enabled = true;
+  const enabled = promptsModule.buildListenPrompt(request, { text: "阿拉=我们" });
+  assert.match(enabled.userPrompt, /听音词表提示/);
+  assert.match(enabled.userPrompt, /阿拉=我们/);
+});
 
 test("Magic Data Hangzhou listen prompt uses loose pure dialect judgement", function () {
   const prompt = promptsModule.buildListenPrompt(

@@ -217,9 +217,25 @@ function normalizeAiOptions(value) {
   return result;
 }
 
+function normalizeAiStage(value, legacy) {
+  const source = value && typeof value === "object" ? value : {};
+  const fallback = legacy && typeof legacy === "object" ? legacy : {};
+  const lexicon = source.lexicon && typeof source.lexicon === "object" ? source.lexicon : {};
+  return {
+    model: sanitizeModelName(source.model || fallback.model, ""),
+    prompt: normalizePromptText(source.prompt || fallback.prompt),
+    generation: normalizeAiOptions(source.generation || fallback.generation),
+    lexicon: {
+      enabled: typeof lexicon.enabled === "boolean" ? lexicon.enabled : true,
+      prompt: normalizePromptText(lexicon.prompt).slice(0, 4000),
+    },
+  };
+}
+
 function normalizeReviewRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const aiOptions = normalizeAiOptions(source.aiOptions);
+  const aiStagesSource = source.aiStages && typeof source.aiStages === "object" ? source.aiStages : {};
   const pageType = normalizePageType(source.pageType);
   const taskItemId = normalizeText(source.taskItemId);
   const samplingRecordId = normalizeText(source.samplingRecordId);
@@ -251,10 +267,7 @@ function normalizeReviewRequest(body) {
     source.modelMode || source.aiReviewModelMode || fallbackLegacyMode,
     fallbackLegacyMode
   );
-  const recognitionStrategy = normalizeRecognitionStrategy(
-    source.recognitionStrategy || source.aiReviewRecognitionStrategy || fallbackLegacyMode,
-    fallbackLegacyMode
-  );
+  const recognitionStrategy = "direct_dialect";
   const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
   const listenModel = sanitizeModelName(
     aiOptions.listenModel || source.listenModel || source.aiReviewListenModel,
@@ -273,6 +286,23 @@ function normalizeReviewRequest(body) {
     ""
   );
 
+  const aiStages = {
+    listen: normalizeAiStage(aiStagesSource.listen, {
+      model: aiOptions.listenModel || source.listenModel || source.aiReviewListenModel,
+      prompt: aiOptions.listenPrompt,
+      generation: aiOptions,
+    }),
+    refine: normalizeAiStage(aiStagesSource.refine, {
+      model: aiOptions.compareModel || aiOptions.reviewModel || source.compareModel || source.reviewModel || source.aiReviewCompareModel,
+      prompt: aiOptions.comparePrompt,
+      generation: aiOptions,
+    }),
+    single: normalizeAiStage(aiStagesSource.single, {
+      model: aiOptions.singleModel || source.singleModel || source.aiReviewSingleModel,
+      prompt: aiOptions.listenPrompt || aiOptions.comparePrompt,
+      generation: aiOptions,
+    }),
+  };
   return {
     pageType,
     taskItemId,
@@ -307,6 +337,7 @@ function normalizeReviewRequest(body) {
         ? aiOptions.enable_thinking === true
         : source.aiReviewEnableThinking === true || source.enableThinking === true,
     aiOptions,
+    aiStages,
   };
 }
 

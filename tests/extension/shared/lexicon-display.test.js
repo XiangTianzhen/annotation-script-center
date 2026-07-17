@@ -25,18 +25,21 @@ test("lexicon display formats default status and rewrite mode", function () {
   );
 });
 
-test("lexicon display formats liuzhou listen reference switch", function () {
+test("lexicon display formats independent liuzhou stage switches", function () {
   assert.equal(
     formatLexiconStatusAndMode(
       {
         status: "reference_only",
-        listenReferenceEnabled: false,
+        stages: {
+          listen: { enabled: false },
+          refine: { enabled: true },
+        },
       },
       {
         scriptType: "liuzhou",
       }
     ),
-    "仅参考源 / 听音参考 关闭 / 文本修正固定携带"
+    "仅参考源 / 听音词表 关闭 / 普通话整理词表 开启"
   );
 });
 

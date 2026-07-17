@@ -154,6 +154,7 @@
       source[prefix + "IncludeLexiconReference"] !== undefined
         ? source[prefix + "IncludeLexiconReference"] === true
         : fallback.includeLexiconReference === true;
+    const lexiconPrompt = String(source[prefix + "LexiconPrompt"] || fallback.lexiconPrompt || "").trim();
     const params = buildStageParams(prefix, source, fallback.params || fallback);
     if (model) {
       stage.model = model;
@@ -161,9 +162,10 @@
     if (prompt) {
       stage.prompt = prompt;
     }
-    if (prefix === "aiRecommendListen") {
-      stage.includeLexiconReference = includeLexiconReference;
-    }
+    stage.lexicon = {
+      enabled: includeLexiconReference,
+      ...(lexiconPrompt ? { prompt: lexiconPrompt.slice(0, 4000) } : {}),
+    };
     if (Object.keys(params).length > 0) {
       stage.params = params;
     }
@@ -1563,6 +1565,7 @@
       resolveRecommendationFillTarget: resolveRecommendationFillTarget,
       resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
       buildRecommendationFailurePayload: buildRecommendationFailurePayload,
+      buildAiStagesConfig: buildAiStagesConfig,
       commonLabelActions: Object.assign({}, COMMON_LABEL_ACTIONS),
       handleApplyCommonLabel: handleApplyCommonLabel,
       handleRecommendationFailure: handleRecommendationFailure,

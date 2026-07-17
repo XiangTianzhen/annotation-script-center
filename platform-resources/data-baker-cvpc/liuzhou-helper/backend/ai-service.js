@@ -121,6 +121,8 @@ const DEFAULT_REFINE_PROMPT = [
   "如果标签前后同时出现标点，只保留标签后的标点，不要输出“，#eh，”这种双侧标点。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
+const DEFAULT_LISTEN_LEXICON_PROMPT = "请对照下方字词表，根据音频真实读音选择方言用字；即使语句不通顺也不要改写为普通话。音频证据优先，词表仅作参考，未命中时不得编造。";
+const DEFAULT_REFINE_LEXICON_PROMPT = "请借助下方字词表理解方言词义，再结合完整语句整理对应的通顺普通话文本；不要把方言用字直接当作普通话照抄，不得改变原意。";
 const RECOMMEND_FAILURE_FALLBACK_NOTE =
   "模型结构化输出失败，以下柳州话/普通话为保守兜底参考，请人工复核。";
 let warnedLexiconReferenceOnly = false;
@@ -946,7 +948,8 @@ function buildStageDefaults() {
       {
         model: DEFAULT_LISTEN_MODEL,
         prompt: DEFAULT_LISTEN_PROMPT,
-        includeLexiconReference: false,
+        includeLexiconReference: true,
+        lexicon: { enabled: true, prompt: DEFAULT_LISTEN_LEXICON_PROMPT },
         modelOptions: SUPPORTED_LISTEN_MODELS.slice(),
       },
       DEFAULT_STAGE_PARAMS
@@ -955,6 +958,8 @@ function buildStageDefaults() {
       {
         model: DEFAULT_REFINE_MODEL,
         prompt: DEFAULT_REFINE_PROMPT,
+        includeLexiconReference: true,
+        lexicon: { enabled: true, prompt: DEFAULT_REFINE_LEXICON_PROMPT },
         modelOptions: SUPPORTED_REFINE_MODELS.slice(),
       },
       DEFAULT_STAGE_PARAMS
@@ -1001,7 +1006,7 @@ function normalizeStageParams(params) {
   return result;
 }
 
-function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supportedModels) {
+function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supportedModels, fallbackLexicon) {
   const source = rawStage && typeof rawStage === "object" ? rawStage : {};
   const requestedModel = normalizeText(source.model || fallbackModel);
   const result = {
@@ -1010,11 +1015,20 @@ function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supported
         ? requestedModel
         : normalizeText(fallbackModel),
     prompt: String(source.prompt || fallbackPrompt || ""),
-    params: normalizeStageParams(source.params),
+    params: normalizeStageParams(source.generation || source.params),
   };
-  if (source.includeLexiconReference === true || source.includeLexiconReference === false) {
-    result.includeLexiconReference = source.includeLexiconReference === true;
-  }
+  const sourceLexicon = source.lexicon && typeof source.lexicon === "object" ? source.lexicon : {};
+  const defaultLexicon = fallbackLexicon && typeof fallbackLexicon === "object" ? fallbackLexicon : {};
+  const legacyEnabled = source.includeLexiconReference;
+  result.lexicon = {
+    enabled: typeof sourceLexicon.enabled === "boolean"
+      ? sourceLexicon.enabled
+      : typeof legacyEnabled === "boolean"
+        ? legacyEnabled
+        : defaultLexicon.enabled !== false,
+    prompt: String(sourceLexicon.prompt || defaultLexicon.prompt || "").trim().slice(0, 4000),
+  };
+  result.includeLexiconReference = result.lexicon.enabled;
   return result;
 }
 
@@ -1037,13 +1051,15 @@ function normalizeRecommendRequest(body) {
     aiStages.listen,
     source.model || source.aiRecommendModel || stageDefaults.listen.model,
     stageDefaults.listen.prompt,
-    SUPPORTED_LISTEN_MODELS
+    SUPPORTED_LISTEN_MODELS,
+    stageDefaults.listen.lexicon
   );
   const refineStage = normalizeStageConfig(
     aiStages.refine,
     stageDefaults.refine.model,
     stageDefaults.refine.prompt,
-    SUPPORTED_REFINE_MODELS
+    SUPPORTED_REFINE_MODELS,
+    stageDefaults.refine.lexicon
   );
 
   return {
@@ -1139,13 +1155,11 @@ function buildAssetsContext(assets) {
 
 function buildRelevantLexiconContext(assetsContext, hintTexts) {
   const lexiconRows = Array.isArray(assetsContext?.lexiconRows) ? assetsContext.lexiconRows : [];
-  const referenceRows = Array.isArray(assetsContext?.referenceRows) ? assetsContext.referenceRows : [];
   const hintText = (Array.isArray(hintTexts) ? hintTexts : [])
     .map(normalizeText)
     .filter(Boolean)
     .join(" ");
-  const combinedRows = lexiconRows
-    .map(function (row) {
+  const combinedRows = lexiconRows.map(function (row) {
       return Object.assign({}, row, {
         dialectWord: normalizeText(row?.display || row?.normalized),
         meaning: normalizeText(row?.mandarin),
@@ -1154,23 +1168,7 @@ function buildRelevantLexiconContext(assetsContext, hintTexts) {
         usageContext: normalizeText(row?.attributes?.usageContext),
         source: "liuzhou-lexicon.json",
       });
-    })
-    .concat(
-      referenceRows.map(function (row, index) {
-        return {
-          id: normalizeText(row?.id) || "reference-" + String(index + 1),
-          dialectWord: normalizeText(row?.dialectWord),
-          meaning: normalizeText(row?.meaning),
-          aliases: normalizeList(row?.aliases || [], 20),
-          notes: [],
-          tags: [],
-          pronunciation: normalizeText(row?.pronunciation),
-          mandarinVariants: [],
-          usageContext: "",
-          source: normalizeText(row?.source || "liuzhou-pronunciation-reference.csv"),
-        };
-      })
-    );
+    });
   const matches = combinedRows.filter(function (row) {
     const dialectWord = normalizeText(row?.dialectWord);
     const meaning = normalizeText(row?.meaning);
@@ -1186,7 +1184,7 @@ function buildRelevantLexiconContext(assetsContext, hintTexts) {
       })
     );
   });
-  const shortlist = (matches.length > 0 ? matches : combinedRows).slice(0, 24);
+  const shortlist = matches.slice(0, 30);
   return shortlist
     .map(function (row) {
       return {
@@ -1208,42 +1206,7 @@ function buildRelevantLexiconContext(assetsContext, hintTexts) {
 }
 
 function buildMandarinDraftFromLexicon(assetsContext, dialectText) {
-  const sourceText = normalizeAllowedPunctuation(dialectText);
-  const rows = Array.isArray(assetsContext?.lexiconRows) ? assetsContext.lexiconRows : [];
-  if (!sourceText || rows.length <= 0) {
-    return sourceText;
-  }
-  const dictionary = rows
-    .map(function (row) {
-      return {
-        dialectWord: normalizeText(row?.display || row?.normalized),
-        meaning: normalizeText(row?.mandarin),
-      };
-    })
-    .filter(function (row) {
-      return row.dialectWord && row.meaning;
-    })
-    .sort(function (left, right) {
-      return right.dialectWord.length - left.dialectWord.length;
-    });
-  if (dictionary.length <= 0) {
-    return sourceText;
-  }
-  const segments = [];
-  let cursor = 0;
-  while (cursor < sourceText.length) {
-    const matched = dictionary.find(function (row) {
-      return sourceText.slice(cursor, cursor + row.dialectWord.length) === row.dialectWord;
-    });
-    if (matched) {
-      segments.push(matched.meaning);
-      cursor += matched.dialectWord.length;
-      continue;
-    }
-    segments.push(sourceText.charAt(cursor));
-    cursor += 1;
-  }
-  return normalizeAllowedPunctuation(segments.join("") || sourceText);
+  return normalizeAllowedPunctuation(dialectText);
 }
 
 function buildPlainDialectTextFromTokens(tokens, fallbackText) {
@@ -1475,12 +1438,13 @@ function buildRulesExcerpt(assetsContext) {
 
 function buildListenPrompt(request, assetsContext) {
   const promptLines = [];
-  if (request.aiStages?.listen?.includeLexiconReference === true) {
+  if (request.aiStages?.listen?.lexicon?.enabled === true) {
     const lexiconContext = buildRelevantLexiconContext(assetsContext, [
       request.fieldContext?.dialectText,
       request.fieldContext?.mandarinText,
       request.editorContext?.selectedEntry?.name,
     ]);
+    promptLines.push(request.aiStages.listen.lexicon.prompt || DEFAULT_LISTEN_LEXICON_PROMPT);
     promptLines.push("词表参考（只作辅助，不可压过听音）：");
     promptLines.push(JSON.stringify(lexiconContext, null, 2));
   }
@@ -1501,22 +1465,17 @@ function buildListenPrompt(request, assetsContext) {
 }
 
 function buildRefinePrompt(request, assetsContext, listenResult) {
-  const mandarinDraft = normalizeAllowedPunctuation(
-    listenResult.mandarinDraft ||
-      buildMandarinDraftForDialect(
-        assetsContext,
-        listenResult.audioDialectText,
-        listenResult.audioDialectTokens
-      )
-  );
-  const lexiconContext = buildRelevantLexiconContext(assetsContext, [
+  const mandarinDraft = normalizeAllowedPunctuation(listenResult.mandarinDraft || "");
+  const lexiconContext = request.aiStages?.refine?.lexicon?.enabled === true
+    ? buildRelevantLexiconContext(assetsContext, [
     listenResult.audioDialectText,
     [].concat(listenResult.candidatePhrases || []).join(" "),
     mandarinDraft,
     request.fieldContext?.dialectText,
     request.fieldContext?.mandarinText,
     request.editorContext?.selectedEntry?.name,
-  ]);
+      ])
+    : [];
   return {
     systemPrompt: appendPromptRequirements(
       request.aiStages?.refine?.prompt || DEFAULT_REFINE_PROMPT,
@@ -1531,8 +1490,13 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
     userPrompt: [
       "项目规则摘要：",
       buildRulesExcerpt(assetsContext),
-      "词表命中参考：",
-      JSON.stringify(lexiconContext, null, 2),
+      ...(request.aiStages?.refine?.lexicon?.enabled === true
+        ? [
+            request.aiStages.refine.lexicon.prompt || DEFAULT_REFINE_LEXICON_PROMPT,
+            "词表命中参考：",
+            JSON.stringify(lexiconContext, null, 2),
+          ]
+        : []),
       "当前上下文：",
       JSON.stringify(
         {
@@ -1774,7 +1738,7 @@ async function recommend(request, assetsContext, overrides) {
     );
     const models = Object.assign({}, listenResult.models || {}, refineResult.models || {});
     const usage = Object.assign({}, listenResult.usage || {}, refineResult.usage || {});
-    const lexicon = buildRecommendLexiconMeta(normalizedAssetsContext, request);
+    const lexicon = buildRecommendLexiconMeta(normalizedAssetsContext, request, listenResult);
     return {
       audioDialectText,
       audioDialectTokens: Array.isArray(listenResult.audioDialectTokens)
@@ -1847,9 +1811,22 @@ async function recommend(request, assetsContext, overrides) {
   }
 }
 
-function buildRecommendLexiconMeta(assetsContext, normalizedRequest) {
+function buildRecommendLexiconMeta(assetsContext, normalizedRequest, listenResult) {
   const source = assetsContext && typeof assetsContext === "object" ? assetsContext : {};
   const request = normalizedRequest && typeof normalizedRequest === "object" ? normalizedRequest : {};
+  const listenContext = buildRelevantLexiconContext(source, [
+    request.fieldContext?.dialectText,
+    request.fieldContext?.mandarinText,
+    request.editorContext?.selectedEntry?.name,
+  ]);
+  const refineContext = buildRelevantLexiconContext(source, [
+    listenResult?.audioDialectText,
+    [].concat(listenResult?.candidatePhrases || []).join(" "),
+    listenResult?.mandarinDraft,
+    request.fieldContext?.dialectText,
+    request.fieldContext?.mandarinText,
+    request.editorContext?.selectedEntry?.name,
+  ]);
   return {
     status: normalizeText(source.lexiconStatus || "missing") || "missing",
     source: "json",
@@ -1857,7 +1834,20 @@ function buildRecommendLexiconMeta(assetsContext, normalizedRequest) {
     referenceSourceFile: path.basename("liuzhou-pronunciation-reference.csv"),
     rowCount: Array.isArray(source.lexiconRows) ? source.lexiconRows.length : 0,
     warningMessage: normalizeText(source.lexiconWarning || ""),
-    listenReferenceEnabled: request.aiStages?.listen?.includeLexiconReference === true,
+    stages: {
+      listen: {
+        enabled: request.aiStages?.listen?.lexicon?.enabled === true,
+        contextEntryCount: request.aiStages?.listen?.lexicon?.enabled === true
+          ? listenContext.length
+          : 0,
+      },
+      refine: {
+        enabled: request.aiStages?.refine?.lexicon?.enabled === true,
+        contextEntryCount: request.aiStages?.refine?.lexicon?.enabled === true
+          ? refineContext.length
+          : 0,
+      },
+    },
   };
 }
 
@@ -1896,7 +1886,9 @@ function buildRecommendSuccessBody(context) {
             ),
             rowCount: Number(result.lexicon.rowCount || 0) || 0,
             warningMessage: normalizeText(result.lexicon.warningMessage || ""),
-            listenReferenceEnabled: result.lexicon.listenReferenceEnabled === true,
+            stages: result.lexicon.stages && typeof result.lexicon.stages === "object"
+              ? result.lexicon.stages
+              : {},
           }
         : buildRecommendLexiconMeta(source.assetsContext, source.normalizedRequest),
   };
@@ -2019,6 +2011,7 @@ module.exports = {
   SUPPORTED_SPECIAL_TAGS,
   __testOnly: {
     buildMandarinDraftFromLexicon,
+    buildRelevantLexiconContext,
     collectSpecialTagsFromTokens,
     normalizeFinalDialectStandardForms,
     normalizeAllowedPunctuation,

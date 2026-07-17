@@ -91,6 +91,28 @@ function createBatchPlan(total) {
   };
 }
 
+test("CVPC stage config keeps independent lexicon settings for listen and refine", function () {
+  const contentModule = loadContentModule();
+  const helper = contentModule.__testOnly?.buildAiStagesConfig;
+  assert.equal(typeof helper, "function");
+
+  const stages = helper({
+    aiRecommendListenIncludeLexiconReference: false,
+    aiRecommendListenLexiconPrompt: "听音词表提示",
+    aiRecommendRefineIncludeLexiconReference: true,
+    aiRecommendRefineLexiconPrompt: "整理词表提示",
+  }, {});
+
+  assert.deepEqual(stages.listen.lexicon, {
+    enabled: false,
+    prompt: "听音词表提示",
+  });
+  assert.deepEqual(stages.refine.lexicon, {
+    enabled: true,
+    prompt: "整理词表提示",
+  });
+});
+
 test("CVPC batch controller stops launching new AI requests after stop and saves only finished successes", async function () {
   const contentModule = loadContentModule();
   const deferreds = Array.from({ length: 20 }, createDeferred);

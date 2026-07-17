@@ -28,8 +28,10 @@
     }
     const scriptType = normalizeText(options?.scriptType).toLowerCase();
     if (scriptType === "liuzhou") {
-      const listenReferenceLabel = source.listenReferenceEnabled === true ? "开启" : "关闭";
-      return statusLabel + " / 听音参考 " + listenReferenceLabel + " / 文本修正固定携带";
+      const listenEnabled = source.stages?.listen?.enabled === true;
+      const refineEnabled = source.stages?.refine?.enabled === true;
+      return statusLabel + " / 听音词表 " + (listenEnabled ? "开启" : "关闭") +
+        " / 普通话整理词表 " + (refineEnabled ? "开启" : "关闭");
     }
     return (
       statusLabel +

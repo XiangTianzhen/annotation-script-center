@@ -44,9 +44,12 @@ const STATIC_LOCAL_DEFAULTS = {
       aiRecommendRequestTimeoutMs: 60000,
       aiRecommendListenModel: "qwen3.5-omni-flash",
       aiRecommendListenPrompt: "",
-      aiRecommendListenIncludeLexiconReference: false,
+      aiRecommendListenIncludeLexiconReference: true,
+      aiRecommendListenLexiconPrompt: "",
       aiRecommendRefineModel: "qwen3.5-plus",
       aiRecommendRefinePrompt: "",
+      aiRecommendRefineIncludeLexiconReference: true,
+      aiRecommendRefineLexiconPrompt: "",
     },
     options: {
       listenModels: ["qwen3.5-omni-flash", "qwen3.5-omni-plus"],
@@ -123,15 +126,18 @@ const STATIC_LOCAL_DEFAULTS = {
       aiReviewRequestTimeoutMs: 60000,
       aiReviewListenPrompt: "",
       aiReviewComparePrompt: "",
+      aiReviewSinglePrompt: "",
+      aiReviewListenIncludeLexiconReference: true,
+      aiReviewListenLexiconPrompt: "",
+      aiReviewCompareIncludeLexiconReference: true,
+      aiReviewCompareLexiconPrompt: "",
+      aiReviewSingleIncludeLexiconReference: true,
+      aiReviewSingleLexiconPrompt: "",
     },
     options: {
       modelModes: [
-        { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+        { value: "two_stage", label: "双模型：听音模型 + 普通话整理模型" },
         { value: "omni_single", label: "单模型：Omni 单模型" },
-      ],
-      recognitionStrategies: [
-        { value: "direct_dialect", label: "直接识别方言文本" },
-        { value: "mandarin_to_dialect", label: "先识别普通话，再按词表转方言" },
       ],
       listenModels: [
         "qwen3.5-omni-flash",
@@ -235,7 +241,12 @@ function mapTwoStagePayload(scriptId, payload, local) {
     aiRecommendRefinePrompt: text(refine.prompt),
   };
   if (scriptId === SCRIPT_IDS.cvpc) {
-    config.aiRecommendListenIncludeLexiconReference = listen.includeLexiconReference === true;
+    const listenLexicon = listen.lexicon && typeof listen.lexicon === "object" ? listen.lexicon : {};
+    const refineLexicon = refine.lexicon && typeof refine.lexicon === "object" ? refine.lexicon : {};
+    config.aiRecommendListenIncludeLexiconReference = listenLexicon.enabled !== false && listen.includeLexiconReference !== false;
+    config.aiRecommendListenLexiconPrompt = text(listenLexicon.prompt || listen.lexiconPrompt);
+    config.aiRecommendRefineIncludeLexiconReference = refineLexicon.enabled !== false && refine.includeLexiconReference !== false;
+    config.aiRecommendRefineLexiconPrompt = text(refineLexicon.prompt || refine.lexiconPrompt);
   }
   [
     ["Listen", getStageParams(listen)],
@@ -281,34 +292,41 @@ function mapOmniPayload(payload, local) {
 
 function mapMagicPayload(payload, local) {
   const defaults = payload?.defaults || {};
-  const comparePrompt = text(defaults.comparePrompt) || text(defaults.reviewPrompt);
+  const stages = defaults.stages && typeof defaults.stages === "object" ? defaults.stages : {};
+  const listen = stages.listen || {};
+  const refine = stages.refine || {};
+  const single = stages.single || {};
   const config = {
     ...local.config,
     aiReviewModelMode: text(defaults.modelMode) || local.config.aiReviewModelMode,
-    aiReviewRecognitionStrategy:
-      text(defaults.recognitionStrategy) || local.config.aiReviewRecognitionStrategy,
-    aiReviewListenModel: text(defaults.listenModel) || local.config.aiReviewListenModel,
-    aiReviewCompareModel: text(defaults.compareModel) || local.config.aiReviewCompareModel,
-    aiReviewSingleModel: text(defaults.singleModel) || local.config.aiReviewSingleModel,
+    aiReviewListenModel: text(listen.model || defaults.listenModel) || local.config.aiReviewListenModel,
+    aiReviewCompareModel: text(refine.model || defaults.compareModel) || local.config.aiReviewCompareModel,
+    aiReviewSingleModel: text(single.model || defaults.singleModel) || local.config.aiReviewSingleModel,
     aiReviewEnableThinking: false,
     aiReviewRequestTimeoutMs:
       Number(defaults.timeoutMs) || local.config.aiReviewRequestTimeoutMs,
-    aiReviewListenPrompt: text(defaults.listenPrompt),
-    aiReviewComparePrompt: comparePrompt,
-    aiReviewTemperature: toTextValue(defaults.temperature),
-    aiReviewTopP: toTextValue(defaults.top_p),
-    aiReviewMaxTokens: toTextValue(defaults.max_tokens),
-    aiReviewMaxCompletionTokens: toTextValue(defaults.max_completion_tokens),
-    aiReviewPresencePenalty: toTextValue(defaults.presence_penalty),
-    aiReviewFrequencyPenalty: toTextValue(defaults.frequency_penalty),
-    aiReviewSeed: toTextValue(defaults.seed),
-    aiReviewStopSequences: normalizeStopValue(defaults.stop),
   };
+  [
+    ["Listen", listen, { model: defaults.listenModel, prompt: defaults.listenPrompt }],
+    ["Compare", refine, { model: defaults.compareModel, prompt: defaults.comparePrompt || defaults.reviewPrompt }],
+    ["Single", single, { model: defaults.singleModel, prompt: defaults.singlePrompt }],
+  ].forEach(([prefix, stage, legacy]) => {
+    const generation = stage.generation && typeof stage.generation === "object"
+      ? stage.generation
+      : defaults;
+    const lexicon = stage.lexicon && typeof stage.lexicon === "object" ? stage.lexicon : {};
+    config[`aiReview${prefix}Prompt`] = text(stage.prompt || legacy.prompt);
+    config[`aiReview${prefix}IncludeLexiconReference`] = lexicon.enabled !== false;
+    config[`aiReview${prefix}LexiconPrompt`] = text(lexicon.prompt);
+    STAGE_PARAM_DEFINITIONS.forEach((definition) => {
+      config[`aiReview${prefix}${definition.suffix}`] = toTextValue(generation[definition.apiKey]);
+    });
+    config[`aiReview${prefix}StopSequences`] = normalizeStopValue(generation.stop);
+  });
   return {
     config,
     options: mergeOptions(local.options, {
       modelModes: defaults.modelModeOptions,
-      recognitionStrategies: defaults.recognitionStrategyOptions,
       listenModels: defaults.listenModelOptions,
       compareModels: defaults.compareModelOptions,
       singleModels: defaults.singleModelOptions,
@@ -435,9 +453,6 @@ export function hydrateScriptDraft(scriptId, storedConfig, defaults = {}) {
     draft.aiRecommendEnableThinking = false;
   } else if (normalizedScriptId === SCRIPT_IDS.hangzhou) {
     draft.aiReviewModelMode = normalizeMagicModelMode(draft.aiReviewModelMode);
-    draft.aiReviewRecognitionStrategy = normalizeMagicRecognitionStrategy(
-      draft.aiReviewRecognitionStrategy
-    );
     draft.aiReviewEnableThinking = false;
     draft.enableThinking = false;
   }
@@ -523,17 +538,6 @@ function buildStageOverrideDefinitions(prefix) {
   ];
 }
 
-const MAGIC_OVERRIDE_DEFINITIONS = [
-  { path: "aiReviewListenPrompt", kind: "text" },
-  { path: "aiReviewComparePrompt", kind: "text" },
-  ...STAGE_PARAM_DEFINITIONS.map((definition) => ({
-    ...definition,
-    path: `aiReview${definition.suffix}`,
-    kind: "number",
-  })),
-  { path: "aiReviewStopSequences", kind: "text", stop: true },
-];
-
 export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
   const normalizedScriptId = text(scriptId);
   const result = clone(draftConfig || {});
@@ -586,15 +590,19 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
     ]);
   } else if (normalizedScriptId === SCRIPT_IDS.hangzhou) {
     result.aiReviewModelMode = normalizeMagicModelMode(result.aiReviewModelMode);
-    result.aiReviewRecognitionStrategy = normalizeMagicRecognitionStrategy(
-      result.aiReviewRecognitionStrategy
-    );
     result.aiReviewRequestTimeoutMs = Math.round(
       requiredNumber(result.aiReviewRequestTimeoutMs, "请求超时时间（毫秒）", 1000, 60000)
     );
     result.aiReviewEnableThinking = false;
     result.enableThinking = false;
-    clearDefaultOverrides(result, defaults, MAGIC_OVERRIDE_DEFINITIONS);
+    clearDefaultOverrides(result, defaults, [
+      ...buildStageOverrideDefinitions("aiReviewListen"),
+      ...buildStageOverrideDefinitions("aiReviewCompare"),
+      ...buildStageOverrideDefinitions("aiReviewSingle"),
+      { path: "aiReviewListenLexiconPrompt", kind: "text" },
+      { path: "aiReviewCompareLexiconPrompt", kind: "text" },
+      { path: "aiReviewSingleLexiconPrompt", kind: "text" },
+    ]);
   }
   return result;
 }

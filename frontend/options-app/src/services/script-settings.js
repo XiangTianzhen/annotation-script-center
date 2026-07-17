@@ -43,13 +43,8 @@ const CVPC_THRESHOLD_UNIT_OPTIONS = [
 ];
 
 const MAGIC_MODE_OPTIONS = [
-  { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+  { value: "two_stage", label: "双模型：听音模型 + 普通话整理模型" },
   { value: "omni_single", label: "单模型：Omni 单模型" },
-];
-
-const MAGIC_RECOGNITION_OPTIONS = [
-  { value: "direct_dialect", label: "直接识别方言文本" },
-  { value: "mandarin_to_dialect", label: "先识别普通话，再按词表转方言" },
 ];
 
 const LISTEN_MODEL_OPTIONS = [
@@ -271,8 +266,18 @@ function stageFields(options) {
     fields.push({
       kind: "boolean",
       path: `${prefix}IncludeLexiconReference`,
-      label: "附带词表参考（听音辅助）",
-      help: "关闭时仅按当前段音频听写；开启后才附带柳州话词表参考片段。",
+      label: "对照字词表",
+      defaultValue: true,
+      help: "开启后仅把相关字词表内容作为当前模型的 Prompt 参考；代码不会据此改写结果。",
+    });
+    fields.push({
+      kind: "textarea",
+      path: `${prefix}LexiconPrompt`,
+      label: "字词表提示词",
+      rows: 5,
+      maxLength: 4000,
+      defaultPath: `${prefix}LexiconPrompt`,
+      help: "清空后使用后端为当前模型阶段提供的默认字词表提示词。",
     });
   }
   fields.push({
@@ -303,7 +308,10 @@ function stageFields(options) {
     defaultPath: `${prefix}StopSequences`,
     help: "每行一个停止序列；清空后使用后端默认值。",
   });
-  return fields;
+  return fields.map((field) => ({
+    ...field,
+    ...(options.visibleWhen ? { visibleWhen: options.visibleWhen } : {}),
+  }));
 }
 
 function aidpSections(scriptId) {
@@ -577,42 +585,10 @@ function cvpcSections() {
             optionsKey: "refineModels",
             modelOptions: REFINE_MODEL_OPTIONS,
             modelHelp: "结合听音结果、普通话文本和词表修正柳州话文本。",
+            lexicon: true,
           }),
         },
       ],
-    },
-  ];
-}
-
-function magicGenerationFields() {
-  return [
-    ...generationNumberFields("aiReview"),
-    {
-      kind: "textarea",
-      path: "aiReviewListenPrompt",
-      label: "听音 Prompt（可选）",
-      rows: 9,
-      maxLength: 8000,
-      defaultPath: "aiReviewListenPrompt",
-      help: "内容等于后端默认值时保存为空 override。",
-    },
-    {
-      kind: "textarea",
-      path: "aiReviewComparePrompt",
-      label: "比较模型 Prompt（可选）",
-      rows: 9,
-      maxLength: 8000,
-      defaultPath: "aiReviewComparePrompt",
-      help: "内容等于后端默认值时保存为空 override。",
-    },
-    {
-      kind: "textarea",
-      path: "aiReviewStopSequences",
-      label: "stop sequences",
-      rows: 4,
-      maxLength: 960,
-      defaultPath: "aiReviewStopSequences",
-      help: "每行一个停止序列；清空后使用后端默认值。",
     },
   ];
 }
@@ -645,7 +621,7 @@ function hangzhouSections() {
     {
       key: "ai",
       title: "AI 设置",
-      help: "配置杭州话 AI 质检的模型方案、识别策略、Prompt 和生成参数。",
+      help: "配置杭州话 AI 质检的模型方案，以及各模型独立的 Prompt、生成参数和字词表开关。",
       groups: [
         {
           key: "ai-base",
@@ -671,37 +647,6 @@ function hangzhouSections() {
               options: MAGIC_MODE_OPTIONS,
             },
             {
-              kind: "select",
-              path: "aiReviewRecognitionStrategy",
-              label: "识别策略",
-              optionsKey: "recognitionStrategies",
-              options: MAGIC_RECOGNITION_OPTIONS,
-            },
-            {
-              kind: "select",
-              path: "aiReviewListenModel",
-              label: "听音模型",
-              optionsKey: "listenModels",
-              options: LISTEN_MODEL_OPTIONS,
-              visibleWhen: { path: "aiReviewModelMode", equals: "two_stage" },
-            },
-            {
-              kind: "select",
-              path: "aiReviewCompareModel",
-              label: "比较模型",
-              optionsKey: "compareModels",
-              options: MAGIC_COMPARE_MODEL_OPTIONS,
-              visibleWhen: { path: "aiReviewModelMode", equals: "two_stage" },
-            },
-            {
-              kind: "select",
-              path: "aiReviewSingleModel",
-              label: "单模型",
-              optionsKey: "singleModels",
-              options: LISTEN_MODEL_OPTIONS,
-              visibleWhen: { path: "aiReviewModelMode", equals: "omni_single" },
-            },
-            {
               kind: "number",
               path: "aiReviewRequestTimeoutMs",
               label: "请求超时时间（毫秒）",
@@ -712,10 +657,49 @@ function hangzhouSections() {
           ],
         },
         {
-          key: "prompt-params",
-          title: "Prompt 与生成参数",
-          layout: "three",
-          fields: magicGenerationFields(),
+          key: "listen",
+          title: "听音模型",
+          layout: "two",
+          fields: stageFields({
+            prefix: "aiReviewListen",
+            lexicon: true,
+            modelLabel: "听音模型",
+            promptLabel: "听音 Prompt",
+            optionsKey: "listenModels",
+            modelOptions: LISTEN_MODEL_OPTIONS,
+            modelHelp: "根据真实读音输出方言文本，不因语句不通顺而改写成普通话。",
+            visibleWhen: { path: "aiReviewModelMode", equals: "two_stage" },
+          }),
+        },
+        {
+          key: "refine",
+          title: "普通话整理模型",
+          layout: "two",
+          fields: stageFields({
+            prefix: "aiReviewCompare",
+            lexicon: true,
+            modelLabel: "普通话整理模型",
+            promptLabel: "普通话整理 Prompt",
+            optionsKey: "compareModels",
+            modelOptions: MAGIC_COMPARE_MODEL_OPTIONS,
+            modelHelp: "结合方言听写和完整语义，输出含义一致且通顺的普通话文本。",
+            visibleWhen: { path: "aiReviewModelMode", equals: "two_stage" },
+          }),
+        },
+        {
+          key: "single",
+          title: "单模型",
+          layout: "two",
+          fields: stageFields({
+            prefix: "aiReviewSingle",
+            lexicon: true,
+            modelLabel: "单模型",
+            promptLabel: "单模型 Prompt",
+            optionsKey: "singleModels",
+            modelOptions: LISTEN_MODEL_OPTIONS,
+            modelHelp: "一次返回按读音书写的方言文本和按语义整理的普通话文本。",
+            visibleWhen: { path: "aiReviewModelMode", equals: "omni_single" },
+          }),
         },
       ],
     },

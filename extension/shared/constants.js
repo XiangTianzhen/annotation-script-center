@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 33;
+  const SCHEMA_VERSION = 34;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -157,9 +157,21 @@
     aiReviewSingleModel: "qwen3.5-omni-flash", aiReviewEnableThinking: false,
     listenModel: "qwen3.5-omni-flash", reviewModel: "qwen3.5-flash", reviewMode: "rule_first",
     showHeardText: true, showEstimatedIncome: true, enableThinking: false, aiReviewRequestTimeoutMs: 60000,
-    aiReviewListenPrompt: "", aiReviewComparePrompt: "", aiReviewTemperature: "", aiReviewTopP: "",
-    aiReviewMaxTokens: "", aiReviewMaxCompletionTokens: "", aiReviewPresencePenalty: "",
-    aiReviewFrequencyPenalty: "", aiReviewSeed: "", aiReviewStopSequences: "", shortcuts: {},
+    aiReviewListenPrompt: "", aiReviewComparePrompt: "", aiReviewSinglePrompt: "",
+    aiReviewListenIncludeLexiconReference: true, aiReviewListenLexiconPrompt: "",
+    aiReviewCompareIncludeLexiconReference: true, aiReviewCompareLexiconPrompt: "",
+    aiReviewSingleIncludeLexiconReference: true, aiReviewSingleLexiconPrompt: "",
+    aiReviewTemperature: "", aiReviewTopP: "", aiReviewMaxTokens: "", aiReviewMaxCompletionTokens: "",
+    aiReviewPresencePenalty: "", aiReviewFrequencyPenalty: "", aiReviewSeed: "", aiReviewStopSequences: "",
+    aiReviewListenTemperature: "", aiReviewListenTopP: "", aiReviewListenMaxTokens: "",
+    aiReviewListenMaxCompletionTokens: "", aiReviewListenPresencePenalty: "", aiReviewListenFrequencyPenalty: "",
+    aiReviewListenSeed: "", aiReviewListenStopSequences: "",
+    aiReviewCompareTemperature: "", aiReviewCompareTopP: "", aiReviewCompareMaxTokens: "",
+    aiReviewCompareMaxCompletionTokens: "", aiReviewComparePresencePenalty: "", aiReviewCompareFrequencyPenalty: "",
+    aiReviewCompareSeed: "", aiReviewCompareStopSequences: "",
+    aiReviewSingleTemperature: "", aiReviewSingleTopP: "", aiReviewSingleMaxTokens: "",
+    aiReviewSingleMaxCompletionTokens: "", aiReviewSinglePresencePenalty: "", aiReviewSingleFrequencyPenalty: "",
+    aiReviewSingleSeed: "", aiReviewSingleStopSequences: "", shortcuts: {},
   };
   const DEFAULT_SETTINGS = {
     platforms: {
@@ -171,10 +183,13 @@
         blockPauseStateTips: true, segmentPreviewEndpoint: DEFAULT_BACKEND_BASE_URLS.server + DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH,
         aiRecommendEnabled: true, aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + DATA_BAKER_CVPC_AI_RECOMMEND_PATH,
         aiRecommendRequestTimeoutMs: 60000, aiRecommendListenModel: "qwen3.5-omni-flash", aiRecommendListenPrompt: "",
-        aiRecommendListenIncludeLexiconReference: false, aiRecommendListenTemperature: "", aiRecommendListenTopP: "",
+        aiRecommendListenIncludeLexiconReference: true, aiRecommendListenLexiconPrompt: "",
+        aiRecommendListenTemperature: "", aiRecommendListenTopP: "",
         aiRecommendListenMaxTokens: "", aiRecommendListenMaxCompletionTokens: "", aiRecommendListenPresencePenalty: "",
         aiRecommendListenFrequencyPenalty: "", aiRecommendListenSeed: "", aiRecommendListenStopSequences: "",
-        aiRecommendRefineModel: "qwen3.5-plus", aiRecommendRefinePrompt: "", aiRecommendRefineTemperature: "",
+        aiRecommendRefineModel: "qwen3.5-plus", aiRecommendRefinePrompt: "",
+        aiRecommendRefineIncludeLexiconReference: true, aiRecommendRefineLexiconPrompt: "",
+        aiRecommendRefineTemperature: "",
         aiRecommendRefineTopP: "", aiRecommendRefineMaxTokens: "", aiRecommendRefineMaxCompletionTokens: "",
         aiRecommendRefinePresencePenalty: "", aiRecommendRefineFrequencyPenalty: "", aiRecommendRefineSeed: "",
         aiRecommendRefineStopSequences: "", contractMode: "dom-guarded", shortcuts: {},
