@@ -20,13 +20,14 @@ vi.mock("vue-router", () => ({
   },
 }));
 
-describe("App 1.0 public shell", () => {
+describe("App public shell", () => {
   beforeEach(() => {
+    const extensionVersion = "1.1.1";
     setActivePinia(createPinia());
     globalThis.chrome = {
       runtime: {
         getManifest() {
-          return { version: "1.1.0" };
+          return { version: extensionVersion };
         },
       },
     };
@@ -38,7 +39,7 @@ describe("App 1.0 public shell", () => {
 
     const appStore = useAppStore();
     appStore.extensionName = "标注脚本中心";
-    appStore.version = "1.1.0";
+    appStore.version = extensionVersion;
     appStore.showToast = vi.fn();
 
     useAuthStore().session = null;
@@ -70,6 +71,6 @@ describe("App 1.0 public shell", () => {
 
   test("shows the current public version", () => {
     const wrapper = mount(App);
-    expect(wrapper.find("#workspace-version").text()).toBe("v1.1.0");
+    expect(wrapper.find("#workspace-version").text()).toBe("v1.1.1");
   });
 });

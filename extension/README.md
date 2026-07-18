@@ -1,6 +1,6 @@
 # 扩展运行时
 
-`extension/` 是当前 `1.1.0` Chrome / Edge Manifest V3 扩展成品目录。该目录可以直接作为 unpacked extension 加载，也是 ZIP 打包脚本的唯一输入。
+`extension/` 是当前 `1.1.1` Chrome / Edge Manifest V3 扩展成品目录。该目录可以直接作为 unpacked extension 加载，也是 ZIP 打包脚本的唯一输入。
 
 ## 目录结构
 
@@ -75,7 +75,7 @@ node scripts/build-options-app.js
 
 然后打开 `chrome://extensions/` 或 `edge://extensions/`，启用开发者模式并加载仓库中的 `extension/`。
 
-使用 `dist/annotation-script-center-v1.1.0.zip` 时，需要先解压，再加载解压后的扩展根目录。
+使用 `dist/annotation-script-center-v1.1.1.zip` 时，需要先解压，再加载解压后的扩展根目录。
 
 发布 ZIP 的包内路径统一使用标准 `/` 分隔符，打包时会确认 manifest 引用的 background 与 content scripts 完整存在；该兼容性用于目标 Edge 版本的拖拽导入验收，但不替代上述解压加载流程。
 

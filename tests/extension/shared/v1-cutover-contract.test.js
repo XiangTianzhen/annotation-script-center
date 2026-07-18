@@ -200,7 +200,7 @@ test("1.0.0 settings normalization preserves retained settings and drops unknown
   }
 });
 
-test("1.0.0 manifest references every retained runtime", function () {
+test("manifest references every retained runtime", function () {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const scriptPaths = (manifest.content_scripts || []).flatMap((entry) => entry.js || []);
   const resourcePaths = (manifest.web_accessible_resources || []).flatMap(
@@ -209,7 +209,7 @@ test("1.0.0 manifest references every retained runtime", function () {
   const allPaths = scriptPaths.concat(resourcePaths);
   const joined = allPaths.join("\n");
 
-  assert.equal(manifest.version, "1.1.0");
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.equal("update_url" in manifest, false);
   assert.match(joined, /sites\/data-baker-cvpc\/liuzhou-helper\//);
   assert.match(joined, /sites\/bytedance-aidp\/suzhou-helper\//);

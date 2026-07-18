@@ -5,7 +5,7 @@
 - 平台标识：`data-baker-cvpc`
 - 平台入口：`https://cvpc.data-baker.com/app/web/`
 - 核心工作页：`https://cvpc.data-baker.com/app/editor/asr/`
-- 当前状态：`1.1.0` 正式脚本，已接入脚本中心、扩展运行时与独立后端；真实画段写入契约仍待补采
+- 当前状态：`1.1.1` 正式脚本，已接入脚本中心、扩展运行时与独立后端；真实画段写入契约仍待补采
 - 技术观察：
   - `app/web` 壳层从 DOM 特征看是 `Ant Design + utility class` 组合
   - `app/editor/asr` 是独立编辑器壳，按钮/表单样式来自 `Element UI`，波形区通过 `iframe` 承载

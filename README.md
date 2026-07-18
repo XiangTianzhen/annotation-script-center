@@ -2,7 +2,7 @@
 
 用于维护 Chrome / Edge 标注辅助扩展、统一 Node.js 后端，以及三个平台的稳定页面与 Network 参考资料。
 
-当前扩展版本为 `1.1.0`；本仓库维护三个平台的五个脚本。AI 结果默认用于人工辅助，不会自动领取、自动审核或自动流转任务。
+当前扩展版本为 `1.1.1`；本仓库维护三个平台的五个脚本。AI 结果默认用于人工辅助，不会自动领取、自动审核或自动流转任务。
 
 ## 项目定位
 
@@ -180,7 +180,7 @@ node scripts/package-extension-zip.js
 3. 打包完整 `extension/`。
 4. 统一 ZIP 包内路径为标准 `/` 分隔符。
 5. 校验 ZIP 非空、根目录包含 `manifest.json`，且 manifest 引用的所有脚本均已打入 ZIP。
-6. 只生成 `dist/annotation-script-center-v1.1.0.zip`。
+6. 只生成 `dist/annotation-script-center-v1.1.1.zip`。
 
 安装 ZIP：
 

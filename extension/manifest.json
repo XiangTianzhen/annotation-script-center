@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "标注脚本中心",
   "description": "柳州话、苏州话、金华话、台州话与杭州话标注辅助脚本中心。",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "permissions": [
     "storage",
     "tabs",
