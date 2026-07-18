@@ -27,6 +27,9 @@ const {
   sanitizeProviderErrorSummary,
 } = require("../sanitizer");
 const {
+  getDashscopeCredentialAuthFailureMessage,
+} = require("../../dashscope-key-slots");
+const {
   applyAiOptionsToRequestBody,
   inferAudioFormat,
   isEnableThinkingUnsupportedError,
@@ -99,7 +102,7 @@ function createJsonParseError(stdoutText, stderrText) {
   );
 }
 
-function buildProviderError(model, stage, parsed) {
+function buildProviderError(model, stage, parsed, credentialContext) {
   const code = String(parsed?.code || "provider-http-error");
   const summary = sanitizeProviderErrorSummary(parsed?.summary || parsed?.message || "");
   if (isRateLimitProviderCode(parsed?.providerCode || code)) {
@@ -126,6 +129,11 @@ function buildProviderError(model, stage, parsed) {
   );
   error.providerStatus = Number(parsed?.providerStatus || parsed?.statusCode || error.statusCode || 502) || 502;
   error.providerCode = String(parsed?.providerCode || "").trim();
+  if (error.providerStatus === 401) {
+    error.code = "dashscope-key-auth-failed";
+    error.message = getDashscopeCredentialAuthFailureMessage(credentialContext);
+    error.summary = error.message;
+  }
   error.debugRawAiResponse = {
     provider: "qwen",
     model: String(model || ""),
@@ -347,7 +355,7 @@ function runPythonClient(payload, timeoutMs, clientConfig, options) {
           return;
         }
         if (!parsed || parsed.success !== true) {
-          reject(buildProviderError(model, stage, parsed || {}));
+          reject(buildProviderError(model, stage, parsed || {}, config));
           return;
         }
         if (parsed.providerError && typeof parsed.providerError === "object") {
@@ -393,7 +401,7 @@ async function requestChatCompletion(requestBody, options) {
     apiKey: config.apiKey,
   });
   if (!config.apiKey) {
-    const error = new Error("missing-api-key");
+    const error = new Error(getDashscopeCredentialAuthFailureMessage(config));
     error.code = "missing-api-key";
     error.statusCode = 503;
     throw error;

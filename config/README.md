@@ -56,7 +56,7 @@ Copy-Item config/env/ai.env.example config/env/ai.env
 
 当前维护的 provider 为 DashScope。真实密钥固定拆分到 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashscope-key-2.env`，每个文件仅填写一行 `DASHSCOPE_API_KEY=...`；当前选择写入 `config/secrets/dashscope-active-key.json`，内容为 `{ "activeSlotId": "key-1" }` 或 `key-2`。系统管理的服务器模式在管理员会话内切换槽位，扩展不会读取或显示密钥。
 
-首次迁移时，将旧 `config/env/ai.env` 的密钥移入密钥一文件，再删除旧 `DASHSCOPE_API_KEY`；不要保留旧项作为回退。PM2 运行用户必须可读取两份密钥文件并可写入状态 JSON，建议目录权限为仅该运行用户可访问。共享 job 超时、TTL、容量和轮询间隔仍保留代码默认值，只有确实需要偏离默认行为时，才在 `ai.env` 添加非密钥覆盖项。
+首次迁移时，可先将旧 `config/env/ai.env` 或进程环境中的 `DASHSCOPE_API_KEY` 填入密钥一文件，再为密钥二单独配置另一份有效凭据。仅当两个槽位均未配置时，后端才临时使用旧变量；一旦任一槽位存在，后续请求只使用当前选中的槽位，选中空槽位会被拒绝，不会自动切到旧变量或另一把密钥。两把密钥验证通过后可删除旧变量。PM2 运行用户必须可读取两份密钥文件并可写入状态 JSON，建议目录权限为仅该运行用户可访问。共享 job 超时、TTL、容量和轮询间隔仍保留代码默认值，只有确实需要偏离默认行为时，才在 `ai.env` 添加非密钥覆盖项。
 
 价格估算统一读取 `aliyun-bailian-model-pricing.json`。缺少价格时页面显示“没有数据源”，CSV 金额列保持空白。
 

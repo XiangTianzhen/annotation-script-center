@@ -21,6 +21,9 @@ const {
   sanitizeProviderDebugText,
   sanitizeProviderErrorSummary,
 } = require("../sanitizer");
+const {
+  getDashscopeCredentialAuthFailureMessage,
+} = require("../../dashscope-key-slots");
 
 function resolveThinkingPreference(options, config) {
   void config;
@@ -435,7 +438,7 @@ async function readStreamCompletion(response) {
 async function requestChatCompletion(requestBody, options) {
   const config = getQwenProviderConfig();
   if (!config.apiKey) {
-    const error = new Error("missing-api-key");
+    const error = new Error(getDashscopeCredentialAuthFailureMessage(config));
     error.code = "missing-api-key";
     error.statusCode = 503;
     throw error;
@@ -475,6 +478,11 @@ async function requestChatCompletion(requestBody, options) {
         "Qwen 接口请求失败（HTTP " + String(response.status) + "）。"
       );
       error.providerStatus = Number(response.status) || 0;
+      if (error.providerStatus === 401) {
+        error.code = "dashscope-key-auth-failed";
+        error.message = getDashscopeCredentialAuthFailureMessage(config);
+        error.summary = error.message;
+      }
       error.debugRawAiResponse = {
         provider: "qwen",
         model,

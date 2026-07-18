@@ -122,6 +122,7 @@ describe("Admin legacy shells", () => {
       },
     };
     adminStore.aiKeySlots = {
+      activeKeySource: "slot",
       activeSlotId: "key-1",
       slots: [
         { id: "key-1", label: "密钥一", configured: true, active: true },
@@ -203,6 +204,7 @@ describe("Admin legacy shells", () => {
     routeState.path = "/admin/backend";
     const adminStore = useAdminStore();
     const wangActiveSlots = {
+      activeKeySource: "slot",
       activeSlotId: "key-2",
       slots: [
         { id: "key-1", label: "密钥一", configured: true, active: false },
@@ -263,6 +265,7 @@ describe("Admin legacy shells", () => {
     routeState.path = "/admin/backend";
     const adminStore = useAdminStore();
     adminStore.aiKeySlots = {
+      activeKeySource: "slot",
       activeSlotId: "key-1",
       slots: [
         { id: "key-1", label: "密钥一", configured: true, active: true },
@@ -331,6 +334,46 @@ describe("Admin legacy shells", () => {
     expect(wrapper.find("#admin-ai-key-slots [role='status']").text()).toContain("加载失败");
     expect(wrapper.text()).not.toContain("DASHSCOPE_API_KEY");
     expect(wrapper.text()).not.toContain("config/secrets");
+  });
+
+  test("server backend view marks a legacy key fallback as migration-only", async () => {
+    routeState.path = "/admin/backend";
+    const adminStore = useAdminStore();
+    adminStore.aiKeySlots = {
+      activeKeySource: "legacy",
+      activeSlotId: "key-1",
+      slots: [
+        { id: "key-1", label: "密钥一", configured: false, active: true },
+        { id: "key-2", label: "密钥二", configured: false, active: false },
+      ],
+    };
+    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
+    const wrapper = mount(AdminBackendView);
+    await flushPromises();
+
+    expect(wrapper.find(".admin-ai-key-current").text()).toContain("旧密钥兼容中");
+    expect(wrapper.text()).toContain("请迁移到密钥一或密钥二");
+    expect(wrapper.find("[data-ai-key-choice='key-1']").attributes("disabled")).toBeDefined();
+    expect(wrapper.find("[data-ai-key-choice='key-2']").attributes("disabled")).toBeDefined();
+  });
+
+  test("server backend view warns when no usable AI key is configured", async () => {
+    routeState.path = "/admin/backend";
+    const adminStore = useAdminStore();
+    adminStore.aiKeySlots = {
+      activeKeySource: "none",
+      activeSlotId: "key-1",
+      slots: [
+        { id: "key-1", label: "密钥一", configured: false, active: true },
+        { id: "key-2", label: "密钥二", configured: false, active: false },
+      ],
+    };
+    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
+    const wrapper = mount(AdminBackendView);
+    await flushPromises();
+
+    expect(wrapper.find(".admin-ai-key-current").text()).toContain("未配置可用密钥");
+    expect(wrapper.text()).toContain("请配置密钥一或密钥二");
   });
 
   test("a missing dual-key endpoint has a clear save message without raw endpoint details", async () => {

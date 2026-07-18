@@ -15,6 +15,9 @@ const {
   normalizeAbortError,
 } = require("../errors");
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
+const {
+  getDashscopeCredentialAuthFailureMessage,
+} = require("../../dashscope-key-slots");
 
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: false });
 const MOCK_TEXT = "mock 听音文本";
@@ -187,7 +190,7 @@ function createForbiddenError(summary, rawStatus) {
 
 function createFunAsrAuthError(summary, rawStatus) {
   return createFunAsrProviderError(
-    "Fun-ASR 鉴权或权限错误，请检查 DASHSCOPE_API_KEY、服务开通与地域。",
+    getDashscopeCredentialAuthFailureMessage(getFunAsrRestConfig()),
     "fun-asr-auth-error",
     401,
     {
@@ -728,7 +731,11 @@ async function requestFunAsrRecognitionRest(input, options) {
     };
   }
   if (!config.hasApiKey) {
-    throw createError("缺少 DASHSCOPE_API_KEY。", "missing-api-key", 503);
+    throw createError(
+      getDashscopeCredentialAuthFailureMessage(config),
+      "missing-api-key",
+      503
+    );
   }
   const audioUrl = String(input?.audioUrl || "").trim();
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);

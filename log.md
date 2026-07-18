@@ -2,6 +2,14 @@
 
 本总账只记录 DataBaker CVPC 柳州话、ByteDance AIDP 苏州话、金华话与台州话、Magic Data 杭州话，以及五脚本共同依赖的扩展、Options、后端、测试和发布能力。
 
+## 2026-07-18
+
+- 修复(backend): 双 DashScope 密钥解析增加旧单密钥兼容边界：仅双槽位均未配置时回退旧变量；任一槽位存在后严格使用当前槽位，空槽位不发起上游请求。
+- 修复(ai): 柳州、苏州、金华、台州共用 Qwen / Qwen Python / Fun-ASR REST/Python 与杭州话专用 Qwen 客户端统一携带当前槽位来源；百炼 401 只提示当前密钥来源鉴权失败，不自动改用另一账户。
+- 优化(options): 系统管理页明确显示“旧密钥兼容中”与“未配置可用密钥”，不展示密钥、路径或指纹。
+- 测试(backend): 覆盖旧变量回退、槽位优先、五语言 Provider 动态切换、401 不重试及管理员安全状态响应；Options 覆盖兼容和未配置状态。
+- 文档(config): 更新双密钥迁移、旧变量回退优先级与 PM2 配置说明。
+
 ## 2026-07-17
 
 - 发布(zip): 重新生成 `annotation-script-center-v1.1.0.zip`，固化当前五脚本、服务器双 DashScope 密钥切换与 Options 密钥控件；对应 Git tag 为 `v1.1.0`。

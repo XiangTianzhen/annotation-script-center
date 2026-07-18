@@ -29,10 +29,23 @@ function getSlotDefinition(slotId) {
   return KEY_SLOT_DEFINITIONS.find((slot) => slot.id === normalizedSlotId) || null;
 }
 
+function getDashscopeCredentialAuthFailureMessage(context) {
+  const source = normalizeText(context?.apiKeySource || context?.source);
+  const slot = getSlotDefinition(context?.activeSlotId);
+  if (source === "slot" && slot) {
+    return "当前" + slot.label + "鉴权失败，请在系统管理中检查对应密钥。";
+  }
+  if (source === "legacy") {
+    return "当前旧密钥兼容配置鉴权失败，请迁移或检查旧配置。";
+  }
+  return "当前 AI 密钥未配置，请在系统管理中配置密钥一或密钥二。";
+}
+
 function createDashscopeKeySlotStore(options) {
   const config = options && typeof options === "object" ? options : {};
   const secretsDir = path.resolve(config.secretsDir || DEFAULT_SECRETS_DIR);
   const activeStatePath = path.join(secretsDir, ACTIVE_STATE_FILE_NAME);
+  const hasLegacyApiKeyOverride = Object.prototype.hasOwnProperty.call(config, "legacyApiKey");
 
   function getSlotPath(slot) {
     return path.join(secretsDir, slot.fileName);
@@ -65,6 +78,11 @@ function createDashscopeKeySlotStore(options) {
         apiKey: "",
       };
     }
+  }
+
+  function readLegacyApiKey() {
+    const rawValue = hasLegacyApiKeyOverride ? config.legacyApiKey : process.env.DASHSCOPE_API_KEY;
+    return normalizeText(rawValue);
   }
 
   function readActiveSlotId() {
@@ -107,36 +125,64 @@ function createDashscopeKeySlotStore(options) {
     }
   }
 
-  function getSummary() {
+  function getActiveKeyResolution() {
     const activeSlotId = readActiveSlotId();
+    const slotKeys = KEY_SLOT_DEFINITIONS.map((slot) => readSlot(slot));
+    const activeKey = slotKeys.find((key) => key.id === activeSlotId);
+    if (activeKey?.configured) {
+      return {
+        activeSlotId,
+        apiKey: activeKey.apiKey,
+        source: "slot",
+      };
+    }
+    if (!slotKeys.some((key) => key.configured)) {
+      const legacyApiKey = readLegacyApiKey();
+      if (legacyApiKey) {
+        return {
+          activeSlotId,
+          apiKey: legacyApiKey,
+          source: "legacy",
+        };
+      }
+    }
     return {
       activeSlotId,
+      apiKey: "",
+      source: "none",
+    };
+  }
+
+  function getSummary() {
+    const resolution = getActiveKeyResolution();
+    return {
+      activeKeySource: resolution.source,
+      activeSlotId: resolution.activeSlotId,
       slots: KEY_SLOT_DEFINITIONS.map((slot) => {
         const key = readSlot(slot);
         return {
           id: slot.id,
           label: slot.label,
           configured: key.configured,
-          active: slot.id === activeSlotId,
+          active: slot.id === resolution.activeSlotId,
         };
       }),
     };
   }
 
   function getActiveKey() {
-    const activeSlotId = readActiveSlotId();
-    const slot = getSlotDefinition(activeSlotId);
-    const key = readSlot(slot);
-    if (!key.configured) {
+    const resolution = getActiveKeyResolution();
+    if (!resolution.apiKey) {
       throw createSlotError(
         "dashscope-key-slot-not-configured",
-        "当前服务器密钥槽位未配置。",
+        "当前服务器未配置可用的 AI 密钥。",
         503
       );
     }
     return {
-      slotId: slot.id,
-      apiKey: key.apiKey,
+      slotId: resolution.activeSlotId,
+      apiKey: resolution.apiKey,
+      source: resolution.source,
     };
   }
 
@@ -160,6 +206,7 @@ function createDashscopeKeySlotStore(options) {
   return {
     activeStatePath,
     getActiveKey,
+    getActiveKeyResolution,
     getSummary,
     secretsDir,
     setActiveSlot,
@@ -179,6 +226,10 @@ function getActiveDashscopeApiKey() {
   }
 }
 
+function getActiveDashscopeKeyResolution() {
+  return defaultStore.getActiveKeyResolution();
+}
+
 module.exports = {
   ACTIVE_STATE_FILE_NAME,
   DEFAULT_ACTIVE_SLOT_ID,
@@ -186,4 +237,6 @@ module.exports = {
   KEY_SLOT_IDS,
   createDashscopeKeySlotStore,
   getActiveDashscopeApiKey,
+  getActiveDashscopeKeyResolution,
+  getDashscopeCredentialAuthFailureMessage,
 };

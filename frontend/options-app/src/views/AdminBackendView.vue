@@ -63,6 +63,25 @@ const selectedAiKeySlot = computed(() => aiKeySlotChoices.value.find(
   (slot) => slot.id === selectedAiKeySlotId.value
 ));
 const activeAiKeySlotName = computed(() => AI_KEY_SLOT_NAMES[activeAiKeySlotId.value] || "未确认");
+const activeAiKeySource = computed(() => String(adminStore.aiKeySlots?.activeKeySource || "slot").trim());
+const activeAiKeyStatus = computed(() => {
+  if (activeAiKeySource.value === "legacy") {
+    return "旧密钥兼容中";
+  }
+  if (activeAiKeySource.value === "none") {
+    return "未配置可用密钥";
+  }
+  return activeAiKeySlotName.value;
+});
+const aiKeyMigrationHint = computed(() => {
+  if (activeAiKeySource.value === "legacy") {
+    return "请迁移到密钥一或密钥二后再切换。";
+  }
+  if (activeAiKeySource.value === "none") {
+    return "请配置密钥一或密钥二后再发起 AI 请求。";
+  }
+  return "";
+});
 const canSaveAiKeySlot = computed(() => {
   const selectedSlot = selectedAiKeySlot.value;
   return selectedSlot?.configured === true
@@ -213,7 +232,8 @@ onMounted(function () {
                         {{ slot.name }}
                       </button>
                     </div>
-                    <span class="admin-ai-key-current">当前使用：{{ activeAiKeySlotName }}</span>
+                    <span class="admin-ai-key-current">当前使用：{{ activeAiKeyStatus }}</span>
+                    <span v-if="aiKeyMigrationHint" class="admin-ai-key-current">{{ aiKeyMigrationHint }}</span>
                   </div>
                   <button
                     type="button"

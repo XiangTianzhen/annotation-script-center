@@ -13,6 +13,9 @@ const {
   createPythonRuntimeError,
 } = require("../errors");
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
+const {
+  getDashscopeCredentialAuthFailureMessage,
+} = require("../../dashscope-key-slots");
 
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: false });
 
@@ -105,6 +108,9 @@ function normalizeFailureMessage(code, providerStatus, message) {
   }
   if (code === "fun-asr-mojibake-text") {
     return "Fun-ASR 返回文本疑似编码异常，请检查 Python stdout UTF-8 配置或结果文件编码。";
+  }
+  if (providerStatus === 401) {
+    return getDashscopeCredentialAuthFailureMessage(getFunAsrPythonConfig());
   }
   if (providerStatus === 403 || code === "fun-asr-forbidden") {
     return "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。可先切换到 qwen3.5-omni-flash 或 qwen3.5-omni-plus 恢复使用。";
@@ -281,7 +287,11 @@ async function requestFunAsrRecognition(input, options) {
     };
   }
   if (!config.hasApiKey) {
-    throw createPythonRuntimeError("缺少 DASHSCOPE_API_KEY。", "missing-api-key", 503);
+    throw createPythonRuntimeError(
+      getDashscopeCredentialAuthFailureMessage(config),
+      "missing-api-key",
+      503
+    );
   }
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
   const result = await runPythonClient(

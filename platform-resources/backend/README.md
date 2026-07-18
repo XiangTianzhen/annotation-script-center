@@ -75,7 +75,7 @@ http://127.0.0.1:3333
 - `ASC_ADMIN_PASSWORD_SHA256`
 - `ASC_ADMIN_JWT_SECRET`
 
-AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashscope-key-2.env` 中的独立 `DASHSCOPE_API_KEY`，当前槽位由 `config/secrets/dashscope-active-key.json` 决定。管理员接口只返回槽位状态，不返回密钥、路径或指纹；旧 `config/env/ai.env` 不再作为密钥回退。环境加载顺序和迁移规则见 [config/README.md](../../config/README.md)。
+AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashscope-key-2.env` 中的独立 `DASHSCOPE_API_KEY`，当前槽位由 `config/secrets/dashscope-active-key.json` 决定。仅当两个槽位均未配置时才临时回退旧 `DASHSCOPE_API_KEY`；任一槽位存在后，后续请求只使用当前槽位，401 不会自动切换另一账户。管理员接口只返回槽位状态及来源，不返回密钥、路径或指纹。环境加载顺序和迁移规则见 [config/README.md](../../config/README.md)。
 
 ## 五脚本路由
 
