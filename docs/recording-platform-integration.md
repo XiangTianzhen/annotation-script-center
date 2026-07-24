@@ -55,7 +55,7 @@ Idempotency-Key: <server-derived-stable-key>
 
 - 扩展本地只保留最近 500 条映射：`recordingTaskId`、`sourceItemId`、`recordingItemId`、`itemCode`、`syncToken`、`updatedAt`。
 - 映射不保存或展示 API Key、登录态、参考全文、原始签名媒体 URL；Options 不展示映射。
-- 每次进入一条存在匹配映射的题目时只自动查询一次，不轮询；A→B→A 会在再次进入 A 时重新查询，连续停留在同一题不会重复查询。切题前发出的慢响应会被代次与 sourceItemId 双重校验丢弃。手动刷新请求体只有同步凭证：
+- 每次进入题目时，扩展会在任何本地映射查询之前登记 sourceItemId 与进入代次；存在匹配映射时只自动查询一次，不轮询。A→B→A 会在再次进入 A 时重新查询，连续停留在同一题不会重复查询。旧 A 的慢映射、结果或错误会被代次与 sourceItemId 双重校验丢弃，也不会把当前代次切回 A。手动刷新请求体只有同步凭证：
 
 ```text
 POST /api/bytedance-aidp/taizhou-helper/recording-items/result
@@ -64,8 +64,10 @@ Content-Type: application/json
 {"syncToken":"<opaque-token>"}
 ```
 
-- 辅助面板只读显示 sourceItemId、itemCode 和任务状态。`COMPLETED` 的文本原样显示；结果音频只接受台州话脚本中心 API 下的预期相对路径，再用当前脚本中心基址构造绝对地址并使用 `<audio controls>`；绝对 URL 或其他路径一律忽略。
+- 辅助面板只读显示 sourceItemId、itemCode 和任务状态。`COMPLETED` 的文本原样显示；结果音频只接受 `/api/bytedance-aidp/taizhou-helper/recording-items/audio/<payload>.<signature>`，其中两段均须为非空 base64url 字符。通过后再用当前脚本中心基址构造绝对地址并使用 `<audio controls>`；绝对 URL、单段或多段 token、查询参数、片段及其他路径一律忽略。
 - 首期不展示结果视频，结果文本和音频不得写入 AIDP textarea、画段、暂存或提交接口。
+
+人工导入启动后固定使用当时的内部 taskId、sourceItemId 和 pending key；即使请求完成前页面已从 A 切到 B，也只保存 A 的安全映射，不在 B 页面渲染 A 的导入结果或状态。
 
 ## 服务器私密配置
 

@@ -401,7 +401,7 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
             text: "录音完成文本",
             audioAvailable: true,
             audioUrl:
-              "/api/bytedance-aidp/taizhou-helper/recording-items/audio/signed-token",
+              "/api/bytedance-aidp/taizhou-helper/recording-items/audio/eyJ0YXNrSWQiOiJ0YXNrLTEifQ.dGVzdC1zaWduYXR1cmU",
           },
         });
       }
@@ -441,7 +441,7 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
   assert.equal(manual.text, "录音完成文本");
   assert.equal(
     manual.audioUrl,
-    "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items/audio/signed-token"
+    "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items/audio/eyJ0YXNrSWQiOiJ0YXNrLTEifQ.dGVzdC1zaWduYXR1cmU"
   );
   const resultCalls = harness.calls.filter((call) =>
     call.url.endsWith("/recording-items/result")
@@ -519,6 +519,65 @@ test("Taizhou recording integration retries media after deterministic 4xx but re
   assert.equal(uploads.length, 2);
 });
 
+test("Taizhou recording import keeps the captured A source when the current item switches to B", async function () {
+  const storage = createStorageHarness();
+  let releaseCreate;
+  let markCreateStarted;
+  const createGate = new Promise((resolve) => {
+    releaseCreate = resolve;
+  });
+  const createStarted = new Promise((resolve) => {
+    markCreateStarted = resolve;
+  });
+  const harness = createRuntime({
+    storage,
+    context: {
+      ok: true,
+      sourceItemId: "source-a",
+      referenceText: "A 的完整题目",
+      audioUrl: "",
+      videoUrl: "",
+    },
+    fetch: async function (call) {
+      if (!call.url.endsWith("/recording-items")) {
+        throw new Error("unexpected call");
+      }
+      markCreateStarted();
+      await createGate;
+      return response({
+        status: 201,
+        json: {
+          syncToken: "sync-a",
+          item: {
+            itemId: "recording-a",
+            itemCode: "T000001-0000003",
+          },
+        },
+      });
+    },
+  });
+
+  const importA = harness.runtime.importCurrentItem();
+  await createStarted;
+  assert.equal(
+    await harness.runtime.autoRefreshForCurrentItem("source-b"),
+    null
+  );
+  releaseCreate();
+  const result = await importA;
+
+  assert.equal(result.ok, true);
+  assert.equal(result.current, false);
+  assert.equal(result.mapping.sourceItemId, "source-a");
+  assert.equal(result.mapping.recordingTaskId, "internal-task-id");
+  assert.equal(storage.mappings.length, 1);
+  assert.equal(storage.mappings[0].sourceItemId, "source-a");
+  const createCall = harness.calls.find((call) =>
+    call.url.endsWith("/recording-items")
+  );
+  assert.equal(JSON.parse(createCall.body).sourceItemId, "source-a");
+});
+
 test("Taizhou recording integration drops stale A result and queries again after A-B-A entry", async function () {
   const storage = createStorageHarness([
     {
@@ -531,8 +590,12 @@ test("Taizhou recording integration drops stale A result and queries again after
     },
   ]);
   let releaseFirstA;
+  let markFirstAStarted;
   const firstAGate = new Promise((resolve) => {
     releaseFirstA = resolve;
+  });
+  const firstAStarted = new Promise((resolve) => {
+    markFirstAStarted = resolve;
   });
   let resultCount = 0;
   const harness = createRuntime({
@@ -543,6 +606,7 @@ test("Taizhou recording integration drops stale A result and queries again after
       }
       resultCount += 1;
       if (resultCount === 1) {
+        markFirstAStarted();
         await firstAGate;
       }
       return response({
@@ -557,6 +621,7 @@ test("Taizhou recording integration drops stale A result and queries again after
   });
 
   const slowA = harness.runtime.autoRefreshForCurrentItem("source-a");
+  await firstAStarted;
   assert.equal(
     await harness.runtime.autoRefreshForCurrentItem("source-b"),
     null
@@ -574,7 +639,52 @@ test("Taizhou recording integration drops stale A result and queries again after
   assert.equal(resultCount, 2);
 });
 
-test("Taizhou recording integration rejects absolute and unexpected result audio URLs", async function () {
+test("Taizhou recording integration suppresses a stale A result error after switching to B", async function () {
+  const storage = createStorageHarness([
+    {
+      recordingTaskId: "internal-task-id",
+      sourceItemId: "source-a",
+      recordingItemId: "recording-a",
+      itemCode: "T000001-0000001",
+      syncToken: "sync-a",
+      updatedAt: 1,
+    },
+  ]);
+  let releaseA;
+  let markAStarted;
+  const aGate = new Promise((resolve) => {
+    releaseA = resolve;
+  });
+  const aStarted = new Promise((resolve) => {
+    markAStarted = resolve;
+  });
+  const harness = createRuntime({
+    storage,
+    fetch: async function (call) {
+      if (!call.url.endsWith("/recording-items/result")) {
+        throw new Error("unexpected call");
+      }
+      markAStarted();
+      await aGate;
+      return response({
+        ok: false,
+        status: 503,
+        json: { code: "UPSTREAM_UNAVAILABLE" },
+      });
+    },
+  });
+
+  const slowA = harness.runtime.autoRefreshForCurrentItem("source-a");
+  await aStarted;
+  assert.equal(
+    await harness.runtime.autoRefreshForCurrentItem("source-b"),
+    null
+  );
+  releaseA();
+  assert.equal(await slowA, null);
+});
+
+test("Taizhou recording integration only accepts a two-segment base64url result audio token", async function () {
   const storage = createStorageHarness([
     {
       recordingTaskId: "internal-task-id",
@@ -586,7 +696,12 @@ test("Taizhou recording integration rejects absolute and unexpected result audio
     },
   ]);
   const audioUrls = [
+    "/api/bytedance-aidp/taizhou-helper/recording-items/audio/eyJ0YXNrSWQiOiJ0YXNrLTEifQ.dGVzdC1zaWduYXR1cmU",
     "https://evil.example.test/audio",
+    "/api/bytedance-aidp/taizhou-helper/recording-items/audio/single-segment",
+    "/api/bytedance-aidp/taizhou-helper/recording-items/audio/one.two.three",
+    "/api/bytedance-aidp/taizhou-helper/recording-items/audio/one.two?download=1",
+    "/api/bytedance-aidp/taizhou-helper/recording-items/audio/one.two#fragment",
     "/api/public/recording-media/unexpected",
   ];
   let callIndex = 0;
@@ -608,9 +723,18 @@ test("Taizhou recording integration rejects absolute and unexpected result audio
     },
   });
 
-  const automatic =
+  const valid =
     await harness.runtime.autoRefreshForCurrentItem("source-item-1");
-  const manual = await harness.runtime.refreshCurrentResult();
-  assert.equal("audioUrl" in automatic, false);
-  assert.equal("audioUrl" in manual, false);
+  const rejected = [];
+  for (let index = 1; index < audioUrls.length; index += 1) {
+    rejected.push(await harness.runtime.refreshCurrentResult());
+  }
+  assert.equal(
+    valid.audioUrl,
+    "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items/audio/eyJ0YXNrSWQiOiJ0YXNrLTEifQ.dGVzdC1zaWduYXR1cmU"
+  );
+  assert.equal(
+    rejected.every((result) => !("audioUrl" in result)),
+    true
+  );
 });

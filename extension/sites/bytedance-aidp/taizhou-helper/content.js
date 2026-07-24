@@ -4142,32 +4142,7 @@
           });
         });
         const sourceItemId = normalizeText(context?.itemId);
-        if (helperRuntime.recording && sourceItemId) {
-          const mapping = await helperRuntime.recording.findMapping(sourceItemId);
-          if (mapping) {
-            helperRuntime.ui.renderRecordingResult?.({
-              sourceItemId: mapping.sourceItemId,
-              itemCode: mapping.itemCode,
-              status: "",
-            });
-          } else {
-            helperRuntime.ui.renderRecordingResult?.({
-              sourceItemId: sourceItemId,
-            });
-          }
-          try {
-            const recordingResult =
-              await helperRuntime.recording.autoRefreshForCurrentItem(sourceItemId);
-            if (recordingResult) {
-              helperRuntime.ui.renderRecordingResult?.(recordingResult);
-            }
-          } catch (_recordingError) {
-            helperRuntime.ui.setStatus(
-              "录音结果自动刷新失败，可使用录音平台结果区的刷新按钮重试。",
-              "warning"
-            );
-          }
-        }
+        await syncRecordingResultForContext(sourceItemId);
         syncPlaybackSensitiveDecorations(
           document,
           Object.assign({}, helperRuntime.config || {}, {
@@ -4443,6 +4418,56 @@
     scheduleRuntimeReload(helperRuntime);
   }
 
+  async function syncRecordingResultForContext(sourceItemId) {
+    const runtime = helperRuntime;
+    const recording = runtime?.recording;
+    const normalizedSourceItemId = normalizeText(sourceItemId);
+    if (
+      !recording ||
+      !normalizedSourceItemId ||
+      typeof recording.beginResultEntry !== "function" ||
+      typeof recording.isCurrentResultEntry !== "function"
+    ) {
+      return;
+    }
+    const entry = recording.beginResultEntry(normalizedSourceItemId);
+    const isCurrent = function () {
+      return (
+        helperRuntime === runtime &&
+        recording.isCurrentResultEntry(entry)
+      );
+    };
+    try {
+      const mapping = await recording.findMapping(normalizedSourceItemId);
+      if (!isCurrent()) {
+        return;
+      }
+      if (mapping) {
+        runtime.ui.renderRecordingResult?.({
+          sourceItemId: mapping.sourceItemId,
+          itemCode: mapping.itemCode,
+          status: "",
+        });
+      } else {
+        runtime.ui.renderRecordingResult?.({
+          sourceItemId: normalizedSourceItemId,
+        });
+      }
+      const recordingResult =
+        await recording.autoRefreshForEntry(entry, mapping);
+      if (recordingResult && isCurrent()) {
+        runtime.ui.renderRecordingResult?.(recordingResult);
+      }
+    } catch (_recordingError) {
+      if (isCurrent()) {
+        runtime.ui.setStatus(
+          "录音结果自动刷新失败，可使用录音平台结果区的刷新按钮重试。",
+          "warning"
+        );
+      }
+    }
+  }
+
   async function handleRecordingImportAction() {
     if (!helperRuntime?.recording || helperRuntime.recordingImportBusy === true) {
       return;
@@ -4454,6 +4479,9 @@
     }
     try {
       const result = await helperRuntime.recording.importCurrentItem();
+      if (result?.current === false) {
+        return;
+      }
       helperRuntime.ui?.setStatus?.(
         result?.message || "导入录音任务失败，请稍后重试。",
         result?.ok ? "success" : "error"
@@ -4985,6 +5013,7 @@
       handleRowRecommendAction: handleRowRecommendAction,
       handleRecordingImportAction: handleRecordingImportAction,
       handleRecordingRefreshAction: handleRecordingRefreshAction,
+      syncRecordingResultForContext: syncRecordingResultForContext,
       createShortcutActions: createShortcutActions,
       createBatchRecommendController: createBatchRecommendController,
       fillEmptyLanguageKinds: fillEmptyLanguageKinds,

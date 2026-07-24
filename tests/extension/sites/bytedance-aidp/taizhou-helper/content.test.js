@@ -1975,6 +1975,137 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
+test("ByteDance AIDP content does not render an A import after the current item switches to B", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const results = [];
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async importCurrentItem() {
+        return {
+          ok: true,
+          current: false,
+          message: "已导入录音任务：T000001-0000003",
+          mapping: {
+            sourceItemId: "source-a",
+            itemCode: "T000001-0000003",
+          },
+        };
+      },
+    },
+    recordingImportBusy: false,
+    config: {},
+    ui: {
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+      renderRecordingResult(result) {
+        results.push(result);
+      },
+    },
+  });
+
+  await contentModule.__testOnly.handleRecordingImportAction();
+
+  assert.deepEqual(results, []);
+  assert.deepEqual(statuses, [
+    {
+      message: "正在导入当前完整题目到录音平台...",
+      type: "",
+    },
+  ]);
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
+test("ByteDance AIDP content drops a slow A mapping preview after B begins", async function () {
+  const contentModule = loadContentModule();
+  const rendered = [];
+  const statuses = [];
+  let generation = 0;
+  let currentSourceItemId = "";
+  let releaseA;
+  let markAStarted;
+  const aGate = new Promise((resolve) => {
+    releaseA = resolve;
+  });
+  const aStarted = new Promise((resolve) => {
+    markAStarted = resolve;
+  });
+  const recording = {
+    beginResultEntry(sourceItemId) {
+      currentSourceItemId = sourceItemId;
+      generation += 1;
+      return { sourceItemId, generation };
+    },
+    isCurrentResultEntry(entry) {
+      return (
+        entry.sourceItemId === currentSourceItemId &&
+        entry.generation === generation
+      );
+    },
+    async findMapping(sourceItemId) {
+      if (sourceItemId === "source-a") {
+        markAStarted();
+        await aGate;
+      }
+      return {
+        sourceItemId,
+        itemCode:
+          sourceItemId === "source-a"
+            ? "T000001-0000001"
+            : "T000001-0000002",
+        syncToken: "sync-" + sourceItemId,
+      };
+    },
+    async autoRefreshForEntry(entry) {
+      return {
+        sourceItemId: entry.sourceItemId,
+        itemCode:
+          entry.sourceItemId === "source-a"
+            ? "T000001-0000001"
+            : "T000001-0000002",
+        status: "COMPLETED",
+        text: entry.sourceItemId,
+        audioAvailable: false,
+      };
+    },
+  };
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording,
+    ui: {
+      renderRecordingResult(result) {
+        rendered.push(result);
+      },
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+    },
+  });
+
+  const slowA =
+    contentModule.__testOnly.syncRecordingResultForContext("source-a");
+  await aStarted;
+  const fastB =
+    contentModule.__testOnly.syncRecordingResultForContext("source-b");
+  await fastB;
+  releaseA();
+  await slowA;
+
+  assert.deepEqual(
+    rendered.map((result) => ({
+      sourceItemId: result.sourceItemId,
+      status: result.status || "",
+    })),
+    [
+      { sourceItemId: "source-b", status: "" },
+      { sourceItemId: "source-b", status: "COMPLETED" },
+    ]
+  );
+  assert.equal(currentSourceItemId, "source-b");
+  assert.deepEqual(statuses, []);
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
 test("ByteDance AIDP content ignores a stale manual recording result after item switch", async function () {
   const contentModule = loadContentModule();
   const rendered = [];

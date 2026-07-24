@@ -17,6 +17,9 @@
 - 修复(taizhou-recording): 请求指纹改用 trim 后文字与媒体内容 SHA-256，同字节重传可恢复映射并清理重复上传，不同内容保持 409 冲突。
 - 修复(taizhou-recording): 浏览器流式累计媒体实际字节并在超过 100MB 时取消；确定性 4xx 丢弃 pending，网络、5xx 与可重试状态保留原请求。
 - 修复(taizhou-recording): 结果查询按题目进入代次隔离慢响应，A→B→A 重新查询；结果音频只接受脚本中心预期相对 API 路径。
+- 修复(taizhou-recording): 题目代次在映射查询前登记并集中 guard，旧题慢映射、结果和错误均不得覆盖新题或切回旧代次。
+- 修复(taizhou-recording): 导入固定使用启动时的 taskId、sourceItemId 与 pending key；切题后只保存原题映射，不在新题回显原题状态。
+- 安全(taizhou-recording): 结果音频 token 严格限定为预期相对路径下的两段非空 base64url，拒绝绝对 URL、额外段、查询和片段。
 - 边界(integration): 当前运行时接入仅限 ByteDance AIDP 台州话完整题目人工导入与只读结果；其他平台仍需逐一显式确认导入粒度与字段来源。
 
 ## 2026-07-18

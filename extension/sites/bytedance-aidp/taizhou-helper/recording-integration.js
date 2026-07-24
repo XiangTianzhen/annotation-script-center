@@ -160,7 +160,7 @@
       return recordingTaskId + "\n" + normalizeText(sourceItemId);
     }
 
-    function enterResultSource(sourceItemId) {
+    function beginResultEntry(sourceItemId) {
       const normalized = normalizeText(sourceItemId);
       if (normalized !== lastSourceItemId) {
         lastSourceItemId = normalized;
@@ -173,7 +173,7 @@
       };
     }
 
-    function isCurrentResultRequest(expected) {
+    function isCurrentResultEntry(expected) {
       return (
         expected?.sourceItemId === lastSourceItemId &&
         expected?.generation === resultGeneration
@@ -286,11 +286,19 @@
             "当前完整题目数据尚未就绪，请稍后重试。",
         };
       }
-      enterResultSource(context.sourceItemId);
-      const existing = await findMapping(lastSourceItemId);
+      const importTaskId = recordingTaskId;
+      const importSourceItemId = normalizeText(context.sourceItemId);
+      const importEntry = beginResultEntry(importSourceItemId);
+      const importKey = mappingKey(importSourceItemId);
+      const importContext = {
+        ...context,
+        sourceItemId: importSourceItemId,
+      };
+      const existing = await findMapping(importSourceItemId);
       if (existing) {
         return {
           ok: true,
+          current: isCurrentResultEntry(importEntry),
           replayed: true,
           message: "当前完整题目已导入录音任务：" + existing.itemCode,
           mapping: existing,
@@ -298,7 +306,7 @@
       }
 
       try {
-        const createBody = await prepareCreateBody(context);
+        const createBody = await prepareCreateBody(importContext);
         const response = await fetchImpl(buildBackendUrl(ITEM_CREATE_PATH), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -317,13 +325,13 @@
             Number(response.status) < 500 &&
             !isRetryableCreateFailure(response, body)
           ) {
-            pendingCreates.delete(mappingKey(lastSourceItemId));
+            pendingCreates.delete(importKey);
           }
           throw new Error("创建录音任务数据失败，请稍后重试。");
         }
         const mapping = {
-          recordingTaskId: recordingTaskId,
-          sourceItemId: lastSourceItemId,
+          recordingTaskId: importTaskId,
+          sourceItemId: importSourceItemId,
           recordingItemId: recordingItemId,
           itemCode: itemCode,
           syncToken: syncToken,
@@ -336,9 +344,10 @@
           throw new Error("录音同步映射保存失败，请重新加载扩展后重试。");
         }
         await storage.saveTaizhouRecordingSyncMapping(mapping);
-        pendingCreates.delete(mappingKey(lastSourceItemId));
+        pendingCreates.delete(importKey);
         return {
           ok: true,
+          current: isCurrentResultEntry(importEntry),
           replayed: response.status === 200,
           message: "已导入录音任务：" + itemCode,
           mapping: mapping,
@@ -346,6 +355,7 @@
       } catch (error) {
         return {
           ok: false,
+          current: isCurrentResultEntry(importEntry),
           message:
             normalizeText(error?.message) ||
             "导入录音任务失败，请稍后重试。",
@@ -363,7 +373,7 @@
     }
 
     function isAllowedResultAudioPath(value) {
-      return /^\/api\/bytedance-aidp\/taizhou-helper\/recording-items\/audio\/[A-Za-z0-9_-]+$/.test(
+      return /^\/api\/bytedance-aidp\/taizhou-helper\/recording-items\/audio\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(
         normalizeText(value)
       );
     }
@@ -372,17 +382,26 @@
       if (!mapping?.syncToken) {
         throw new Error("当前题目还没有可用的录音同步映射。");
       }
-      const response = await fetchImpl(buildBackendUrl(RESULT_PATH), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ syncToken: mapping.syncToken }),
-      });
-      const body = await readJsonResponse(response);
+      let response;
+      let body;
+      try {
+        response = await fetchImpl(buildBackendUrl(RESULT_PATH), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ syncToken: mapping.syncToken }),
+        });
+        body = await readJsonResponse(response);
+      } catch (error) {
+        if (expected && !isCurrentResultEntry(expected)) {
+          return null;
+        }
+        throw error;
+      }
+      if (expected && !isCurrentResultEntry(expected)) {
+        return null;
+      }
       if (!response?.ok) {
         throw new Error("刷新录音结果失败，请稍后重试。");
-      }
-      if (expected && !isCurrentResultRequest(expected)) {
-        return null;
       }
       const result = {
         sourceItemId: mapping.sourceItemId,
@@ -402,29 +421,42 @@
     async function refreshCurrentResult() {
       if (!lastSourceItemId && dataApi?.getRecordingImportContext) {
         const context = await dataApi.getRecordingImportContext();
-        if (context?.ok) enterResultSource(context.sourceItemId);
+        if (context?.ok) beginResultEntry(context.sourceItemId);
       }
       const expected = {
         sourceItemId: lastSourceItemId,
         generation: resultGeneration,
       };
-      const mapping = await findMapping(lastSourceItemId);
+      const mapping = await findMapping(expected.sourceItemId);
+      if (!isCurrentResultEntry(expected)) {
+        return null;
+      }
       return refreshMapping(mapping, expected);
     }
 
-    async function autoRefreshForCurrentItem(sourceItemId) {
-      const expected = enterResultSource(sourceItemId);
+    async function autoRefreshForEntry(expected, knownMapping) {
       if (
         !recordingTaskId ||
-        !lastSourceItemId ||
+        !expected?.sourceItemId ||
+        !isCurrentResultEntry(expected) ||
         autoRefreshedGeneration === expected.generation
       ) {
         return null;
       }
-      const mapping = await findMapping(lastSourceItemId);
+      const mapping =
+        arguments.length >= 2
+          ? knownMapping
+          : await findMapping(expected.sourceItemId);
+      if (!isCurrentResultEntry(expected)) {
+        return null;
+      }
       if (!mapping) return null;
       autoRefreshedGeneration = expected.generation;
       return refreshMapping(mapping, expected);
+    }
+
+    async function autoRefreshForCurrentItem(sourceItemId) {
+      return autoRefreshForEntry(beginResultEntry(sourceItemId));
     }
 
     return {
@@ -432,8 +464,11 @@
         return recordingTaskId;
       },
       importCurrentItem,
+      beginResultEntry,
+      isCurrentResultEntry,
       findMapping,
       refreshCurrentResult,
+      autoRefreshForEntry,
       autoRefreshForCurrentItem,
     };
   }
