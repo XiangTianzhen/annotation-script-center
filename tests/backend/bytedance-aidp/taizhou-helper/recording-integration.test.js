@@ -238,6 +238,31 @@ test("missing or invalid private configuration fails safely without exposing val
   assert.doesNotMatch(JSON.stringify(body), /test-server-key|token-secret|config\.json/);
 });
 
+test("recording integration docs and template use the validated public media and token fields", function () {
+  const docs = fs.readFileSync(
+    resolveRepo("docs", "recording-platform-integration.md"),
+    "utf8"
+  );
+  const template = JSON.parse(
+    fs.readFileSync(
+      resolveRepo(
+        "config",
+        "secrets",
+        "recording-platform-integration.json.example"
+      ),
+      "utf8"
+    )
+  );
+
+  assert.match(docs, /publicMediaBaseUrl/);
+  assert.doesNotMatch(docs, /"publicBaseUrl"/);
+  assert.match(docs, /tokenSecret/);
+  assert.match(docs, /tokenSecret[^。\n]*32|32[^。\n]*tokenSecret/i);
+  assert.equal(typeof template.publicMediaBaseUrl, "string");
+  assert.equal(Object.hasOwn(template, "publicBaseUrl"), false);
+  assert.equal(typeof template.tokenSecret, "string");
+});
+
 test("upload enforces allowlist, kind, MIME/magic, raw stream limit and CORS header", async (t) => {
   const fixture = await createFixture(t, { maxUploadBytes: 24 });
 
@@ -307,6 +332,10 @@ test("validated uploads land atomically with opaque IDs and expire after one hou
   assert.equal(response.status, 201);
   assert.match(body.uploadId, /^[A-Za-z0-9_-]{24,}$/);
   assert.equal(Object.hasOwn(body, "path"), false);
+  assert.equal(
+    fixture.integration.getSnapshot().uploads[body.uploadId].contentSha256,
+    crypto.createHash("sha256").update(WAV_BYTES).digest("hex")
+  );
   assert.deepEqual(
     fs.readdirSync(path.join(fixture.runtimeDir, "temp")).filter((name) =>
       name.endsWith(".uploading")
@@ -683,6 +712,152 @@ test("concurrent identical source creation shares one upstream flight", async (t
   assert.equal(secondResponse.status, 201);
   assert.equal(upstreamCreateCalls, 1);
   assert.deepEqual(await readJson(firstResponse), await readJson(secondResponse));
+});
+
+test("fresh uploads with identical bytes share a pending source flight and clean the duplicate", async (t) => {
+  let upstreamCreateCalls = 0;
+  let releaseUpstream;
+  const upstreamGate = new Promise((resolve) => {
+    releaseUpstream = resolve;
+  });
+  const fixture = await createFixture(t, {
+    fetchImpl: async () => {
+      upstreamCreateCalls += 1;
+      await upstreamGate;
+      return jsonResponse(201, {
+        itemId: "recording-pending-digest",
+        itemCode: "T000001-0000101",
+        status: "AVAILABLE",
+      });
+    },
+  });
+  const endpoint = `${fixture.baseUrl}/api/bytedance-aidp/taizhou-helper/recording-items`;
+  const firstUpload = await readJson(
+    await uploadMedia(
+      fixture.baseUrl,
+      "audio",
+      "task-allowed",
+      WAV_BYTES,
+      "audio/wav"
+    )
+  );
+  const create = (uploadId) =>
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recordingTaskId: "task-allowed",
+        sourceItemId: "source-pending-digest",
+        referenceText: " 同一文字 ",
+        audioUploadId: uploadId,
+      }),
+    });
+  const first = create(firstUpload.uploadId);
+  assert.equal(await waitFor(() => upstreamCreateCalls === 1, 200), true);
+
+  const secondUpload = await readJson(
+    await uploadMedia(
+      fixture.baseUrl,
+      "audio",
+      "task-allowed",
+      WAV_BYTES,
+      "audio/wav"
+    )
+  );
+  const second = create(secondUpload.uploadId);
+  assert.equal(
+    await waitFor(
+      () =>
+        fixture.integration.getSnapshot().uploads[secondUpload.uploadId] ===
+        undefined,
+      200
+    ),
+    true
+  );
+  releaseUpstream();
+  const [firstResponse, secondResponse] = await Promise.all([first, second]);
+
+  assert.equal(firstResponse.status, 201);
+  assert.equal(secondResponse.status, 201);
+  assert.equal(upstreamCreateCalls, 1);
+  assert.equal(
+    fixture.integration.getSnapshot().uploads[secondUpload.uploadId],
+    undefined
+  );
+  assert.equal(
+    Object.keys(fixture.integration.getSnapshot().media).length,
+    1
+  );
+});
+
+test("same media bytes survive fresh upload retries and reload-style success replay", async (t) => {
+  let createAttempt = 0;
+  const idempotencyKeys = [];
+  const fixture = await createFixture(t, {
+    fetchImpl: async (_url, requestOptions) => {
+      createAttempt += 1;
+      idempotencyKeys.push(requestOptions.headers["Idempotency-Key"]);
+      if (createAttempt === 1) {
+        throw new Error("temporary network failure");
+      }
+      return jsonResponse(201, {
+        itemId: "recording-digest-retry",
+        itemCode: "T000001-0000102",
+        status: "AVAILABLE",
+      });
+    },
+  });
+  const endpoint = `${fixture.baseUrl}/api/bytedance-aidp/taizhou-helper/recording-items`;
+  async function uploadAndCreate(bytes) {
+    const upload = await readJson(
+      await uploadMedia(
+        fixture.baseUrl,
+        "audio",
+        "task-allowed",
+        bytes,
+        "audio/wav"
+      )
+    );
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recordingTaskId: "task-allowed",
+        sourceItemId: "source-digest-retry",
+        referenceText: "  同一参考文字  ",
+        audioUploadId: upload.uploadId,
+      }),
+    });
+    return { response, uploadId: upload.uploadId };
+  }
+
+  const retryable = await uploadAndCreate(WAV_BYTES);
+  assert.equal(retryable.response.status, 503);
+  const recovered = await uploadAndCreate(WAV_BYTES);
+  assert.equal(recovered.response.status, 201);
+  const replayed = await uploadAndCreate(WAV_BYTES);
+  assert.equal(replayed.response.status, 200);
+
+  const changedBytes = Buffer.concat([WAV_BYTES, Buffer.from([1])]);
+  const conflict = await uploadAndCreate(changedBytes);
+  const conflictBody = await readJson(conflict.response);
+  assert.equal(conflict.response.status, 409);
+  assert.equal(conflictBody.code, "SOURCE_ITEM_CONTENT_CONFLICT");
+  assert.equal(createAttempt, 2);
+  assert.equal(idempotencyKeys[0], idempotencyKeys[1]);
+  assert.deepEqual(
+    Object.keys(fixture.integration.getSnapshot().uploads),
+    []
+  );
+  assert.equal(
+    Object.keys(fixture.integration.getSnapshot().media).length,
+    1
+  );
+  const stateText = fs.readFileSync(
+    path.join(fixture.runtimeDir, "state.json"),
+    "utf8"
+  );
+  assert.doesNotMatch(stateText, /同一参考文字|https?:\/\//);
 });
 
 test("JSON upstream timeout covers create and result response bodies and clears flights", async (t) => {

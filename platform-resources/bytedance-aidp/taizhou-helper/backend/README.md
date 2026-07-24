@@ -30,7 +30,7 @@ GET  /api/bytedance-aidp/taizhou-helper/recording-items/audio/:token
 GET|HEAD /api/public/recording-media/:mediaId
 ```
 
-上传接口只接受 `audio` / `video` 安全 MIME 与匹配魔数，原始流最多 100MB、全局并发 2 个、完整读取默认最多 120 秒、未绑定临时文件一小时过期。超限、慢流或上传准备失败都会释放槽位；维护过程维护活动 staging 集合，不会清理正在写入的 `.uploading`，只回收超过读取超时与安全余量的非活动崩溃临时文件。创建接口只接受 `recordingTaskId`、`sourceItemId`、`referenceText`、`audioUploadId`、`videoUploadId`；任务必须在服务器 `allowedTaskIds` 中，上传必须属于同一任务且类型匹配。稳定幂等键由脚本命名空间、任务 ID 和来源条目 ID 计算；同源并发共享一个上游创建，请求指纹变化返回冲突；映射状态只保存指纹，不持久化参考全文或任何登录态。
+上传接口只接受 `audio` / `video` 安全 MIME 与匹配魔数，原始流最多 100MB、全局并发 2 个、完整读取默认最多 120 秒、未绑定临时文件一小时过期；上传流同时计算并保存内容 SHA-256。超限、慢流或上传准备失败都会释放槽位；维护过程维护活动 staging 集合，不会清理正在写入的 `.uploading`，只回收超过读取超时与安全余量的非活动崩溃临时文件。创建接口只接受 `recordingTaskId`、`sourceItemId`、`referenceText`、`audioUploadId`、`videoUploadId`；任务必须在服务器 `allowedTaskIds` 中，上传必须属于同一任务且类型匹配。稳定幂等键由脚本命名空间、任务 ID 和来源条目 ID 计算；请求指纹由 trim 后文字及媒体类型、内容 SHA-256 组成，不依赖临时 uploadId。相同字节的新上传可恢复进行中、可重试或已成功映射并清理重复临时文件，不同内容返回冲突；映射状态只保存指纹和媒体摘要，不持久化参考全文、原始 URL 或任何登录态。
 
 条目创建和结果查询的上游超时覆盖响应头与完整 JSON body，并对 body 执行 256KB 严格上限；超时或超限只返回固定脱敏错误，创建映射保留为可重试且会退出同源 single-flight。结果查询与短时音频代理每次重新核对当前 `allowedTaskIds`；移除任务后旧同步 token 和已签发播放 token 都不能继续访问。音频代理超时覆盖响应体流，客户端断开时取消上游请求，且保留上游 416 的 `Content-Range` / `Accept-Ranges`；公开媒体 416 保留 CORS，文件打开或流读取失败不会透出路径和底层异常。
 

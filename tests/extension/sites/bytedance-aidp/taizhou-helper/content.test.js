@@ -1975,6 +1975,36 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
+test("ByteDance AIDP content ignores a stale manual recording result after item switch", async function () {
+  const contentModule = loadContentModule();
+  const rendered = [];
+  const statuses = [];
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async refreshCurrentResult() {
+        return null;
+      },
+    },
+    ui: {
+      renderRecordingResult(result) {
+        rendered.push(result);
+      },
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+    },
+  });
+
+  await contentModule.__testOnly.handleRecordingRefreshAction();
+
+  assert.deepEqual(rendered, []);
+  assert.equal(
+    statuses.some((item) => item.type === "success"),
+    false
+  );
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
 test("ByteDance AIDP content injects per-row recognize buttons once and keeps a single recognize header", function () {
   const contentModule = loadContentModule();
   const rowOne = createAidpSegmentTableRow(1);

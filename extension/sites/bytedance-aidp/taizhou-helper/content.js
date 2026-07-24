@@ -4484,6 +4484,10 @@
     helperRuntime.ui?.setStatus?.("正在刷新录音平台结果...", "");
     try {
       const result = await helperRuntime.recording.refreshCurrentResult();
+      if (!result) {
+        helperRuntime.ui?.setStatus?.("题目已切换，已忽略过期的录音结果。", "");
+        return;
+      }
       helperRuntime.ui?.renderRecordingResult?.(result);
       helperRuntime.ui?.setStatus?.("录音平台结果已刷新。", "success");
     } catch (_error) {

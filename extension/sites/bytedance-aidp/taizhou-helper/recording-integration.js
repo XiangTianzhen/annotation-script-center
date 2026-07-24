@@ -50,6 +50,20 @@
     }
   }
 
+  async function cancelResponseBody(response, reader) {
+    try {
+      if (reader && typeof reader.cancel === "function") {
+        await reader.cancel();
+        return;
+      }
+      if (response?.body && typeof response.body.cancel === "function") {
+        await response.body.cancel();
+      }
+    } catch (_error) {
+      // Cancellation is best-effort after the response is already rejected.
+    }
+  }
+
   async function downloadMedia(kind, url, fetchImpl) {
     const normalizedKind = normalizeText(kind).toLowerCase();
     const mediaLabel = normalizedKind === "video" ? "视频" : "音频";
@@ -66,22 +80,45 @@
     }
     const declaredLength = getContentLength(response);
     if (declaredLength !== null && declaredLength > MAX_MEDIA_BYTES) {
+      await cancelResponseBody(response);
       throw new Error(mediaLabel + "超过 100MB 限制，无法导入。");
     }
     const contentType = getContentType(response);
     if (!SAFE_MEDIA_TYPES[normalizedKind].has(contentType)) {
       throw new Error(mediaLabel + "类型不受支持，无法导入。");
     }
-    const bytes = await response.arrayBuffer();
-    const actualLength = Number(bytes?.byteLength);
-    if (!Number.isFinite(actualLength) || actualLength <= 0) {
+    const reader = response?.body?.getReader?.();
+    if (!reader) {
+      throw new Error(mediaLabel + "响应无法安全流式读取。");
+    }
+    const chunks = [];
+    let actualLength = 0;
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk?.done) {
+        break;
+      }
+      const bytes = chunk?.value instanceof Uint8Array
+        ? chunk.value
+        : new Uint8Array(chunk?.value || []);
+      actualLength += bytes.byteLength;
+      if (actualLength > MAX_MEDIA_BYTES) {
+        await cancelResponseBody(response, reader);
+        throw new Error(mediaLabel + "超过 100MB 限制，无法导入。");
+      }
+      chunks.push(bytes);
+    }
+    if (actualLength <= 0) {
       throw new Error(mediaLabel + "内容为空，无法导入。");
     }
-    if (actualLength > MAX_MEDIA_BYTES) {
-      throw new Error(mediaLabel + "超过 100MB 限制，无法导入。");
+    const combined = new Uint8Array(actualLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.byteLength;
     }
     return {
-      bytes: bytes,
+      bytes: combined,
       contentType: contentType,
     };
   }
@@ -114,12 +151,46 @@
         ?.recordingImportTaskId
     );
     const pendingCreates = new Map();
-    const autoRefreshedKeys = new Set();
     let importFlight = null;
     let lastSourceItemId = "";
+    let resultGeneration = 0;
+    let autoRefreshedGeneration = 0;
 
     function mappingKey(sourceItemId) {
       return recordingTaskId + "\n" + normalizeText(sourceItemId);
+    }
+
+    function enterResultSource(sourceItemId) {
+      const normalized = normalizeText(sourceItemId);
+      if (normalized !== lastSourceItemId) {
+        lastSourceItemId = normalized;
+        resultGeneration += 1;
+        autoRefreshedGeneration = 0;
+      }
+      return {
+        sourceItemId: normalized,
+        generation: resultGeneration,
+      };
+    }
+
+    function isCurrentResultRequest(expected) {
+      return (
+        expected?.sourceItemId === lastSourceItemId &&
+        expected?.generation === resultGeneration
+      );
+    }
+
+    function isRetryableCreateFailure(response, body) {
+      const status = Number(response?.status || 0);
+      const code = normalizeText(body?.code);
+      return (
+        status >= 500 ||
+        status === 408 ||
+        status === 429 ||
+        (status === 409 &&
+          (code === "RECORDING_PLATFORM_IN_PROGRESS" ||
+            code === "OPERATION_IN_PROGRESS"))
+      );
     }
 
     async function findMapping(sourceItemId) {
@@ -215,7 +286,7 @@
             "当前完整题目数据尚未就绪，请稍后重试。",
         };
       }
-      lastSourceItemId = normalizeText(context.sourceItemId);
+      enterResultSource(context.sourceItemId);
       const existing = await findMapping(lastSourceItemId);
       if (existing) {
         return {
@@ -239,6 +310,15 @@
         const recordingItemId = normalizeText(item.itemId);
         const itemCode = normalizeText(item.itemCode);
         if (!response?.ok || !syncToken || !recordingItemId || !itemCode) {
+          if (
+            response &&
+            !response.ok &&
+            Number(response.status) >= 400 &&
+            Number(response.status) < 500 &&
+            !isRetryableCreateFailure(response, body)
+          ) {
+            pendingCreates.delete(mappingKey(lastSourceItemId));
+          }
           throw new Error("创建录音任务数据失败，请稍后重试。");
         }
         const mapping = {
@@ -282,7 +362,13 @@
       });
     }
 
-    async function refreshMapping(mapping) {
+    function isAllowedResultAudioPath(value) {
+      return /^\/api\/bytedance-aidp\/taizhou-helper\/recording-items\/audio\/[A-Za-z0-9_-]+$/.test(
+        normalizeText(value)
+      );
+    }
+
+    async function refreshMapping(mapping, expected) {
       if (!mapping?.syncToken) {
         throw new Error("当前题目还没有可用的录音同步映射。");
       }
@@ -295,6 +381,9 @@
       if (!response?.ok) {
         throw new Error("刷新录音结果失败，请稍后重试。");
       }
+      if (expected && !isCurrentResultRequest(expected)) {
+        return null;
+      }
       const result = {
         sourceItemId: mapping.sourceItemId,
         itemCode: normalizeText(body.itemCode) || mapping.itemCode,
@@ -304,10 +393,8 @@
         audioAvailable: body.audioAvailable === true,
       };
       const audioUrl = normalizeText(body.audioUrl);
-      if (result.audioAvailable && audioUrl) {
-        result.audioUrl = /^https?:\/\//i.test(audioUrl)
-          ? audioUrl
-          : buildBackendUrl(audioUrl);
+      if (result.audioAvailable && isAllowedResultAudioPath(audioUrl)) {
+        result.audioUrl = buildBackendUrl(audioUrl);
       }
       return result;
     }
@@ -315,22 +402,29 @@
     async function refreshCurrentResult() {
       if (!lastSourceItemId && dataApi?.getRecordingImportContext) {
         const context = await dataApi.getRecordingImportContext();
-        if (context?.ok) lastSourceItemId = normalizeText(context.sourceItemId);
+        if (context?.ok) enterResultSource(context.sourceItemId);
       }
+      const expected = {
+        sourceItemId: lastSourceItemId,
+        generation: resultGeneration,
+      };
       const mapping = await findMapping(lastSourceItemId);
-      return refreshMapping(mapping);
+      return refreshMapping(mapping, expected);
     }
 
     async function autoRefreshForCurrentItem(sourceItemId) {
-      lastSourceItemId = normalizeText(sourceItemId);
-      const key = mappingKey(lastSourceItemId);
-      if (!recordingTaskId || !lastSourceItemId || autoRefreshedKeys.has(key)) {
+      const expected = enterResultSource(sourceItemId);
+      if (
+        !recordingTaskId ||
+        !lastSourceItemId ||
+        autoRefreshedGeneration === expected.generation
+      ) {
         return null;
       }
       const mapping = await findMapping(lastSourceItemId);
       if (!mapping) return null;
-      autoRefreshedKeys.add(key);
-      return refreshMapping(mapping);
+      autoRefreshedGeneration = expected.generation;
+      return refreshMapping(mapping, expected);
     }
 
     return {

@@ -659,6 +659,7 @@ function createRecordingIntegration(options) {
     return new Promise((resolve, reject) => {
       let settled = false;
       let totalBytes = 0;
+      const contentHash = crypto.createHash("sha256");
       const headerChunks = [];
       let headerLength = 0;
 
@@ -685,6 +686,7 @@ function createRecordingIntegration(options) {
         resolve({
           totalBytes,
           headerBytes: Buffer.concat(headerChunks),
+          contentSha256: contentHash.digest("hex"),
         });
       }
 
@@ -710,6 +712,7 @@ function createRecordingIntegration(options) {
           headerLength += headerChunk.length;
         }
         try {
+          contentHash.update(chunk);
           fs.writeSync(fileDescriptor, chunk);
         } catch (error) {
           finish(
@@ -843,6 +846,7 @@ function createRecordingIntegration(options) {
         contentType: mediaType.contentType,
         extension: mediaType.extension,
         size: totalBytes,
+        contentSha256: streamResult.contentSha256,
         createdAt: now(),
         expiresAt: now() + uploadTtlMs,
       };
@@ -929,6 +933,7 @@ function createRecordingIntegration(options) {
       relativePath: targetRelativePath,
       contentType: upload.contentType,
       size: upload.size,
+      contentSha256: upload.contentSha256,
       linked: false,
       createdAt: now(),
     };
@@ -1005,12 +1010,71 @@ function createRecordingIntegration(options) {
     };
   }
 
-  function requestFingerprintFor(referenceText, audioUploadId, videoUploadId) {
+  function mediaFingerprintDescriptor(kind, media) {
+    if (!media) {
+      return null;
+    }
+    return {
+      kind,
+      contentType: normalizeText(media.contentType),
+      contentSha256: normalizeText(media.contentSha256),
+    };
+  }
+
+  function resolveMediaReference(uploadId, expectedKind, taskId, mapping) {
+    const normalizedId = normalizeText(uploadId);
+    if (!normalizedId) {
+      return { upload: null, media: null, descriptor: null };
+    }
+    const pendingUpload = state.uploads[normalizedId];
+    if (pendingUpload) {
+      const upload = validateUpload(normalizedId, expectedKind, taskId);
+      return {
+        upload,
+        media: null,
+        descriptor: mediaFingerprintDescriptor(expectedKind, upload),
+      };
+    }
+    if (mapping?.uploadIds?.[expectedKind] === normalizedId) {
+      const media = state.media[mapping.mediaIds?.[expectedKind]];
+      if (media) {
+        return {
+          upload: null,
+          media,
+          descriptor: mediaFingerprintDescriptor(expectedKind, media),
+        };
+      }
+    }
+    throw new IntegrationError(
+      422,
+      "UPLOAD_REFERENCE_INVALID",
+      "上传 ID 不存在、已过期或与任务及媒体类型不匹配。"
+    );
+  }
+
+  function discardUploads(references) {
+    let changed = false;
+    for (const reference of references) {
+      const upload = reference?.upload;
+      if (!upload || !state.uploads[upload.uploadId]) {
+        continue;
+      }
+      if (tryRemoveFile(resolveRuntimeFile(upload.relativePath))) {
+        delete state.uploads[upload.uploadId];
+        changed = true;
+      }
+    }
+    if (changed) {
+      persistState();
+    }
+  }
+
+  function requestFingerprintFor(referenceText, audioDescriptor, videoDescriptor) {
     return hashText(
       JSON.stringify({
         referenceText,
-        audioUploadId: audioUploadId || null,
-        videoUploadId: videoUploadId || null,
+        audio: audioDescriptor,
+        video: videoDescriptor,
       })
     );
   }
@@ -1050,16 +1114,30 @@ function createRecordingIntegration(options) {
     await cleanupExpiredUploads();
 
     const mappingKey = mappingKeyFor(taskId, sourceItemId);
+    const existingMapping = state.mappings[mappingKey];
+    const audioReference = resolveMediaReference(
+      audioUploadId,
+      "audio",
+      taskId,
+      existingMapping
+    );
+    const videoReference = resolveMediaReference(
+      videoUploadId,
+      "video",
+      taskId,
+      existingMapping
+    );
+    const freshReferences = [audioReference, videoReference];
     const requestFingerprint = requestFingerprintFor(
       referenceText,
-      audioUploadId,
-      videoUploadId
+      audioReference.descriptor,
+      videoReference.descriptor
     );
-    const existingMapping = state.mappings[mappingKey];
     if (
       existingMapping?.requestFingerprint &&
       existingMapping.requestFingerprint !== requestFingerprint
     ) {
+      discardUploads(freshReferences);
       throw new IntegrationError(
         409,
         "SOURCE_ITEM_CONTENT_CONFLICT",
@@ -1069,12 +1147,14 @@ function createRecordingIntegration(options) {
     const existingFlight = mappingFlights.get(mappingKey);
     if (existingFlight) {
       if (existingFlight.requestFingerprint !== requestFingerprint) {
+        discardUploads(freshReferences);
         throw new IntegrationError(
           409,
           "SOURCE_ITEM_CONTENT_CONFLICT",
           "相同来源条目的参考内容与进行中请求不一致。"
         );
       }
+      discardUploads(freshReferences);
       return existingFlight.promise;
     }
 
@@ -1085,6 +1165,7 @@ function createRecordingIntegration(options) {
         persistState();
       }
       if (mapping?.recordingItemId) {
+        discardUploads(freshReferences);
         return {
           replayed: true,
           syncToken: issueSyncToken(mapping),
@@ -1093,11 +1174,9 @@ function createRecordingIntegration(options) {
       }
 
       if (!mapping) {
-        const audioUpload = validateUpload(audioUploadId, "audio", taskId);
-        const videoUpload = validateUpload(videoUploadId, "video", taskId);
         const mediaIds = {
-          audio: bindUpload(audioUpload),
-          video: bindUpload(videoUpload),
+          audio: bindUpload(audioReference.upload),
+          video: bindUpload(videoReference.upload),
         };
         mapping = {
           mappingKey,
@@ -1118,6 +1197,25 @@ function createRecordingIntegration(options) {
         };
         state.mappings[mappingKey] = mapping;
         persistState();
+      } else {
+        let mappingChanged = false;
+        for (const [kind, reference] of [
+          ["audio", audioReference],
+          ["video", videoReference],
+        ]) {
+          if (reference.upload && !mapping.mediaIds?.[kind]) {
+            mapping.mediaIds = mapping.mediaIds || {};
+            mapping.uploadIds = mapping.uploadIds || {};
+            mapping.mediaIds[kind] = bindUpload(reference.upload);
+            mapping.uploadIds[kind] = reference.upload.uploadId;
+            mappingChanged = true;
+          }
+        }
+        discardUploads(freshReferences);
+        if (mappingChanged) {
+          mapping.updatedAt = now();
+          persistState();
+        }
       }
 
       const upstreamBody = {};

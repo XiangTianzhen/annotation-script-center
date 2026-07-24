@@ -34,12 +34,38 @@ function headers(values) {
 
 function response(options) {
   const source = options || {};
+  const defaultBytes = new Uint8Array([1, 2, 3, 4]);
+  const streamChunks = Array.isArray(source.chunks)
+    ? source.chunks
+    : [source.bytes instanceof Uint8Array ? source.bytes : defaultBytes];
+  let streamIndex = 0;
   return {
     ok: source.ok !== false,
     status: source.status || (source.ok === false ? 500 : 200),
     headers: headers(source.headers),
+    body: {
+      getReader() {
+        return {
+          async read() {
+            if (streamIndex >= streamChunks.length) {
+              return { done: true, value: undefined };
+            }
+            const value = streamChunks[streamIndex];
+            streamIndex += 1;
+            return { done: false, value };
+          },
+          async cancel() {
+            source.onCancel?.();
+          },
+        };
+      },
+      async cancel() {
+        source.onCancel?.();
+      },
+    },
     async arrayBuffer() {
-      return source.bytes || new Uint8Array([1, 2, 3, 4]).buffer;
+      source.onArrayBuffer?.();
+      return defaultBytes.buffer;
     },
     async json() {
       return source.json || {};
@@ -306,6 +332,9 @@ test("Taizhou recording integration stops before item creation when any declared
 test("Taizhou recording integration enforces the 100MB media limit from headers and actual bytes", async function () {
   const moduleApi = loadModule();
   const tooLarge = 100 * 1024 * 1024 + 1;
+  let headerBodyCancelled = false;
+  let streamedBodyCancelled = false;
+  let arrayBufferCalled = false;
 
   await assert.rejects(
     moduleApi.__testOnly.downloadMedia(
@@ -317,24 +346,41 @@ test("Taizhou recording integration enforces the 100MB media limit from headers 
             "Content-Type": "audio/mpeg",
             "Content-Length": String(tooLarge),
           },
+          onCancel() {
+            headerBodyCancelled = true;
+          },
         });
       }
     ),
     /100MB/
   );
+  assert.equal(headerBodyCancelled, true);
+
+  const oneMegabyte = new Uint8Array(1024 * 1024);
   await assert.rejects(
     moduleApi.__testOnly.downloadMedia(
       "video",
       "https://aidp.example.test/video",
       async function () {
         return response({
-          headers: { "Content-Type": "video/mp4" },
-          bytes: { byteLength: tooLarge },
+          headers: {
+            "Content-Type": "video/mp4",
+            "Content-Length": "4",
+          },
+          chunks: Array.from({ length: 101 }, () => oneMegabyte),
+          onCancel() {
+            streamedBodyCancelled = true;
+          },
+          onArrayBuffer() {
+            arrayBufferCalled = true;
+          },
         });
       }
     ),
     /100MB/
   );
+  assert.equal(streamedBodyCancelled, true);
+  assert.equal(arrayBufferCalled, false);
 });
 
 test("Taizhou recording integration reuses duplicate imports and refreshes results once per entered item", async function () {
@@ -404,4 +450,167 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
     resultCalls.map((call) => JSON.parse(call.body)),
     [{ syncToken: "sync-token-1" }, { syncToken: "sync-token-1" }]
   );
+});
+
+test("Taizhou recording integration retries media after deterministic 4xx but reuses it after 5xx", async function () {
+  let createAttempt = 0;
+  const harness = createRuntime({
+    context: {
+      ok: true,
+      sourceItemId: "source-retry-classification",
+      referenceText: "",
+      audioUrl: "https://aidp.example.test/audio",
+      videoUrl: "",
+    },
+    fetch(call) {
+      if (call.url.endsWith("/recording-media/audio")) {
+        return response({
+          status: 201,
+          json: { uploadId: "audio-upload-" + String(createAttempt + 1) },
+        });
+      }
+      if (call.url.endsWith("/audio")) {
+        return response({
+          headers: { "Content-Type": "audio/mpeg" },
+        });
+      }
+      if (call.url.endsWith("/recording-items")) {
+        createAttempt += 1;
+        if (createAttempt === 1) {
+          return response({
+            ok: false,
+            status: 422,
+            json: { code: "REFERENCE_TYPE_NOT_ENABLED" },
+          });
+        }
+        if (createAttempt === 2) {
+          return response({
+            ok: false,
+            status: 503,
+            json: { code: "UPSTREAM_UNAVAILABLE" },
+          });
+        }
+        return response({
+          status: 201,
+          json: {
+            syncToken: "sync-token-retried",
+            item: {
+              itemId: "recording-item-retried",
+              itemCode: "T000001-0000002",
+            },
+          },
+        });
+      }
+      throw new Error("unexpected call");
+    },
+  });
+
+  assert.equal((await harness.runtime.importCurrentItem()).ok, false);
+  assert.equal((await harness.runtime.importCurrentItem()).ok, false);
+  assert.equal((await harness.runtime.importCurrentItem()).ok, true);
+
+  const downloads = harness.calls.filter(
+    (call) => call.url === "https://aidp.example.test/audio"
+  );
+  const uploads = harness.calls.filter((call) =>
+    call.url.endsWith("/recording-media/audio")
+  );
+  assert.equal(downloads.length, 2);
+  assert.equal(uploads.length, 2);
+});
+
+test("Taizhou recording integration drops stale A result and queries again after A-B-A entry", async function () {
+  const storage = createStorageHarness([
+    {
+      recordingTaskId: "internal-task-id",
+      sourceItemId: "source-a",
+      recordingItemId: "recording-a",
+      itemCode: "T000001-0000001",
+      syncToken: "sync-a",
+      updatedAt: 1,
+    },
+  ]);
+  let releaseFirstA;
+  const firstAGate = new Promise((resolve) => {
+    releaseFirstA = resolve;
+  });
+  let resultCount = 0;
+  const harness = createRuntime({
+    storage,
+    fetch: async function (call) {
+      if (!call.url.endsWith("/recording-items/result")) {
+        throw new Error("unexpected call");
+      }
+      resultCount += 1;
+      if (resultCount === 1) {
+        await firstAGate;
+      }
+      return response({
+        json: {
+          itemCode: "T000001-0000001",
+          status: "COMPLETED",
+          text: resultCount === 1 ? "过期 A" : "重新进入 A",
+          audioAvailable: false,
+        },
+      });
+    },
+  });
+
+  const slowA = harness.runtime.autoRefreshForCurrentItem("source-a");
+  assert.equal(
+    await harness.runtime.autoRefreshForCurrentItem("source-b"),
+    null
+  );
+  releaseFirstA();
+  assert.equal(await slowA, null);
+
+  const reenteredA =
+    await harness.runtime.autoRefreshForCurrentItem("source-a");
+  assert.equal(reenteredA.text, "重新进入 A");
+  assert.equal(
+    await harness.runtime.autoRefreshForCurrentItem("source-a"),
+    null
+  );
+  assert.equal(resultCount, 2);
+});
+
+test("Taizhou recording integration rejects absolute and unexpected result audio URLs", async function () {
+  const storage = createStorageHarness([
+    {
+      recordingTaskId: "internal-task-id",
+      sourceItemId: "source-item-1",
+      recordingItemId: "recording-item-1",
+      itemCode: "T000001-0000001",
+      syncToken: "sync-token-1",
+      updatedAt: 1,
+    },
+  ]);
+  const audioUrls = [
+    "https://evil.example.test/audio",
+    "/api/public/recording-media/unexpected",
+  ];
+  let callIndex = 0;
+  const harness = createRuntime({
+    storage,
+    fetch(call) {
+      if (!call.url.endsWith("/recording-items/result")) {
+        throw new Error("unexpected call");
+      }
+      const audioUrl = audioUrls[callIndex];
+      callIndex += 1;
+      return response({
+        json: {
+          status: "COMPLETED",
+          audioAvailable: true,
+          audioUrl,
+        },
+      });
+    },
+  });
+
+  const automatic =
+    await harness.runtime.autoRefreshForCurrentItem("source-item-1");
+  const manual = await harness.runtime.refreshCurrentResult();
+  assert.equal("audioUrl" in automatic, false);
+  assert.equal("audioUrl" in manual, false);
 });
