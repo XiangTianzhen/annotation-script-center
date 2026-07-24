@@ -321,6 +321,7 @@ pm2 logs annotation-script-center --lines 100
 - [docs 导航](docs/README.md)
 - [平台与脚本索引](docs/platforms-index.md)
 - [百炼官方文档入口](docs/external-docs-aliyun-bailian.md)
+- [录音任务平台接入规范](docs/recording-platform-integration.md)
 - [修改总账](log.md)
 
 ## 安全与行为边界

@@ -10,13 +10,17 @@
 - [`docs/external-docs-aliyun-bailian.md`](external-docs-aliyun-bailian.md)
   - 阿里云百炼官方文档入口
   - 涉及模型、参数、thinking、结构化输出、Qwen-Omni、Web Search 时先看这里
+- [`docs/recording-platform-integration.md`](recording-platform-integration.md)
+  - 外部脚本向录音任务平台人工添加数据的长期接入规范
+  - 包含机器 API、媒体边界、调用示例、错误处理和平台接入检查表
 
 ## 使用顺序
 
 1. 先读 [`AGENTS.md`](../AGENTS.md)
 2. 处理具体平台时再读 [`docs/platforms-index.md`](platforms-index.md)
 3. 涉及百炼能力时再读 [`docs/external-docs-aliyun-bailian.md`](external-docs-aliyun-bailian.md)
-4. 历史过程统一查看 [`log.md`](../log.md)
+4. 涉及录音任务平台数据写入时读取 [`docs/recording-platform-integration.md`](recording-platform-integration.md)
+5. 历史过程统一查看 [`log.md`](../log.md)
 
 ## 当前原则
 
