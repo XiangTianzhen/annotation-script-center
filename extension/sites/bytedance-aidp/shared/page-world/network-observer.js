@@ -2,8 +2,10 @@
   const SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
+  const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
   const RECEIVE_PATH = "/api/dispatch/Receive";
   const SUBMIT_PATH = "/api/dispatch/SubmitTempItemAnswer";
+  const SEARCH_ITEM_PATH = "/dispatcher/search_item/category";
   const ALLOWED_SUBMIT_HEADERS = ["accept", "content-type", "x-secsdk-csrf-token"];
 
   function normalizeText(value) {
@@ -24,6 +26,10 @@
 
   function isSubmitUrl(rawUrl, locationLike) {
     return getUrl(rawUrl, locationLike)?.pathname === SUBMIT_PATH;
+  }
+
+  function isSearchItemUrl(rawUrl, locationLike) {
+    return getUrl(rawUrl, locationLike)?.pathname === SEARCH_ITEM_PATH;
   }
 
   function readHeaderEntries(source) {
@@ -118,6 +124,21 @@
     return String(value || "");
   }
 
+  function parseSearchItemSnapshot(value) {
+    const response = parseJsonSafely(value) || {};
+    const firstItem = Array.isArray(response.Data) ? response.Data[0] : null;
+    const content =
+      firstItem && typeof firstItem.Content === "string"
+        ? parseJsonSafely(firstItem.Content) || {}
+        : {};
+    return {
+      sourceItemId: normalizeText(firstItem?.ItemID),
+      referenceText: normalizeText(content.asr_text),
+      audioUrl: normalizeText(content.audio),
+      videoUrl: normalizeText(content.video),
+    };
+  }
+
   function postMessage(windowLike, locationLike, type, payload) {
     if (!windowLike || typeof windowLike.postMessage !== "function") {
       return;
@@ -170,6 +191,15 @@
       });
     }
 
+    function notifySearchItem(payload) {
+      postMessage(
+        windowLike,
+        locationLike,
+        SEARCH_ITEM_TYPE,
+        parseSearchItemSnapshot(payload)
+      );
+    }
+
     function installFetchObserver() {
       const nativeFetch = windowLike.fetch;
       if (typeof nativeFetch !== "function") {
@@ -191,7 +221,9 @@
           });
         }
         return nativeFetch.apply(this, args).then(function (response) {
-          if (!isReceiveUrl(rawUrl, locationLike)) {
+          const receiveRequest = isReceiveUrl(rawUrl, locationLike);
+          const searchItemRequest = isSearchItemUrl(rawUrl, locationLike);
+          if (!receiveRequest && !searchItemRequest) {
             return response;
           }
           try {
@@ -200,8 +232,10 @@
               .text()
               .then(function (text) {
                 const payload = parseJsonSafely(text);
-                if (payload) {
+                if (receiveRequest && payload) {
                   notifyReceive(rawUrl, payload);
+                } else if (searchItemRequest) {
+                  notifySearchItem(text);
                 }
               })
               .catch(function () {});
@@ -249,11 +283,17 @@
         if (isSubmitUrl(rawUrl, locationLike)) {
           notifySubmit(rawUrl, xhr.__ascAidpHeaders, stringifyBodyCandidate(body));
         }
-        if (isReceiveUrl(rawUrl, locationLike) && typeof xhr.addEventListener === "function") {
+        if (
+          (isReceiveUrl(rawUrl, locationLike) ||
+            isSearchItemUrl(rawUrl, locationLike)) &&
+          typeof xhr.addEventListener === "function"
+        ) {
           xhr.addEventListener("load", function () {
             const payload = parseJsonSafely(xhr.responseText);
-            if (payload) {
+            if (isReceiveUrl(rawUrl, locationLike) && payload) {
               notifyReceive(rawUrl, payload);
+            } else if (isSearchItemUrl(rawUrl, locationLike)) {
+              notifySearchItem(xhr.responseText);
             }
           });
         }
@@ -281,6 +321,7 @@
       SOURCE: SOURCE,
       RECEIVE_TYPE: RECEIVE_TYPE,
       SUBMIT_TYPE: SUBMIT_TYPE,
+      SEARCH_ITEM_TYPE: SEARCH_ITEM_TYPE,
     },
   };
 

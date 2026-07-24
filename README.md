@@ -23,10 +23,12 @@
 | DataBaker CVPC | 柳州话脚本 | `dataBakerCvpcLiuzhouAssistant` | 音频获取、两阶段 AI、分段建议、批量识别、字段辅助写入 |
 | ByteDance AIDP | 苏州话脚本 | `bytedanceAidpSuzhouHelper` | 分段建议、两阶段 AI、行内/批量识别、暂存写回 |
 | ByteDance AIDP | 金华话脚本 | `bytedanceAidpJinhuaHelper` | 单次 Omni 可编辑转写 Prompt、分段建议、行内/批量识别 |
-| ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、分段建议、行内/批量识别 |
+| ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、分段建议、行内/批量识别、完整题目人工导入录音平台与结果只读回显 |
 | Magic Data | 杭州话脚本 | `magicDataHangzhouAssistant` | AI 质检、单双模型方案、词表参考、结果填入与快捷键 |
 
 ByteDance AIDP 的苏州话、金华话与台州话三套脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
+
+台州话 Options“基础设置”可填写录音平台数据库内部 `taskId`（不是可见 taskCode）。只有该值同时存在于服务器私密配置 `allowedTaskIds` 时，详情页才可人工导入当前完整题目；扩展不接收机器 API Key，不向脚本中心转发 AIDP 登录头或原始签名媒体 URL，结果卡片也不会写回 AIDP。完整边界见[录音任务平台接入规范](docs/recording-platform-integration.md)。
 
 ## 前置环境
 

@@ -148,9 +148,10 @@ class FakeNode {
   }
 
   get textContent() {
-    return [this._textContent || "", this.children.map((child) => child.textContent || "").join(" ")]
-      .join(" ")
-      .trim();
+    if (this.children.length <= 0) {
+      return this._textContent || "";
+    }
+    return (this._textContent || "") + this.children.map((child) => child.textContent || "").join("");
   }
 
   set textContent(value) {
@@ -418,6 +419,109 @@ test("AIDP taizhou ui panel exposes visibility methods without rendering an exte
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
   }
+});
+
+test("AIDP taizhou ui panel renders read-only recording status, text and audio without writeback controls", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  let refreshCount = 0;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({
+      onRefreshRecordingResult() {
+        refreshCount += 1;
+      },
+    });
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = findMountedPanelRoot(harness.body);
+    runtime.renderRecordingResult({
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000001",
+      status: "COMPLETED",
+      text: "  录音平台原样结果文本  ",
+      audioAvailable: true,
+      audioUrl:
+        "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items/audio/signed",
+    });
+
+    const card = findNode(panelRoot, function (node) {
+      return node.getAttribute("data-recording-result-card") === "true";
+    });
+    const refreshButton = findNode(card, function (node) {
+      return node.getAttribute("data-recording-result-refresh") === "true";
+    });
+    const audio = findNode(card, function (node) {
+      return node.tagName === "AUDIO";
+    });
+    const textNode = findNode(card, function (node) {
+      return node.getAttribute("data-recording-result-text") === "true";
+    });
+
+    assert.ok(card);
+    assert.match(card.textContent, /source-item-1/);
+    assert.match(card.textContent, /T000001-0000001/);
+    assert.match(card.textContent, /已完成/);
+    assert.equal(textNode.textContent, "  录音平台原样结果文本  ");
+    assert.equal(audio.controls, true);
+    assert.equal(
+      audio.src,
+      "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items/audio/signed"
+    );
+    assert.equal(
+      collectDescendants(card).some(function (node) {
+        return /填入|提交|暂存/.test(node.textContent);
+      }),
+      false
+    );
+    refreshButton.click();
+    assert.equal(refreshCount, 1);
+
+    runtime.renderRecordingResult({
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000001",
+      status: "SUBMITTED",
+      text: null,
+      audioAvailable: false,
+    });
+    assert.match(card.textContent, /待审核领取/);
+    assert.equal(
+      collectDescendants(card).some(function (node) {
+        return node.tagName === "AUDIO";
+      }),
+      false
+    );
+
+    runtime.renderRecordingResult({
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000001",
+      status: "FUTURE_STATUS",
+      text: null,
+      audioAvailable: false,
+    });
+    assert.match(card.textContent, /FUTURE_STATUS/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("AIDP taizhou ui panel maps the supported recording workflow statuses", function () {
+  const module = loadUiPanelModule();
+  const format = module.__testOnly.formatRecordingStatus;
+
+  assert.equal(format("AVAILABLE"), "待领取");
+  assert.equal(format("RECORDING_PENDING"), "待录音");
+  assert.equal(format("SUBMITTED"), "待审核领取");
+  assert.equal(format("REVIEW_PENDING"), "审核中");
+  assert.equal(format("REWORK_PENDING"), "待返修");
+  assert.equal(format("COMPLETED"), "已完成");
+  assert.equal(format("FUTURE_STATUS"), "FUTURE_STATUS");
+  assert.equal(format(""), "未知状态");
 });
 
 test("AIDP taizhou ui panel switches preview buttons from settings-only auto-apply state", function () {

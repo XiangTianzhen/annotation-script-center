@@ -133,6 +133,7 @@
         "sites/bytedance-aidp/jinhua-helper/shortcuts.js",
         "sites/bytedance-aidp/jinhua-helper/content.js",
         "sites/bytedance-aidp/taizhou-helper/data-api.js",
+        "sites/bytedance-aidp/taizhou-helper/recording-integration.js",
         "sites/bytedance-aidp/taizhou-helper/ai-recommendation.js",
         "sites/bytedance-aidp/taizhou-helper/segmentation-controller.js",
         "sites/bytedance-aidp/taizhou-helper/ui-panel.js",

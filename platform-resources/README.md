@@ -9,7 +9,7 @@
 | `data-baker-cvpc/` | 柳州话 | `extension/sites/data-baker-cvpc/liuzhou-helper/` | `/api/data-baker-cvpc/liuzhou-helper/*` |
 | `bytedance-aidp/` | 苏州话 | `extension/sites/bytedance-aidp/suzhou-helper/` | `/api/bytedance-aidp/suzhou-helper/*` |
 | `bytedance-aidp/` | 金华话（单次 Omni 可编辑转写 Prompt） | `extension/sites/bytedance-aidp/jinhua-helper/` | `/api/bytedance-aidp/jinhua-helper/*` |
-| `bytedance-aidp/` | 台州话 | `extension/sites/bytedance-aidp/taizhou-helper/` | `/api/bytedance-aidp/taizhou-helper/*` |
+| `bytedance-aidp/` | 台州话 | `extension/sites/bytedance-aidp/taizhou-helper/` | AI、完整题目人工导入录音平台、结果只读回显；`/api/bytedance-aidp/taizhou-helper/*` |
 | `magic-data/` | 杭州话 | `extension/sites/magic-data/hangzhou-helper/` | `/api/magic-data/hangzhou-helper/*` |
 
 平台与脚本入口索引见 [docs/platforms-index.md](../docs/platforms-index.md)。

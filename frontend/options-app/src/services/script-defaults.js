@@ -89,6 +89,7 @@ const STATIC_LOCAL_DEFAULTS = {
       aiRecommendRequestTimeoutMs: 60000,
       aiRecommendOmniModel: "qwen3.5-omni-plus",
       aiRecommendOmniPrompt: "",
+      recordingImportTaskId: "",
       defaultPlaybackRate: 1,
       fixedWaveZoom: 2,
     },
@@ -443,6 +444,9 @@ export function hydrateScriptDraft(scriptId, storedConfig, defaults = {}) {
     draft.aiRecommendEnableThinking =
       (normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou) &&
       draft.aiRecommendEnableThinking === true;
+    if (normalizedScriptId === SCRIPT_IDS.taizhou) {
+      draft.recordingImportTaskId = text(draft.recordingImportTaskId);
+    }
   } else if (normalizedScriptId === SCRIPT_IDS.cvpc) {
     draft.segmentContextPaddingMs = round(Number(draft.segmentContextPaddingMs || 0) / 1000, 3);
     draft.segmentSilenceThresholdUnit = normalizeThresholdUnit(draft.segmentSilenceThresholdUnit);
@@ -558,6 +562,9 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
     result.aiRecommendEnableThinking =
       (normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou) &&
       result.aiRecommendEnableThinking === true;
+    if (normalizedScriptId === SCRIPT_IDS.taizhou) {
+      result.recordingImportTaskId = text(result.recordingImportTaskId);
+    }
     clearDefaultOverrides(
       result,
       defaults,

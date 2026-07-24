@@ -68,7 +68,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
     const taizhouScript = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 34);
+    assert.equal(settings.meta.schemaVersion, 35);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -141,6 +141,107 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     );
     assert.equal(taizhouScript.aiRecommendOmniModel, "qwen3.5-omni-plus");
     assert.equal(taizhouScript.aiRecommendOmniPrompt, "");
+    assert.equal(taizhouScript.recordingImportTaskId, "");
+    assert.deepEqual(taizhouScript.recordingSyncMappings, []);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage migrates Taizhou recording settings and keeps only the latest 500 safe mappings", async function () {
+  const mappings = Array.from({ length: 505 }, function (_item, index) {
+    return {
+      recordingTaskId: " task-" + String(index % 2) + " ",
+      sourceItemId: " source-" + String(index) + " ",
+      recordingItemId: " item-" + String(index) + " ",
+      itemCode: " code-" + String(index) + " ",
+      syncToken: " sync-" + String(index) + " ",
+      updatedAt: index + 1,
+      apiKey: "must-not-persist",
+      authorization: "must-not-persist",
+      cookie: "must-not-persist",
+      referenceText: "must-not-persist",
+      audioUrl: "https://signed.example.test/private?token=must-not-persist",
+    };
+  });
+  const harness = loadStorageApi({
+    meta: { schemaVersion: 34 },
+    platforms: {
+      bytedanceAidp: {
+        enabled: true,
+        activeScriptId: "bytedanceAidpTaizhouHelper",
+        scripts: {
+          taizhouHelper: {
+            id: "bytedanceAidpTaizhouHelper",
+            enabled: true,
+            aiRecommendOmniPrompt: "保留旧配置",
+            recordingImportTaskId: "  internal-task-id  ",
+            recordingSyncMappings: mappings,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
+
+    assert.equal(settings.meta.schemaVersion, 35);
+    assert.equal(script.aiRecommendOmniPrompt, "保留旧配置");
+    assert.equal(script.recordingImportTaskId, "internal-task-id");
+    assert.equal(script.recordingSyncMappings.length, 500);
+    assert.equal(script.recordingSyncMappings[0].sourceItemId, "source-504");
+    assert.equal(script.recordingSyncMappings[499].sourceItemId, "source-5");
+    assert.deepEqual(Object.keys(script.recordingSyncMappings[0]).sort(), [
+      "itemCode",
+      "recordingItemId",
+      "recordingTaskId",
+      "sourceItemId",
+      "syncToken",
+      "updatedAt",
+    ]);
+    assert.doesNotMatch(JSON.stringify(script.recordingSyncMappings), /apiKey|authorization|cookie|referenceText|signed\.example/i);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage upserts and finds safe Taizhou recording mappings", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const saved = await harness.storage.saveTaizhouRecordingSyncMapping({
+      recordingTaskId: " task-a ",
+      sourceItemId: " source-a ",
+      recordingItemId: " item-a ",
+      itemCode: " T000001-0000001 ",
+      syncToken: " sync-a ",
+      updatedAt: 100,
+      token: "drop",
+      response: { text: "drop" },
+    });
+    const replaced = await harness.storage.saveTaizhouRecordingSyncMapping({
+      recordingTaskId: "task-a",
+      sourceItemId: "source-a",
+      recordingItemId: "item-b",
+      itemCode: "T000001-0000001",
+      syncToken: "sync-b",
+      updatedAt: 200,
+    });
+    const found = await harness.storage.findTaizhouRecordingSyncMapping(
+      " task-a ",
+      " source-a "
+    );
+
+    assert.equal(saved.recordingItemId, "item-a");
+    assert.equal(replaced.recordingItemId, "item-b");
+    assert.deepEqual(found, replaced);
+    const settings = await harness.storage.getSettings();
+    assert.equal(
+      settings.platforms.bytedanceAidp.scripts.taizhouHelper.recordingSyncMappings.length,
+      1
+    );
   } finally {
     harness.cleanup();
   }
@@ -275,7 +376,7 @@ test("ByteDance AIDP storage migrates Jinhua listen model to Omni and retains in
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
 
-    assert.equal(settings.meta.schemaVersion, 34);
+    assert.equal(settings.meta.schemaVersion, 35);
     assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendOmniPrompt, "");
     assert.equal(script.aiRecommendOmniTemperature, "");
@@ -302,7 +403,7 @@ test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizho
   try {
     const settings = await harness.storage.getSettings();
     const aidp = settings.platforms.bytedanceAidp;
-    assert.equal(settings.meta.schemaVersion, 34);
+    assert.equal(settings.meta.schemaVersion, 35);
     assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper");
     assert.equal(aidp.scripts.jinhuaHelper.enabled, true);
     assert.equal(aidp.scripts.suzhouHelper.enabled, false);
@@ -327,7 +428,7 @@ test("ByteDance AIDP storage migrates the Taizhou listen model to the single Omn
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
-    assert.equal(settings.meta.schemaVersion, 34);
+    assert.equal(settings.meta.schemaVersion, 35);
     assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendOmniPrompt, "");
     assert.equal(script.aiRecommendOmniTemperature, "");
@@ -346,7 +447,7 @@ test("ByteDance AIDP storage keeps explicitly enabled Jinhua for missing or inva
     try {
       const settings = await harness.storage.getSettings();
       const aidp = settings.platforms.bytedanceAidp;
-      assert.equal(settings.meta.schemaVersion, 34, String(activeScriptId));
+      assert.equal(settings.meta.schemaVersion, 35, String(activeScriptId));
       assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper", String(activeScriptId));
       assert.equal(aidp.scripts.jinhuaHelper.enabled, true, String(activeScriptId));
       assert.equal(aidp.scripts.suzhouHelper.enabled, false, String(activeScriptId));

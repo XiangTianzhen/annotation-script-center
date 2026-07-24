@@ -19,7 +19,7 @@
 1. `https://aidp.bytedance.com/management/task-v2?page=1`
 2. `https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}?from_pathname=...&fs=...&templateID=...&templateType=...`
 3. 平台公共资料只覆盖列表页路由、分页入口、详情跳转模式与首轮挂载边界
-4. 苏州话 / 金华话 / 台州话脚本资料覆盖 `mark-v3` 详情页初始化、页面结构、分段建议、AI 推荐与暂存写回边界，不外扩到保存、提交、领取等写链路
+4. 苏州话 / 金华话 / 台州话脚本资料覆盖 `mark-v3` 详情页初始化、页面结构、分段建议、AI 推荐与暂存写回边界；台州话另覆盖 Search Item 完整题目人工导入录音平台和结果只读回显，仍不外扩到 AIDP 保存、提交、领取等写链路
 
 苏州话、金华话与台州话三套脚本同平台互斥启用；关闭当前脚本时不会自动启用另一个脚本。
 

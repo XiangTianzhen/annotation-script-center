@@ -16,6 +16,8 @@
 | `security/` | 签名 token 与下载审计公共能力 |
 | `runtime-log-store.js` | 脱敏运行日志和摘要 |
 
+台州话录音集成运行时位于 `platform-resources/bytedance-aidp/taizhou-helper/backend/runtime/recording-integration/`，保存临时上传、长期参考媒体与原子 JSON 映射状态。该目录已被 Git 忽略；服务器升级时不得删除或覆盖。
+
 ## Python 运行环境
 
 以下能力需要 Python：
@@ -88,6 +90,20 @@ AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashsco
 | 杭州话 | `/api/magic-data/hangzhou-helper/ai/review-current/health`、`/api/magic-data/hangzhou-helper/ai/defaults` | 当前条 AI 质检 |
 
 完整请求体、响应字段和写回边界由各脚本 README 维护，统一后端不复制脚本业务 schema。
+
+## 台州话录音集成
+
+统一后端额外提供：
+
+- `POST /api/bytedance-aidp/taizhou-helper/recording-media/:kind`：接收 `audio` / `video` 原始字节，要求 `X-Recording-Task-Id`，单文件流式限制 100MB，全局最多同时上传 2 个；超限立即终止读取，完整上传读取默认最多 120 秒。
+- `POST /api/bytedance-aidp/taizhou-helper/recording-items`：把参考文字和已上传媒体绑定为长期 HTTPS 参考地址，并以稳定 SHA-256 幂等键转发录音平台创建接口；相同来源条目以规范化请求指纹防止内容漂移，并在进程内共享同一上游请求。
+- `POST /api/bytedance-aidp/taizhou-helper/recording-items/result`：以持久化哈希校验 `syncToken`，查询录音平台当前完成结果。
+- `GET /api/bytedance-aidp/taizhou-helper/recording-items/audio/:token`：校验默认 120 秒短时签名后代理受保护录音，转发单个 Range 和必要媒体响应头。
+- `GET|HEAD /api/public/recording-media/:mediaId`：以不可猜测 ID 长期读取已绑定参考媒体，支持完整读取和单个 Range，不提供列表。
+
+私密配置从 `config/secrets/recording-platform-integration.json` 读取，脱敏模板及 `allowedTaskIds` 风险见 [config/README.md](../../config/README.md)。缺少或无效配置时专用写入、查询和代理端点返回安全 503；查询和短时音频代理每次都重新核对当前允许列表，移除任务后既有同步凭证和播放凭证立即失效。普通日志、状态文件与响应不保存或输出 API Key、同步 token、参考全文、完整第三方 URL、AIDP Cookie、Authorization、Session 或本地绝对路径；上游 code 与 requestId 只保留受限字符和长度。录音平台确定性 4xx 会清理本次新媒体；网络、超时或 5xx 保留相同幂等键和可重试映射。
+
+启动时会立即对账状态文件、临时目录和长期媒体目录，并清理过期上传、遗留 `.uploading`、原子状态临时文件和无状态孤儿文件；之后至少每分钟重试维护。文件删除失败时保留状态供下轮重试。当前原子 JSON、同源单飞与上传并发上限按单 Node 进程部署设计，不得让多个 PM2 实例共享同一运行时目录。
 
 ## 管理员接口
 

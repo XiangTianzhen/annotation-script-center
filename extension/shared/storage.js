@@ -37,6 +37,39 @@
     if (typeof value !== "string") return fallback;
     return Array.from(new Set(value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))).join("\n");
   }
+  function normalizeRecordingSyncMapping(value) {
+    const source = object(value);
+    const updatedAt = Number(source.updatedAt);
+    const next = {
+      recordingTaskId: text(source.recordingTaskId),
+      sourceItemId: text(source.sourceItemId),
+      recordingItemId: text(source.recordingItemId),
+      itemCode: text(source.itemCode),
+      syncToken: text(source.syncToken),
+      updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? Math.round(updatedAt) : 0,
+    };
+    return Object.values(next).every(function (item) {
+      return item !== "" && item !== 0;
+    })
+      ? next
+      : null;
+  }
+  function normalizeRecordingSyncMappings(value) {
+    const seen = new Set();
+    return (Array.isArray(value) ? value : [])
+      .map(normalizeRecordingSyncMapping)
+      .filter(Boolean)
+      .sort(function (left, right) {
+        return right.updatedAt - left.updatedAt;
+      })
+      .filter(function (item) {
+        const key = item.recordingTaskId + "\n" + item.sourceItemId;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 500);
+  }
   function normalizeShortcutMap(value, fallback, aidpMigration) {
     const source = object(value);
     if (!aidpMigration) return clone(source);
@@ -157,6 +190,13 @@
     if (isTaizhou) {
       return {
         ...common,
+        recordingImportTaskId: text(
+          source.recordingImportTaskId,
+          fallback.recordingImportTaskId
+        ),
+        recordingSyncMappings: normalizeRecordingSyncMappings(
+          source.recordingSyncMappings
+        ),
         aiRecommendOmniModel: option(
           source.aiRecommendOmniModel || source.aiRecommendListenModel,
           ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
@@ -356,6 +396,34 @@
   async function getSettings() { const next = normalizeSettings(await chromeGet()); await chromeSet(next); return clone(next); }
   async function saveSettings(settings) { const next = normalizeSettings(settings); await chromeSet(next); return clone(next); }
   async function patchSettings(patch) { return saveSettings(deepMerge(await getSettings(), patch)); }
+  async function saveTaizhouRecordingSyncMapping(mapping) {
+    const normalized = normalizeRecordingSyncMapping(mapping);
+    if (!normalized) throw new Error("录音同步映射缺少必要字段。");
+    const settings = await getSettings();
+    const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
+    script.recordingSyncMappings = normalizeRecordingSyncMappings([
+      normalized,
+      ...(Array.isArray(script.recordingSyncMappings) ? script.recordingSyncMappings : []),
+    ]);
+    await chromeSet(normalizeSettings(settings));
+    return clone(normalized);
+  }
+  async function findTaizhouRecordingSyncMapping(taskId, sourceItemId) {
+    const targetTaskId = text(taskId);
+    const targetSourceItemId = text(sourceItemId);
+    if (!targetTaskId || !targetSourceItemId) return null;
+    const settings = await getSettings();
+    const mappings =
+      settings.platforms.bytedanceAidp.scripts.taizhouHelper.recordingSyncMappings || [];
+    return clone(
+      mappings.find(function (item) {
+        return (
+          item.recordingTaskId === targetTaskId &&
+          item.sourceItemId === targetSourceItemId
+        );
+      }) || null
+    );
+  }
   async function setScriptEnabled(scriptId, enabled) {
     const settings = await getSettings();
     const next = enabled === true;
@@ -390,6 +458,7 @@
 
   globalThis.ASREdgeStorage = {
     getSettings, saveSettings, patchSettings, setScriptEnabled,
+    saveTaizhouRecordingSyncMapping, findTaizhouRecordingSyncMapping,
     isPlatformEnabled: async (id) => Boolean((await getSettings()).platforms?.[id]?.enabled),
     setDebugMode: async () => getSettings(), clearRuntimeCache: async () => getSettings(),
     resetSettings: async () => saveSettings(constants.DEFAULT_SETTINGS),

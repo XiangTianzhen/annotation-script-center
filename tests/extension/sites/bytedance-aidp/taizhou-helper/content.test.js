@@ -1845,6 +1845,136 @@ test("ByteDance AIDP content injects fill-language-kind button next to clear but
   assert.equal(filled, 1);
 });
 
+test("ByteDance AIDP content hides, enables and marks the recording import button busy from the internal task id", function () {
+  const contentModule = loadContentModule();
+  let clicked = 0;
+  const headerActionGroup = new FakeElement({
+    className: "operation-group-btn-GcvnvK",
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "item-info-Gr9sCs",
+      children: [
+        new FakeElement({
+          className: "item-content-YPvk0h",
+          children: [
+            new FakeElement({
+              className: "agent-wrapper-g36cL8",
+              children: [headerActionGroup],
+            }),
+          ],
+        }),
+      ],
+    }),
+  ]);
+
+  contentModule.__testOnly.syncRecordingImportButton(root, {
+    recordingTaskId: "",
+    onClick() {
+      clicked += 1;
+    },
+  });
+  assert.equal(
+    headerActionGroup.querySelector("[data-asc-recording-import-button='true']"),
+    null
+  );
+
+  contentModule.__testOnly.syncRecordingImportButton(root, {
+    recordingTaskId: "internal-task-id",
+    contextReady: false,
+    busy: false,
+    onClick() {
+      clicked += 1;
+    },
+  });
+  const button = headerActionGroup.querySelector(
+    "[data-asc-recording-import-button='true']"
+  );
+  assert.ok(button);
+  assert.equal(button.textContent, "导入录音任务");
+  assert.equal(button.disabled, true);
+
+  contentModule.__testOnly.syncRecordingImportButton(root, {
+    recordingTaskId: "internal-task-id",
+    contextReady: true,
+    busy: false,
+    onClick() {
+      clicked += 1;
+    },
+  });
+  assert.equal(button.disabled, false);
+  button.click();
+  assert.equal(clicked, 1);
+
+  contentModule.__testOnly.syncRecordingImportButton(root, {
+    recordingTaskId: "internal-task-id",
+    contextReady: true,
+    busy: true,
+    onClick() {
+      clicked += 1;
+    },
+  });
+  assert.equal(button.disabled, true);
+  assert.equal(button.textContent, "正在导入...");
+});
+
+test("ByteDance AIDP content renders recording import success and a retryable safe failure", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const results = [];
+  let outcome = {
+    ok: true,
+    message: "已导入录音任务：T000001-0000001",
+    mapping: {
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000001",
+    },
+  };
+  const runtime = {
+    recording: {
+      async importCurrentItem() {
+        return outcome;
+      },
+    },
+    recordingImportBusy: false,
+    config: {},
+    ui: {
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+      renderRecordingResult(result) {
+        results.push(result);
+      },
+    },
+  };
+  contentModule.__testOnly.setHelperRuntimeForTest(runtime);
+
+  await contentModule.__testOnly.handleRecordingImportAction();
+  assert.equal(runtime.recordingImportBusy, false);
+  assert.deepEqual(results[0], {
+    sourceItemId: "source-item-1",
+    itemCode: "T000001-0000001",
+    status: "AVAILABLE",
+  });
+  assert.deepEqual(statuses.at(-1), {
+    message: "已导入录音任务：T000001-0000001",
+    type: "success",
+  });
+
+  outcome = {
+    ok: false,
+    message: "视频下载失败，请确认当前页面登录状态后重试。",
+  };
+  await contentModule.__testOnly.handleRecordingImportAction();
+  assert.equal(runtime.recordingImportBusy, false);
+  assert.equal(results.length, 1);
+  assert.deepEqual(statuses.at(-1), {
+    message: "视频下载失败，请确认当前页面登录状态后重试。",
+    type: "error",
+  });
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
 test("ByteDance AIDP content injects per-row recognize buttons once and keeps a single recognize header", function () {
   const contentModule = loadContentModule();
   const rowOne = createAidpSegmentTableRow(1);

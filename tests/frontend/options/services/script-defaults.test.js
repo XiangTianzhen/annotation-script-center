@@ -254,6 +254,31 @@ describe("script defaults and draft adapters", () => {
     expect(state.config).not.toHaveProperty("aiRecommendRefinePrompt");
   });
 
+  test("trims the Taizhou recording internal task id when hydrating and saving", () => {
+    const baseDraft = {
+      platformAiEnabled: true,
+      segmentContextPaddingMs: 0.3,
+      segmentSilenceThresholdDbfs: -31,
+      aiRecommendRequestTimeoutMs: 60,
+      recordingImportTaskId: "  internal-task-id  ",
+    };
+
+    expect(
+      hydrateScriptDraft(
+        TAIZHOU_ID,
+        {
+          ...baseDraft,
+          segmentContextPaddingMs: 300,
+          aiRecommendRequestTimeoutMs: 60000,
+        },
+        {}
+      ).recordingImportTaskId
+    ).toBe("internal-task-id");
+    expect(
+      serializeScriptDraft(TAIZHOU_ID, baseDraft, {}).recordingImportTaskId
+    ).toBe("internal-task-id");
+  });
+
   test("maps the CVPC flat stage parameters and stop sequences", async () => {
     const state = await loadScriptDefaults(
       CVPC_ID,

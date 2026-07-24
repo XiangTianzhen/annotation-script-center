@@ -9,6 +9,8 @@
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const STORAGE = globalThis.ASREdgeStorage || null;
   const dataApiFactory = globalThis.ASREdgeBytedanceAidpTaizhouDataApi || null;
+  const recordingFactory =
+    globalThis.ASREdgeBytedanceAidpTaizhouRecordingIntegration || null;
   const aiFactory = globalThis.ASREdgeBytedanceAidpTaizhouAiRecommendation || null;
   const segmentFactory = globalThis.ASREdgeBytedanceAidpTaizhouSegmentation || null;
   const uiFactory = globalThis.ASREdgeBytedanceAidpTaizhouUiPanel || null;
@@ -30,6 +32,7 @@
   const TOOLBAR_ACTION_GROUP_ATTR = "data-asc-toolbar-action-group";
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
+  const RECORDING_IMPORT_BUTTON_ATTR = "data-asc-recording-import-button";
   const HIDE_AUXILIARY_ZONE_BUTTON_ATTR = "data-asc-hide-auxiliary-zone-button";
   const ACCOUNT_SWITCH_BAR_ATTR = "data-asc-aidp-account-switch-bar";
   const ACCOUNT_SWITCH_BUTTON_ATTR = "data-asc-aidp-account-switch-button";
@@ -385,6 +388,7 @@
         aiRecommendOmniPrompt: "",
         defaultPlaybackRate: DEFAULT_PLAYBACK_RATE,
         fixedWaveZoom: DEFAULT_FIXED_WAVE_ZOOM,
+        recordingImportTaskId: "",
         contractMode: "dom-guarded",
         shortcuts: {},
       }
@@ -442,6 +446,9 @@
       fixedWaveZoom: normalizeFixedWaveZoom(
         current.fixedWaveZoom,
         defaults.fixedWaveZoom
+      ),
+      recordingImportTaskId: normalizeText(
+        current.recordingImportTaskId || defaults.recordingImportTaskId
       ),
       settings: settings,
       aiUsageOperatorName: normalizeText(settings?.meta?.aiUsageOperatorName || ""),
@@ -2073,6 +2080,56 @@
     );
   }
 
+  function syncRecordingImportButton(root, options) {
+    const source = options && typeof options === "object" ? options : {};
+    const actionGroup = findDetailHeaderActionGroup(root);
+    if (!actionGroup || typeof actionGroup.querySelector !== "function") {
+      return false;
+    }
+    const selector = "[" + RECORDING_IMPORT_BUTTON_ATTR + "='true']";
+    let button = actionGroup.querySelector(selector);
+    if (!normalizeText(source.recordingTaskId)) {
+      if (button?.parentNode && typeof button.parentNode.removeChild === "function") {
+        button.parentNode.removeChild(button);
+        return true;
+      }
+      return false;
+    }
+    let changed = false;
+    if (!button) {
+      const documentLike = actionGroup.ownerDocument || globalThis.document;
+      if (!documentLike || typeof documentLike.createElement !== "function") {
+        return false;
+      }
+      button = documentLike.createElement("button");
+      button.type = "button";
+      button.setAttribute(RECORDING_IMPORT_BUTTON_ATTR, "true");
+      applyHeaderActionButtonStyle(button);
+      button.addEventListener("click", function () {
+        if (button.disabled !== true && typeof button.__ascRecordingOnClick === "function") {
+          button.__ascRecordingOnClick();
+        }
+      });
+      actionGroup.appendChild(button);
+      changed = true;
+    }
+    button.__ascRecordingOnClick =
+      typeof source.onClick === "function" ? source.onClick : null;
+    const busy = source.busy === true;
+    const nextDisabled = busy || source.contextReady !== true;
+    const nextText = busy ? "正在导入..." : "导入录音任务";
+    if (button.disabled !== nextDisabled || button.textContent !== nextText) {
+      changed = true;
+    }
+    button.disabled = nextDisabled;
+    button.textContent = nextText;
+    if (button.style) {
+      button.style.cursor = nextDisabled ? "not-allowed" : "pointer";
+      button.style.opacity = nextDisabled ? "0.58" : "1";
+    }
+    return changed;
+  }
+
   function hasClassToken(node, className) {
     return getClassName(node)
       .split(/\s+/)
@@ -3407,6 +3464,15 @@
           void handleFillLanguageKindsAction();
         }) || changed;
       changed =
+        syncRecordingImportButton(root, {
+          recordingTaskId: resolvedConfig.recordingImportTaskId,
+          contextReady: helperRuntime?.recordingContextReady === true,
+          busy: helperRuntime?.recordingImportBusy === true,
+          onClick: function () {
+            void handleRecordingImportAction();
+          },
+        }) || changed;
+      changed =
         ensureHideAuxiliaryZoneButton(root, function () {
           setTaizhouAuxiliaryZonesHidden(root, !taizhouAuxiliaryZonesHidden);
         }) || changed;
@@ -4049,6 +4115,11 @@
           return;
         }
         const context = await helperRuntime.dataApi.getCurrentContext();
+        const recordingImportContext =
+          typeof helperRuntime.dataApi.getRecordingImportContext === "function"
+            ? await helperRuntime.dataApi.getRecordingImportContext()
+            : null;
+        helperRuntime.recordingContextReady = recordingImportContext?.ok === true;
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
           helperRuntime.playbackScopeKey ||
@@ -4070,6 +4141,39 @@
               normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
           });
         });
+        const sourceItemId = normalizeText(context?.itemId);
+        if (helperRuntime.recording && sourceItemId) {
+          const mapping = await helperRuntime.recording.findMapping(sourceItemId);
+          if (mapping) {
+            helperRuntime.ui.renderRecordingResult?.({
+              sourceItemId: mapping.sourceItemId,
+              itemCode: mapping.itemCode,
+              status: "",
+            });
+          } else {
+            helperRuntime.ui.renderRecordingResult?.({
+              sourceItemId: sourceItemId,
+            });
+          }
+          try {
+            const recordingResult =
+              await helperRuntime.recording.autoRefreshForCurrentItem(sourceItemId);
+            if (recordingResult) {
+              helperRuntime.ui.renderRecordingResult?.(recordingResult);
+            }
+          } catch (_recordingError) {
+            helperRuntime.ui.setStatus(
+              "录音结果自动刷新失败，可使用录音平台结果区的刷新按钮重试。",
+              "warning"
+            );
+          }
+        }
+        syncPlaybackSensitiveDecorations(
+          document,
+          Object.assign({}, helperRuntime.config || {}, {
+            playbackScopeKey: helperRuntime.playbackScopeKey,
+          })
+        );
         helperRuntime.batchSelectionKey = normalizeText(context?.selectionKey);
         if (!normalizeText(context?.audioUrl)) {
           helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
@@ -4339,6 +4443,54 @@
     scheduleRuntimeReload(helperRuntime);
   }
 
+  async function handleRecordingImportAction() {
+    if (!helperRuntime?.recording || helperRuntime.recordingImportBusy === true) {
+      return;
+    }
+    helperRuntime.recordingImportBusy = true;
+    helperRuntime.ui?.setStatus?.("正在导入当前完整题目到录音平台...", "");
+    if (typeof document !== "undefined") {
+      syncPlaybackSensitiveDecorations(document, helperRuntime.config || {});
+    }
+    try {
+      const result = await helperRuntime.recording.importCurrentItem();
+      helperRuntime.ui?.setStatus?.(
+        result?.message || "导入录音任务失败，请稍后重试。",
+        result?.ok ? "success" : "error"
+      );
+      if (result?.ok && result.mapping) {
+        helperRuntime.ui?.renderRecordingResult?.({
+          sourceItemId: result.mapping.sourceItemId,
+          itemCode: result.mapping.itemCode,
+          status: "AVAILABLE",
+        });
+      }
+    } catch (_error) {
+      helperRuntime.ui?.setStatus?.("导入录音任务失败，请稍后重试。", "error");
+    } finally {
+      if (helperRuntime) {
+        helperRuntime.recordingImportBusy = false;
+        if (typeof document !== "undefined") {
+          syncPlaybackSensitiveDecorations(document, helperRuntime.config || {});
+        }
+      }
+    }
+  }
+
+  async function handleRecordingRefreshAction() {
+    if (!helperRuntime?.recording) {
+      return;
+    }
+    helperRuntime.ui?.setStatus?.("正在刷新录音平台结果...", "");
+    try {
+      const result = await helperRuntime.recording.refreshCurrentResult();
+      helperRuntime.ui?.renderRecordingResult?.(result);
+      helperRuntime.ui?.setStatus?.("录音平台结果已刷新。", "success");
+    } catch (_error) {
+      helperRuntime.ui?.setStatus?.("刷新录音结果失败，请稍后重试。", "error");
+    }
+  }
+
   async function handleTaskListAccountSwitchAction() {
     if (typeof document === "undefined") {
       return;
@@ -4461,6 +4613,20 @@
       mergeContiguousSuggestedSegmentsEnabled:
         helperConfig.mergeContiguousSuggestedSegmentsEnabled,
     });
+    const recording =
+      recordingFactory && typeof recordingFactory.createRuntime === "function"
+        ? recordingFactory.createRuntime({
+            dataApi: dataApi,
+            storage: STORAGE,
+            settings: helperConfig.settings,
+            fetch: globalThis.fetch,
+            buildBackendUrl: function (path) {
+              return typeof CONSTANTS.buildBackendUrl === "function"
+                ? CONSTANTS.buildBackendUrl(path, helperConfig.settings)
+                : String(path || "");
+            },
+          })
+        : null;
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: helperConfig.segmentPreviewAutoApplyEnabled,
       onRecommend: function () {
@@ -4488,6 +4654,9 @@
       },
       onClearSegments: function () {
         void handleClearSegmentsAction();
+      },
+      onRefreshRecordingResult: function () {
+        void handleRecordingRefreshAction();
       },
     });
     const shortcuts =
@@ -4529,6 +4698,7 @@
       ai: ai,
       batchController: batchController,
       segment: segment,
+      recording: recording,
       ui: ui,
       shortcuts: shortcuts,
       preview: null,
@@ -4541,6 +4711,8 @@
       rowRecommendInFlight: false,
       rowRecommendSegmentNumber: 0,
       rowRecognizeLayoutSignature: "",
+      recordingContextReady: false,
+      recordingImportBusy: false,
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
       },
@@ -4558,6 +4730,7 @@
       ui.renderBatchState({
         phaseText: "",
       });
+      ui.renderRecordingResult?.(null);
       ui.setStatus(
         "台州话脚本已就绪；当前支持单段识别直填输入框、批量识别和分段建议暂存写回。",
         "success"
@@ -4797,6 +4970,7 @@
       isWavePlaybackActive: isWavePlaybackActive,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
+      syncRecordingImportButton: syncRecordingImportButton,
       ensureHideAuxiliaryZoneButton: ensureHideAuxiliaryZoneButton,
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
       createSegmentRecognizeButton: createSegmentRecognizeButton,
@@ -4805,6 +4979,8 @@
       buildSegmentRecognizeButtonOptions: buildSegmentRecognizeButtonOptions,
       handleRecommendAction: handleRecommendAction,
       handleRowRecommendAction: handleRowRecommendAction,
+      handleRecordingImportAction: handleRecordingImportAction,
+      handleRecordingRefreshAction: handleRecordingRefreshAction,
       createShortcutActions: createShortcutActions,
       createBatchRecommendController: createBatchRecommendController,
       fillEmptyLanguageKinds: fillEmptyLanguageKinds,

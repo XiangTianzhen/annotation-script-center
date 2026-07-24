@@ -20,6 +20,19 @@
     return formatSeconds((Math.max(0, Number(value || 0)) || 0) / 1000);
   }
 
+  function formatRecordingStatus(value) {
+    const status = normalizeText(value);
+    const labels = {
+      AVAILABLE: "待领取",
+      RECORDING_PENDING: "待录音",
+      SUBMITTED: "待审核领取",
+      REVIEW_PENDING: "审核中",
+      REWORK_PENDING: "待返修",
+      COMPLETED: "已完成",
+    };
+    return labels[status] || status || "未知状态";
+  }
+
   function pickUsageValue(usage, keys) {
     const source = usage && typeof usage === "object" ? usage : {};
     const keyList = Array.isArray(keys) ? keys : [keys];
@@ -201,6 +214,8 @@
       "[" + ROOT_ATTR + "] .debug-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .debug-title { font-weight: 600; color: #26418b; }",
       "[" + ROOT_ATTR + "] .debug-copy-button { min-height: 28px; padding: 0 12px; font-size: 12px; }",
+      "[" + ROOT_ATTR + "] .recording-result-text { margin-top: 10px; padding: 10px; border-radius: 8px; background: #f7f9fc; white-space: pre-wrap; word-break: break-word; }",
+      "[" + ROOT_ATTR + "] .recording-result-audio { width: 100%; margin-top: 10px; }",
       "[" + ROOT_ATTR + "] .debug-card { margin: 0; padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 10px; background: #f8fbff; color: #334155; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }",
       "@media (max-width: 1120px) {",
       "  [" + ROOT_ATTR + "] .panel-grid { grid-template-columns: minmax(0, 1fr); }",
@@ -441,6 +456,8 @@
     let previewCollapseButtonNode = null;
     let aiMetaNode = null;
     let aiMetaCollapseButtonNode = null;
+    let recordingResultNode = null;
+    let recordingRefreshButtonNode = null;
     let batchStateNode = null;
     let batchSelectionGridNode = null;
     let batchActionRowNode = null;
@@ -780,6 +797,37 @@
       grid.appendChild(summarySection);
       syncCurrentAudioSectionState();
 
+      const recordingSection = document.createElement("div");
+      recordingSection.className = "section";
+      recordingSection.setAttribute("data-span", "full");
+      const recordingHead = document.createElement("div");
+      recordingHead.className = "section-head";
+      recordingHead.appendChild(
+        createSectionTitleRow(
+          "录音平台结果",
+          "只读显示当前完整题目对应的录音任务状态、完成文本与结果音频；不会写入 AIDP 输入框、画段、暂存或提交接口。"
+        )
+      );
+      recordingRefreshButtonNode = createButton(
+        "刷新录音结果",
+        false,
+        function () {
+          deps.onRefreshRecordingResult?.();
+        }
+      );
+      recordingRefreshButtonNode.setAttribute(
+        "data-recording-result-refresh",
+        "true"
+      );
+      recordingSection.appendChild(recordingHead);
+      recordingResultNode = document.createElement("div");
+      recordingResultNode.className = "summary-card";
+      recordingResultNode.setAttribute("data-recording-result-card", "true");
+      recordingResultNode.textContent = "当前题目尚未同步录音任务。";
+      recordingResultNode.appendChild(recordingRefreshButtonNode);
+      recordingSection.appendChild(recordingResultNode);
+      grid.appendChild(recordingSection);
+
       const metaSection = document.createElement("div");
       metaSection.className = "section";
       metaSection.setAttribute("data-span", "full");
@@ -900,6 +948,65 @@
 
     function renderCurrentRecommendation(result) {
       latestRecommendation = result && typeof result === "object" ? Object.assign({}, result) : null;
+    }
+
+    function renderRecordingResult(result) {
+      if (!recordingResultNode) {
+        return;
+      }
+      const source = result && typeof result === "object" ? result : {};
+      clearNode(recordingResultNode);
+      const sourceItemId = normalizeText(source.sourceItemId);
+      const itemCode = normalizeText(source.itemCode);
+      const status = normalizeText(source.status);
+      if (!sourceItemId && !itemCode && !status) {
+        recordingResultNode.textContent = "当前题目尚未同步录音任务。";
+        recordingResultNode.appendChild(recordingRefreshButtonNode);
+        return;
+      }
+      const grid = document.createElement("div");
+      grid.className = "summary-grid";
+      [
+        ["来源题目", sourceItemId],
+        ["录音条目", itemCode],
+        ["状态", formatRecordingStatus(status)],
+      ]
+        .filter(function (item) {
+          return normalizeText(item[1]);
+        })
+        .forEach(function (item) {
+          const line = document.createElement("div");
+          line.className = "summary-line";
+          const labelNode = document.createElement("span");
+          labelNode.className = "summary-label";
+          labelNode.textContent = String(item[0]) + "：";
+          const valueNode = document.createElement("span");
+          valueNode.textContent = String(item[1]);
+          line.appendChild(labelNode);
+          line.appendChild(valueNode);
+          grid.appendChild(line);
+        });
+      recordingResultNode.appendChild(grid);
+      if (status === "COMPLETED" && typeof source.text === "string" && source.text !== "") {
+        const textNode = document.createElement("div");
+        textNode.className = "recording-result-text";
+        textNode.setAttribute("data-recording-result-text", "true");
+        textNode.textContent = source.text;
+        recordingResultNode.appendChild(textNode);
+      }
+      if (
+        status === "COMPLETED" &&
+        source.audioAvailable === true &&
+        normalizeText(source.audioUrl)
+      ) {
+        const audio = document.createElement("audio");
+        audio.className = "recording-result-audio";
+        audio.controls = true;
+        audio.preload = "metadata";
+        audio.src = normalizeText(source.audioUrl);
+        recordingResultNode.appendChild(audio);
+      }
+      recordingResultNode.appendChild(recordingRefreshButtonNode);
     }
 
     function renderBatchState(snapshot) {
@@ -1212,6 +1319,8 @@
       summaryCollapseButtonNode = null;
       previewNode = null;
       aiMetaNode = null;
+      recordingResultNode = null;
+      recordingRefreshButtonNode = null;
       batchStateNode = null;
       batchSelectionGridNode = null;
       batchActionRowNode = null;
@@ -1242,6 +1351,7 @@
       setStatus,
       renderAudioContext,
       renderCurrentRecommendation,
+      renderRecordingResult,
       renderBatchSelection,
       renderBatchState,
       renderBatchResultTabs,
@@ -1258,6 +1368,9 @@
 
   const api = {
     createRuntime,
+    __testOnly: {
+      formatRecordingStatus,
+    },
   };
 
   globalThis.ASREdgeBytedanceAidpTaizhouUiPanel = api;

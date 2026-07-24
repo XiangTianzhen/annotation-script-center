@@ -20,6 +20,7 @@
 - 台州话资料：`platform-resources/bytedance-aidp/taizhou-helper/README.md`
 
 苏州话、金华话与台州话脚本同平台互斥启用。
+台州话另已接入 Search Item 完整题目人工导入录音平台与完成结果只读回显；不写回 AIDP。
 
 ## Magic Data
 

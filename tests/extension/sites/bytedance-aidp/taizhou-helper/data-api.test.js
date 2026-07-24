@@ -9,6 +9,7 @@ const modulePath = resolveRepo("extension", "sites", "bytedance-aidp", "taizhou-
 const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
 const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
 const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
+const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
 
 function loadModule() {
   delete require.cache[modulePath];
@@ -411,6 +412,17 @@ function emitSubmit(windowLike, payload) {
   );
 }
 
+function emitSearchItem(windowLike, payload) {
+  windowLike.emitMessage(
+    {
+      source: OBSERVER_SOURCE,
+      type: SEARCH_ITEM_TYPE,
+      payload: payload,
+    },
+    "https://aidp.bytedance.com"
+  );
+}
+
 function createRuntimeHarness(options) {
   const settings = options && typeof options === "object" ? options : {};
   const moduleApi = loadModule();
@@ -460,6 +472,8 @@ function createRuntimeHarness(options) {
           unsafeReason: "",
         };
       },
+    now: settings.now,
+    searchContextTtlMs: settings.searchContextTtlMs,
   });
 
   emitReceive(windowLike, createBaseReceivePayload(settings.receiveRegions));
@@ -491,6 +505,86 @@ test("AIDP data api builds current context from observer receive snapshot", asyn
   assert.equal(context.currentSegments[0].startMs, 1307);
   assert.equal(context.currentSegments[0].endMs, 3024);
   assert.equal(context.selectionKey, "7656690377962016562");
+});
+
+test("AIDP data api exposes a safe full-item import context only for matching Receive ItemID", async function () {
+  const harness = createRuntimeHarness();
+  emitSearchItem(harness.windowLike, {
+    sourceItemId: "7656690377962016562",
+    referenceText: "  完整题目文本  ",
+    audioUrl: " https://media.example.test/audio?signature=masked ",
+    videoUrl: "https://media.example.test/video?signature=masked",
+    authorization: "must-not-keep",
+    user: { email: "private@example.test" },
+    rawResponse: { Tenant: "must-not-keep" },
+  });
+
+  const context = await harness.runtime.getRecordingImportContext();
+
+  assert.deepEqual(context, {
+    ok: true,
+    sourceItemId: "7656690377962016562",
+    referenceText: "完整题目文本",
+    audioUrl: "https://media.example.test/audio?signature=masked",
+    videoUrl: "https://media.example.test/video?signature=masked",
+  });
+  assert.doesNotMatch(
+    JSON.stringify(context),
+    /authorization|private@example|Tenant|rawResponse|must-not-keep/i
+  );
+});
+
+test("AIDP data api distinguishes waiting, stale and empty Search Item contexts", async function () {
+  let now = 1000;
+  const harness = createRuntimeHarness({
+    now: function () {
+      return now;
+    },
+    searchContextTtlMs: 5000,
+  });
+
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: false,
+    reason: "waiting",
+    message: "正在等待当前完整题目数据，请稍后重试。",
+  });
+
+  emitSearchItem(harness.windowLike, {
+    sourceItemId: "different-item",
+    referenceText: "不允许错题导入",
+    audioUrl: "",
+    videoUrl: "",
+  });
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: false,
+    reason: "stale",
+    message: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
+  });
+
+  emitSearchItem(harness.windowLike, {
+    sourceItemId: "7656690377962016562",
+    referenceText: "   ",
+    audioUrl: "",
+    videoUrl: "   ",
+  });
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: false,
+    reason: "empty",
+    message: "当前完整题目没有可导入的文字、音频或视频参考内容。",
+  });
+
+  emitSearchItem(harness.windowLike, {
+    sourceItemId: "7656690377962016562",
+    referenceText: "有效内容",
+    audioUrl: "",
+    videoUrl: "",
+  });
+  now = 7001;
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: false,
+    reason: "expired",
+    message: "当前完整题目数据已过期，请等待页面重新加载后重试。",
+  });
 });
 
 test("AIDP data api applies preview through SubmitTempItemAnswer with rebuilt regions", async function () {

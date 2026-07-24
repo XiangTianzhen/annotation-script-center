@@ -3,7 +3,8 @@
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS,HEAD",
-  "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization",
+  "Access-Control-Allow-Headers":
+    "Content-Type,Accept,Authorization,X-Recording-Task-Id",
 };
 
 function createCorsHeaders(extraHeaders) {

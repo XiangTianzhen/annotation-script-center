@@ -4,6 +4,14 @@
 
 ## 2026-07-24
 
+- 新增(taizhou-recording): 统一后端增加台州话受控媒体上传、长期参考媒体托管、录音条目幂等转发、完成结果查询、短时签名录音代理与公开媒体 Range 读取。
+- 新增(taizhou-recording): 台州话 Options 基础设置增加录音平台数据库内部 taskId；详情页观察 Search Item 最小字段，人工导入当前完整题目，并在辅助面板只读回显任务状态、完成文本与音频。
+- 安全(taizhou-recording): storage schema 升至 35，仅保留最近 500 条安全同步映射；Options taskId 与服务器 allowedTaskIds 双重匹配，无需管理员解锁，扩展不保存机器 Key、登录态、参考全文或原始签名媒体 URL。
+- 测试(taizhou-recording): 覆盖 Search Item fetch/XHR 严格脱敏、ItemID 一致性与过期、文本/音频/视频组合、100MB 双重限制、媒体部分失败、重复导入、单次自动查询、手动刷新、状态映射和结果不写回 AIDP。
+- 安全(taizhou-recording): 录音平台机器 Key、任务允许列表与签名密钥只从 Git 忽略的服务器私密 JSON 读取；状态不保存参考全文、同步 token 明文、AIDP 登录态或本地绝对路径。
+- 测试(taizhou-recording): 覆盖配置、任务允许列表、严格字段、流式 100MB 上限、MIME/魔数、并发、原子落盘、TTL、稳定幂等、恢复、4xx/5xx清理策略、同步凭证、音频代理及公开媒体 Range。
+- 加固(taizhou-recording): 复核读取授权、上传超限与慢流、同源单飞、启动和定时恢复、音频流全生命周期取消、请求指纹及上游标识脱敏，任务移出允许列表后旧同步和播放凭证立即失效。
+- 加固(taizhou-recording): 活动 staging 跨维护周期受保护，上传准备异常必定释放并发槽位；创建和结果 JSON 超时覆盖完整 body 并限制 256KB，公开媒体 416 保留 CORS 且安全处理文件流错误。
 - 文档(integration): 新增录音任务平台长期接入规范，固定专用机器 API、三类参考字段、幂等重试、错误处理和脱敏调用示例。
 - 安全(integration): 明确录音平台 API Key 仅存服务器私密配置；受登录态保护的媒体由浏览器取得字节，不向服务器传第三方 Cookie、Authorization 或 Session。
 - 边界(integration): 当前不修改任何现有脚本，不实现按钮、媒体上传托管、任务映射或运行时转发；未来逐平台显式接入并单独确认导入粒度与字段来源。

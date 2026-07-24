@@ -1,143 +1,101 @@
 # 录音任务平台接入规范
 
-本文规定标注脚本中心未来按平台接入“人工添加当前数据到录音任务平台”时的统一边界。当前仓库尚未实现媒体上传、公开托管、录音平台转发、平台按钮或任务映射；任何脚本都不会因为本文自动启用该功能。
+本文规定标注脚本中心向录音任务平台人工添加数据和只读查询结果的统一边界。当前已接入范围仅为 ByteDance AIDP 台州话详情页；其他平台或脚本不会自动获得此能力。
 
-## 启用条件
+## 当前启用条件
 
-- 只有已通过标注脚本中心管理员验证的使用者可以触发添加。
-- 每个平台脚本必须显式接入且默认关闭，不得把功能自动扩散到其他脚本。
-- 接入前必须逐项确认按钮位置、整条或单段粒度、参考文本来源、音视频来源、目标任务 ID、失败提示和人工验收步骤。
-- 每个已接入脚本固定映射一个录音任务 ID；具体值只放服务器私密配置，不写入平台 README、日志或扩展存储。
+- 台州话 Options“基础设置”填写录音平台数据库内部 `taskId`，不是可见的 `taskCode`；默认空，空值时不显示导入按钮，也不查询结果。
+- 同一内部 `taskId` 还必须存在于服务器私密配置 `allowedTaskIds`。Options 与服务器允许列表双重匹配，任一侧缺失都会停止导入。
+- 功能不依赖标注脚本中心管理员会话或管理员解锁。浏览器只调用脚本中心专用后端，录音平台机器 API Key 永远只由服务器读取。
+- 导入粒度固定为当前完整 AIDP Item，不按画段拆分；只允许人工点击，不批量导入、不轮询、不自动写回或提交 AIDP。
 
-## 媒体处理
+## AIDP 数据与媒体边界
 
-- 可匿名公网读取的媒体直接使用原始绝对 HTTPS URL。
-- 需要平台 Cookie、Authorization 或 Session 才能读取的媒体，必须由浏览器在当前登录态内取得文件字节，再上传到未来实现的标注脚本中心媒体托管能力。
-- 不得把第三方平台 Cookie、Authorization、Session、完整请求头或带凭证 URL 发送到服务器代下载。
-- 未来托管能力固定使用不可猜测的长期 HTTPS URL，单文件最多 100MB，不转码，临时文件校验后原子落盘。
-- 生产媒体 URL 必须能被微信小程序直接访问；`127.0.0.1`、`localhost` 或其他本地 URL 只能用于服务器内部联调，不能写入生产任务。
+- MAIN-world 只观察 `/dispatcher/search_item/category`，从 `Data[0].ItemID` 与字符串 `Data[0].Content` 中提取 `asr_text`、`audio`、`video`。
+- 隔离世界只接收 `sourceItemId`、`referenceText`、`audioUrl`、`videoUrl`；只有 Search Item 与当前 Receive ItemID 一致且快照未过期时才允许导入。
+- 音视频由浏览器使用当前 AIDP 登录态或签名上下文直接下载。不得把第三方 Cookie、Authorization、Session、完整请求头或原始签名 URL 发给脚本中心。
+- 浏览器检查响应 `Content-Length` 和实际字节，单文件最多 100MB；字节不转码，分别上传到台州话专用媒体端点。任一已声明媒体失败时不调用条目创建接口。
+- 服务器将媒体保存为不可猜测的长期 HTTPS 参考地址；生产地址必须能被录音小程序访问，`localhost` 仅用于本地联调。
+
+## 浏览器调用脚本中心
+
+```text
+POST /api/bytedance-aidp/taizhou-helper/recording-media/audio|video
+Content-Type: <安全媒体类型>
+X-Recording-Task-Id: <内部 taskId>
+Body: <原始媒体字节>
+```
+
+媒体上传成功后创建条目：
+
+```text
+POST /api/bytedance-aidp/taizhou-helper/recording-items
+Content-Type: application/json
+```
+
+```json
+{
+  "recordingTaskId": "<internal-task-id>",
+  "sourceItemId": "<AIDP-ItemID>",
+  "referenceText": "脱敏示例文字",
+  "audioUploadId": "<upload-id-or-null>",
+  "videoUploadId": "<upload-id-or-null>"
+}
+```
+
+浏览器不生成外部 `operationId`。脚本中心按脚本命名空间、内部 taskId 与 sourceItemId 计算稳定幂等键，并使用服务器机器 Key 调用录音任务平台：
+
+```text
+POST /api/integrations/tasks/{taskId}/items
+X-API-Key: <server-only>
+Idempotency-Key: <server-derived-stable-key>
+```
+
+## 同步映射与结果
+
+- 扩展本地只保留最近 500 条映射：`recordingTaskId`、`sourceItemId`、`recordingItemId`、`itemCode`、`syncToken`、`updatedAt`。
+- 映射不保存或展示 API Key、登录态、参考全文、原始签名媒体 URL；Options 不展示映射。
+- 进入一条存在匹配映射的题目时只自动查询一次，不轮询。手动刷新请求体只有同步凭证：
+
+```text
+POST /api/bytedance-aidp/taizhou-helper/recording-items/result
+Content-Type: application/json
+
+{"syncToken":"<opaque-token>"}
+```
+
+- 辅助面板只读显示 sourceItemId、itemCode 和任务状态。`COMPLETED` 的文本原样显示；存在结果音频时用脚本中心返回的相对路径构造后端绝对地址并使用 `<audio controls>`。
+- 首期不展示结果视频，结果文本和音频不得写入 AIDP textarea、画段、暂存或提交接口。
 
 ## 服务器私密配置
 
-未来实现调用端时，原始 Key 只能放在 Git 忽略的 `config/secrets/recording-platform-integration.json`。该文件当前不创建；建议结构如下：
+真实配置只放在 Git 忽略的 `config/secrets/recording-platform-integration.json`，仓库只保留脱敏模板：
 
 ```json
 {
   "baseUrl": "https://recording.example.com",
   "apiKey": "<server-only-api-key>",
-  "publicMediaBaseUrl": "https://annotation.example.com/recording-media",
-  "scripts": {
-    "<script-id>": {
-      "enabled": true,
-      "taskId": "<recording-task-id>"
-    }
-  }
+  "allowedTaskIds": ["<internal-task-id>"],
+  "publicBaseUrl": "https://annotation.example.com"
 }
 ```
 
-真实 Key 不得进入 Git、`.env.example`、扩展 `chrome.storage`、前端请求、普通日志、截图或测试 fixture。浏览器只调用标注脚本中心后端；由后端读取私密 Key 后调用录音任务平台。
+真实 Key 不得进入 Git、扩展、`chrome.storage`、前端请求、普通日志、截图或测试 fixture。日志只允许保留 requestId、目标 hostname、HTTP status、业务 code、耗时和脱敏错误摘要。
 
-## 录音任务平台 API
+## 错误与重试
 
-```text
-POST /api/integrations/tasks/{taskId}/items
-X-API-Key: <server-only-api-key>
-Idempotency-Key: <stable-operation-id>
-Content-Type: application/json
-```
+- 上下文等待、过期或 ItemID 不一致：按钮保持禁用或返回明确中文提示，不得导入错误题目。
+- 媒体下载、类型、大小或上传失败：整条导入失败，不创建条目；修复条件后可人工重试。
+- 401/403：停止调用并检查服务器私密配置或目标任务允许列表，不输出 Key。
+- 409：脚本中心沿用同一稳定幂等身份安全重试，不生成新 operationId。
+- 422：检查目标任务启用的参考类型和至少一种非空参考内容。
+- 503：检查服务器私密配置与录音平台可用性。
 
-请求体支持以下三个字段的任意非空组合：
+## 后续平台接入检查表
 
-```json
-{
-  "referenceText": "脱敏示例文字",
-  "referenceAudioUrl": "https://media.example.com/object/audio-id",
-  "referenceVideoUrl": "https://media.example.com/object/video-id"
-}
-```
-
-音视频 URL 必须是包含有效主机、不含用户名或密码信息的绝对 HTTPS URL。录音任务平台只保存 URL，不执行 DNS、HEAD、GET、重定向、格式、大小、时长或内容检查。
-
-成功响应为 HTTP 201：
-
-```json
-{
-  "itemId": "<item-id>",
-  "taskId": "<recording-task-id>",
-  "itemCode": "T000001-0000001",
-  "status": "AVAILABLE",
-  "createdAt": "2026-07-24T00:00:00Z"
-}
-```
-
-## 调用示例
-
-curl：
-
-```bash
-curl --fail-with-body \
-  -X POST "https://recording.example.com/api/integrations/tasks/<recording-task-id>/items" \
-  -H "X-API-Key: <server-only-api-key>" \
-  -H "Idempotency-Key: <stable-operation-id>" \
-  -H "Content-Type: application/json" \
-  --data '{"referenceText":"脱敏示例文字","referenceAudioUrl":"https://media.example.com/object/audio-id"}'
-```
-
-Node.js 后端：
-
-```js
-async function addRecordingTaskItem(config, input) {
-  const response = await fetch(
-    `${config.baseUrl}/api/integrations/tasks/${encodeURIComponent(config.taskId)}/items`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": config.apiKey,
-        "Idempotency-Key": input.operationId,
-      },
-      body: JSON.stringify({
-        referenceText: input.referenceText || null,
-        referenceAudioUrl: input.referenceAudioUrl || null,
-        referenceVideoUrl: input.referenceVideoUrl || null,
-      }),
-    }
-  );
-  const body = await response.json();
-  if (!response.ok) {
-    const error = new Error(body.message || "添加录音任务数据失败");
-    error.status = response.status;
-    error.code = body.code || "UNKNOWN_ERROR";
-    error.requestId = body.requestId || "";
-    throw error;
-  }
-  return body;
-}
-```
-
-每次人工操作生成稳定且不含客户数据的 `operationId`；网络重试必须复用同一个值。相同 `Idempotency-Key` 返回首次结果，不得因超时生成新 Key 重复添加。
-
-## 错误处理
-
-| HTTP | code | 处理 |
-|---:|---|---|
-| 400 | `OPERATION_ID_REQUIRED` 或请求结构错误 | 修正调用端字段或幂等键，不盲目重试 |
-| 401 | `INVALID_INTEGRATION_API_KEY` | 停止调用，检查服务器私密配置，不输出 Key |
-| 409 | `OPERATION_IN_PROGRESS` | 稍后使用同一幂等键重试 |
-| 409 | `INVALID_TASK_STATE` | 提示目标任务已结束或状态不允许 |
-| 422 | `ITEM_REFERENCE_REQUIRED` | 至少提供一种任务已启用的参考内容 |
-| 422 | `REFERENCE_TYPE_NOT_ENABLED` | 调整脚本映射或任务参考类型 |
-| 422 | `REMOTE_URL_INVALID` | 改用合规的长期 HTTPS URL |
-| 503 | `INTEGRATION_NOT_CONFIGURED` | 先在录音平台配置机器 Key 摘要 |
-
-日志只允许保留 `requestId`、目标 hostname、HTTP status、业务 code、耗时和脱敏错误摘要，不记录 API Key、完整媒体 URL、请求体或第三方登录态。
-
-## 平台接入检查表
-
-1. 确认当前只接入一个明确的脚本和页面。
-2. 确认人工按钮、管理员验证和二次点击防护。
-3. 确认导入粒度及三类参考内容各自来源。
-4. 确认公网 URL 直传或浏览器下载后托管的分支。
-5. 配置服务器私密任务映射并验证目标任务启用的参考类型。
-6. 覆盖成功、空内容、无管理员会话、受限媒体下载失败、托管失败、401、409、422、503 和弱网幂等重试。
-7. 更新对应脚本 README、平台资料、测试和根 `log.md` 后再提交。
+1. 单独确认脚本、页面、人工按钮位置和完整条目粒度。
+2. 明确安全观察字段、ItemID 一致性与快照过期策略。
+3. 使用 Options 内部 taskId 与服务器 `allowedTaskIds` 双重匹配。
+4. 覆盖文本、音频、视频、组合、100MB、部分媒体失败和重复导入。
+5. 覆盖单次自动查询、手动刷新、状态、文本/音频只读展示和不写回。
+6. 同步脚本 README、平台资料、测试和根 `log.md` 后再提交。

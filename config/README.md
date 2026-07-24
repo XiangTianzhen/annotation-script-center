@@ -16,6 +16,8 @@
 | `secrets/dashscope-key-1.env` | 否 | 服务器密钥一，仅保存 `DASHSCOPE_API_KEY` |
 | `secrets/dashscope-key-2.env` | 否 | 服务器密钥二，仅保存 `DASHSCOPE_API_KEY` |
 | `secrets/dashscope-active-key.json` | 否 | 当前密钥槽位，仅保存 `activeSlotId` |
+| `secrets/recording-platform-integration.json.example` | 是 | 录音平台服务器私密配置的脱敏模板 |
+| `secrets/recording-platform-integration.json` | 否 | 录音平台地址、机器 Key、允许任务列表、公开媒体基址与签名密钥 |
 | `secrets/` | 否 | 本地私有文件；当前 ZIP 打包流程不读取该目录 |
 
 ## 环境加载顺序
@@ -59,6 +61,24 @@ Copy-Item config/env/ai.env.example config/env/ai.env
 首次迁移时，可先将旧 `config/env/ai.env` 或进程环境中的 `DASHSCOPE_API_KEY` 填入密钥一文件，再为密钥二单独配置另一份有效凭据。仅当两个槽位均未配置时，后端才临时使用旧变量；一旦任一槽位存在，后续请求只使用当前选中的槽位，选中空槽位会被拒绝，不会自动切到旧变量或另一把密钥。两把密钥验证通过后可删除旧变量。PM2 运行用户必须可读取两份密钥文件并可写入状态 JSON，建议目录权限为仅该运行用户可访问。共享 job 超时、TTL、容量和轮询间隔仍保留代码默认值，只有确实需要偏离默认行为时，才在 `ai.env` 添加非密钥覆盖项。
 
 价格估算统一读取 `aliyun-bailian-model-pricing.json`。缺少价格时页面显示“没有数据源”，CSV 金额列保持空白。
+
+## 录音平台集成配置
+
+复制脱敏模板：
+
+```powershell
+Copy-Item config/secrets/recording-platform-integration.json.example config/secrets/recording-platform-integration.json
+```
+
+本地私密文件必须填写：
+
+- `baseUrl`：录音任务平台 HTTPS 根地址。
+- `apiKey`：只供统一后端调用录音平台的机器 Key。
+- `allowedTaskIds`：允许台州话录音集成写入和查询的任务 ID 列表。
+- `publicMediaBaseUrl`：脚本中心长期参考媒体的公网 HTTPS 基址。
+- `tokenSecret`：至少 32 字符的随机签名密钥，只用于短时录音播放 URL。
+
+缺少、格式无效或仍为空值时，录音集成写入与查询接口统一安全返回 `503 RECORDING_INTEGRATION_NOT_CONFIGURED`，不会输出配置路径或真实值。`allowedTaskIds` 是当前专用端点唯一的触发授权，不要求管理员会话；因此知道允许任务 ID 的同源调用方仍可能触发导入，任务 ID 只应下发给已启用的台州话脚本，并应结合 HTTPS、部署访问边界和人工入口控制风险。浏览器不会接收 `apiKey` 或 `tokenSecret`，服务器也不得接收 AIDP Cookie、Authorization 或 Session。
 
 ## 后端地址
 

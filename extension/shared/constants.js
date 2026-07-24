@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 34;
+  const SCHEMA_VERSION = 35;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -147,7 +147,8 @@
     aiRecommendOmniModel: "qwen3.5-omni-plus", aiRecommendOmniPrompt: "", aiRecommendOmniTemperature: "",
     aiRecommendOmniTopP: "", aiRecommendOmniMaxTokens: "", aiRecommendOmniMaxCompletionTokens: "",
     aiRecommendOmniPresencePenalty: "", aiRecommendOmniFrequencyPenalty: "", aiRecommendOmniSeed: "",
-    aiRecommendOmniStopSequences: "", defaultPlaybackRate: 1, fixedWaveZoom: 2,
+    aiRecommendOmniStopSequences: "", recordingImportTaskId: "", recordingSyncMappings: [],
+    defaultPlaybackRate: 1, fixedWaveZoom: 2,
     contractMode: "dom-guarded", shortcuts: Object.fromEntries(BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS.map((item) => [item.key, null])),
   });
   const magicDefaults = {

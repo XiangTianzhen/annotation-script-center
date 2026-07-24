@@ -2,6 +2,8 @@
   const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
+  const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+  const DEFAULT_SEARCH_CONTEXT_TTL_MS = 10 * 60 * 1000;
   const APPLY_SUCCESS_MESSAGE = "已通过平台暂存接口应用分段建议，请刷新页面复核。";
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
   const FILL_LANGUAGE_EMPTY_MESSAGE = "当前没有空的语言种类需要填充。";
@@ -243,6 +245,17 @@
       body: body && typeof body === "object" ? body : {},
       tempAnswer: tempAnswer && typeof tempAnswer === "object" ? tempAnswer : {},
       itemId: normalizeText(firstAnswer?.ItemID || tempAnswer?.itemID),
+    };
+  }
+
+  function parseSearchItemSnapshot(payload, timestamp) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    return {
+      at: timestamp,
+      sourceItemId: normalizeText(source.sourceItemId),
+      referenceText: normalizeText(source.referenceText),
+      audioUrl: normalizeText(source.audioUrl),
+      videoUrl: normalizeText(source.videoUrl),
     };
   }
 
@@ -1068,6 +1081,11 @@
     const documentLike = env.document || windowLike?.document || globalThis.document || null;
     const locationLike = env.location || globalThis.location || {};
     const fetchImpl = typeof env.fetch === "function" ? env.fetch : globalThis.fetch;
+    const now = typeof env.now === "function" ? env.now : Date.now;
+    const searchContextTtlMs = Math.max(
+      1000,
+      Number(env.searchContextTtlMs) || DEFAULT_SEARCH_CONTEXT_TTL_MS
+    );
     const readCurrentTableState =
       typeof env.readCurrentTableState === "function"
         ? function () {
@@ -1078,6 +1096,7 @@
     };
     let receiveSnapshot = null;
     let submitSnapshot = null;
+    let searchItemSnapshot = null;
     let snapshotEventSequence = 0;
 
     function withSnapshotEventSequence(snapshot) {
@@ -1101,6 +1120,12 @@
       }
       if (data.type === SUBMIT_TYPE) {
         submitSnapshot = withSnapshotEventSequence(parseSubmitSnapshot(data.payload));
+        return;
+      }
+      if (data.type === SEARCH_ITEM_TYPE) {
+        searchItemSnapshot = withSnapshotEventSequence(
+          parseSearchItemSnapshot(data.payload, now())
+        );
       }
     }
 
@@ -1114,6 +1139,49 @@
       const context = buildCurrentContext(receiveSnapshot, submitSnapshot, route, tableState);
       context.unsafeReason = buildUnsafeReason(context);
       return context;
+    }
+
+    async function getRecordingImportContext() {
+      if (!receiveSnapshot?.itemId || !searchItemSnapshot?.sourceItemId) {
+        return {
+          ok: false,
+          reason: "waiting",
+          message: "正在等待当前完整题目数据，请稍后重试。",
+        };
+      }
+      if (now() - Number(searchItemSnapshot.at || 0) > searchContextTtlMs) {
+        return {
+          ok: false,
+          reason: "expired",
+          message: "当前完整题目数据已过期，请等待页面重新加载后重试。",
+        };
+      }
+      if (searchItemSnapshot.sourceItemId !== receiveSnapshot.itemId) {
+        return {
+          ok: false,
+          reason: "stale",
+          message: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
+        };
+      }
+      const safeContext = {
+        ok: true,
+        sourceItemId: searchItemSnapshot.sourceItemId,
+        referenceText: searchItemSnapshot.referenceText,
+        audioUrl: searchItemSnapshot.audioUrl,
+        videoUrl: searchItemSnapshot.videoUrl,
+      };
+      if (
+        !safeContext.referenceText &&
+        !safeContext.audioUrl &&
+        !safeContext.videoUrl
+      ) {
+        return {
+          ok: false,
+          reason: "empty",
+          message: "当前完整题目没有可导入的文字、音频或视频参考内容。",
+        };
+      }
+      return safeContext;
     }
 
     async function applySegmentPreview(preview) {
@@ -1397,6 +1465,7 @@
 
     return {
       getCurrentContext,
+      getRecordingImportContext,
       applySegmentPreview,
       clearCurrentSegments,
       fillEmptyRegionLanguages,
@@ -1411,6 +1480,7 @@
     __testOnly: {
       parseReceiveSnapshot,
       parseSubmitSnapshot,
+      parseSearchItemSnapshot,
       buildRegionSignature,
       buildUpdatedRegions,
       defaultReadCurrentTableState,

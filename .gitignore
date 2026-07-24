@@ -11,6 +11,7 @@
 /platform-resources/data-baker/round-one-quality/backend/logs/
 /platform-resources/data-baker/round-one-quality/backend/export-data/
 /platform-resources/bytedance-aidp/**/backend/logs/
+/platform-resources/bytedance-aidp/taizhou-helper/backend/runtime/recording-integration/
 /platform-resources/magic-data/hakka-helper/backend/logs/
 /platform-resources/magic-data/minnan-helper/backend/logs/
 /platform-resources/alibaba-labelx/asr-judgement/backend/logs/

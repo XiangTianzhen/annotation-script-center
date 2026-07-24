@@ -387,6 +387,15 @@ function aidpSections(scriptId) {
               max: -5,
               step: 1,
             },
+            ...(isTaizhou
+              ? [{
+                  kind: "text",
+                  path: "recordingImportTaskId",
+                  label: "录音平台内部任务 ID",
+                  placeholder: "填写录音平台数据库内部 taskId",
+                  help: "填写录音平台数据库内部 taskId，不是页面可见的 taskCode；清空后不显示导入按钮，也不查询录音结果。",
+                }]
+              : []),
           ],
         },
       ],
