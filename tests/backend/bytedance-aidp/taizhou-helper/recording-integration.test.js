@@ -76,6 +76,9 @@ function createFixture(t, options) {
   const configPath = path.join(rootDir, "config.json");
   const runtimeDir = path.join(rootDir, "runtime");
   writeConfig(configPath);
+  if (typeof options?.prepareRuntime === "function") {
+    options.prepareRuntime({ rootDir, configPath, runtimeDir });
+  }
 
   const upstreamCalls = [];
   const fetchImpl =
@@ -584,8 +587,19 @@ test("item creation binds media, uses stable idempotency and recovers mapping af
   assert.equal(first.status, 201);
   assert.equal(second.status, 200);
   assert.equal(firstBody.item.itemId, secondBody.item.itemId);
-  assert.notEqual(firstBody.syncToken, secondBody.syncToken);
+  assert.equal(firstBody.syncToken, secondBody.syncToken);
   assert.equal(fixture.upstreamCalls.length, 1);
+
+  const resultEndpoint =
+    `${fixture.baseUrl}/api/bytedance-aidp/taizhou-helper/recording-items/result`;
+  for (const syncToken of [firstBody.syncToken, secondBody.syncToken]) {
+    const resultResponse = await fetch(resultEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ syncToken }),
+    });
+    assert.equal(resultResponse.status, 200);
+  }
 
   const upstreamRequest = fixture.upstreamCalls[0];
   const expectedKey = crypto
@@ -628,6 +642,8 @@ test("item creation binds media, uses stable idempotency and recovers mapping af
   const replay = await recovered.createRecordingItem(payload);
   assert.equal(replay.replayed, true);
   assert.equal(replay.item.itemId, "recording-item-1");
+  assert.equal(replay.syncToken, firstBody.syncToken);
+  recovered.close();
 });
 
 test("same source item rejects a changed normalized request fingerprint", async (t) => {
@@ -1278,6 +1294,63 @@ test("startup reconciliation preserves failed deletions, removes orphans and tim
     true
   );
 });
+
+for (const stateMode of ["missing", "corrupt"]) {
+  test(`runtime with ${stateMode} state fails closed and preserves long-lived media`, async (t) => {
+    const marker = "PRIVATE_MEDIA_MARKER";
+    let retainedMediaPath;
+    let statePath;
+    const fixture = await createFixture(t, {
+      maintenanceIntervalMs: 5,
+      prepareRuntime({ runtimeDir }) {
+        const mediaDir = path.join(runtimeDir, "media");
+        fs.mkdirSync(mediaDir, { recursive: true });
+        retainedMediaPath = path.join(mediaDir, "retained-media.wav");
+        statePath = path.join(runtimeDir, "state.json");
+        fs.writeFileSync(retainedMediaPath, marker);
+        if (stateMode === "corrupt") {
+          fs.writeFileSync(statePath, "{\"version\":");
+        }
+      },
+    });
+
+    const createResponse = await fetch(
+      `${fixture.baseUrl}/api/bytedance-aidp/taizhou-helper/recording-items`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordingTaskId: "task-allowed",
+          sourceItemId: `source-state-${stateMode}`,
+          referenceText: "参考",
+        }),
+      }
+    );
+    const publicResponse = await fetch(
+      `${fixture.baseUrl}/api/public/recording-media/retained-media`
+    );
+    const createBody = await readJson(createResponse);
+    const publicBody = await readJson(publicResponse);
+
+    assert.equal(createResponse.status, 503);
+    assert.equal(publicResponse.status, 503);
+    assert.equal(createBody.code, "RECORDING_INTEGRATION_STATE_UNAVAILABLE");
+    assert.equal(publicBody.code, "RECORDING_INTEGRATION_STATE_UNAVAILABLE");
+    const responseText = JSON.stringify([createBody, publicBody]);
+    assert.equal(responseText.includes(marker), false);
+    assert.equal(responseText.includes(fixture.rootDir), false);
+    assert.equal(responseText.includes("retained-media"), false);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(fs.existsSync(retainedMediaPath), true);
+    assert.equal(fs.readFileSync(retainedMediaPath, "utf8"), marker);
+    assert.equal(
+      stateMode === "corrupt"
+        ? fs.readFileSync(statePath, "utf8")
+        : fs.existsSync(statePath),
+      stateMode === "corrupt" ? "{\"version\":" : false
+    );
+  });
+}
 
 test("sync token protects result lookup and signs a short-lived audio proxy", async (t) => {
   const fixture = await createFixture(t, { audioTokenTtlMs: 1000 });

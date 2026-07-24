@@ -133,6 +133,7 @@ describe("script defaults and draft adapters", () => {
     expect(state.config.aiRecommendOmniPrompt).toBe("后端金华转写 Prompt");
     expect(state.config.aiRecommendOmniTemperature).toBe("0.1");
     expect(state.config.aiRecommendOmniStopSequences).toBe("END\nSTOP");
+    expect(state.config).not.toHaveProperty("recordingImportTaskId");
     expect(state.options.omniModels.map((item) => item.value)).toEqual([
       "qwen3.5-omni-plus",
       "qwen3.5-omni-flash",
@@ -246,6 +247,7 @@ describe("script defaults and draft adapters", () => {
     expect(state.config.aiRecommendOmniPrompt).toBe("后端全模态 Prompt");
     expect(state.config.aiRecommendOmniTemperature).toBe("0.1");
     expect(state.config.aiRecommendOmniStopSequences).toBe("END\nSTOP");
+    expect(state.config.recordingImportTaskId).toBe("");
     expect(state.options.omniModels.map((item) => item.value)).toEqual([
       "qwen3.5-omni-plus",
       "qwen3.5-omni-flash",

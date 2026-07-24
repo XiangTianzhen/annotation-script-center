@@ -20,6 +20,8 @@
 - 修复(taizhou-recording): 题目代次在映射查询前登记并集中 guard，旧题慢映射、结果和错误均不得覆盖新题或切回旧代次。
 - 修复(taizhou-recording): 导入固定使用启动时的 taskId、sourceItemId 与 pending key；切题后只保存原题映射，不在新题回显原题状态。
 - 安全(taizhou-recording): 结果音频 token 严格限定为预期相对路径下的两段非空 base64url，拒绝绝对 URL、额外段、查询和片段。
+- 修复(taizhou-recording): 成功映射的同步凭证改由服务器密钥与映射键稳定派生，跨浏览器或重装后的幂等重放不再覆盖其他客户端凭证。
+- 安全(taizhou-recording): 运行目录已有数据但状态文件缺失、损坏或结构无效时返回脱敏 503，保留长期媒体并停止孤儿清理；录音 taskId 默认值仅归属台州话脚本。
 - 边界(integration): 当前运行时接入仅限 ByteDance AIDP 台州话完整题目人工导入与只读结果；其他平台仍需逐一显式确认导入粒度与字段来源。
 
 ## 2026-07-18

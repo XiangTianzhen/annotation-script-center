@@ -55,6 +55,7 @@ Idempotency-Key: <server-derived-stable-key>
 
 - 扩展本地只保留最近 500 条映射：`recordingTaskId`、`sourceItemId`、`recordingItemId`、`itemCode`、`syncToken`、`updatedAt`。
 - 映射不保存或展示 API Key、登录态、参考全文、原始签名媒体 URL；Options 不展示映射。
+- 同一任务与 sourceItemId 的成功映射使用服务器 `tokenSecret` 和稳定映射键派生同一不可猜测同步凭证；跨浏览器或重装后的幂等重放不会覆盖并废止其他客户端已取得的凭证，也不会向客户端暴露映射键或签名密钥。
 - 每次进入题目时，扩展会在任何本地映射查询之前登记 sourceItemId 与进入代次；存在匹配映射时只自动查询一次，不轮询。A→B→A 会在再次进入 A 时重新查询，连续停留在同一题不会重复查询。旧 A 的慢映射、结果或错误会被代次与 sourceItemId 双重校验丢弃，也不会把当前代次切回 A。手动刷新请求体只有同步凭证：
 
 ```text
@@ -93,6 +94,7 @@ Content-Type: application/json
 - 408、429、5xx，以及明确表示处理中状态的 409：保留同一 pending 请求体与 uploadId，沿用稳定幂等身份安全重试。
 - 其他确定性 4xx（包括普通 409、422）：丢弃浏览器 pending 请求；修复条件后再次点击会重新下载和上传媒体。
 - 503：检查服务器私密配置与录音平台可用性；浏览器保留 pending 请求以便同内容重试。
+- 若运行目录已有上传、媒体或其他运行数据，但 `state.json` 缺失、损坏或结构无效，后端必须以 `RECORDING_INTEGRATION_STATE_UNAVAILABLE` 安全关闭并保留现有文件；不得把该目录当作全新状态，也不得执行孤儿清理。排查或恢复状态文件后重启服务。
 
 ## 后续平台接入检查表
 

@@ -152,22 +152,47 @@ function readPrivateConfig(configPath) {
   }
 }
 
-function readState(statePath) {
+function directoryContainsFiles(directoryPath) {
+  try {
+    for (const entry of fs.readdirSync(directoryPath, { withFileTypes: true })) {
+      const entryPath = path.join(directoryPath, entry.name);
+      if (entry.isFile()) {
+        return true;
+      }
+      if (entry.isDirectory() && directoryContainsFiles(entryPath)) {
+        return true;
+      }
+    }
+  } catch (error) {
+    return error?.code !== "ENOENT";
+  }
+  return false;
+}
+
+function readState(statePath, runtimeDir) {
   try {
     const parsed = JSON.parse(fs.readFileSync(statePath, "utf8"));
     if (
       parsed &&
       parsed.version === STATE_VERSION &&
       parsed.uploads &&
+      !Array.isArray(parsed.uploads) &&
       parsed.mappings &&
-      parsed.media
+      !Array.isArray(parsed.mappings) &&
+      parsed.media &&
+      !Array.isArray(parsed.media)
     ) {
-      return parsed;
+      return { state: parsed, available: true };
     }
   } catch (error) {
-    // A missing or incomplete state file starts empty. The next write is atomic.
+    if (error?.code === "ENOENT") {
+      return {
+        state: createEmptyState(),
+        available: !directoryContainsFiles(runtimeDir),
+      };
+    }
   }
-  return createEmptyState();
+  return { state: createEmptyState(), available: false };
 }
 
 function atomicWriteJson(filePath, value) {
@@ -464,13 +489,27 @@ function createRecordingIntegration(options) {
   const mappingFlights = new Map();
   const activeStagingPaths = new Set();
 
-  let state = readState(statePath);
+  const stateLoad = readState(statePath, runtimeDir);
+  let state = stateLoad.state;
+  const stateAvailable = stateLoad.available;
+
+  function assertStateAvailable() {
+    if (!stateAvailable) {
+      throw new IntegrationError(
+        503,
+        "RECORDING_INTEGRATION_STATE_UNAVAILABLE",
+        "录音平台集成状态暂不可用。"
+      );
+    }
+  }
 
   function persistState() {
+    assertStateAvailable();
     atomicWriteJson(statePath, state);
   }
 
   function getConfig() {
+    assertStateAvailable();
     const privateConfig = readPrivateConfig(configPath);
     if (!privateConfig) {
       throw new IntegrationError(
@@ -516,6 +555,9 @@ function createRecordingIntegration(options) {
   }
 
   function reconcileRuntime() {
+    if (!stateAvailable) {
+      return;
+    }
     mkdirSync(tempDir, { recursive: true });
     mkdirSync(mediaDir, { recursive: true });
     const currentTime = now();
@@ -638,6 +680,7 @@ function createRecordingIntegration(options) {
   }
 
   async function cleanupExpiredUploads() {
+    assertStateAvailable();
     const currentTime = now();
     let changed = false;
     for (const [uploadId, upload] of Object.entries(state.uploads)) {
@@ -992,11 +1035,17 @@ function createRecordingIntegration(options) {
     }
   }
 
-  function issueSyncToken(mapping) {
-    const token = randomOpaqueId() + randomOpaqueId();
-    mapping.syncTokenHash = hashText(token);
-    mapping.updatedAt = now();
-    persistState();
+  function issueSyncToken(mapping, privateConfig) {
+    const token = crypto
+      .createHmac("sha256", privateConfig.tokenSecret)
+      .update("recording-sync-token\0")
+      .update(mapping.mappingKey)
+      .digest("base64url");
+    const tokenHash = hashText(token);
+    if (mapping.syncTokenHash !== tokenHash) {
+      mapping.syncTokenHash = tokenHash;
+      persistState();
+    }
     return token;
   }
 
@@ -1168,7 +1217,7 @@ function createRecordingIntegration(options) {
         discardUploads(freshReferences);
         return {
           replayed: true,
-          syncToken: issueSyncToken(mapping),
+          syncToken: issueSyncToken(mapping, privateConfig),
           item: toItemSummary(mapping),
         };
       }
@@ -1350,7 +1399,7 @@ function createRecordingIntegration(options) {
       persistState();
       return {
         replayed: false,
-        syncToken: issueSyncToken(mapping),
+        syncToken: issueSyncToken(mapping, privateConfig),
         item: toItemSummary(mapping),
       };
     })();
@@ -1662,6 +1711,7 @@ function createRecordingIntegration(options) {
   }
 
   function sendPublicMedia(request, response, mediaId, method) {
+    assertStateAvailable();
     const media = state.media[normalizeText(mediaId)];
     if (!media || media.linked !== true) {
       throw new IntegrationError(404, "MEDIA_NOT_FOUND", "媒体不存在。");
