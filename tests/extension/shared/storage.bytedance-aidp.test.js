@@ -80,18 +80,15 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
       "taizhouHelper",
     ]);
     assert.equal(settings.platforms.bytedanceAidp.enabled, true);
-    assert.equal(
-      settings.platforms.bytedanceAidp.activeScriptId,
-      "bytedanceAidpSuzhouHelper"
-    );
+    assert.equal(settings.platforms.bytedanceAidp.activeScriptId, "");
     assert.equal(suzhouScript.id, "bytedanceAidpSuzhouHelper");
-    assert.equal(suzhouScript.enabled, true);
+    assert.equal(suzhouScript.enabled, false);
     assert.equal(suzhouScript.platformAiEnabled, false);
     assert.equal(suzhouScript.segmentContextPaddingMs, 300);
     assert.equal(suzhouScript.segmentSilenceThresholdDbfs, -31);
     assert.equal(suzhouScript.mergeContiguousSuggestedSegmentsEnabled, true);
     assert.equal(suzhouScript.segmentPreviewAutoApplyEnabled, true);
-    assert.equal(suzhouScript.aiRecommendEnabled, true);
+    assert.equal(suzhouScript.aiRecommendEnabled, false);
     assert.equal(suzhouScript.aiRecommendAutoFillEnabled, true);
     assert.equal(
       suzhouScript.aiRecommendEndpoint,
@@ -707,7 +704,7 @@ test("ByteDance AIDP setScriptEnabled keeps platform AI preference while togglin
     assert.equal(script.segmentSilenceThresholdDbfs, -31);
     assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
-    assert.equal(script.aiRecommendEnabled, true);
+    assert.equal(script.aiRecommendEnabled, false);
     assert.equal(script.shortcuts.togglePlayPause, null);
 
     settings = await harness.storage.setScriptEnabled("bytedanceAidpSuzhouHelper", true);
@@ -721,7 +718,7 @@ test("ByteDance AIDP setScriptEnabled keeps platform AI preference while togglin
     assert.equal(script.segmentSilenceThresholdDbfs, -31);
     assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
-    assert.equal(script.aiRecommendEnabled, true);
+    assert.equal(script.aiRecommendEnabled, false);
     assert.equal(script.shortcuts.togglePlayPause, null);
   } finally {
     harness.cleanup();

@@ -177,7 +177,7 @@
   const DEFAULT_SETTINGS = {
     platforms: {
       dataBakerCvpc: { enabled: true, scripts: { liuzhouAssistant: {
-        id: DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID, enabled: true, segmentPreviewEnabled: true,
+        id: DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID, enabled: false, segmentPreviewEnabled: true,
         segmentPreviewAutoApplyEnabled: true, aiRecommendAutoFillEnabled: true,
         recommendationValidityAutoCorrectEnabled: true, segmentContextPaddingMs: 200,
         segmentSilenceThresholdDbfs: -27, segmentSilenceThresholdUnit: "db", blockNewTabEditingTips: true,
@@ -195,8 +195,8 @@
         aiRecommendRefinePresencePenalty: "", aiRecommendRefineFrequencyPenalty: "", aiRecommendRefineSeed: "",
         aiRecommendRefineStopSequences: "", contractMode: "dom-guarded", shortcuts: {},
       } } },
-      bytedanceAidp: { enabled: true, activeScriptId: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, scripts: {
-        suzhouHelper: { ...baseAidp(BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, true), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH },
+      bytedanceAidp: { enabled: true, activeScriptId: "", scripts: {
+        suzhouHelper: { ...baseAidp(BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH },
         jinhuaHelper: { ...jinhuaAidp(BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH },
         taizhouHelper: { ...taizhouAidp(BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH },
       } },

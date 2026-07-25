@@ -95,14 +95,14 @@ test("1.0.0 runtime accessibility follows retained script enablement and AIDP th
   const constants = loadConstants();
   const settings = cloneForRuntimeTest(constants.DEFAULT_SETTINGS);
 
-  assert.equal(constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", {}), true);
-  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", {}), true);
+  assert.equal(constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", {}), false);
+  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", {}), false);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpJinhuaHelper", {}), false);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpTaizhouHelper", {}), false);
   assert.equal(constants.isScriptRuntimeAccessible("magicDataHangzhouAssistant", {}), false);
 
-  assert.equal(constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", settings), true);
-  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", settings), true);
+  assert.equal(constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", settings), false);
+  assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", settings), false);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpJinhuaHelper", settings), false);
   assert.equal(constants.isScriptRuntimeAccessible("bytedanceAidpTaizhouHelper", settings), false);
   assert.equal(constants.isScriptRuntimeAccessible("magicDataHangzhouAssistant", settings), false);

@@ -270,7 +270,7 @@ function findMountedPanelRoot(root) {
   });
 }
 
-test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by default and supports shared toggles", function () {
+test("AIDP jinhua ui panel keeps current-media and AI sections collapsed by default and shows audio plus video", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -286,7 +286,7 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
     assert.ok(panelRoot);
 
     const collapseButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.textContent.includes("展开当前音频信息");
+      return node.tagName === "BUTTON" && node.textContent.includes("展开当前媒体信息");
     });
     const aiCollapseButton = findNode(panelRoot, function (node) {
       return node.tagName === "BUTTON" && node.textContent.includes("展开AI信息");
@@ -314,7 +314,7 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
     assert.ok(tooltipButton);
     assert.ok(tooltipAnchor);
     assert.equal(allButtons.filter(function (node) {
-      return /当前音频信息/.test(node.textContent);
+      return /当前媒体信息/.test(node.textContent);
     }).length, 1);
     assert.equal(collapseButton.className, "collapse-toggle");
     assert.equal(aiCollapseButton.className, "collapse-toggle");
@@ -338,14 +338,17 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
       audioDurationMs: 22012,
       currentSegments: [{}, {}],
       audioUrl: "https://example.test/audio.m4a",
+      videoUrl: "https://example.test/video.mp4",
     });
 
     collapseButton.click();
     assert.notEqual(summaryCard.style.display, "none");
-    assert.match(collapseButton.textContent, /折叠当前音频信息/);
+    assert.match(collapseButton.textContent, /折叠当前媒体信息/);
     assert.match(summaryCard.textContent, /7656690377962016562/);
-    assert.match(summaryCard.textContent, /7628929157338042146/);
+    assert.doesNotMatch(summaryCard.textContent, /模板/);
+    assert.doesNotMatch(summaryCard.textContent, /7628929157338042146/);
     assert.match(summaryCard.textContent, /https:\/\/example\.test\/audio\.m4a/);
+    assert.match(summaryCard.textContent, /https:\/\/example\.test\/video\.mp4/);
 
     aiCollapseButton.click();
     assert.notEqual(aiInfoCard.style.display, "none");
@@ -359,11 +362,10 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
 
     collapseButton.click();
     assert.equal(summaryCard.style.display, "none");
-    assert.match(collapseButton.textContent, /展开当前音频信息/);
+    assert.match(collapseButton.textContent, /展开当前媒体信息/);
 
     runtime.renderAudioContext({
       entryId: "44696080",
-      templateID: "template-updated",
       audioDurationMs: 15000,
       currentSegments: [{}],
       audioUrl: "https://example.test/updated.m4a",
@@ -372,8 +374,8 @@ test("AIDP jinhua ui panel keeps current-audio and AI sections collapsed by defa
     collapseButton.click();
     assert.notEqual(summaryCard.style.display, "none");
     assert.match(summaryCard.textContent, /44696080/);
-    assert.match(summaryCard.textContent, /template-updated/);
     assert.match(summaryCard.textContent, /updated\.m4a/);
+    assert.match(summaryCard.textContent, /视频：\s*无视频/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
@@ -613,12 +615,12 @@ test("AIDP jinhua ui panel removes current-segment section and keeps preview-bat
 
     assert.match(panelText, /分段建议/);
     assert.match(panelText, /批量识别/);
-    assert.match(panelText, /当前音频信息/);
+    assert.match(panelText, /当前媒体信息/);
     assert.match(panelText, /AI信息/);
 
-    assert.ok(panelText.indexOf("分段建议") < panelText.indexOf("当前音频信息"));
-    assert.ok(panelText.indexOf("批量识别") < panelText.indexOf("当前音频信息"));
-    assert.ok(panelText.indexOf("当前音频信息") < panelText.indexOf("AI信息"));
+    assert.ok(panelText.indexOf("分段建议") < panelText.indexOf("当前媒体信息"));
+    assert.ok(panelText.indexOf("批量识别") < panelText.indexOf("当前媒体信息"));
+    assert.ok(panelText.indexOf("当前媒体信息") < panelText.indexOf("AI信息"));
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

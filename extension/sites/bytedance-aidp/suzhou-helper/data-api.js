@@ -206,6 +206,7 @@
       entryId: normalizeText(itemContent?.id || tempAnswer?.item?.id),
       templateID: normalizeText(tempAnswer?.templateID),
       audioUrl: normalizeText(itemContent?.audio || tempAnswer?.item?.audio),
+      videoUrl: normalizeText(itemContent?.video || tempAnswer?.item?.video),
       itemContent: itemContent && typeof itemContent === "object" ? itemContent : {},
       tempAnswer: tempAnswer && typeof tempAnswer === "object" ? tempAnswer : {},
       currentSegments: currentRegions,
@@ -691,6 +692,9 @@
       ),
       audioUrl: normalizeText(
         receiveSnapshot?.audioUrl || receiveSnapshot?.itemContent?.audio || currentAnswer?.item?.audio
+      ),
+      videoUrl: normalizeText(
+        receiveSnapshot?.videoUrl || receiveSnapshot?.itemContent?.video || currentAnswer?.item?.video
       ),
       audioDurationMs: Math.max(0, Math.round(durationSeconds * 1000)),
       discard: normalizeText(

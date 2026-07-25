@@ -4,7 +4,7 @@
 
 ## 当前启用条件
 
-- 台州话 Options“基础设置”填写录音平台数据库内部 `taskId`，不是可见的 `taskCode`；默认空，空值时不显示导入按钮，也不查询结果。
+- 台州话 Options“基础设置”填写录音平台数据库内部 `taskId`，不是可见的 `taskCode`；默认空，空值时不显示“添加数据”按钮，也不查询结果。按钮显示时固定位于“清空画段”左侧。
 - 同一内部 `taskId` 还必须存在于服务器私密配置 `allowedTaskIds`。Options 与服务器允许列表双重匹配，任一侧缺失都会停止导入。
 - 功能不依赖标注脚本中心管理员会话或管理员解锁。浏览器只调用脚本中心专用后端，录音平台机器 API Key 永远只由服务器读取。
 - 导入粒度固定为当前完整 AIDP Item，不按画段拆分；只允许人工点击，不批量导入、不轮询、不自动写回或提交 AIDP。
@@ -65,7 +65,7 @@ Content-Type: application/json
 {"syncToken":"<opaque-token>"}
 ```
 
-- 辅助面板只读显示 sourceItemId、itemCode 和任务状态。`COMPLETED` 的文本原样显示；结果音频只接受 `/api/bytedance-aidp/taizhou-helper/recording-items/audio/<payload>.<signature>`，其中两段均须为非空 base64url 字符。通过后再用当前脚本中心基址构造绝对地址并使用 `<audio controls>`；绝对 URL、单段或多段 token、查询参数、片段及其他路径一律忽略。
+- 辅助面板“当前录音平台结果”默认折叠，只读显示 sourceItemId、itemCode 和任务状态。`COMPLETED` 的文本原样显示；结果音频只接受 `/api/bytedance-aidp/taizhou-helper/recording-items/audio/<payload>.<signature>`，其中两段均须为非空 base64url 字符。通过后再用当前脚本中心基址构造绝对地址并使用 `<audio controls>`；绝对 URL、单段或多段 token、查询参数、片段及其他路径一律忽略。
 - 首期不展示结果视频，结果文本和音频不得写入 AIDP textarea、画段、暂存或提交接口。
 
 人工导入启动后固定使用当时的内部 taskId、sourceItemId 和 pending key；即使请求完成前页面已从 A 切到 B，也只保存 A 的安全映射，不在 B 页面渲染 A 的导入结果或状态。

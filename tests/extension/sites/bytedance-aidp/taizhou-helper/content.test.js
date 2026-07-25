@@ -1851,6 +1851,14 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   const headerActionGroup = new FakeElement({
     className: "operation-group-btn-GcvnvK",
   });
+  const clearSegmentsButton = new FakeElement({
+    tagName: "button",
+    text: "清空画段",
+    attributes: {
+      "data-asc-clear-segments-button": "true",
+    },
+  });
+  headerActionGroup.appendChild(clearSegmentsButton);
   const root = createFakeDocument([
     new FakeElement({
       className: "item-info-Gr9sCs",
@@ -1891,8 +1899,10 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
     "[data-asc-recording-import-button='true']"
   );
   assert.ok(button);
-  assert.equal(button.textContent, "导入录音任务");
+  assert.equal(button.textContent, "添加数据");
   assert.equal(button.disabled, true);
+  assert.equal(headerActionGroup.children.indexOf(button), 0);
+  assert.equal(headerActionGroup.children.indexOf(clearSegmentsButton), 1);
 
   contentModule.__testOnly.syncRecordingImportButton(root, {
     recordingTaskId: "internal-task-id",
@@ -1915,7 +1925,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
     },
   });
   assert.equal(button.disabled, true);
-  assert.equal(button.textContent, "正在导入...");
+  assert.equal(button.textContent, "正在添加...");
 });
 
 test("ByteDance AIDP content renders recording import success and a retryable safe failure", async function () {

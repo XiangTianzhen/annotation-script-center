@@ -458,6 +458,7 @@
     let aiMetaCollapseButtonNode = null;
     let recordingResultNode = null;
     let recordingRefreshButtonNode = null;
+    let recordingCollapseButtonNode = null;
     let batchStateNode = null;
     let batchSelectionGridNode = null;
     let batchActionRowNode = null;
@@ -465,6 +466,7 @@
     let segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
     let panelHidden = false;
     let currentAudioCollapsed = true;
+    let recordingResultCollapsed = true;
     let previewCollapsed = true;
     let aiMetaCollapsed = true;
     let latestRecommendation = null;
@@ -485,7 +487,7 @@
       }
       summaryNode.style.display = currentAudioCollapsed ? "none" : "";
       if (summaryCollapseButtonNode) {
-        setCollapseToggleText(summaryCollapseButtonNode, "当前音频信息", currentAudioCollapsed);
+        setCollapseToggleText(summaryCollapseButtonNode, "当前媒体信息", currentAudioCollapsed);
       }
     }
 
@@ -506,6 +508,20 @@
       aiMetaNode.style.display = aiMetaCollapsed ? "none" : "";
       if (aiMetaCollapseButtonNode) {
         setCollapseToggleText(aiMetaCollapseButtonNode, "AI信息", aiMetaCollapsed);
+      }
+    }
+
+    function syncRecordingResultSectionState() {
+      if (!recordingResultNode) {
+        return;
+      }
+      recordingResultNode.style.display = recordingResultCollapsed ? "none" : "";
+      if (recordingCollapseButtonNode) {
+        setCollapseToggleText(
+          recordingCollapseButtonNode,
+          "当前录音平台结果",
+          recordingResultCollapsed
+        );
       }
     }
 
@@ -777,13 +793,13 @@
       summaryHead.className = "section-head";
       summaryHead.appendChild(
         createSectionTitleRow(
-          "当前音频信息",
-          "展示当前题号、模板、总时长、当前段和音频地址，默认折叠。"
+          "当前媒体信息",
+          "展示当前题号、总时长、当前段以及音频、视频地址，默认折叠。"
         )
       );
       const summaryActions = document.createElement("div");
       summaryActions.className = "section-actions";
-      summaryCollapseButtonNode = createCollapseToggle("当前音频信息", currentAudioCollapsed, function () {
+      summaryCollapseButtonNode = createCollapseToggle("当前媒体信息", currentAudioCollapsed, function () {
         currentAudioCollapsed = !currentAudioCollapsed;
         syncCurrentAudioSectionState();
       });
@@ -804,10 +820,22 @@
       recordingHead.className = "section-head";
       recordingHead.appendChild(
         createSectionTitleRow(
-          "录音平台结果",
-          "只读显示当前完整题目对应的录音任务状态、完成文本与结果音频；不会写入 AIDP 输入框、画段、暂存或提交接口。"
+          "当前录音平台结果",
+          "只读显示当前完整题目对应的录音任务状态、完成文本与结果音频，默认折叠；不会写入 AIDP 输入框、画段、暂存或提交接口。"
         )
       );
+      const recordingActions = document.createElement("div");
+      recordingActions.className = "section-actions";
+      recordingCollapseButtonNode = createCollapseToggle(
+        "当前录音平台结果",
+        recordingResultCollapsed,
+        function () {
+          recordingResultCollapsed = !recordingResultCollapsed;
+          syncRecordingResultSectionState();
+        }
+      );
+      recordingActions.appendChild(recordingCollapseButtonNode);
+      recordingHead.appendChild(recordingActions);
       recordingRefreshButtonNode = createButton(
         "刷新录音结果",
         false,
@@ -821,12 +849,13 @@
       );
       recordingSection.appendChild(recordingHead);
       recordingResultNode = document.createElement("div");
-      recordingResultNode.className = "summary-card";
+      recordingResultNode.className = "summary-card collapsible-body";
       recordingResultNode.setAttribute("data-recording-result-card", "true");
       recordingResultNode.textContent = "当前题目尚未同步录音任务。";
       recordingResultNode.appendChild(recordingRefreshButtonNode);
       recordingSection.appendChild(recordingResultNode);
       grid.appendChild(recordingSection);
+      syncRecordingResultSectionState();
 
       const metaSection = document.createElement("div");
       metaSection.className = "section";
@@ -906,7 +935,6 @@
       clearNode(summaryNode);
       const lines = [
         ["题目", source.itemId || source.entryId || ""],
-        ["模板", source.templateID || ""],
         ["总时长", Number(source.audioDurationMs) > 0 ? formatMs(source.audioDurationMs) + " 秒" : ""],
         ["分段数", currentSegments.length > 0 ? String(currentSegments.length) : ""],
         [
@@ -922,6 +950,7 @@
             : "",
         ],
         ["音频", source.audioUrl || ""],
+        ["视频", source.videoUrl || "无视频"],
       ].filter(function (item) {
         return normalizeText(item[0]) && normalizeText(item[1]);
       });
@@ -1321,6 +1350,7 @@
       aiMetaNode = null;
       recordingResultNode = null;
       recordingRefreshButtonNode = null;
+      recordingCollapseButtonNode = null;
       batchStateNode = null;
       batchSelectionGridNode = null;
       batchActionRowNode = null;
@@ -1341,6 +1371,8 @@
       segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
       batchActionMode = "recognizeAndWrite";
       panelHidden = false;
+      currentAudioCollapsed = true;
+      recordingResultCollapsed = true;
       previewCollapsed = true;
       aiMetaCollapsed = true;
     }

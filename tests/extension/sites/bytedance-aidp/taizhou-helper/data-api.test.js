@@ -282,6 +282,7 @@ function createBaseReceivePayload(regionOverrides) {
           Content: JSON.stringify({
             id: "44696080",
             audio: "https://audio.example.com/sample.mp3?signature=masked",
+            video: "https://video.example.com/sample.mp4?signature=masked",
             uttid: "44696080",
           }),
         },
@@ -496,10 +497,14 @@ test("AIDP data api builds current context from observer receive snapshot", asyn
   assert.equal(context.taskId, "7632228385175129882");
   assert.equal(context.itemId, "7656690377962016562");
   assert.equal(context.entryId, "44696080");
-  assert.equal(
-    context.audioUrl,
-    "https://audio.example.com/sample.mp3?signature=masked"
-  );
+    assert.equal(
+      context.audioUrl,
+      "https://audio.example.com/sample.mp3?signature=masked"
+    );
+    assert.equal(
+      context.videoUrl,
+      "https://video.example.com/sample.mp4?signature=masked"
+    );
   assert.equal(context.audioDurationMs, 22013);
   assert.equal(context.currentSegments.length, 1);
   assert.equal(context.currentSegments[0].startMs, 1307);

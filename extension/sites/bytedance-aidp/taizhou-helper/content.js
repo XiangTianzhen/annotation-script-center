@@ -2110,14 +2110,41 @@
           button.__ascRecordingOnClick();
         }
       });
-      actionGroup.appendChild(button);
+      const clearSegmentsButton = actionGroup.querySelector(
+        "[" + CLEAR_SEGMENTS_BUTTON_ATTR + "='true']"
+      );
+      if (clearSegmentsButton && typeof actionGroup.insertBefore === "function") {
+        actionGroup.insertBefore(button, clearSegmentsButton);
+      } else {
+        actionGroup.appendChild(button);
+      }
       changed = true;
+    }
+    const clearSegmentsButton = actionGroup.querySelector(
+      "[" + CLEAR_SEGMENTS_BUTTON_ATTR + "='true']"
+    );
+    if (clearSegmentsButton && button.parentNode === actionGroup) {
+      const children = Array.from(actionGroup.children || []);
+      const buttonIndex = children.indexOf(button);
+      const clearIndex = children.indexOf(clearSegmentsButton);
+      if (
+        buttonIndex >= 0 &&
+        clearIndex >= 0 &&
+        buttonIndex !== clearIndex - 1 &&
+        typeof actionGroup.insertBefore === "function"
+      ) {
+        if (typeof actionGroup.removeChild === "function") {
+          actionGroup.removeChild(button);
+        }
+        actionGroup.insertBefore(button, clearSegmentsButton);
+        changed = true;
+      }
     }
     button.__ascRecordingOnClick =
       typeof source.onClick === "function" ? source.onClick : null;
     const busy = source.busy === true;
     const nextDisabled = busy || source.contextReady !== true;
-    const nextText = busy ? "正在导入..." : "导入录音任务";
+    const nextText = busy ? "正在添加..." : "添加数据";
     if (button.disabled !== nextDisabled || button.textContent !== nextText) {
       changed = true;
     }

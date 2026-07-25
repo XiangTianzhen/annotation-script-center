@@ -81,7 +81,7 @@ test("CVPC storage defaults expose promoted liuzhou helper settings", async func
     ]);
     assert.equal(settings.platforms.dataBakerCvpc.enabled, true);
     assert.equal(script.id, "dataBakerCvpcLiuzhouAssistant");
-    assert.equal(script.enabled, true);
+    assert.equal(script.enabled, false);
     assert.equal(script.segmentPreviewEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
     assert.equal(script.aiRecommendAutoFillEnabled, true);

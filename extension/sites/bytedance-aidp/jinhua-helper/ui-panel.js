@@ -468,7 +468,7 @@
       }
       summaryNode.style.display = currentAudioCollapsed ? "none" : "";
       if (summaryCollapseButtonNode) {
-        setCollapseToggleText(summaryCollapseButtonNode, "当前音频信息", currentAudioCollapsed);
+        setCollapseToggleText(summaryCollapseButtonNode, "当前媒体信息", currentAudioCollapsed);
       }
     }
 
@@ -760,13 +760,13 @@
       summaryHead.className = "section-head";
       summaryHead.appendChild(
         createSectionTitleRow(
-          "当前音频信息",
-          "展示当前题号、模板、总时长、当前段和音频地址，默认折叠。"
+          "当前媒体信息",
+          "展示当前题号、总时长、当前段以及音频、视频地址，默认折叠。"
         )
       );
       const summaryActions = document.createElement("div");
       summaryActions.className = "section-actions";
-      summaryCollapseButtonNode = createCollapseToggle("当前音频信息", currentAudioCollapsed, function () {
+      summaryCollapseButtonNode = createCollapseToggle("当前媒体信息", currentAudioCollapsed, function () {
         currentAudioCollapsed = !currentAudioCollapsed;
         syncCurrentAudioSectionState();
       });
@@ -858,7 +858,6 @@
       clearNode(summaryNode);
       const lines = [
         ["题目", source.itemId || source.entryId || ""],
-        ["模板", source.templateID || ""],
         ["总时长", Number(source.audioDurationMs) > 0 ? formatMs(source.audioDurationMs) + " 秒" : ""],
         ["分段数", currentSegments.length > 0 ? String(currentSegments.length) : ""],
         [
@@ -874,6 +873,7 @@
             : "",
         ],
         ["音频", source.audioUrl || ""],
+        ["视频", source.videoUrl || "无视频"],
       ].filter(function (item) {
         return normalizeText(item[0]) && normalizeText(item[1]);
       });
