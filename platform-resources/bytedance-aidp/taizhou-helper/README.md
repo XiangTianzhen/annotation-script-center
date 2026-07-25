@@ -16,7 +16,7 @@
 - 单段：扩展通过真实 textarea 事件直填 `listenText`。
 - 批量：扩展只对当前题当前页选中段，通过已观察到的 `SubmitTempItemAnswer` 暂存契约写 `regions[*].txt`。
 - 不写 `ms`，不调用保存、提交或切题接口。
-- 录音导入只观察 Search Item 的最小安全字段；Options 内部 taskId 与服务器 `allowedTaskIds` 双重匹配后，浏览器下载媒体字节并调用脚本中心专用端点。机器 Key、AIDP 登录头与原始签名 URL 不进入扩展存储或服务器请求。
+- 录音导入只观察 Search Item 的最小安全字段；Options 内部 taskId 与服务器 `allowedTaskIds` 双重匹配后，浏览器把参考文字及原始公网 HTTPS 音视频 URL 交给脚本中心专用端点。扩展不下载或上传媒体；机器 Key、AIDP Cookie、Authorization 与 Session 不进入扩展存储或服务器请求。
 - 当前 Receive 条目的音频和视频地址显示在默认折叠的“当前媒体信息”中，不展示模板，视频缺失时显示“无视频”。
 - 录音结果文本和音频只在默认折叠的“当前录音平台结果”中显示，不写入 textarea、`regions`、暂存或提交接口；不轮询、不展示结果视频。
 - 成功映射的同步凭证由服务器稳定派生，幂等重放不会让其他浏览器已保存的凭证失效；运行目录存在数据而状态文件缺失或损坏时，后端返回脱敏 503 并停止孤儿清理。

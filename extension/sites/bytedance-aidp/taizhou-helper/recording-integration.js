@@ -1,126 +1,12 @@
 (function () {
   "use strict";
 
-  const MAX_MEDIA_BYTES = 100 * 1024 * 1024;
-  const MEDIA_UPLOAD_PATH =
-    "/api/bytedance-aidp/taizhou-helper/recording-media/";
   const ITEM_CREATE_PATH =
     "/api/bytedance-aidp/taizhou-helper/recording-items";
   const RESULT_PATH =
     "/api/bytedance-aidp/taizhou-helper/recording-items/result";
-  const SAFE_MEDIA_TYPES = {
-    audio: new Set([
-      "audio/mpeg",
-      "audio/mp4",
-      "audio/x-m4a",
-      "audio/wav",
-      "audio/x-wav",
-      "audio/wave",
-    ]),
-    video: new Set(["video/mp4", "video/webm"]),
-  };
-
   function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
-  }
-
-  function getContentType(response) {
-    return normalizeText(response?.headers?.get?.("content-type"))
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-  }
-
-  function getContentLength(response) {
-    const value = Number(response?.headers?.get?.("content-length"));
-    return Number.isFinite(value) && value >= 0 ? value : null;
-  }
-
-  function isSafeMediaUrl(value) {
-    try {
-      const url = new URL(normalizeText(value));
-      return (
-        url.protocol === "https:" &&
-        Boolean(url.hostname) &&
-        !url.username &&
-        !url.password
-      );
-    } catch (_error) {
-      return false;
-    }
-  }
-
-  async function cancelResponseBody(response, reader) {
-    try {
-      if (reader && typeof reader.cancel === "function") {
-        await reader.cancel();
-        return;
-      }
-      if (response?.body && typeof response.body.cancel === "function") {
-        await response.body.cancel();
-      }
-    } catch (_error) {
-      // Cancellation is best-effort after the response is already rejected.
-    }
-  }
-
-  async function downloadMedia(kind, url, fetchImpl) {
-    const normalizedKind = normalizeText(kind).toLowerCase();
-    const mediaLabel = normalizedKind === "video" ? "视频" : "音频";
-    if (!SAFE_MEDIA_TYPES[normalizedKind] || !isSafeMediaUrl(url)) {
-      throw new Error(mediaLabel + "地址无效，无法安全下载。");
-    }
-    const response = await fetchImpl(normalizeText(url), {
-      method: "GET",
-      credentials: "include",
-      headers: {},
-    });
-    if (!response?.ok) {
-      throw new Error(mediaLabel + "下载失败，请确认当前页面登录状态后重试。");
-    }
-    const declaredLength = getContentLength(response);
-    if (declaredLength !== null && declaredLength > MAX_MEDIA_BYTES) {
-      await cancelResponseBody(response);
-      throw new Error(mediaLabel + "超过 100MB 限制，无法导入。");
-    }
-    const contentType = getContentType(response);
-    if (!SAFE_MEDIA_TYPES[normalizedKind].has(contentType)) {
-      throw new Error(mediaLabel + "类型不受支持，无法导入。");
-    }
-    const reader = response?.body?.getReader?.();
-    if (!reader) {
-      throw new Error(mediaLabel + "响应无法安全流式读取。");
-    }
-    const chunks = [];
-    let actualLength = 0;
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk?.done) {
-        break;
-      }
-      const bytes = chunk?.value instanceof Uint8Array
-        ? chunk.value
-        : new Uint8Array(chunk?.value || []);
-      actualLength += bytes.byteLength;
-      if (actualLength > MAX_MEDIA_BYTES) {
-        await cancelResponseBody(response, reader);
-        throw new Error(mediaLabel + "超过 100MB 限制，无法导入。");
-      }
-      chunks.push(bytes);
-    }
-    if (actualLength <= 0) {
-      throw new Error(mediaLabel + "内容为空，无法导入。");
-    }
-    const combined = new Uint8Array(actualLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      combined.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return {
-      bytes: combined,
-      contentType: contentType,
-    };
   }
 
   async function readJsonResponse(response) {
@@ -207,54 +93,17 @@
       );
     }
 
-    async function uploadMedia(kind, media) {
-      const response = await fetchImpl(
-        buildBackendUrl(MEDIA_UPLOAD_PATH + kind),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": media.contentType,
-            "X-Recording-Task-Id": recordingTaskId,
-          },
-          body: media.bytes,
-        }
-      );
-      const body = await readJsonResponse(response);
-      const uploadId = normalizeText(body.uploadId);
-      if (!response?.ok || !uploadId) {
-        throw new Error(
-          (kind === "video" ? "视频" : "音频") +
-            "上传失败，请稍后重试。"
-        );
-      }
-      return uploadId;
-    }
-
     async function prepareCreateBody(context) {
       const key = mappingKey(context.sourceItemId);
       if (pendingCreates.has(key)) {
         return pendingCreates.get(key);
       }
-      let audioUploadId = null;
-      let videoUploadId = null;
-      if (normalizeText(context.audioUrl)) {
-        audioUploadId = await uploadMedia(
-          "audio",
-          await downloadMedia("audio", context.audioUrl, fetchImpl)
-        );
-      }
-      if (normalizeText(context.videoUrl)) {
-        videoUploadId = await uploadMedia(
-          "video",
-          await downloadMedia("video", context.videoUrl, fetchImpl)
-        );
-      }
       const body = {
         recordingTaskId: recordingTaskId,
         sourceItemId: normalizeText(context.sourceItemId),
         referenceText: normalizeText(context.referenceText) || null,
-        audioUploadId: audioUploadId,
-        videoUploadId: videoUploadId,
+        referenceAudioUrl: normalizeText(context.audioUrl) || null,
+        referenceVideoUrl: normalizeText(context.videoUrl) || null,
       };
       pendingCreates.set(key, body);
       return body;
@@ -475,10 +324,6 @@
 
   const api = {
     createRuntime,
-    __testOnly: {
-      downloadMedia,
-      MAX_MEDIA_BYTES,
-    },
   };
 
   globalThis.ASREdgeBytedanceAidpTaizhouRecordingIntegration = api;

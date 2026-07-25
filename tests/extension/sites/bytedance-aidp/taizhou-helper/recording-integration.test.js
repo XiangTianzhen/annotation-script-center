@@ -190,8 +190,8 @@ test("Taizhou recording integration creates a text-only full item and stores onl
     recordingTaskId: "internal-task-id",
     sourceItemId: "source-item-1",
     referenceText: "完整题目文本",
-    audioUploadId: null,
-    videoUploadId: null,
+    referenceAudioUrl: null,
+    referenceVideoUrl: null,
   });
   assert.equal("Idempotency-Key" in harness.calls[0].headers, false);
   assert.deepEqual(Object.keys(harness.storage.mappings[0]).sort(), [
@@ -204,11 +204,26 @@ test("Taizhou recording integration creates a text-only full item and stores onl
   ]);
 });
 
-test("Taizhou recording integration supports text, audio, video and combined references without forwarding login headers", async function () {
+test("Taizhou recording integration forwards URLs without downloading or uploading media and supports all reference combinations", async function () {
   const cases = [
     { referenceText: "文字", audioUrl: "", videoUrl: "" },
     { referenceText: "", audioUrl: "https://aidp.example.test/audio", videoUrl: "" },
     { referenceText: "", audioUrl: "", videoUrl: "https://aidp.example.test/video" },
+    {
+      referenceText: "文字",
+      audioUrl: "https://aidp.example.test/audio",
+      videoUrl: "",
+    },
+    {
+      referenceText: "文字",
+      audioUrl: "",
+      videoUrl: "https://aidp.example.test/video",
+    },
+    {
+      referenceText: "",
+      audioUrl: "https://aidp.example.test/audio",
+      videoUrl: "https://aidp.example.test/video",
+    },
     {
       referenceText: "文字",
       audioUrl: "https://aidp.example.test/audio",
@@ -224,28 +239,7 @@ test("Taizhou recording integration supports text, audio, video and combined ref
         ...context,
       },
       fetch(call) {
-        if (call.url.startsWith("https://aidp.example.test/audio")) {
-          return response({
-            headers: {
-              "Content-Type": "audio/mpeg",
-              "Content-Length": "4",
-            },
-          });
-        }
-        if (call.url.startsWith("https://aidp.example.test/video")) {
-          return response({
-            headers: {
-              "Content-Type": "video/mp4",
-              "Content-Length": "4",
-            },
-          });
-        }
-        if (call.url.endsWith("/recording-media/audio")) {
-          return response({ status: 201, json: { uploadId: "audio-upload" } });
-        }
-        if (call.url.endsWith("/recording-media/video")) {
-          return response({ status: 201, json: { uploadId: "video-upload" } });
-        }
+        assert.equal(call.url.endsWith("/recording-items"), true);
         return response({
           status: 201,
           json: {
@@ -264,123 +258,17 @@ test("Taizhou recording integration supports text, audio, video and combined ref
     const result = await harness.runtime.importCurrentItem();
     assert.equal(result.ok, true);
 
-    const downloads = harness.calls.filter((call) =>
-      call.url.startsWith("https://aidp.example.test/")
-    );
-    downloads.forEach((call) => {
-      assert.equal(call.credentials, "include");
-      assert.deepEqual(call.headers, {});
-    });
-    const uploads = harness.calls.filter((call) =>
-      call.url.includes("/recording-media/")
-    );
-    uploads.forEach((call) => {
-      assert.equal(call.headers["X-Recording-Task-Id"], "internal-task-id");
-      assert.match(call.headers["Content-Type"], /^(audio|video)\//);
-      assert.doesNotMatch(
-        JSON.stringify(call.headers),
-        /authorization|cookie|session|bearer/i
-      );
-    });
+    assert.equal(harness.calls.length, 1);
     const createCall = harness.calls.find((call) =>
       call.url.endsWith("/recording-items")
     );
     assert.ok(createCall);
     const createBody = JSON.parse(createCall.body);
     assert.equal(createBody.referenceText, context.referenceText || null);
-    assert.equal(createBody.audioUploadId, context.audioUrl ? "audio-upload" : null);
-    assert.equal(createBody.videoUploadId, context.videoUrl ? "video-upload" : null);
+    assert.equal(createBody.referenceAudioUrl, context.audioUrl || null);
+    assert.equal(createBody.referenceVideoUrl, context.videoUrl || null);
+    assert.doesNotMatch(JSON.stringify(harness.storage.mappings), /aidp\.example/);
   }
-});
-
-test("Taizhou recording integration stops before item creation when any declared media fails", async function () {
-  const harness = createRuntime({
-    context: {
-      ok: true,
-      sourceItemId: "source-media-failure",
-      referenceText: "文字",
-      audioUrl: "https://aidp.example.test/audio",
-      videoUrl: "https://aidp.example.test/video",
-    },
-    fetch(call) {
-      if (call.url.endsWith("/recording-media/audio")) {
-        return response({ status: 201, json: { uploadId: "audio-upload" } });
-      }
-      if (call.url.endsWith("/audio")) {
-        return response({
-          headers: { "Content-Type": "audio/mpeg", "Content-Length": "4" },
-        });
-      }
-      if (call.url.endsWith("/video")) {
-        return response({ ok: false, status: 403 });
-      }
-      throw new Error("创建接口不应被调用");
-    },
-  });
-
-  const result = await harness.runtime.importCurrentItem();
-
-  assert.equal(result.ok, false);
-  assert.match(result.message, /视频|媒体|下载/);
-  assert.equal(
-    harness.calls.some((call) => call.url.endsWith("/recording-items")),
-    false
-  );
-  assert.equal(harness.storage.mappings.length, 0);
-});
-
-test("Taizhou recording integration enforces the 100MB media limit from headers and actual bytes", async function () {
-  const moduleApi = loadModule();
-  const tooLarge = 100 * 1024 * 1024 + 1;
-  let headerBodyCancelled = false;
-  let streamedBodyCancelled = false;
-  let arrayBufferCalled = false;
-
-  await assert.rejects(
-    moduleApi.__testOnly.downloadMedia(
-      "audio",
-      "https://aidp.example.test/audio",
-      async function () {
-        return response({
-          headers: {
-            "Content-Type": "audio/mpeg",
-            "Content-Length": String(tooLarge),
-          },
-          onCancel() {
-            headerBodyCancelled = true;
-          },
-        });
-      }
-    ),
-    /100MB/
-  );
-  assert.equal(headerBodyCancelled, true);
-
-  const oneMegabyte = new Uint8Array(1024 * 1024);
-  await assert.rejects(
-    moduleApi.__testOnly.downloadMedia(
-      "video",
-      "https://aidp.example.test/video",
-      async function () {
-        return response({
-          headers: {
-            "Content-Type": "video/mp4",
-            "Content-Length": "4",
-          },
-          chunks: Array.from({ length: 101 }, () => oneMegabyte),
-          onCancel() {
-            streamedBodyCancelled = true;
-          },
-          onArrayBuffer() {
-            arrayBufferCalled = true;
-          },
-        });
-      }
-    ),
-    /100MB/
-  );
-  assert.equal(streamedBodyCancelled, true);
-  assert.equal(arrayBufferCalled, false);
 });
 
 test("Taizhou recording integration reuses duplicate imports and refreshes results once per entered item", async function () {
@@ -452,7 +340,7 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
   );
 });
 
-test("Taizhou recording integration retries media after deterministic 4xx but reuses it after 5xx", async function () {
+test("Taizhou recording integration retries the same URL payload after deterministic 4xx and 5xx", async function () {
   let createAttempt = 0;
   const harness = createRuntime({
     context: {
@@ -463,17 +351,6 @@ test("Taizhou recording integration retries media after deterministic 4xx but re
       videoUrl: "",
     },
     fetch(call) {
-      if (call.url.endsWith("/recording-media/audio")) {
-        return response({
-          status: 201,
-          json: { uploadId: "audio-upload-" + String(createAttempt + 1) },
-        });
-      }
-      if (call.url.endsWith("/audio")) {
-        return response({
-          headers: { "Content-Type": "audio/mpeg" },
-        });
-      }
       if (call.url.endsWith("/recording-items")) {
         createAttempt += 1;
         if (createAttempt === 1) {
@@ -509,14 +386,13 @@ test("Taizhou recording integration retries media after deterministic 4xx but re
   assert.equal((await harness.runtime.importCurrentItem()).ok, false);
   assert.equal((await harness.runtime.importCurrentItem()).ok, true);
 
-  const downloads = harness.calls.filter(
-    (call) => call.url === "https://aidp.example.test/audio"
+  assert.equal(harness.calls.length, 3);
+  const bodies = harness.calls.map((call) => JSON.parse(call.body));
+  assert.equal(new Set(bodies.map(JSON.stringify)).size, 1);
+  assert.equal(
+    bodies[0].referenceAudioUrl,
+    "https://aidp.example.test/audio"
   );
-  const uploads = harness.calls.filter((call) =>
-    call.url.endsWith("/recording-media/audio")
-  );
-  assert.equal(downloads.length, 2);
-  assert.equal(uploads.length, 2);
 });
 
 test("Taizhou recording import keeps the captured A source when the current item switches to B", async function () {
