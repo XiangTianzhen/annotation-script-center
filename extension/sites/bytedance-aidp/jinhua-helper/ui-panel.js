@@ -160,8 +160,10 @@
       "  background: #fff;",
       "}",
       "[" + ROOT_ATTR + "] .summary-grid, [" + ROOT_ATTR + "] .info-grid, [" + ROOT_ATTR + "] .batch-state-list { display: grid; gap: 6px; }",
-      "[" + ROOT_ATTR + "] .summary-line, [" + ROOT_ATTR + "] .info-line { display: flex; gap: 8px; flex-wrap: wrap; }",
+      "[" + ROOT_ATTR + "] .summary-line, [" + ROOT_ATTR + "] .info-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }",
       "[" + ROOT_ATTR + "] .summary-label, [" + ROOT_ATTR + "] .info-label { min-width: 72px; font-weight: 600; color: #3a5db4; }",
+      "[" + ROOT_ATTR + "] .summary-value { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }",
+      "[" + ROOT_ATTR + "] .media-url-copy-button { flex: 0 0 auto; min-height: 28px; padding: 0 12px; }",
       "[" + ROOT_ATTR + "] .action-row, [" + ROOT_ATTR + "] .batch-action-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }",
       "[" + ROOT_ATTR + "] .batch-selector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .batch-selector-summary { color: var(--asc-primary-strong, #26418b); font-weight: 600; }",
@@ -872,8 +874,8 @@
               " 秒"
             : "",
         ],
-        ["音频", source.audioUrl || ""],
-        ["视频", source.videoUrl || "无视频"],
+        ["音频", source.audioUrl || "", source.audioUrl ? "audio" : ""],
+        ["视频", source.videoUrl || "无视频", source.videoUrl ? "video" : ""],
       ].filter(function (item) {
         return normalizeText(item[0]) && normalizeText(item[1]);
       });
@@ -890,9 +892,29 @@
         labelNode.className = "summary-label";
         labelNode.textContent = String(item[0]) + "：";
         const valueNode = document.createElement("span");
+        valueNode.className = "summary-value";
         valueNode.textContent = String(item[1]);
         line.appendChild(labelNode);
         line.appendChild(valueNode);
+        if (item[2]) {
+          const kind = item[2];
+          const defaultLabel = kind === "audio" ? "复制音频 URL" : "复制视频 URL";
+          const copyButton = createButton(defaultLabel, false, async function () {
+            const copied = await copyTextToClipboard(item[1]);
+            copyButton.textContent = copied ? "已复制" : "复制失败";
+            if (!copied) {
+              setStatus(defaultLabel + " 失败，请手动复制。", "error");
+            }
+            if (typeof setTimeout === "function") {
+              setTimeout(function () {
+                copyButton.textContent = defaultLabel;
+              }, 1400);
+            }
+          });
+          copyButton.className = "media-url-copy-button";
+          copyButton.setAttribute("data-media-url-copy", kind);
+          line.appendChild(copyButton);
+        }
         grid.appendChild(line);
       });
       summaryNode.appendChild(grid);

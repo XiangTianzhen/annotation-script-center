@@ -383,6 +383,103 @@ test("AIDP taizhou ui panel keeps current-media, recording-result and AI section
   }
 });
 
+test("AIDP taizhou current-media copies exact audio and video URLs and hides unavailable video action", async function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const previousNavigator = globalThis.navigator;
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const previousSetTimeout = globalThis.setTimeout;
+  const copiedValues = [];
+  const scheduledCallbacks = [];
+  let failCopy = false;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  globalThis.setTimeout = function (callback) {
+    scheduledCallbacks.push(callback);
+    return scheduledCallbacks.length;
+  };
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      clipboard: {
+        writeText: async function (text) {
+          if (failCopy) {
+            throw new Error("clipboard denied");
+          }
+          copiedValues.push(String(text || ""));
+        },
+      },
+    },
+  });
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+    const panelRoot = findMountedPanelRoot(harness.body);
+    const audioUrl = "https://media.example.test/audio?id=1&signature=audio-signature";
+    const videoUrl = "https://media.example.test/video?id=2&signature=video-signature";
+
+    runtime.renderAudioContext({ entryId: "source-1", audioUrl, videoUrl });
+
+    const audioCopyButton = findNode(panelRoot, function (node) {
+      return node.getAttribute("data-media-url-copy") === "audio";
+    });
+    const videoCopyButton = findNode(panelRoot, function (node) {
+      return node.getAttribute("data-media-url-copy") === "video";
+    });
+    assert.ok(audioCopyButton);
+    assert.ok(videoCopyButton);
+
+    audioCopyButton.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(copiedValues, [audioUrl]);
+    assert.equal(audioCopyButton.textContent, "已复制");
+    scheduledCallbacks.shift()();
+    assert.equal(audioCopyButton.textContent, "复制音频 URL");
+
+    videoCopyButton.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(copiedValues, [audioUrl, videoUrl]);
+    scheduledCallbacks.shift()();
+
+    failCopy = true;
+    audioCopyButton.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(audioCopyButton.textContent, "复制失败");
+    assert.match(panelRoot.textContent, /复制音频 URL 失败，请手动复制/);
+    scheduledCallbacks.shift()();
+    assert.equal(audioCopyButton.textContent, "复制音频 URL");
+
+    runtime.renderAudioContext({ entryId: "source-2", audioUrl });
+    assert.match(panelRoot.textContent, /视频：\s*无视频/);
+    assert.equal(
+      collectDescendants(panelRoot).some(function (node) {
+        return node.getAttribute("data-media-url-copy") === "video";
+      }),
+      false
+    );
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+    globalThis.setTimeout = previousSetTimeout;
+    if (navigatorDescriptor) {
+      Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
+    } else if (previousNavigator === undefined) {
+      delete globalThis.navigator;
+    } else {
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: previousNavigator,
+      });
+    }
+  }
+});
+
 test("AIDP taizhou ui panel exposes visibility methods without rendering an external toggle button", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -463,6 +560,9 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
     const refreshButton = findNode(card, function (node) {
       return node.getAttribute("data-recording-result-refresh") === "true";
     });
+    const summaryRow = findNode(card, function (node) {
+      return node.getAttribute("data-recording-result-summary-row") === "true";
+    });
     const audio = findNode(card, function (node) {
       return node.tagName === "AUDIO";
     });
@@ -472,6 +572,11 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
 
     assert.ok(card);
     assert.ok(recordingCollapseButton);
+    assert.ok(summaryRow);
+    assert.equal(refreshButton.parentNode, summaryRow);
+    assert.match(summaryRow.textContent, /source-item-1/);
+    assert.match(summaryRow.textContent, /T000001-0000001/);
+    assert.match(summaryRow.textContent, /已完成/);
     assert.equal(card.style.display, "none");
     recordingCollapseButton.click();
     assert.notEqual(card.style.display, "none");
@@ -506,6 +611,14 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
     });
     assert.match(card.textContent, /待审核领取/);
     assert.equal(
+      findNode(card, function (node) {
+        return node.getAttribute("data-recording-result-refresh") === "true";
+      }).parentNode,
+      findNode(card, function (node) {
+        return node.getAttribute("data-recording-result-summary-row") === "true";
+      })
+    );
+    assert.equal(
       collectDescendants(card).some(function (node) {
         return node.tagName === "AUDIO";
       }),
@@ -520,6 +633,27 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
       audioAvailable: false,
     });
     assert.match(card.textContent, /FUTURE_STATUS/);
+    assert.equal(
+      findNode(card, function (node) {
+        return node.getAttribute("data-recording-result-refresh") === "true";
+      }).parentNode,
+      findNode(card, function (node) {
+        return node.getAttribute("data-recording-result-summary-row") === "true";
+      })
+    );
+
+    runtime.renderRecordingResult({});
+    const emptySummaryRow = findNode(card, function (node) {
+      return node.getAttribute("data-recording-result-summary-row") === "true";
+    });
+    assert.ok(emptySummaryRow);
+    assert.match(emptySummaryRow.textContent, /当前题目尚未同步录音任务/);
+    assert.equal(
+      findNode(card, function (node) {
+        return node.getAttribute("data-recording-result-refresh") === "true";
+      }).parentNode,
+      emptySummaryRow
+    );
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

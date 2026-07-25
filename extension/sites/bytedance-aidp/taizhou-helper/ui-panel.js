@@ -173,8 +173,10 @@
       "  background: #fff;",
       "}",
       "[" + ROOT_ATTR + "] .summary-grid, [" + ROOT_ATTR + "] .info-grid, [" + ROOT_ATTR + "] .batch-state-list { display: grid; gap: 6px; }",
-      "[" + ROOT_ATTR + "] .summary-line, [" + ROOT_ATTR + "] .info-line { display: flex; gap: 8px; flex-wrap: wrap; }",
+      "[" + ROOT_ATTR + "] .summary-line, [" + ROOT_ATTR + "] .info-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }",
       "[" + ROOT_ATTR + "] .summary-label, [" + ROOT_ATTR + "] .info-label { min-width: 72px; font-weight: 600; color: #3a5db4; }",
+      "[" + ROOT_ATTR + "] .summary-value { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }",
+      "[" + ROOT_ATTR + "] .media-url-copy-button { flex: 0 0 auto; min-height: 28px; padding: 0 12px; }",
       "[" + ROOT_ATTR + "] .action-row, [" + ROOT_ATTR + "] .batch-action-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }",
       "[" + ROOT_ATTR + "] .batch-selector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .batch-selector-summary { color: var(--asc-primary-strong, #26418b); font-weight: 600; }",
@@ -216,6 +218,12 @@
       "[" + ROOT_ATTR + "] .debug-copy-button { min-height: 28px; padding: 0 12px; font-size: 12px; }",
       "[" + ROOT_ATTR + "] .recording-result-text { margin-top: 10px; padding: 10px; border-radius: 8px; background: #f7f9fc; white-space: pre-wrap; word-break: break-word; }",
       "[" + ROOT_ATTR + "] .recording-result-audio { width: 100%; margin-top: 10px; }",
+      "[" + ROOT_ATTR + "] .recording-result-summary-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }",
+      "[" + ROOT_ATTR + "] .recording-result-meta { display: flex; align-items: center; gap: 8px 16px; flex: 1 1 520px; flex-wrap: wrap; min-width: 0; }",
+      "[" + ROOT_ATTR + "] .recording-result-meta-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }",
+      "[" + ROOT_ATTR + "] .recording-result-meta-value, [" + ROOT_ATTR + "] .recording-result-empty { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }",
+      "[" + ROOT_ATTR + "] .recording-result-empty { flex: 1 1 320px; }",
+      "[" + ROOT_ATTR + "] [data-recording-result-refresh='true'] { flex: 0 0 auto; margin-left: auto; }",
       "[" + ROOT_ATTR + "] .debug-card { margin: 0; padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 10px; background: #f8fbff; color: #334155; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }",
       "@media (max-width: 1120px) {",
       "  [" + ROOT_ATTR + "] .panel-grid { grid-template-columns: minmax(0, 1fr); }",
@@ -851,8 +859,7 @@
       recordingResultNode = document.createElement("div");
       recordingResultNode.className = "summary-card collapsible-body";
       recordingResultNode.setAttribute("data-recording-result-card", "true");
-      recordingResultNode.textContent = "当前题目尚未同步录音任务。";
-      recordingResultNode.appendChild(recordingRefreshButtonNode);
+      renderRecordingResult({});
       recordingSection.appendChild(recordingResultNode);
       grid.appendChild(recordingSection);
       syncRecordingResultSectionState();
@@ -949,8 +956,8 @@
               " 秒"
             : "",
         ],
-        ["音频", source.audioUrl || ""],
-        ["视频", source.videoUrl || "无视频"],
+        ["音频", source.audioUrl || "", source.audioUrl ? "audio" : ""],
+        ["视频", source.videoUrl || "无视频", source.videoUrl ? "video" : ""],
       ].filter(function (item) {
         return normalizeText(item[0]) && normalizeText(item[1]);
       });
@@ -967,9 +974,29 @@
         labelNode.className = "summary-label";
         labelNode.textContent = String(item[0]) + "：";
         const valueNode = document.createElement("span");
+        valueNode.className = "summary-value";
         valueNode.textContent = String(item[1]);
         line.appendChild(labelNode);
         line.appendChild(valueNode);
+        if (item[2]) {
+          const kind = item[2];
+          const defaultLabel = kind === "audio" ? "复制音频 URL" : "复制视频 URL";
+          const copyButton = createButton(defaultLabel, false, async function () {
+            const copied = await copyTextToClipboard(item[1]);
+            copyButton.textContent = copied ? "已复制" : "复制失败";
+            if (!copied) {
+              setStatus(defaultLabel + " 失败，请手动复制。", "error");
+            }
+            if (typeof setTimeout === "function") {
+              setTimeout(function () {
+                copyButton.textContent = defaultLabel;
+              }, 1400);
+            }
+          });
+          copyButton.className = "media-url-copy-button";
+          copyButton.setAttribute("data-media-url-copy", kind);
+          line.appendChild(copyButton);
+        }
         grid.appendChild(line);
       });
       summaryNode.appendChild(grid);
@@ -988,13 +1015,20 @@
       const sourceItemId = normalizeText(source.sourceItemId);
       const itemCode = normalizeText(source.itemCode);
       const status = normalizeText(source.status);
+      const summaryRow = document.createElement("div");
+      summaryRow.className = "recording-result-summary-row";
+      summaryRow.setAttribute("data-recording-result-summary-row", "true");
       if (!sourceItemId && !itemCode && !status) {
-        recordingResultNode.textContent = "当前题目尚未同步录音任务。";
-        recordingResultNode.appendChild(recordingRefreshButtonNode);
+        const emptyNode = document.createElement("span");
+        emptyNode.className = "recording-result-empty";
+        emptyNode.textContent = "当前题目尚未同步录音任务。";
+        summaryRow.appendChild(emptyNode);
+        summaryRow.appendChild(recordingRefreshButtonNode);
+        recordingResultNode.appendChild(summaryRow);
         return;
       }
-      const grid = document.createElement("div");
-      grid.className = "summary-grid";
+      const meta = document.createElement("div");
+      meta.className = "recording-result-meta";
       [
         ["来源题目", sourceItemId],
         ["录音条目", itemCode],
@@ -1004,18 +1038,21 @@
           return normalizeText(item[1]);
         })
         .forEach(function (item) {
-          const line = document.createElement("div");
-          line.className = "summary-line";
+          const line = document.createElement("span");
+          line.className = "recording-result-meta-item";
           const labelNode = document.createElement("span");
           labelNode.className = "summary-label";
           labelNode.textContent = String(item[0]) + "：";
           const valueNode = document.createElement("span");
+          valueNode.className = "recording-result-meta-value";
           valueNode.textContent = String(item[1]);
           line.appendChild(labelNode);
           line.appendChild(valueNode);
-          grid.appendChild(line);
+          meta.appendChild(line);
         });
-      recordingResultNode.appendChild(grid);
+      summaryRow.appendChild(meta);
+      summaryRow.appendChild(recordingRefreshButtonNode);
+      recordingResultNode.appendChild(summaryRow);
       if (status === "COMPLETED" && typeof source.text === "string" && source.text !== "") {
         const textNode = document.createElement("div");
         textNode.className = "recording-result-text";
@@ -1035,7 +1072,6 @@
         audio.src = normalizeText(source.audioUrl);
         recordingResultNode.appendChild(audio);
       }
-      recordingResultNode.appendChild(recordingRefreshButtonNode);
     }
 
     function renderBatchState(snapshot) {
