@@ -388,7 +388,7 @@
         aiRecommendOmniPrompt: "",
         defaultPlaybackRate: DEFAULT_PLAYBACK_RATE,
         fixedWaveZoom: DEFAULT_FIXED_WAVE_ZOOM,
-        recordingImportTaskId: "",
+        recordingImportTaskCode: "",
         contractMode: "dom-guarded",
         shortcuts: {},
       }
@@ -447,8 +447,8 @@
         current.fixedWaveZoom,
         defaults.fixedWaveZoom
       ),
-      recordingImportTaskId: normalizeText(
-        current.recordingImportTaskId || defaults.recordingImportTaskId
+      recordingImportTaskCode: normalizeText(
+        current.recordingImportTaskCode || defaults.recordingImportTaskCode
       ),
       settings: settings,
       aiUsageOperatorName: normalizeText(settings?.meta?.aiUsageOperatorName || ""),
@@ -2088,7 +2088,7 @@
     }
     const selector = "[" + RECORDING_IMPORT_BUTTON_ATTR + "='true']";
     let button = actionGroup.querySelector(selector);
-    if (!normalizeText(source.recordingTaskId)) {
+    if (!normalizeText(source.recordingTaskCode)) {
       if (button?.parentNode && typeof button.parentNode.removeChild === "function") {
         button.parentNode.removeChild(button);
         return true;
@@ -3492,7 +3492,7 @@
         }) || changed;
       changed =
         syncRecordingImportButton(root, {
-          recordingTaskId: resolvedConfig.recordingImportTaskId,
+          recordingTaskCode: resolvedConfig.recordingImportTaskCode,
           contextReady: helperRuntime?.recordingContextReady === true,
           busy: helperRuntime?.recordingImportBusy === true,
           onClick: function () {

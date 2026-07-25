@@ -83,12 +83,12 @@ describe("script-settings helpers", () => {
     });
   });
 
-  test("exposes the Taizhou recording internal task id only in Basic settings", () => {
+  test("exposes the Taizhou visible recording task code only in Basic settings", () => {
     const sections = getScriptFieldGroups("bytedanceAidpTaizhouHelper");
     const recordingFields = sections.flatMap((section) =>
       (section.groups || []).flatMap((group) =>
         (group.fields || [])
-          .filter((field) => field.path === "recordingImportTaskId")
+          .filter((field) => field.path === "recordingImportTaskCode")
           .map((field) => ({ section: section.key, group: group.key, field }))
       )
     );
@@ -99,13 +99,12 @@ describe("script-settings helpers", () => {
       group: "page-behavior",
       field: {
         kind: "text",
-        path: "recordingImportTaskId",
-        label: "录音平台内部任务 ID",
+        path: "recordingImportTaskCode",
+        label: "录音平台任务编号",
       },
     });
-    expect(recordingFields[0].field.help).toContain("数据库内部 taskId");
-    expect(recordingFields[0].field.help).toContain("不是");
-    expect(recordingFields[0].field.help).toContain("taskCode");
+    expect(recordingFields[0].field.help).toContain("页面可见");
+    expect(recordingFields[0].field.help).not.toContain("数据库内部");
   });
 
   test("restores the complete four-script field contracts with Jinhua original listening only", () => {

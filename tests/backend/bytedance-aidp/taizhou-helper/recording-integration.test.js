@@ -48,7 +48,7 @@ function writeConfig(configPath, overrides) {
         {
           baseUrl: "https://recording.example.test",
           apiKey: "test-server-key",
-          allowedTaskIds: ["task-allowed"],
+          allowedTaskCodes: ["T000001"],
           tokenSecret: "test-token-secret-at-least-thirty-two-characters",
         },
         overrides || {}
@@ -147,7 +147,7 @@ async function bodyJson(response) {
 function fullBody(overrides) {
   return Object.assign(
     {
-      recordingTaskId: "task-allowed",
+      recordingTaskCode: "T000001",
       sourceItemId: "source-1",
       referenceText: "参考文本",
       referenceAudioUrl: "https://media.example.test/audio?token=secret",
@@ -160,7 +160,7 @@ function fullBody(overrides) {
 test("private config accepts HTTPS and loopback HTTP only", function () {
   const common = {
     apiKey: "key",
-    allowedTaskIds: ["task"],
+    allowedTaskCodes: ["T000001"],
     tokenSecret: "x".repeat(32),
   };
   assert.ok(
@@ -185,7 +185,7 @@ test("private config accepts HTTPS and loopback HTTP only", function () {
   }
 });
 
-test("create forwards every non-empty reference combination without media requests", async (t) => {
+test("create forwards task code, source binding and every reference combination without media requests", async (t) => {
   const fixture = await createFixture(t);
   const cases = [
     { referenceText: "文字", referenceAudioUrl: null, referenceVideoUrl: null },
@@ -206,16 +206,24 @@ test("create forwards every non-empty reference combination without media reques
   assert.equal(fixture.upstreamCalls.length, cases.length);
   for (const [index, call] of fixture.upstreamCalls.entries()) {
     assert.equal(call.method, "POST");
-    assert.deepEqual(JSON.parse(call.body), Object.fromEntries(
-      Object.entries(cases[index]).filter(([, value]) => value)
-    ));
+    assert.equal(
+      call.url,
+      "https://recording.example.test/api/integrations/tasks/by-code/T000001/items"
+    );
+    assert.deepEqual(JSON.parse(call.body), {
+      ...Object.fromEntries(
+        Object.entries(cases[index]).filter(([, value]) => value)
+      ),
+      sourcePlatform: "BYTEDANCE_AIDP",
+      sourceItemId: `source-${index}`,
+    });
     assert.equal(call.headers["X-API-Key"], "test-server-key");
     assert.equal(
       call.headers["Idempotency-Key"],
       crypto
         .createHash("sha256")
         .update(
-          `bytedance-aidp/taizhou-helper\ntask-allowed\nsource-${index}`
+          `bytedance-aidp/taizhou-helper\nT000001\nsource-${index}`
         )
         .digest("hex")
     );
@@ -227,7 +235,7 @@ test("request rejects unknown fields, empty references, disallowed tasks and uns
   const cases = [
     [fullBody({ extra: true }), 400, "UNKNOWN_FIELD"],
     [fullBody({ referenceText: null, referenceAudioUrl: null, referenceVideoUrl: null }), 422, "ITEM_REFERENCE_REQUIRED"],
-    [fullBody({ recordingTaskId: "not-allowed" }), 403, "RECORDING_TASK_NOT_ALLOWED"],
+    [fullBody({ recordingTaskCode: "T999999" }), 403, "RECORDING_TASK_NOT_ALLOWED"],
     [fullBody({ referenceAudioUrl: 123 }), 400, "INVALID_FIELD_TYPE"],
     [fullBody({ referenceAudioUrl: "http://media.example.test/a" }), 422, "REMOTE_URL_INVALID"],
     [fullBody({ referenceAudioUrl: "/relative" }), 422, "REMOTE_URL_INVALID"],
@@ -316,7 +324,7 @@ test("removed upload and public reference media routes return 404", async (t) =>
   assert.equal(publicHead.status, 404);
 });
 
-test("valid v1 state migrates mappings, drops media fields and removes only fixed old directories", async (t) => {
+test("valid v1 state drops task-id mappings, media fields and removes only fixed old directories", async (t) => {
   const fixture = await createFixture(t, {
     prepareRuntime({ runtimeDir }) {
       fs.mkdirSync(path.join(runtimeDir, "temp"), { recursive: true });
@@ -350,14 +358,49 @@ test("valid v1 state migrates mappings, drops media fields and removes only fixe
     },
   });
   const snapshot = fixture.integration.getSnapshot();
-  assert.equal(snapshot.version, 2);
-  assert.equal(snapshot.mappings.safe.recordingItemId, "recording-old");
-  assert.equal("uploadIds" in snapshot.mappings.safe, false);
-  assert.equal("mediaIds" in snapshot.mappings.safe, false);
+  assert.equal(snapshot.version, 3);
+  assert.deepEqual(snapshot.mappings, {});
   assert.equal("uploads" in snapshot, false);
   assert.equal("media" in snapshot, false);
   assert.equal(fs.existsSync(path.join(fixture.runtimeDir, "temp")), false);
   assert.equal(fs.existsSync(path.join(fixture.runtimeDir, "media")), false);
+});
+
+test("v2 state keeps only mappings that already contain a task code", async (t) => {
+  const fixture = await createFixture(t, {
+    prepareRuntime({ runtimeDir }) {
+      fs.mkdirSync(runtimeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(runtimeDir, "state.json"),
+        JSON.stringify({
+          version: 2,
+          mappings: {
+            legacy: {
+              mappingKey: "legacy",
+              taskId: "task-allowed",
+              sourceItemId: "source-old",
+            },
+            compatible: {
+              mappingKey: "compatible",
+              requestFingerprint: "b".repeat(64),
+              taskCode: "T000001",
+              sourceItemId: "source-compatible",
+              operationKey: "stable-compatible-operation",
+              recordingItemId: "recording-compatible",
+              itemCode: "T000001-0000010",
+              status: "COMPLETED",
+              createdAt: 3,
+              updatedAt: 4,
+            },
+          },
+        })
+      );
+    },
+  });
+  const snapshot = fixture.integration.getSnapshot();
+  assert.equal(snapshot.version, 3);
+  assert.deepEqual(Object.keys(snapshot.mappings), ["compatible"]);
+  assert.equal(snapshot.mappings.compatible.taskCode, "T000001");
 });
 
 test("corrupt state with runtime data fails closed and migration deletion failure stops startup", function () {

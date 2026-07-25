@@ -32,9 +32,9 @@
             return String(path || "");
           };
     const now = typeof deps.now === "function" ? deps.now : Date.now;
-    const recordingTaskId = normalizeText(
+    const recordingTaskCode = normalizeText(
       settings?.platforms?.bytedanceAidp?.scripts?.taizhouHelper
-        ?.recordingImportTaskId
+        ?.recordingImportTaskCode
     );
     const pendingCreates = new Map();
     let importFlight = null;
@@ -43,7 +43,7 @@
     let autoRefreshedGeneration = 0;
 
     function mappingKey(sourceItemId) {
-      return recordingTaskId + "\n" + normalizeText(sourceItemId);
+      return recordingTaskCode + "\n" + normalizeText(sourceItemId);
     }
 
     function beginResultEntry(sourceItemId) {
@@ -81,14 +81,14 @@
 
     async function findMapping(sourceItemId) {
       if (
-        !recordingTaskId ||
+        !recordingTaskCode ||
         !normalizeText(sourceItemId) ||
         typeof storage?.findTaizhouRecordingSyncMapping !== "function"
       ) {
         return null;
       }
       return storage.findTaizhouRecordingSyncMapping(
-        recordingTaskId,
+        recordingTaskCode,
         normalizeText(sourceItemId)
       );
     }
@@ -99,7 +99,7 @@
         return pendingCreates.get(key);
       }
       const body = {
-        recordingTaskId: recordingTaskId,
+        recordingTaskCode: recordingTaskCode,
         sourceItemId: normalizeText(context.sourceItemId),
         referenceText: normalizeText(context.referenceText) || null,
         referenceAudioUrl: normalizeText(context.audioUrl) || null,
@@ -110,10 +110,10 @@
     }
 
     async function performImport() {
-      if (!recordingTaskId) {
+      if (!recordingTaskCode) {
         return {
           ok: false,
-          message: "请先在 Options 基础设置中填写录音平台数据库内部 taskId。",
+          message: "请先在 Options 基础设置中填写录音平台任务编号。",
         };
       }
       if (
@@ -135,7 +135,7 @@
             "当前完整题目数据尚未就绪，请稍后重试。",
         };
       }
-      const importTaskId = recordingTaskId;
+      const importTaskCode = recordingTaskCode;
       const importSourceItemId = normalizeText(context.sourceItemId);
       const importEntry = beginResultEntry(importSourceItemId);
       const importKey = mappingKey(importSourceItemId);
@@ -179,7 +179,7 @@
           throw new Error("创建录音任务数据失败，请稍后重试。");
         }
         const mapping = {
-          recordingTaskId: importTaskId,
+          recordingTaskCode: importTaskCode,
           sourceItemId: importSourceItemId,
           recordingItemId: recordingItemId,
           itemCode: itemCode,
@@ -285,7 +285,7 @@
 
     async function autoRefreshForEntry(expected, knownMapping) {
       if (
-        !recordingTaskId ||
+        !recordingTaskCode ||
         !expected?.sourceItemId ||
         !isCurrentResultEntry(expected) ||
         autoRefreshedGeneration === expected.generation
@@ -309,8 +309,8 @@
     }
 
     return {
-      get recordingTaskId() {
-        return recordingTaskId;
+      get recordingTaskCode() {
+        return recordingTaskCode;
       },
       importCurrentItem,
       beginResultEntry,

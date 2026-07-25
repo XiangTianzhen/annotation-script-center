@@ -22,12 +22,13 @@ const DEFAULT_RUNTIME_DIR = path.resolve(
   "runtime",
   "recording-integration"
 );
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
+const SOURCE_PLATFORM = "BYTEDANCE_AIDP";
 const DEFAULT_AUDIO_TOKEN_TTL_MS = 120 * 1000;
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 60 * 1000;
 const DEFAULT_MAX_UPSTREAM_JSON_BYTES = 256 * 1024;
 const ITEM_FIELDS = new Set([
-  "recordingTaskId",
+  "recordingTaskCode",
   "sourceItemId",
   "referenceText",
   "referenceAudioUrl",
@@ -36,6 +37,7 @@ const ITEM_FIELDS = new Set([
 const SAFE_MAPPING_FIELDS = new Set([
   "mappingKey",
   "requestFingerprint",
+  "taskCode",
   "taskId",
   "sourceItemId",
   "operationKey",
@@ -157,20 +159,20 @@ function validateConfig(candidate) {
   const baseUrl = normalizeText(source.baseUrl).replace(/\/+$/, "");
   const apiKey = normalizeText(source.apiKey);
   const tokenSecret = normalizeText(source.tokenSecret);
-  const allowedTaskIds = Array.isArray(source.allowedTaskIds)
+  const allowedTaskCodes = Array.isArray(source.allowedTaskCodes)
     ? Array.from(
-        new Set(source.allowedTaskIds.map(normalizeText).filter(Boolean))
+        new Set(source.allowedTaskCodes.map(normalizeText).filter(Boolean))
       )
     : [];
   if (
     !isSafeBaseUrl(baseUrl) ||
     !apiKey ||
-    allowedTaskIds.length === 0 ||
+    allowedTaskCodes.length === 0 ||
     tokenSecret.length < 32
   ) {
     return null;
   }
-  return { baseUrl, apiKey, allowedTaskIds, tokenSecret };
+  return { baseUrl, apiKey, allowedTaskCodes, tokenSecret };
 }
 
 function readPrivateConfig(configPath) {
@@ -197,7 +199,7 @@ function sanitizeMapping(candidate) {
   }
   if (
     !normalizeText(mapping.mappingKey) ||
-    !normalizeText(mapping.taskId) ||
+    !normalizeText(mapping.taskCode) ||
     !normalizeText(mapping.sourceItemId)
   ) {
     return null;
@@ -211,6 +213,27 @@ function sanitizeMappings(candidate) {
   }
   const mappings = {};
   for (const [key, value] of Object.entries(candidate)) {
+    const mapping = sanitizeMapping(value);
+    if (!mapping) {
+      return null;
+    }
+    mappings[key] = mapping;
+  }
+  return mappings;
+}
+
+function sanitizeLegacyMappings(candidate) {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+  const mappings = {};
+  for (const [key, value] of Object.entries(candidate)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+    if (!normalizeText(value.taskCode)) {
+      continue;
+    }
     const mapping = sanitizeMapping(value);
     if (!mapping) {
       return null;
@@ -279,16 +302,29 @@ function loadState(options) {
       "录音集成状态损坏，已安全停止。"
     );
   }
-  const mappings = sanitizeMappings(parsed?.mappings);
-  if (!mappings) {
-    throw new IntegrationError(
-      503,
-      "RECORDING_INTEGRATION_STATE_INVALID",
-      "录音集成状态损坏，已安全停止。"
-    );
-  }
   if (parsed.version === STATE_VERSION) {
+    const mappings = sanitizeMappings(parsed?.mappings);
+    if (!mappings) {
+      throw new IntegrationError(
+        503,
+        "RECORDING_INTEGRATION_STATE_INVALID",
+        "录音集成状态损坏，已安全停止。"
+      );
+    }
     return { version: STATE_VERSION, mappings };
+  }
+  if (parsed.version === 2) {
+    const mappings = sanitizeLegacyMappings(parsed?.mappings);
+    if (!mappings) {
+      throw new IntegrationError(
+        503,
+        "RECORDING_INTEGRATION_STATE_INVALID",
+        "录音集成状态损坏，已安全停止。"
+      );
+    }
+    const migrated = { version: STATE_VERSION, mappings };
+    atomicWriteJson(statePath, migrated);
+    return migrated;
   }
   if (
     parsed.version !== 1 ||
@@ -301,6 +337,14 @@ function loadState(options) {
       503,
       "RECORDING_INTEGRATION_STATE_INVALID",
       "录音集成状态版本无效，已安全停止。"
+    );
+  }
+  const mappings = sanitizeLegacyMappings(parsed.mappings);
+  if (!mappings) {
+    throw new IntegrationError(
+      503,
+      "RECORDING_INTEGRATION_STATE_INVALID",
+      "录音集成状态损坏，已安全停止。"
     );
   }
   try {
@@ -477,9 +521,9 @@ function createRecordingIntegration(options) {
     return config;
   }
 
-  function assertAllowedTask(config, taskId) {
-    const normalized = normalizeText(taskId);
-    if (!config.allowedTaskIds.includes(normalized)) {
+  function assertAllowedTask(config, taskCode) {
+    const normalized = normalizeText(taskCode);
+    if (!config.allowedTaskCodes.includes(normalized)) {
       throw new IntegrationError(
         403,
         "RECORDING_TASK_NOT_ALLOWED",
@@ -489,9 +533,9 @@ function createRecordingIntegration(options) {
     return normalized;
   }
 
-  function mappingKeyFor(taskId, sourceItemId) {
+  function mappingKeyFor(taskCode, sourceItemId) {
     return hashText(
-      ["bytedance-aidp/taizhou-helper", taskId, sourceItemId].join("\n")
+      ["bytedance-aidp/taizhou-helper", taskCode, sourceItemId].join("\n")
     );
   }
 
@@ -524,6 +568,7 @@ function createRecordingIntegration(options) {
     return {
       itemId: mapping.recordingItemId,
       taskId: mapping.taskId,
+      taskCode: mapping.taskCode,
       itemCode: mapping.itemCode,
       status: mapping.status,
       createdAt: mapping.recordingCreatedAt || null,
@@ -562,10 +607,10 @@ function createRecordingIntegration(options) {
     validateExactObject(body, ITEM_FIELDS);
     validateStringFields(
       body,
-      ["recordingTaskId", "sourceItemId"],
+      ["recordingTaskCode", "sourceItemId"],
       ["referenceText", "referenceAudioUrl", "referenceVideoUrl"]
     );
-    const taskId = assertAllowedTask(config, body.recordingTaskId);
+    const taskCode = assertAllowedTask(config, body.recordingTaskCode);
     const sourceItemId = normalizeText(body.sourceItemId);
     if (!sourceItemId) {
       throw new IntegrationError(
@@ -584,7 +629,7 @@ function createRecordingIntegration(options) {
         "至少需要一种非空参考内容。"
       );
     }
-    const mappingKey = mappingKeyFor(taskId, sourceItemId);
+    const mappingKey = mappingKeyFor(taskCode, sourceItemId);
     const requestFingerprint = requestFingerprintFor(
       referenceText,
       canonicalizeHttpsReference(referenceAudioUrl),
@@ -626,7 +671,8 @@ function createRecordingIntegration(options) {
         mapping = {
           mappingKey,
           requestFingerprint,
-          taskId,
+          taskCode,
+          taskId: null,
           sourceItemId,
           operationKey: mappingKey,
           recordingItemId: null,
@@ -647,11 +693,13 @@ function createRecordingIntegration(options) {
       if (referenceText) upstreamBody.referenceText = referenceText;
       if (referenceAudioUrl) upstreamBody.referenceAudioUrl = referenceAudioUrl;
       if (referenceVideoUrl) upstreamBody.referenceVideoUrl = referenceVideoUrl;
+      upstreamBody.sourcePlatform = SOURCE_PLATFORM;
+      upstreamBody.sourceItemId = sourceItemId;
       let upstream;
       try {
         upstream = await fetchUpstreamJson(
-          `${config.baseUrl}/api/integrations/tasks/${encodeURIComponent(
-            taskId
+          `${config.baseUrl}/api/integrations/tasks/by-code/${encodeURIComponent(
+            taskCode
           )}/items`,
           {
             method: "POST",
@@ -722,6 +770,7 @@ function createRecordingIntegration(options) {
         );
       }
       mapping.recordingItemId = recordingItemId;
+      mapping.taskId = normalizeText(upstream.body.taskId) || null;
       mapping.itemCode = itemCode;
       mapping.status = normalizeText(upstream.body.status) || "AVAILABLE";
       mapping.recordingCreatedAt = normalizeText(upstream.body.createdAt) || null;
@@ -760,7 +809,7 @@ function createRecordingIntegration(options) {
     const payload = Buffer.from(
       JSON.stringify({
         itemId: mapping.recordingItemId,
-        taskId: mapping.taskId,
+        taskCode: mapping.taskCode,
         exp: now() + audioTokenTtlMs,
         nonce: randomOpaqueId(),
       })
@@ -786,7 +835,7 @@ function createRecordingIntegration(options) {
       );
       if (
         !normalizeText(payload.itemId) ||
-        !normalizeText(payload.taskId) ||
+        !normalizeText(payload.taskCode) ||
         !Number.isFinite(payload.exp) ||
         payload.exp < now()
       ) {
@@ -804,7 +853,7 @@ function createRecordingIntegration(options) {
     if (!mapping) {
       throw new IntegrationError(401, "SYNC_TOKEN_INVALID", "同步凭证无效。");
     }
-    assertAllowedTask(config, mapping.taskId);
+    assertAllowedTask(config, mapping.taskCode);
     const upstream = await fetchUpstreamJson(
       `${config.baseUrl}/api/integrations/items/${encodeURIComponent(
         mapping.recordingItemId
@@ -862,7 +911,7 @@ function createRecordingIntegration(options) {
         "音频播放凭证无效或已过期。"
       );
     }
-    assertAllowedTask(config, payload.taskId);
+    assertAllowedTask(config, payload.taskCode);
     const headers = { "X-API-Key": config.apiKey };
     const requestedRange = normalizeText(request.headers.range);
     if (requestedRange) {

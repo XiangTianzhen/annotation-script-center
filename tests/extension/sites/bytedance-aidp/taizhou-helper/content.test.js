@@ -1845,7 +1845,7 @@ test("ByteDance AIDP content injects fill-language-kind button next to clear but
   assert.equal(filled, 1);
 });
 
-test("ByteDance AIDP content hides, enables and marks the recording import button busy from the internal task id", function () {
+test("ByteDance AIDP content hides, enables and marks the recording import button busy from the visible task code", function () {
   const contentModule = loadContentModule();
   let clicked = 0;
   const headerActionGroup = new FakeElement({
@@ -1877,7 +1877,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   ]);
 
   contentModule.__testOnly.syncRecordingImportButton(root, {
-    recordingTaskId: "",
+    recordingTaskCode: "",
     onClick() {
       clicked += 1;
     },
@@ -1888,7 +1888,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   );
 
   contentModule.__testOnly.syncRecordingImportButton(root, {
-    recordingTaskId: "internal-task-id",
+    recordingTaskCode: "T000001",
     contextReady: false,
     busy: false,
     onClick() {
@@ -1905,7 +1905,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   assert.equal(headerActionGroup.children.indexOf(clearSegmentsButton), 1);
 
   contentModule.__testOnly.syncRecordingImportButton(root, {
-    recordingTaskId: "internal-task-id",
+    recordingTaskCode: "T000001",
     contextReady: true,
     busy: false,
     onClick() {
@@ -1917,7 +1917,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   assert.equal(clicked, 1);
 
   contentModule.__testOnly.syncRecordingImportButton(root, {
-    recordingTaskId: "internal-task-id",
+    recordingTaskCode: "T000001",
     contextReady: true,
     busy: true,
     onClick() {

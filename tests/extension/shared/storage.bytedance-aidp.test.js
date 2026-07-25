@@ -68,7 +68,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
     const taizhouScript = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 35);
+    assert.equal(settings.meta.schemaVersion, 36);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -138,17 +138,18 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     );
     assert.equal(taizhouScript.aiRecommendOmniModel, "qwen3.5-omni-plus");
     assert.equal(taizhouScript.aiRecommendOmniPrompt, "");
-    assert.equal(taizhouScript.recordingImportTaskId, "");
+    assert.equal(taizhouScript.recordingImportTaskCode, "");
+    assert.equal(Object.hasOwn(taizhouScript, "recordingImportTaskId"), false);
     assert.deepEqual(taizhouScript.recordingSyncMappings, []);
   } finally {
     harness.cleanup();
   }
 });
 
-test("ByteDance AIDP storage migrates Taizhou recording settings and keeps only the latest 500 safe mappings", async function () {
+test("ByteDance AIDP storage drops the legacy internal task id and keeps only the latest 500 task-code mappings", async function () {
   const mappings = Array.from({ length: 505 }, function (_item, index) {
     return {
-      recordingTaskId: " task-" + String(index % 2) + " ",
+      recordingTaskCode: " T00000" + String(index % 2) + " ",
       sourceItemId: " source-" + String(index) + " ",
       recordingItemId: " item-" + String(index) + " ",
       itemCode: " code-" + String(index) + " ",
@@ -162,7 +163,7 @@ test("ByteDance AIDP storage migrates Taizhou recording settings and keeps only 
     };
   });
   const harness = loadStorageApi({
-    meta: { schemaVersion: 34 },
+    meta: { schemaVersion: 35 },
     platforms: {
       bytedanceAidp: {
         enabled: true,
@@ -184,16 +185,17 @@ test("ByteDance AIDP storage migrates Taizhou recording settings and keeps only 
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 35);
+    assert.equal(settings.meta.schemaVersion, 36);
     assert.equal(script.aiRecommendOmniPrompt, "保留旧配置");
-    assert.equal(script.recordingImportTaskId, "internal-task-id");
+    assert.equal(script.recordingImportTaskCode, "");
+    assert.equal(Object.hasOwn(script, "recordingImportTaskId"), false);
     assert.equal(script.recordingSyncMappings.length, 500);
     assert.equal(script.recordingSyncMappings[0].sourceItemId, "source-504");
     assert.equal(script.recordingSyncMappings[499].sourceItemId, "source-5");
     assert.deepEqual(Object.keys(script.recordingSyncMappings[0]).sort(), [
       "itemCode",
       "recordingItemId",
-      "recordingTaskId",
+      "recordingTaskCode",
       "sourceItemId",
       "syncToken",
       "updatedAt",
@@ -209,7 +211,7 @@ test("ByteDance AIDP storage upserts and finds safe Taizhou recording mappings",
 
   try {
     const saved = await harness.storage.saveTaizhouRecordingSyncMapping({
-      recordingTaskId: " task-a ",
+      recordingTaskCode: " T000001 ",
       sourceItemId: " source-a ",
       recordingItemId: " item-a ",
       itemCode: " T000001-0000001 ",
@@ -219,7 +221,7 @@ test("ByteDance AIDP storage upserts and finds safe Taizhou recording mappings",
       response: { text: "drop" },
     });
     const replaced = await harness.storage.saveTaizhouRecordingSyncMapping({
-      recordingTaskId: "task-a",
+      recordingTaskCode: "T000001",
       sourceItemId: "source-a",
       recordingItemId: "item-b",
       itemCode: "T000001-0000001",
@@ -227,7 +229,7 @@ test("ByteDance AIDP storage upserts and finds safe Taizhou recording mappings",
       updatedAt: 200,
     });
     const found = await harness.storage.findTaizhouRecordingSyncMapping(
-      " task-a ",
+      " T000001 ",
       " source-a "
     );
 
@@ -373,7 +375,7 @@ test("ByteDance AIDP storage migrates Jinhua listen model to Omni and retains in
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
 
-    assert.equal(settings.meta.schemaVersion, 35);
+    assert.equal(settings.meta.schemaVersion, 36);
     assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendOmniPrompt, "");
     assert.equal(script.aiRecommendOmniTemperature, "");
@@ -400,7 +402,7 @@ test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizho
   try {
     const settings = await harness.storage.getSettings();
     const aidp = settings.platforms.bytedanceAidp;
-    assert.equal(settings.meta.schemaVersion, 35);
+    assert.equal(settings.meta.schemaVersion, 36);
     assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper");
     assert.equal(aidp.scripts.jinhuaHelper.enabled, true);
     assert.equal(aidp.scripts.suzhouHelper.enabled, false);
@@ -425,7 +427,7 @@ test("ByteDance AIDP storage migrates the Taizhou listen model to the single Omn
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
-    assert.equal(settings.meta.schemaVersion, 35);
+    assert.equal(settings.meta.schemaVersion, 36);
     assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendOmniPrompt, "");
     assert.equal(script.aiRecommendOmniTemperature, "");
@@ -444,7 +446,7 @@ test("ByteDance AIDP storage keeps explicitly enabled Jinhua for missing or inva
     try {
       const settings = await harness.storage.getSettings();
       const aidp = settings.platforms.bytedanceAidp;
-      assert.equal(settings.meta.schemaVersion, 35, String(activeScriptId));
+      assert.equal(settings.meta.schemaVersion, 36, String(activeScriptId));
       assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper", String(activeScriptId));
       assert.equal(aidp.scripts.jinhuaHelper.enabled, true, String(activeScriptId));
       assert.equal(aidp.scripts.suzhouHelper.enabled, false, String(activeScriptId));

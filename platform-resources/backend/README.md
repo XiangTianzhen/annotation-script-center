@@ -99,9 +99,9 @@ AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashsco
 - `POST /api/bytedance-aidp/taizhou-helper/recording-items/result`：以持久化哈希校验 `syncToken`，查询录音平台当前完成结果。
 - `GET /api/bytedance-aidp/taizhou-helper/recording-items/audio/:token`：校验默认 120 秒短时签名后代理受保护录音，转发单个 Range 和必要媒体响应头。
 
-私密配置从 `config/secrets/recording-platform-integration.json` 读取，脱敏模板及 `allowedTaskIds` 风险见 [config/README.md](../../config/README.md)。生产录音平台地址必须使用 HTTPS，本地仅允许 loopback HTTP。缺少或无效配置时专用写入、查询和代理端点返回安全 503；查询和短时音频代理每次都重新核对当前允许列表，移除任务后既有同步凭证和播放凭证立即失效。普通日志、状态文件与响应不保存或输出 API Key、同步 token、参考全文、完整第三方 URL、AIDP Cookie、Authorization、Session 或本地绝对路径。录音平台确定性 4xx 清除当前待创建映射；网络、超时、429、5xx 或处理中 409 保留相同幂等键和可重试映射。
+私密配置从 `config/secrets/recording-platform-integration.json` 读取，脱敏模板及 `allowedTaskCodes` 风险见 [config/README.md](../../config/README.md)。生产录音平台地址必须使用 HTTPS，本地仅允许 loopback HTTP。缺少或无效配置时专用写入、查询和代理端点返回安全 503；查询和短时音频代理每次都重新核对当前允许列表，移除任务后既有同步凭证和播放凭证立即失效。普通日志、状态文件与响应不保存或输出 API Key、同步 token、参考全文、完整第三方 URL、AIDP Cookie、Authorization、Session 或本地绝对路径。录音平台确定性 4xx 清除当前待创建映射；网络、超时、429、5xx 或处理中 409 保留相同幂等键和可重试映射。
 
-状态版本为 v2，只保存结果同步所需的安全映射。有效 v1 状态升级时保留映射并移除上传/媒体字段，只删除运行目录下经过精确解析验证的固定 `temp/` 与 `media/` 子目录；删除失败、状态损坏或版本无法确认时启动安全失败，不按状态内容中的路径执行删除。当前原子 JSON 与同源单飞按单 Node 进程部署设计，不得让多个 PM2 实例共享同一运行时目录。
+状态版本为 v3，只保存任务编号、来源条目和结果同步所需的安全映射。v1/v2 中仅含内部 taskId 的映射升级时丢弃，明确含任务编号的映射保留；v1 同时移除上传/媒体字段，只删除运行目录下经过精确解析验证的固定 `temp/` 与 `media/` 子目录。删除失败、状态损坏或版本无法确认时启动安全失败，不按状态内容中的路径执行删除。当前原子 JSON 与同源单飞按单 Node 进程部署设计，不得让多个 PM2 实例共享同一运行时目录。
 
 ## 管理员接口
 

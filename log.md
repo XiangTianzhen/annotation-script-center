@@ -4,6 +4,9 @@
 
 ## 2026-07-25
 
+- 实现(taizhou-recording): 台州话录音目标由数据库内部 taskId 改为可见任务编号；脚本中心通过任务编号端点创建条目，并固定绑定 `BYTEDANCE_AIDP + AIDP ItemID`，同一来源只在同一录音任务内唯一。
+- 迁移(taizhou-recording): 扩展 storage schema 升至 36、后端状态升至 v3；旧内部 taskId 设置不自动迁移，旧 taskId-only 同步映射按确认规则丢弃，服务器允许列表改为 `allowedTaskCodes`。
+- 测试(taizhou-recording): 跨层定向 Node 测试 100/100、Options 定向测试 34/34 与完整 `npm test` 通过；Options 生产构建、修改脚本语法检查、差异格式检查及真实示例窄范围泄漏扫描通过。
 - 调整(taizhou-recording): 台州话“添加数据”改为直接传递 Search Item 的参考文字及公网 HTTPS 音视频 URL，不再下载或上传参考媒体；脚本中心移除参考媒体上传/公开托管路由，以 URL 指纹保持幂等与内容冲突保护，并将状态升级到 v2 安全清理固定旧媒体目录。录音成果的短时签名代理保持不变。
 - 优化(extension): 首次安装与重置设置时五个脚本全部默认关闭，不再默认启用柳州话或选择苏州话；已有安装明确保存的启停状态继续保留。
 - 优化(bytedance-aidp): 苏州、金华、台州统一将“当前音频信息”改为“当前媒体信息”，从 Receive 条目展示音频和视频地址，移除模板展示，缺少视频时显示“无视频”。

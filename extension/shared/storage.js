@@ -41,7 +41,7 @@
     const source = object(value);
     const updatedAt = Number(source.updatedAt);
     const next = {
-      recordingTaskId: text(source.recordingTaskId),
+      recordingTaskCode: text(source.recordingTaskCode),
       sourceItemId: text(source.sourceItemId),
       recordingItemId: text(source.recordingItemId),
       itemCode: text(source.itemCode),
@@ -63,7 +63,7 @@
         return right.updatedAt - left.updatedAt;
       })
       .filter(function (item) {
-        const key = item.recordingTaskId + "\n" + item.sourceItemId;
+        const key = item.recordingTaskCode + "\n" + item.sourceItemId;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -190,9 +190,9 @@
     if (isTaizhou) {
       return {
         ...common,
-        recordingImportTaskId: text(
-          source.recordingImportTaskId,
-          fallback.recordingImportTaskId
+        recordingImportTaskCode: text(
+          source.recordingImportTaskCode,
+          fallback.recordingImportTaskCode
         ),
         recordingSyncMappings: normalizeRecordingSyncMappings(
           source.recordingSyncMappings
@@ -408,17 +408,17 @@
     await chromeSet(normalizeSettings(settings));
     return clone(normalized);
   }
-  async function findTaizhouRecordingSyncMapping(taskId, sourceItemId) {
-    const targetTaskId = text(taskId);
+  async function findTaizhouRecordingSyncMapping(taskCode, sourceItemId) {
+    const targetTaskCode = text(taskCode);
     const targetSourceItemId = text(sourceItemId);
-    if (!targetTaskId || !targetSourceItemId) return null;
+    if (!targetTaskCode || !targetSourceItemId) return null;
     const settings = await getSettings();
     const mappings =
       settings.platforms.bytedanceAidp.scripts.taizhouHelper.recordingSyncMappings || [];
     return clone(
       mappings.find(function (item) {
         return (
-          item.recordingTaskId === targetTaskId &&
+          item.recordingTaskCode === targetTaskCode &&
           item.sourceItemId === targetSourceItemId
         );
       }) || null

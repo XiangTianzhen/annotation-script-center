@@ -247,7 +247,8 @@ describe("script defaults and draft adapters", () => {
     expect(state.config.aiRecommendOmniPrompt).toBe("后端全模态 Prompt");
     expect(state.config.aiRecommendOmniTemperature).toBe("0.1");
     expect(state.config.aiRecommendOmniStopSequences).toBe("END\nSTOP");
-    expect(state.config.recordingImportTaskId).toBe("");
+    expect(state.config.recordingImportTaskCode).toBe("");
+    expect(state.config).not.toHaveProperty("recordingImportTaskId");
     expect(state.options.omniModels.map((item) => item.value)).toEqual([
       "qwen3.5-omni-plus",
       "qwen3.5-omni-flash",
@@ -256,13 +257,13 @@ describe("script defaults and draft adapters", () => {
     expect(state.config).not.toHaveProperty("aiRecommendRefinePrompt");
   });
 
-  test("trims the Taizhou recording internal task id when hydrating and saving", () => {
+  test("trims the Taizhou visible recording task code when hydrating and saving", () => {
     const baseDraft = {
       platformAiEnabled: true,
       segmentContextPaddingMs: 0.3,
       segmentSilenceThresholdDbfs: -31,
       aiRecommendRequestTimeoutMs: 60,
-      recordingImportTaskId: "  internal-task-id  ",
+      recordingImportTaskCode: "  T000001  ",
     };
 
     expect(
@@ -274,11 +275,11 @@ describe("script defaults and draft adapters", () => {
           aiRecommendRequestTimeoutMs: 60000,
         },
         {}
-      ).recordingImportTaskId
-    ).toBe("internal-task-id");
+      ).recordingImportTaskCode
+    ).toBe("T000001");
     expect(
-      serializeScriptDraft(TAIZHOU_ID, baseDraft, {}).recordingImportTaskId
-    ).toBe("internal-task-id");
+      serializeScriptDraft(TAIZHOU_ID, baseDraft, {}).recordingImportTaskCode
+    ).toBe("T000001");
   });
 
   test("maps the CVPC flat stage parameters and stop sequences", async () => {

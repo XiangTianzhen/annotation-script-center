@@ -390,10 +390,10 @@ function aidpSections(scriptId) {
             ...(isTaizhou
               ? [{
                   kind: "text",
-                  path: "recordingImportTaskId",
-                  label: "录音平台内部任务 ID",
-                  placeholder: "填写录音平台数据库内部 taskId",
-                  help: "填写录音平台数据库内部 taskId，不是页面可见的 taskCode；清空后不显示导入按钮，也不查询录音结果。",
+                  path: "recordingImportTaskCode",
+                  label: "录音平台任务编号",
+                  placeholder: "填写录音平台页面可见的任务编号",
+                  help: "填写录音平台页面可见的任务编号；清空后不显示导入按钮，也不查询录音结果。",
                 }]
               : []),
           ],

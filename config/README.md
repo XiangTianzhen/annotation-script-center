@@ -74,10 +74,10 @@ Copy-Item config/secrets/recording-platform-integration.json.example config/secr
 
 - `baseUrl`：录音任务平台 HTTPS 根地址。
 - `apiKey`：只供统一后端调用录音平台的机器 Key。
-- `allowedTaskIds`：允许台州话录音集成写入和查询的任务 ID 列表。
+- `allowedTaskCodes`：允许台州话录音集成写入和查询的可见任务编号列表，例如 `T000001`。
 - `tokenSecret`：至少 32 字符的随机签名密钥，只用于短时录音播放 URL。
 
-`baseUrl` 生产环境必须使用 HTTPS；本地联调仅允许明文 `http://localhost`、`http://127.0.0.1` 或 IPv6 loopback，其他 HTTP 主机一律拒绝。缺少、格式无效或仍为空值时，录音集成写入与查询接口统一安全返回 `503 RECORDING_INTEGRATION_NOT_CONFIGURED`，不会输出配置路径或真实值。`allowedTaskIds` 是当前专用端点唯一的触发授权，不要求管理员会话；因此知道允许任务 ID 的同源调用方仍可能触发导入，任务 ID 只应下发给已启用的台州话脚本，并应结合 HTTPS、部署访问边界和人工入口控制风险。浏览器不会接收 `apiKey` 或 `tokenSecret`，服务器也不得接收 AIDP Cookie、Authorization 或 Session。
+`baseUrl` 生产环境必须使用 HTTPS；本地联调仅允许明文 `http://localhost`、`http://127.0.0.1` 或 IPv6 loopback，其他 HTTP 主机一律拒绝。缺少、格式无效或仍为空值时，录音集成写入与查询接口统一安全返回 `503 RECORDING_INTEGRATION_NOT_CONFIGURED`，不会输出配置路径或真实值。`allowedTaskCodes` 是当前专用端点唯一的触发授权，不要求管理员会话；因此知道允许任务编号的同源调用方仍可能触发导入，这是已正式接受的首期 allowlist-only 风险。浏览器不会接收 `apiKey` 或 `tokenSecret`，服务器也不得接收 AIDP Cookie、Authorization 或 Session。
 
 ## 后端地址
 

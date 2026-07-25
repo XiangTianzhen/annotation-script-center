@@ -77,11 +77,11 @@ function createStorageHarness(initialMappings) {
   const mappings = Array.isArray(initialMappings) ? initialMappings.slice() : [];
   return {
     mappings,
-    async findTaizhouRecordingSyncMapping(taskId, sourceItemId) {
+    async findTaizhouRecordingSyncMapping(taskCode, sourceItemId) {
       return (
         mappings.find(
           (item) =>
-            item.recordingTaskId === String(taskId || "").trim() &&
+            item.recordingTaskCode === String(taskCode || "").trim() &&
             item.sourceItemId === String(sourceItemId || "").trim()
         ) || null
       );
@@ -89,7 +89,7 @@ function createStorageHarness(initialMappings) {
     async saveTaizhouRecordingSyncMapping(mapping) {
       const index = mappings.findIndex(
         (item) =>
-          item.recordingTaskId === mapping.recordingTaskId &&
+          item.recordingTaskCode === mapping.recordingTaskCode &&
           item.sourceItemId === mapping.sourceItemId
       );
       if (index >= 0) {
@@ -126,7 +126,7 @@ function createRuntime(options) {
         bytedanceAidp: {
           scripts: {
             taizhouHelper: {
-              recordingImportTaskId: source.taskId || "internal-task-id",
+              recordingImportTaskCode: source.taskCode || "T000001",
             },
           },
         },
@@ -187,7 +187,7 @@ test("Taizhou recording integration creates a text-only full item and stores onl
     "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items"
   );
   assert.deepEqual(JSON.parse(harness.calls[0].body), {
-    recordingTaskId: "internal-task-id",
+    recordingTaskCode: "T000001",
     sourceItemId: "source-item-1",
     referenceText: "完整题目文本",
     referenceAudioUrl: null,
@@ -197,7 +197,7 @@ test("Taizhou recording integration creates a text-only full item and stores onl
   assert.deepEqual(Object.keys(harness.storage.mappings[0]).sort(), [
     "itemCode",
     "recordingItemId",
-    "recordingTaskId",
+    "recordingTaskCode",
     "sourceItemId",
     "syncToken",
     "updatedAt",
@@ -445,7 +445,7 @@ test("Taizhou recording import keeps the captured A source when the current item
   assert.equal(result.ok, true);
   assert.equal(result.current, false);
   assert.equal(result.mapping.sourceItemId, "source-a");
-  assert.equal(result.mapping.recordingTaskId, "internal-task-id");
+  assert.equal(result.mapping.recordingTaskCode, "T000001");
   assert.equal(storage.mappings.length, 1);
   assert.equal(storage.mappings[0].sourceItemId, "source-a");
   const createCall = harness.calls.find((call) =>
@@ -457,7 +457,7 @@ test("Taizhou recording import keeps the captured A source when the current item
 test("Taizhou recording integration drops stale A result and queries again after A-B-A entry", async function () {
   const storage = createStorageHarness([
     {
-      recordingTaskId: "internal-task-id",
+      recordingTaskCode: "T000001",
       sourceItemId: "source-a",
       recordingItemId: "recording-a",
       itemCode: "T000001-0000001",
@@ -518,7 +518,7 @@ test("Taizhou recording integration drops stale A result and queries again after
 test("Taizhou recording integration suppresses a stale A result error after switching to B", async function () {
   const storage = createStorageHarness([
     {
-      recordingTaskId: "internal-task-id",
+      recordingTaskCode: "T000001",
       sourceItemId: "source-a",
       recordingItemId: "recording-a",
       itemCode: "T000001-0000001",
@@ -563,7 +563,7 @@ test("Taizhou recording integration suppresses a stale A result error after swit
 test("Taizhou recording integration only accepts a two-segment base64url result audio token", async function () {
   const storage = createStorageHarness([
     {
-      recordingTaskId: "internal-task-id",
+      recordingTaskCode: "T000001",
       sourceItemId: "source-item-1",
       recordingItemId: "recording-item-1",
       itemCode: "T000001-0000001",
