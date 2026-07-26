@@ -325,7 +325,7 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
   assert.equal(createCount, 1);
   assert.equal(resultCount, 2);
   assert.equal(autoFirst.status, "COMPLETED");
-  assert.equal(autoSecond, null);
+  assert.deepEqual(autoSecond, autoFirst);
   assert.equal(manual.text, "录音完成文本");
   assert.equal(
     manual.audioUrl,
@@ -508,9 +508,9 @@ test("Taizhou recording integration drops stale A result and queries again after
   const reenteredA =
     await harness.runtime.autoRefreshForCurrentItem("source-a");
   assert.equal(reenteredA.text, "重新进入 A");
-  assert.equal(
+  assert.deepEqual(
     await harness.runtime.autoRefreshForCurrentItem("source-a"),
-    null
+    reenteredA
   );
   assert.equal(resultCount, 2);
 });

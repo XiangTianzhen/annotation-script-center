@@ -29,6 +29,7 @@
       REVIEW_PENDING: "审核中",
       REWORK_PENDING: "待返修",
       COMPLETED: "已完成",
+      DISCARDED: "已废弃",
     };
     return labels[status] || status || "未知状态";
   }
@@ -457,6 +458,8 @@
     const deps = options && typeof options === "object" ? options : {};
     let rootNode = null;
     let statusNode = null;
+    let latestStatusMessage = "正在读取当前详情上下文...";
+    let latestStatusTone = "";
     let summaryNode = null;
     let summaryCollapseButtonNode = null;
     let previewNode = null;
@@ -734,7 +737,10 @@
 
       statusNode = document.createElement("div");
       statusNode.className = "status";
-      statusNode.textContent = "正在读取当前详情上下文...";
+      statusNode.textContent = latestStatusMessage;
+      if (latestStatusTone) {
+        statusNode.setAttribute("data-tone", latestStatusTone);
+      }
       rootNode.appendChild(statusNode);
 
       const grid = document.createElement("div");
@@ -922,12 +928,14 @@
     }
 
     function setStatus(message, tone) {
+      latestStatusMessage = normalizeText(message) || " ";
+      latestStatusTone = normalizeText(tone);
       if (!statusNode) {
         return;
       }
-      statusNode.textContent = normalizeText(message) || " ";
-      if (normalizeText(tone)) {
-        statusNode.setAttribute("data-tone", normalizeText(tone));
+      statusNode.textContent = latestStatusMessage;
+      if (latestStatusTone) {
+        statusNode.setAttribute("data-tone", latestStatusTone);
       } else {
         statusNode.removeAttribute("data-tone");
       }
@@ -1012,27 +1020,16 @@
       }
       const source = result && typeof result === "object" ? result : {};
       clearNode(recordingResultNode);
-      const sourceItemId = normalizeText(source.sourceItemId);
       const itemCode = normalizeText(source.itemCode);
       const status = normalizeText(source.status);
       const summaryRow = document.createElement("div");
       summaryRow.className = "recording-result-summary-row";
       summaryRow.setAttribute("data-recording-result-summary-row", "true");
-      if (!sourceItemId && !itemCode && !status) {
-        const emptyNode = document.createElement("span");
-        emptyNode.className = "recording-result-empty";
-        emptyNode.textContent = "当前题目尚未同步录音任务。";
-        summaryRow.appendChild(emptyNode);
-        summaryRow.appendChild(recordingRefreshButtonNode);
-        recordingResultNode.appendChild(summaryRow);
-        return;
-      }
       const meta = document.createElement("div");
       meta.className = "recording-result-meta";
       [
-        ["来源题目", sourceItemId],
-        ["录音条目", itemCode],
-        ["状态", formatRecordingStatus(status)],
+        ["录音条目", itemCode || "还未导入该条目"],
+        ["状态", status ? formatRecordingStatus(status) : ""],
       ]
         .filter(function (item) {
           return normalizeText(item[1]);

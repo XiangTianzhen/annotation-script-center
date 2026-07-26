@@ -2145,11 +2145,24 @@
     const busy = source.busy === true;
     const nextDisabled = busy || source.contextReady !== true;
     const nextText = busy ? "正在添加..." : "添加数据";
+    const disabledReason = busy
+      ? "正在添加当前完整题目数据。"
+      : nextDisabled
+        ? normalizeText(source.contextMessage) ||
+          "当前完整题目数据尚未就绪，请稍后重试。"
+        : "";
     if (button.disabled !== nextDisabled || button.textContent !== nextText) {
       changed = true;
     }
     button.disabled = nextDisabled;
     button.textContent = nextText;
+    if (disabledReason) {
+      button.setAttribute("title", disabledReason);
+      button.setAttribute("aria-label", nextText + "：" + disabledReason);
+    } else {
+      button.removeAttribute("title");
+      button.removeAttribute("aria-label");
+    }
     if (button.style) {
       button.style.cursor = nextDisabled ? "not-allowed" : "pointer";
       button.style.opacity = nextDisabled ? "0.58" : "1";
@@ -3494,6 +3507,7 @@
         syncRecordingImportButton(root, {
           recordingTaskCode: resolvedConfig.recordingImportTaskCode,
           contextReady: helperRuntime?.recordingContextReady === true,
+          contextMessage: helperRuntime?.recordingContextMessage,
           busy: helperRuntime?.recordingImportBusy === true,
           onClick: function () {
             void handleRecordingImportAction();
@@ -4146,7 +4160,11 @@
           typeof helperRuntime.dataApi.getRecordingImportContext === "function"
             ? await helperRuntime.dataApi.getRecordingImportContext()
             : null;
-        helperRuntime.recordingContextReady = recordingImportContext?.ok === true;
+        updateRecordingImportContextState(
+          helperRuntime,
+          normalizeText(context?.itemId),
+          recordingImportContext
+        );
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
           helperRuntime.playbackScopeKey ||
@@ -4177,12 +4195,13 @@
           })
         );
         helperRuntime.batchSelectionKey = normalizeText(context?.selectionKey);
-        if (!normalizeText(context?.audioUrl)) {
-          helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
-        }
       } catch (_error) {
-        if (helperRuntime) {
-          helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
+        if (helperRuntime && !normalizeText(helperRuntime.recordingContextSignature)) {
+          updateRecordingImportContextState(helperRuntime, "", {
+            ok: false,
+            reason: "waiting",
+            message: "正在等待页面返回当前音频与分段上下文...",
+          });
         }
       }
     }, Math.max(0, Math.round(Number(delayMs || 0) || 0)));
@@ -4445,6 +4464,33 @@
     scheduleRuntimeReload(helperRuntime);
   }
 
+  function updateRecordingImportContextState(runtime, sourceItemId, context) {
+    if (!runtime) {
+      return false;
+    }
+    const ready = context?.ok === true;
+    const reason = ready ? "ready" : normalizeText(context?.reason) || "waiting";
+    const message = ready
+      ? "当前完整题目数据已就绪，可添加数据。"
+      : normalizeText(context?.message) ||
+        "当前完整题目数据尚未就绪，请稍后重试。";
+    const signature = [
+      normalizeText(sourceItemId),
+      ready ? "ready" : "blocked",
+      reason,
+      message,
+    ].join("\n");
+    runtime.recordingContextReady = ready;
+    runtime.recordingContextReason = reason;
+    runtime.recordingContextMessage = message;
+    if (normalizeText(runtime.recordingContextSignature) === signature) {
+      return false;
+    }
+    runtime.recordingContextSignature = signature;
+    runtime.ui?.setStatus?.(message, ready ? "success" : "warning");
+    return true;
+  }
+
   async function syncRecordingResultForContext(sourceItemId) {
     const runtime = helperRuntime;
     const recording = runtime?.recording;
@@ -4469,16 +4515,11 @@
       if (!isCurrent()) {
         return;
       }
-      if (mapping) {
-        runtime.ui.renderRecordingResult?.({
-          sourceItemId: mapping.sourceItemId,
-          itemCode: mapping.itemCode,
-          status: "",
-        });
-      } else {
+      if (!mapping) {
         runtime.ui.renderRecordingResult?.({
           sourceItemId: normalizedSourceItemId,
         });
+        return;
       }
       const recordingResult =
         await recording.autoRefreshForEntry(entry, mapping);
@@ -4771,6 +4812,9 @@
       rowRecommendSegmentNumber: 0,
       rowRecognizeLayoutSignature: "",
       recordingContextReady: false,
+      recordingContextReason: "waiting",
+      recordingContextMessage: "正在等待当前完整题目数据，请稍后重试。",
+      recordingContextSignature: "",
       recordingImportBusy: false,
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
@@ -5030,6 +5074,7 @@
       ensureClearSegmentsButton: ensureClearSegmentsButton,
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
       syncRecordingImportButton: syncRecordingImportButton,
+      updateRecordingImportContextState: updateRecordingImportContextState,
       ensureHideAuxiliaryZoneButton: ensureHideAuxiliaryZoneButton,
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
       createSegmentRecognizeButton: createSegmentRecognizeButton,

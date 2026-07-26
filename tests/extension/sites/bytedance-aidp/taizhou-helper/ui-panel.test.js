@@ -520,6 +520,36 @@ test("AIDP taizhou ui panel exposes visibility methods without rendering an exte
   }
 });
 
+test("AIDP taizhou ui panel restores the latest status after the page removes and rebuilds the panel", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+    runtime.setStatus("当前完整题目数据已就绪，可添加数据。", "success");
+
+    const firstPanelRoot = findMountedPanelRoot(harness.body);
+    harness.body.removeChild(firstPanelRoot);
+    assert.equal(runtime.mount(), true);
+
+    const rebuiltPanelRoot = findMountedPanelRoot(harness.body);
+    const rebuiltStatus = findNode(rebuiltPanelRoot, function (node) {
+      return String(node.className || "").split(/\s+/).includes("status");
+    });
+    assert.notEqual(rebuiltPanelRoot, firstPanelRoot);
+    assert.equal(rebuiltStatus.textContent, "当前完整题目数据已就绪，可添加数据。");
+    assert.equal(rebuiltStatus.getAttribute("data-tone"), "success");
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP taizhou ui panel renders read-only recording status, text and audio without writeback controls", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -574,7 +604,7 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
     assert.ok(recordingCollapseButton);
     assert.ok(summaryRow);
     assert.equal(refreshButton.parentNode, summaryRow);
-    assert.match(summaryRow.textContent, /source-item-1/);
+    assert.doesNotMatch(summaryRow.textContent, /来源题目|source-item-1/);
     assert.match(summaryRow.textContent, /T000001-0000001/);
     assert.match(summaryRow.textContent, /已完成/);
     assert.equal(card.style.display, "none");
@@ -584,7 +614,7 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
       recordingCollapseButton.textContent,
       /折叠当前录音平台结果/
     );
-    assert.match(card.textContent, /source-item-1/);
+    assert.doesNotMatch(card.textContent, /来源题目|source-item-1/);
     assert.match(card.textContent, /T000001-0000001/);
     assert.match(card.textContent, /已完成/);
     assert.equal(textNode.textContent, "  录音平台原样结果文本  ");
@@ -628,6 +658,15 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
     runtime.renderRecordingResult({
       sourceItemId: "source-item-1",
       itemCode: "T000001-0000001",
+      status: "DISCARDED",
+      text: null,
+      audioAvailable: false,
+    });
+    assert.match(card.textContent, /已废弃/);
+
+    runtime.renderRecordingResult({
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000001",
       status: "FUTURE_STATUS",
       text: null,
       audioAvailable: false,
@@ -647,7 +686,8 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
       return node.getAttribute("data-recording-result-summary-row") === "true";
     });
     assert.ok(emptySummaryRow);
-    assert.match(emptySummaryRow.textContent, /当前题目尚未同步录音任务/);
+    assert.match(emptySummaryRow.textContent, /录音条目：还未导入该条目/);
+    assert.doesNotMatch(emptySummaryRow.textContent, /来源题目/);
     assert.equal(
       findNode(card, function (node) {
         return node.getAttribute("data-recording-result-refresh") === "true";
@@ -670,6 +710,7 @@ test("AIDP taizhou ui panel maps the supported recording workflow statuses", fun
   assert.equal(format("REVIEW_PENDING"), "审核中");
   assert.equal(format("REWORK_PENDING"), "待返修");
   assert.equal(format("COMPLETED"), "已完成");
+  assert.equal(format("DISCARDED"), "已废弃");
   assert.equal(format("FUTURE_STATUS"), "FUTURE_STATUS");
   assert.equal(format(""), "未知状态");
 });

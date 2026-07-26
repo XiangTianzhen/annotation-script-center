@@ -41,6 +41,8 @@
     let lastSourceItemId = "";
     let resultGeneration = 0;
     let autoRefreshedGeneration = 0;
+    let cachedResultEntry = null;
+    let cachedResult = null;
 
     function mappingKey(sourceItemId) {
       return recordingTaskCode + "\n" + normalizeText(sourceItemId);
@@ -52,6 +54,8 @@
         lastSourceItemId = normalized;
         resultGeneration += 1;
         autoRefreshedGeneration = 0;
+        cachedResultEntry = null;
+        cachedResult = null;
       }
       return {
         sourceItemId: normalized,
@@ -64,6 +68,30 @@
         expected?.sourceItemId === lastSourceItemId &&
         expected?.generation === resultGeneration
       );
+    }
+
+    function readCachedResult(expected) {
+      if (
+        !cachedResult ||
+        cachedResultEntry?.sourceItemId !== expected?.sourceItemId ||
+        cachedResultEntry?.generation !== expected?.generation ||
+        !isCurrentResultEntry(expected)
+      ) {
+        return null;
+      }
+      return Object.assign({}, cachedResult);
+    }
+
+    function saveCachedResult(expected, result) {
+      if (!result || !isCurrentResultEntry(expected)) {
+        return null;
+      }
+      cachedResultEntry = {
+        sourceItemId: expected.sourceItemId,
+        generation: expected.generation,
+      };
+      cachedResult = Object.assign({}, result);
+      return Object.assign({}, cachedResult);
     }
 
     function isRetryableCreateFailure(response, body) {
@@ -264,7 +292,7 @@
       if (result.audioAvailable && isAllowedResultAudioPath(audioUrl)) {
         result.audioUrl = buildBackendUrl(audioUrl);
       }
-      return result;
+      return expected ? saveCachedResult(expected, result) : result;
     }
 
     async function refreshCurrentResult() {
@@ -287,10 +315,12 @@
       if (
         !recordingTaskCode ||
         !expected?.sourceItemId ||
-        !isCurrentResultEntry(expected) ||
-        autoRefreshedGeneration === expected.generation
+        !isCurrentResultEntry(expected)
       ) {
         return null;
+      }
+      if (autoRefreshedGeneration === expected.generation) {
+        return readCachedResult(expected);
       }
       const mapping =
         arguments.length >= 2

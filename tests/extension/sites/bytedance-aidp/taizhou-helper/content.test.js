@@ -1890,6 +1890,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   contentModule.__testOnly.syncRecordingImportButton(root, {
     recordingTaskCode: "T000001",
     contextReady: false,
+    contextMessage: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
     busy: false,
     onClick() {
       clicked += 1;
@@ -1901,6 +1902,10 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   assert.ok(button);
   assert.equal(button.textContent, "添加数据");
   assert.equal(button.disabled, true);
+  assert.equal(
+    button.getAttribute("title"),
+    "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。"
+  );
   assert.equal(headerActionGroup.children.indexOf(button), 0);
   assert.equal(headerActionGroup.children.indexOf(clearSegmentsButton), 1);
 
@@ -1913,6 +1918,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
     },
   });
   assert.equal(button.disabled, false);
+  assert.equal(button.getAttribute("title"), null);
   button.click();
   assert.equal(clicked, 1);
 
@@ -1926,6 +1932,60 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   });
   assert.equal(button.disabled, true);
   assert.equal(button.textContent, "正在添加...");
+  assert.equal(button.getAttribute("title"), "正在添加当前完整题目数据。");
+});
+
+test("ByteDance AIDP content only publishes recording readiness when the item or readiness state changes", function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const runtime = {
+    ui: {
+      setStatus(message, tone) {
+        statuses.push({ message, tone });
+      },
+    },
+  };
+
+  assert.equal(
+    contentModule.__testOnly.updateRecordingImportContextState(runtime, "source-a", {
+      ok: false,
+      reason: "waiting",
+      message: "正在等待当前完整题目数据，请稍后重试。",
+    }),
+    true
+  );
+  assert.equal(runtime.recordingContextReady, false);
+  assert.equal(runtime.recordingContextReason, "waiting");
+  assert.equal(runtime.recordingContextMessage, "正在等待当前完整题目数据，请稍后重试。");
+
+  runtime.ui.setStatus("已生成整条音频分段建议。", "success");
+  assert.equal(
+    contentModule.__testOnly.updateRecordingImportContextState(runtime, "source-a", {
+      ok: false,
+      reason: "waiting",
+      message: "正在等待当前完整题目数据，请稍后重试。",
+    }),
+    false
+  );
+  assert.equal(statuses.at(-1).message, "已生成整条音频分段建议。");
+
+  assert.equal(
+    contentModule.__testOnly.updateRecordingImportContextState(runtime, "source-a", {
+      ok: true,
+      sourceItemId: "source-a",
+      referenceText: "参考文字",
+      audioUrl: "",
+      videoUrl: "",
+    }),
+    true
+  );
+  assert.equal(runtime.recordingContextReady, true);
+  assert.equal(runtime.recordingContextReason, "ready");
+  assert.equal(runtime.recordingContextMessage, "当前完整题目数据已就绪，可添加数据。");
+  assert.deepEqual(statuses.at(-1), {
+    message: "当前完整题目数据已就绪，可添加数据。",
+    tone: "success",
+  });
 });
 
 test("ByteDance AIDP content renders recording import success and a retryable safe failure", async function () {
@@ -2106,10 +2166,7 @@ test("ByteDance AIDP content drops a slow A mapping preview after B begins", asy
       sourceItemId: result.sourceItemId,
       status: result.status || "",
     })),
-    [
-      { sourceItemId: "source-b", status: "" },
-      { sourceItemId: "source-b", status: "COMPLETED" },
-    ]
+    [{ sourceItemId: "source-b", status: "COMPLETED" }]
   );
   assert.equal(currentSourceItemId, "source-b");
   assert.deepEqual(statuses, []);
@@ -2143,6 +2200,43 @@ test("ByteDance AIDP content ignores a stale manual recording result after item 
     statuses.some((item) => item.type === "success"),
     false
   );
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
+test("ByteDance AIDP content never replaces the current recording card with an empty status", async function () {
+  const contentModule = loadContentModule();
+  const rendered = [];
+  const entry = { sourceItemId: "source-a", generation: 1 };
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      beginResultEntry() {
+        return entry;
+      },
+      isCurrentResultEntry(candidate) {
+        return candidate === entry;
+      },
+      async findMapping() {
+        return {
+          sourceItemId: "source-a",
+          itemCode: "T000001-0000001",
+          syncToken: "sync-a",
+        };
+      },
+      async autoRefreshForEntry() {
+        return null;
+      },
+    },
+    ui: {
+      renderRecordingResult(result) {
+        rendered.push(result);
+      },
+      setStatus() {},
+    },
+  });
+
+  await contentModule.__testOnly.syncRecordingResultForContext("source-a");
+
+  assert.deepEqual(rendered, []);
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
