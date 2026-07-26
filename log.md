@@ -2,6 +2,11 @@
 
 本总账只记录 DataBaker CVPC 柳州话、ByteDance AIDP 苏州话、金华话与台州话、Magic Data 杭州话，以及五脚本共同依赖的扩展、Options、后端、测试和发布能力。
 
+## 2026-07-27
+
+- 修复(taizhou-recording): Search Item 响应包含多条数据时不再固定读取第一条；MAIN-world 仅提取每条的 ItemID、参考文字及音视频 URL，隔离世界按当前 Receive ItemID 精确选择，保持错题、过期与空内容安全拒绝。
+- 测试(taizhou-recording): 新增多条 Search Item 安全脱敏与当前题目位于非第一项的回归覆盖，确认不传递用户信息、完整响应或认证字段。
+
 ## 2026-07-26
 
 - 修复(taizhou-recording): AIDP 重绘辅助面板后恢复最近一次顶部文案；导入上下文只在题目或就绪原因变化时更新提示，等待、过期、错题和空内容继续严格禁用“添加数据”并给出具体原因。

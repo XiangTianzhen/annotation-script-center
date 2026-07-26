@@ -10,8 +10,8 @@
 
 ## AIDP 数据与媒体边界
 
-- MAIN-world 只观察 `/dispatcher/search_item/category`，从 `Data[0].ItemID` 与字符串 `Data[0].Content` 中提取 `asr_text`、`audio`、`video`。
-- 隔离世界只接收 `sourceItemId`、`referenceText`、`audioUrl`、`videoUrl`；只有 Search Item 与当前 Receive ItemID 一致且快照未过期时才允许导入。
+- MAIN-world 只观察 `/dispatcher/search_item/category`，遍历响应 `Data`，从每条 `ItemID` 与字符串 `Content` 中提取 `asr_text`、`audio`、`video`，不传递完整响应或其他字段。
+- 隔离世界只接收各条目的 `sourceItemId`、`referenceText`、`audioUrl`、`videoUrl`，再按当前 Receive ItemID 精确选择；不固定取 `Data[0]`，也不使用列表位置兜底。只有匹配条目存在且快照未过期时才允许导入。
 - 当前来源音视频已确认是可直接访问的公网 HTTPS URL。扩展不再下载媒体，不检查 Content-Type 或大小，也不上传媒体字节；浏览器只把实际存在的参考文字和原始 URL 交给脚本中心。
 - Cookie、Authorization、Session 和完整请求头不得发送到脚本中心。媒体 URL 只允许在当前页面内存的待重试请求中短暂存在，不得写入 `chrome.storage`。
 

@@ -124,19 +124,25 @@
     return String(value || "");
   }
 
-  function parseSearchItemSnapshot(value) {
+  function parseSearchItemSnapshots(value) {
     const response = parseJsonSafely(value) || {};
-    const firstItem = Array.isArray(response.Data) ? response.Data[0] : null;
-    const content =
-      firstItem && typeof firstItem.Content === "string"
-        ? parseJsonSafely(firstItem.Content) || {}
-        : {};
-    return {
-      sourceItemId: normalizeText(firstItem?.ItemID),
-      referenceText: normalizeText(content.asr_text),
-      audioUrl: normalizeText(content.audio),
-      videoUrl: normalizeText(content.video),
-    };
+    const items = Array.isArray(response.Data) ? response.Data : [];
+    return items
+      .map(function (item) {
+        const content =
+          item && typeof item.Content === "string"
+            ? parseJsonSafely(item.Content) || {}
+            : {};
+        return {
+          sourceItemId: normalizeText(item?.ItemID),
+          referenceText: normalizeText(content.asr_text),
+          audioUrl: normalizeText(content.audio),
+          videoUrl: normalizeText(content.video),
+        };
+      })
+      .filter(function (item) {
+        return Boolean(item.sourceItemId);
+      });
   }
 
   function postMessage(windowLike, locationLike, type, payload) {
@@ -196,7 +202,9 @@
         windowLike,
         locationLike,
         SEARCH_ITEM_TYPE,
-        parseSearchItemSnapshot(payload)
+        {
+          items: parseSearchItemSnapshots(payload),
+        }
       );
     }
 

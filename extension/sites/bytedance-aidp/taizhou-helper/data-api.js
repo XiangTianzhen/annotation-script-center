@@ -260,6 +260,18 @@
     };
   }
 
+  function parseSearchItemSnapshots(payload, timestamp) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const entries = Array.isArray(source.items) ? source.items : [source];
+    return entries
+      .map(function (entry) {
+        return parseSearchItemSnapshot(entry, timestamp);
+      })
+      .filter(function (entry) {
+        return Boolean(entry.sourceItemId);
+      });
+  }
+
   function resolveDetailRoute(locationLike) {
     const pathname = normalizeText(locationLike?.pathname || "");
     const matched = pathname.match(/^\/management\/task-v2\/([^/]+)\/mark-v3\/([^/?#]+)/i);
@@ -1100,7 +1112,7 @@
     };
     let receiveSnapshot = null;
     let submitSnapshot = null;
-    let searchItemSnapshot = null;
+    let searchItemSnapshots = new Map();
     let snapshotEventSequence = 0;
 
     function withSnapshotEventSequence(snapshot) {
@@ -1127,9 +1139,13 @@
         return;
       }
       if (data.type === SEARCH_ITEM_TYPE) {
-        searchItemSnapshot = withSnapshotEventSequence(
-          parseSearchItemSnapshot(data.payload, now())
-        );
+        const timestamp = now();
+        const nextSnapshots = new Map();
+        parseSearchItemSnapshots(data.payload, timestamp).forEach(function (snapshot) {
+          const sequencedSnapshot = withSnapshotEventSequence(snapshot);
+          nextSnapshots.set(sequencedSnapshot.sourceItemId, sequencedSnapshot);
+        });
+        searchItemSnapshots = nextSnapshots;
       }
     }
 
@@ -1146,11 +1162,19 @@
     }
 
     async function getRecordingImportContext() {
-      if (!receiveSnapshot?.itemId || !searchItemSnapshot?.sourceItemId) {
+      if (!receiveSnapshot?.itemId || searchItemSnapshots.size === 0) {
         return {
           ok: false,
           reason: "waiting",
           message: "正在等待当前完整题目数据，请稍后重试。",
+        };
+      }
+      const searchItemSnapshot = searchItemSnapshots.get(receiveSnapshot.itemId);
+      if (!searchItemSnapshot) {
+        return {
+          ok: false,
+          reason: "stale",
+          message: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
         };
       }
       if (now() - Number(searchItemSnapshot.at || 0) > searchContextTtlMs) {
@@ -1158,13 +1182,6 @@
           ok: false,
           reason: "expired",
           message: "当前完整题目数据已过期，请等待页面重新加载后重试。",
-        };
-      }
-      if (searchItemSnapshot.sourceItemId !== receiveSnapshot.itemId) {
-        return {
-          ok: false,
-          reason: "stale",
-          message: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
         };
       }
       const safeContext = {
@@ -1485,6 +1502,7 @@
       parseReceiveSnapshot,
       parseSubmitSnapshot,
       parseSearchItemSnapshot,
+      parseSearchItemSnapshots,
       buildRegionSignature,
       buildUpdatedRegions,
       defaultReadCurrentTableState,

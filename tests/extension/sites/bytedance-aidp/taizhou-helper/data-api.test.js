@@ -539,6 +539,42 @@ test("AIDP data api exposes a safe full-item import context only for matching Re
   );
 });
 
+test("AIDP data api selects the current Receive ItemID from a multi-item Search response", async function () {
+  const harness = createRuntimeHarness();
+  emitSearchItem(harness.windowLike, {
+    items: [
+      {
+        sourceItemId: "different-item",
+        referenceText: "第一条题目文本",
+        audioUrl: "https://media.example.test/other-audio",
+        videoUrl: "https://media.example.test/other-video",
+      },
+      {
+        sourceItemId: "7656690377962016562",
+        referenceText: "  当前第二条题目文本  ",
+        audioUrl: " https://media.example.test/current-audio ",
+        videoUrl: "https://media.example.test/current-video",
+        user: { email: "private@example.test" },
+        rawResponse: { authorization: "must-not-keep" },
+      },
+    ],
+  });
+
+  const context = await harness.runtime.getRecordingImportContext();
+
+  assert.deepEqual(context, {
+    ok: true,
+    sourceItemId: "7656690377962016562",
+    referenceText: "当前第二条题目文本",
+    audioUrl: "https://media.example.test/current-audio",
+    videoUrl: "https://media.example.test/current-video",
+  });
+  assert.doesNotMatch(
+    JSON.stringify(context),
+    /private@example|authorization|rawResponse|must-not-keep/i
+  );
+});
+
 test("AIDP data api distinguishes waiting, stale and empty Search Item contexts", async function () {
   let now = 1000;
   const harness = createRuntimeHarness({

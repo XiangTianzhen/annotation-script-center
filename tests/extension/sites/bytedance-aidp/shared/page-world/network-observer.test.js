@@ -107,7 +107,7 @@ test("shared AIDP network observer exports generic constants and installs only o
   }
 });
 
-test("shared AIDP network observer sends only the safe Search Item fields for fetch", async function () {
+test("shared AIDP network observer sends safe fields for every Search Item fetch entry", async function () {
   const searchResponse = {
     Data: [
       {
@@ -122,6 +122,16 @@ test("shared AIDP network observer sends only the safe Search Item fields for fe
         }),
         User: { Name: "不得发送" },
         Email: "private@example.test",
+      },
+      {
+        ItemID: "source-item-2",
+        Content: JSON.stringify({
+          asr_text: "  第二条完整题目文本  ",
+          audio: "https://media.example.test/audio-2?signature=masked",
+          video: "https://media.example.test/video-2?signature=masked",
+          user: { name: "仍然不得发送" },
+        }),
+        Users: [{ Email: "second-private@example.test" }],
       },
     ],
     Authorization: "Bearer must-not-send",
@@ -160,16 +170,26 @@ test("shared AIDP network observer sends only the safe Search Item fields for fe
         source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
         type: "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT",
         payload: {
-          sourceItemId: "source-item-1",
-          referenceText: "完整题目文本",
-          audioUrl: "https://media.example.test/audio?signature=masked",
-          videoUrl: "https://media.example.test/video?signature=masked",
+          items: [
+            {
+              sourceItemId: "source-item-1",
+              referenceText: "完整题目文本",
+              audioUrl: "https://media.example.test/audio?signature=masked",
+              videoUrl: "https://media.example.test/video?signature=masked",
+            },
+            {
+              sourceItemId: "source-item-2",
+              referenceText: "第二条完整题目文本",
+              audioUrl: "https://media.example.test/audio-2?signature=masked",
+              videoUrl: "https://media.example.test/video-2?signature=masked",
+            },
+          ],
         },
       },
     });
     assert.doesNotMatch(
       JSON.stringify(windowLike.messages),
-      /private@example|private-tenant|Authorization|Cookie|Bearer|must-not-send/
+      /private@example|second-private@example|private-tenant|Authorization|Cookie|Bearer|must-not-send/
     );
   } finally {
     delete require.cache[modulePath];
@@ -207,10 +227,14 @@ test("shared AIDP network observer captures and sanitizes Search Item XHR respon
 
     assert.equal(windowLike.messages.length, 1);
     assert.deepEqual(windowLike.messages[0].message.payload, {
-      sourceItemId: "source-item-xhr",
-      referenceText: "",
-      audioUrl: "https://media.example.test/audio-xhr",
-      videoUrl: "",
+      items: [
+        {
+          sourceItemId: "source-item-xhr",
+          referenceText: "",
+          audioUrl: "https://media.example.test/audio-xhr",
+          videoUrl: "",
+        },
+      ],
     });
     assert.doesNotMatch(JSON.stringify(windowLike.messages), /authorization|must-not-send/i);
   } finally {
