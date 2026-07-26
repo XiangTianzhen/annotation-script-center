@@ -29,6 +29,8 @@
   const DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED = true;
   const DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED = true;
   const DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED = true;
+  const COMMON_READY_MESSAGE =
+    "台州话脚本已就绪，可使用当前页面中的辅助功能。";
   const TOOLBAR_ACTION_GROUP_ATTR = "data-asc-toolbar-action-group";
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
@@ -4468,6 +4470,10 @@
     if (!runtime) {
       return false;
     }
+    const normalizedSourceItemId = normalizeText(sourceItemId);
+    const previousSourceItemId = normalizeText(
+      runtime.recordingContextSourceItemId
+    );
     const ready = context?.ok === true;
     const reason = ready ? "ready" : normalizeText(context?.reason) || "waiting";
     const message = ready
@@ -4480,6 +4486,7 @@
       reason,
       message,
     ].join("\n");
+    runtime.recordingContextSourceItemId = normalizedSourceItemId;
     runtime.recordingContextReady = ready;
     runtime.recordingContextReason = reason;
     runtime.recordingContextMessage = message;
@@ -4487,7 +4494,13 @@
       return false;
     }
     runtime.recordingContextSignature = signature;
-    runtime.ui?.setStatus?.(message, ready ? "success" : "warning");
+    if (
+      previousSourceItemId &&
+      normalizedSourceItemId &&
+      previousSourceItemId !== normalizedSourceItemId
+    ) {
+      runtime.ui?.setStatus?.(COMMON_READY_MESSAGE, "success");
+    }
     return true;
   }
 
@@ -4504,6 +4517,17 @@
       return;
     }
     const entry = recording.beginResultEntry(normalizedSourceItemId);
+    const syncSignature = [
+      normalizeText(entry?.sourceItemId),
+      String(Number(entry?.generation) || 0),
+    ].join("\n");
+    if (
+      syncSignature &&
+      normalizeText(runtime.recordingResultSyncSignature) === syncSignature
+    ) {
+      return;
+    }
+    runtime.recordingResultSyncSignature = syncSignature;
     const isCurrent = function () {
       return (
         helperRuntime === runtime &&
@@ -4814,7 +4838,9 @@
       recordingContextReady: false,
       recordingContextReason: "waiting",
       recordingContextMessage: "正在等待当前完整题目数据，请稍后重试。",
+      recordingContextSourceItemId: "",
       recordingContextSignature: "",
+      recordingResultSyncSignature: "",
       recordingImportBusy: false,
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
@@ -4834,10 +4860,7 @@
         phaseText: "",
       });
       ui.renderRecordingResult?.(null);
-      ui.setStatus(
-        "台州话脚本已就绪；当前支持单段识别直填输入框、批量识别和分段建议暂存写回。",
-        "success"
-      );
+      ui.setStatus(COMMON_READY_MESSAGE, "success");
     });
     syncPlaybackSensitiveDecorations(
       document,

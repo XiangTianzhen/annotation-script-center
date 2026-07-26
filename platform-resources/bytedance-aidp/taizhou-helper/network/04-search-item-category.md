@@ -28,8 +28,12 @@
 {
   "Data": [
     {
-      "ItemID": "<source-item-id>",
-      "Content": "{\"asr_text\":\"脱敏示例文字\",\"audio\":\"https://media.example.test/signed-object\",\"video\":\"\"}"
+      "ItemID": "<source-item-id-a>",
+      "Content": "{\"asr_text\":\"脱敏示例文字 A\",\"audio\":\"https://media.example.test/signed-object-a\",\"video\":\"\"}"
+    },
+    {
+      "ItemID": "<source-item-id-b>",
+      "Content": "{\"asr_text\":\"脱敏示例文字 B\",\"audio\":\"\",\"video\":\"https://media.example.test/signed-object-b\"}"
     }
   ]
 }
@@ -41,30 +45,34 @@
 
 | 来源 | 隔离世界字段 | 用途 |
 | --- | --- | --- |
-| `Data[0].ItemID` | `sourceItemId` | 与当前 Receive `ItemID` 一致性校验及稳定幂等身份 |
+| `Data[*].ItemID` | `sourceItemId` | 与当前 Receive `ItemID` 精确匹配及稳定幂等身份 |
 | `Content.asr_text` | `referenceText` | 完整题目参考文字 |
-| `Content.audio` | `audioUrl` | 浏览器当前上下文下载音频字节 |
-| `Content.video` | `videoUrl` | 浏览器当前上下文下载视频字节 |
+| `Content.audio` | `audioUrl` | 直接传给脚本中心的公网 HTTPS 参考音频 URL |
+| `Content.video` | `videoUrl` | 直接传给脚本中心的公网 HTTPS 参考视频 URL |
 
-向隔离世界发送的对象严格为：
+向隔离世界发送的载荷严格为：
 
 ```js
 {
-  sourceItemId,
-  referenceText,
-  audioUrl,
-  videoUrl
+  items: [
+    {
+      sourceItemId,
+      referenceText,
+      audioUrl,
+      videoUrl
+    }
+  ]
 }
 ```
 
 ## 前端接入建议
 
-- 只在 Search Item `sourceItemId` 与当前 Receive `ItemID` 一致且内存快照未过期时启用导入。
+- 遍历全部 `Data` 后，只选择 `sourceItemId` 与当前 Receive `ItemID` 一致且内存快照未过期的条目；不得固定取第一条或按列表位置猜测。
 - 三类参考内容去除首尾空白后至少一个存在。
-- 媒体 URL 只在当前页面运行期用于浏览器下载，不写入扩展持久化映射，也不发送给脚本中心代下载。
+- 媒体 URL 只在当前页面运行期用于创建请求并直接发送给脚本中心，不由浏览器下载，也不写入扩展持久化映射。
 
 ## 风险 / 未确认项
 
 - 平台响应结构、`Content` 类型或 ItemID 关系变化时必须失败关闭并等待新快照，不得猜测题目。
-- 签名媒体可能依赖当前登录态或时效；下载失败只能给出脱敏提示并允许人工重试。
+- 脚本中心只做 HTTPS URL 语法校验和转发，不探测签名媒体的可用性、时效或内容。
 - 不记录真实签名 URL、姓名、邮箱、租户、任务正文、登录头或原始响应。

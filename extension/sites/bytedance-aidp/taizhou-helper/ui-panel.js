@@ -470,6 +470,7 @@
     let recordingResultNode = null;
     let recordingRefreshButtonNode = null;
     let recordingCollapseButtonNode = null;
+    let latestRecordingResult = null;
     let batchStateNode = null;
     let batchSelectionGridNode = null;
     let batchActionRowNode = null;
@@ -865,7 +866,7 @@
       recordingResultNode = document.createElement("div");
       recordingResultNode.className = "summary-card collapsible-body";
       recordingResultNode.setAttribute("data-recording-result-card", "true");
-      renderRecordingResult({});
+      renderRecordingResultView(latestRecordingResult || {});
       recordingSection.appendChild(recordingResultNode);
       grid.appendChild(recordingSection);
       syncRecordingResultSectionState();
@@ -1014,7 +1015,7 @@
       latestRecommendation = result && typeof result === "object" ? Object.assign({}, result) : null;
     }
 
-    function renderRecordingResult(result) {
+    function renderRecordingResultView(result) {
       if (!recordingResultNode) {
         return;
       }
@@ -1069,6 +1070,14 @@
         audio.src = normalizeText(source.audioUrl);
         recordingResultNode.appendChild(audio);
       }
+    }
+
+    function renderRecordingResult(result) {
+      latestRecordingResult =
+        result && typeof result === "object"
+          ? Object.assign({}, result)
+          : {};
+      renderRecordingResultView(latestRecordingResult);
     }
 
     function renderBatchState(snapshot) {
@@ -1384,6 +1393,7 @@
       recordingResultNode = null;
       recordingRefreshButtonNode = null;
       recordingCollapseButtonNode = null;
+      latestRecordingResult = null;
       batchStateNode = null;
       batchSelectionGridNode = null;
       batchActionRowNode = null;

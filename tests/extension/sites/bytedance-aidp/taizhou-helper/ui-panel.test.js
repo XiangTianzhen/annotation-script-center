@@ -550,6 +550,52 @@ test("AIDP taizhou ui panel restores the latest status after the page removes an
   }
 });
 
+test("AIDP taizhou ui panel restores the latest recording result after the panel is rebuilt", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+    runtime.renderRecordingResult({
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000001",
+      status: "COMPLETED",
+      text: "录音平台结果文本",
+      audioAvailable: true,
+      audioUrl:
+        "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items/audio/signed",
+    });
+
+    const firstPanelRoot = findMountedPanelRoot(harness.body);
+    harness.body.removeChild(firstPanelRoot);
+    assert.equal(runtime.mount(), true);
+
+    const rebuiltPanelRoot = findMountedPanelRoot(harness.body);
+    const rebuiltCard = findNode(rebuiltPanelRoot, function (node) {
+      return node.getAttribute("data-recording-result-card") === "true";
+    });
+    const rebuiltAudio = findNode(rebuiltCard, function (node) {
+      return node.tagName === "AUDIO";
+    });
+    assert.match(rebuiltCard.textContent, /T000001-0000001/);
+    assert.match(rebuiltCard.textContent, /已完成/);
+    assert.match(rebuiltCard.textContent, /录音平台结果文本/);
+    assert.ok(rebuiltAudio);
+    assert.equal(
+      rebuiltAudio.src,
+      "https://script-center.example.test/api/bytedance-aidp/taizhou-helper/recording-items/audio/signed"
+    );
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP taizhou ui panel renders read-only recording status, text and audio without writeback controls", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;

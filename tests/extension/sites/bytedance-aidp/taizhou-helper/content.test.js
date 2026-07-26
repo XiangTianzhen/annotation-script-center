@@ -685,6 +685,19 @@ test("ByteDance AIDP taizhou content keeps runtime identifiers separate from Jin
   assert.doesNotMatch(source, /Jinhua|JINHUA|jinhua/);
 });
 
+test("ByteDance AIDP taizhou content uses the generic common ready message", function () {
+  const source = fs.readFileSync(contentModulePath, "utf8");
+
+  assert.match(
+    source,
+    /台州话脚本已就绪，可使用当前页面中的辅助功能。/
+  );
+  assert.doesNotMatch(
+    source,
+    /台州话脚本已就绪；当前支持单段识别直填输入框、批量识别和分段建议暂存写回。/
+  );
+});
+
 test("ByteDance AIDP content falls back to semantic AI insight anchors", function () {
   const contentModule = loadContentModule();
   const insightCard = new FakeElement({
@@ -1935,7 +1948,7 @@ test("ByteDance AIDP content hides, enables and marks the recording import butto
   assert.equal(button.getAttribute("title"), "正在添加当前完整题目数据。");
 });
 
-test("ByteDance AIDP content only publishes recording readiness when the item or readiness state changes", function () {
+test("ByteDance AIDP content keeps passive recording readiness out of the common status", function () {
   const contentModule = loadContentModule();
   const statuses = [];
   const runtime = {
@@ -1957,17 +1970,23 @@ test("ByteDance AIDP content only publishes recording readiness when the item or
   assert.equal(runtime.recordingContextReady, false);
   assert.equal(runtime.recordingContextReason, "waiting");
   assert.equal(runtime.recordingContextMessage, "正在等待当前完整题目数据，请稍后重试。");
+  assert.deepEqual(statuses, []);
 
-  runtime.ui.setStatus("已生成整条音频分段建议。", "success");
+  runtime.ui.setStatus("已导入录音任务：T000001-0000001", "success");
   assert.equal(
     contentModule.__testOnly.updateRecordingImportContextState(runtime, "source-a", {
       ok: false,
-      reason: "waiting",
-      message: "正在等待当前完整题目数据，请稍后重试。",
+      reason: "stale",
+      message: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
     }),
-    false
+    true
   );
-  assert.equal(statuses.at(-1).message, "已生成整条音频分段建议。");
+  assert.deepEqual(statuses, [
+    {
+      message: "已导入录音任务：T000001-0000001",
+      tone: "success",
+    },
+  ]);
 
   assert.equal(
     contentModule.__testOnly.updateRecordingImportContextState(runtime, "source-a", {
@@ -1982,8 +2001,18 @@ test("ByteDance AIDP content only publishes recording readiness when the item or
   assert.equal(runtime.recordingContextReady, true);
   assert.equal(runtime.recordingContextReason, "ready");
   assert.equal(runtime.recordingContextMessage, "当前完整题目数据已就绪，可添加数据。");
+  assert.equal(statuses.length, 1);
+
+  assert.equal(
+    contentModule.__testOnly.updateRecordingImportContextState(runtime, "source-b", {
+      ok: false,
+      reason: "waiting",
+      message: "正在等待当前完整题目数据，请稍后重试。",
+    }),
+    true
+  );
   assert.deepEqual(statuses.at(-1), {
-    message: "当前完整题目数据已就绪，可添加数据。",
+    message: "台州话脚本已就绪，可使用当前页面中的辅助功能。",
     tone: "success",
   });
 });
@@ -2237,6 +2266,84 @@ test("ByteDance AIDP content never replaces the current recording card with an e
   await contentModule.__testOnly.syncRecordingResultForContext("source-a");
 
   assert.deepEqual(rendered, []);
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
+test("ByteDance AIDP content auto-syncs and renders one recording result only once per entered item", async function () {
+  const contentModule = loadContentModule();
+  const entry = { sourceItemId: "source-a", generation: 1 };
+  let mappingReads = 0;
+  let autoRefreshes = 0;
+  let manualRefreshes = 0;
+  const rendered = [];
+  const statuses = [];
+  const runtime = {
+    recordingResultSyncSignature: "",
+    recording: {
+      beginResultEntry() {
+        return entry;
+      },
+      isCurrentResultEntry(candidate) {
+        return candidate === entry;
+      },
+      async findMapping() {
+        mappingReads += 1;
+        return {
+          sourceItemId: "source-a",
+          itemCode: "T000001-0000001",
+          syncToken: "sync-a",
+        };
+      },
+      async autoRefreshForEntry() {
+        autoRefreshes += 1;
+        return {
+          sourceItemId: "source-a",
+          itemCode: "T000001-0000001",
+          status: "COMPLETED",
+          text: "完成文本",
+          audioAvailable: true,
+          audioUrl: "https://script-center.example.test/audio/signed",
+        };
+      },
+      async refreshCurrentResult() {
+        manualRefreshes += 1;
+        return {
+          sourceItemId: "source-a",
+          itemCode: "T000001-0000001",
+          status: "COMPLETED",
+          text: "手动刷新文本",
+          audioAvailable: true,
+          audioUrl: "https://script-center.example.test/audio/refreshed",
+        };
+      },
+    },
+    ui: {
+      renderRecordingResult(result) {
+        rendered.push(result);
+      },
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+    },
+  };
+  contentModule.__testOnly.setHelperRuntimeForTest(runtime);
+
+  await contentModule.__testOnly.syncRecordingResultForContext("source-a");
+  await contentModule.__testOnly.syncRecordingResultForContext("source-a");
+
+  assert.equal(mappingReads, 1);
+  assert.equal(autoRefreshes, 1);
+  assert.equal(rendered.length, 1);
+
+  await contentModule.__testOnly.handleRecordingRefreshAction();
+
+  assert.equal(manualRefreshes, 1);
+  assert.equal(rendered.length, 2);
+  assert.equal(rendered.at(-1).text, "手动刷新文本");
+  assert.deepEqual(statuses.at(-1), {
+    message: "录音平台结果已刷新。",
+    type: "success",
+  });
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
