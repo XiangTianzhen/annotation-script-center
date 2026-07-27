@@ -471,6 +471,8 @@
     let recordingRefreshButtonNode = null;
     let recordingCollapseButtonNode = null;
     let latestRecordingResult = null;
+    let toastNode = null;
+    let toastTimer = null;
     let batchStateNode = null;
     let batchSelectionGridNode = null;
     let batchActionRowNode = null;
@@ -492,6 +494,104 @@
       dragNextSelected: true,
       mouseDownHandledSegmentNumber: 0,
     };
+
+    function clearToastTimer() {
+      if (toastTimer === null || toastTimer === undefined) {
+        return;
+      }
+      const clearTimer =
+        typeof deps.clearTimeout === "function"
+          ? deps.clearTimeout
+          : globalThis.clearTimeout;
+      if (typeof clearTimer === "function") {
+        clearTimer(toastTimer);
+      }
+      toastTimer = null;
+    }
+
+    function removeToast() {
+      clearToastTimer();
+      if (toastNode && toastNode.parentNode) {
+        toastNode.parentNode.removeChild(toastNode);
+      }
+      toastNode = null;
+    }
+
+    function showToast(message, options) {
+      const normalizedMessage = normalizeText(message);
+      if (!normalizedMessage || typeof document === "undefined") {
+        return false;
+      }
+      const toastOptions = options && typeof options === "object" ? options : {};
+      const tone = normalizeText(toastOptions.tone) || "info";
+      const durationMs = Math.max(0, Number(toastOptions.durationMs) || 1000);
+      const host = document.body || document.documentElement;
+      if (!host || typeof host.appendChild !== "function") {
+        return false;
+      }
+      clearToastTimer();
+      if (!toastNode || !toastNode.parentNode) {
+        toastNode = document.createElement("div");
+        toastNode.setAttribute("data-asc-taizhou-toast", "true");
+        toastNode.setAttribute("role", "status");
+        toastNode.setAttribute("aria-live", "polite");
+        toastNode.setAttribute("aria-atomic", "true");
+        toastNode.setAttribute("title", "点击关闭");
+        toastNode.style.position = "fixed";
+        toastNode.style.top = "24px";
+        toastNode.style.left = "50%";
+        toastNode.style.transform = "translateX(-50%)";
+        toastNode.style.zIndex = "2147483647";
+        toastNode.style.display = "flex";
+        toastNode.style.alignItems = "center";
+        toastNode.style.gap = "10px";
+        toastNode.style.maxWidth = "min(560px, calc(100vw - 32px))";
+        toastNode.style.padding = "12px 16px";
+        toastNode.style.border = "1px solid #d8e5ff";
+        toastNode.style.borderRadius = "10px";
+        toastNode.style.background = "#ffffff";
+        toastNode.style.color = "#334155";
+        toastNode.style.boxShadow = "0 10px 30px rgba(15, 23, 42, 0.18)";
+        toastNode.style.fontSize = "14px";
+        toastNode.style.lineHeight = "1.5";
+        toastNode.style.cursor = "pointer";
+        toastNode.addEventListener("click", removeToast);
+        host.appendChild(toastNode);
+      }
+      toastNode.setAttribute("data-toast-tone", tone);
+      clearNode(toastNode);
+      const icon = document.createElement("span");
+      icon.setAttribute("data-toast-icon", "info");
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "i";
+      icon.style.display = "inline-flex";
+      icon.style.alignItems = "center";
+      icon.style.justifyContent = "center";
+      icon.style.flex = "0 0 20px";
+      icon.style.width = "20px";
+      icon.style.height = "20px";
+      icon.style.borderRadius = "50%";
+      icon.style.background = "#2f57c5";
+      icon.style.color = "#ffffff";
+      icon.style.fontSize = "13px";
+      icon.style.fontWeight = "700";
+      const textNode = document.createElement("span");
+      textNode.textContent = normalizedMessage;
+      toastNode.appendChild(icon);
+      toastNode.appendChild(textNode);
+      const scheduleTimer =
+        typeof deps.setTimeout === "function" ? deps.setTimeout : globalThis.setTimeout;
+      if (typeof scheduleTimer === "function") {
+        toastTimer = scheduleTimer(function () {
+          toastTimer = null;
+          if (toastNode && toastNode.parentNode) {
+            toastNode.parentNode.removeChild(toastNode);
+          }
+          toastNode = null;
+        }, durationMs);
+      }
+      return true;
+    }
 
     function syncCurrentAudioSectionState() {
       if (!summaryNode) {
@@ -1381,6 +1481,7 @@
     }
 
     function destroy() {
+      removeToast();
       if (rootNode && rootNode.parentNode) {
         rootNode.parentNode.removeChild(rootNode);
       }
@@ -1424,6 +1525,7 @@
       mount,
       destroy,
       setStatus,
+      showToast,
       renderAudioContext,
       renderCurrentRecommendation,
       renderRecordingResult,

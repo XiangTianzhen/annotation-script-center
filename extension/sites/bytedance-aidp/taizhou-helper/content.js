@@ -4599,25 +4599,18 @@
         return;
       }
       if (result?.ok && result?.kind === "replayed" && result.mapping) {
-        if (result.initialResult) {
-          helperRuntime.ui?.renderRecordingResult?.(result.initialResult);
-        }
         showRecordingAlreadyImported(result.mapping);
+        await refreshRecordingResultAfterImport(result);
+        return;
+      }
+      if (result?.ok && result.mapping) {
+        await refreshRecordingResultAfterImport(result);
         return;
       }
       helperRuntime.ui?.setStatus?.(
         result?.message || "导入录音任务失败，请稍后重试。",
         result?.ok ? "success" : "error"
       );
-      if (result?.ok && result.mapping) {
-        helperRuntime.ui?.renderRecordingResult?.(
-          result.initialResult || {
-            sourceItemId: result.mapping.sourceItemId,
-            itemCode: result.mapping.itemCode,
-            status: "AVAILABLE",
-          }
-        );
-      }
     } catch (_error) {
       helperRuntime.ui?.setStatus?.("导入录音任务失败，请稍后重试。", "error");
     } finally {
@@ -4634,13 +4627,51 @@
     const message =
       "当前题目已添加到录音平台，录音条目：" +
       normalizeText(mapping?.itemCode);
-    if (typeof globalThis.alert === "function") {
-      try {
-        globalThis.alert(message);
-        return;
-      } catch (_error) {}
+    if (typeof helperRuntime?.ui?.showToast === "function") {
+      helperRuntime.ui.showToast(message, {
+        tone: "info",
+        durationMs: 1000,
+      });
+      return;
     }
     helperRuntime?.ui?.setStatus?.(message, "warning");
+  }
+
+  async function refreshRecordingResultAfterImport(importResult) {
+    const runtime = helperRuntime;
+    if (!runtime?.recording || !importResult?.mapping) {
+      return;
+    }
+    runtime.ui?.renderRecordingResult?.(
+      importResult.initialResult || {
+        sourceItemId: importResult.mapping.sourceItemId,
+        itemCode: importResult.mapping.itemCode,
+        status: "AVAILABLE",
+      }
+    );
+    try {
+      const refreshed = await runtime.recording.refreshCurrentResult();
+      if (helperRuntime !== runtime || !refreshed) {
+        return;
+      }
+      if (refreshed.notImported === true) {
+        throw new Error("recording mapping unavailable after import");
+      }
+      runtime.ui?.renderRecordingResult?.(refreshed);
+      runtime.ui?.setStatus?.(
+        importResult.kind === "replayed"
+          ? "录音条目已存在，结果已刷新。"
+          : "录音条目已添加，结果已刷新。",
+        "success"
+      );
+    } catch (_error) {
+      if (helperRuntime === runtime) {
+        runtime.ui?.setStatus?.(
+          "录音条目已添加，但结果刷新失败，可手动刷新。",
+          "warning"
+        );
+      }
+    }
   }
 
   async function handleRecordingRefreshAction() {
@@ -4734,6 +4765,19 @@
     return runtimePolicy;
   }
 
+  function buildHelperRuntimeConfigSignature(endpoint, helperConfig) {
+    const stableHelperConfig = JSON.parse(JSON.stringify(helperConfig || {}));
+    const taizhouSettings =
+      stableHelperConfig?.settings?.platforms?.bytedanceAidp?.scripts?.taizhouHelper;
+    if (taizhouSettings && typeof taizhouSettings === "object") {
+      delete taizhouSettings.recordingSyncMappings;
+    }
+    return JSON.stringify({
+      endpoint: endpoint,
+      helperConfig: stableHelperConfig,
+    });
+  }
+
   function ensureHelperRuntime(settings) {
     if (!runtimePolicy.runtimeAccessible || !isDetailPage()) {
       destroyHelperRuntime();
@@ -4747,10 +4791,7 @@
     if (typeof document !== "undefined") {
       ensurePlaybackScrollGuardWatchdog(document);
     }
-    const configSignature = JSON.stringify({
-      endpoint: endpoint,
-      helperConfig: helperConfig,
-    });
+    const configSignature = buildHelperRuntimeConfigSignature(endpoint, helperConfig);
     if (helperRuntime && helperRuntime.configSignature === configSignature) {
       helperRuntime.config = helperConfig;
       helperRuntime.endpoint = endpoint;
@@ -5141,6 +5182,7 @@
       requestAidpLoginStateReset: requestAidpLoginStateReset,
       runAccountSwitchFlow: runAccountSwitchFlow,
       resolveHelperConfig: resolveHelperConfig,
+      buildHelperRuntimeConfigSignature: buildHelperRuntimeConfigSignature,
       applyWaveToolSettings: applyWaveToolSettings,
       syncPlaybackRateControl: syncPlaybackRateControl,
       syncWaveZoomControl: syncWaveZoomControl,

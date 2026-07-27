@@ -1187,6 +1187,56 @@ test("ByteDance AIDP content resolves helper config with custom padding playback
   assert.equal(config.fixedWaveZoom, 2);
 });
 
+test("ByteDance AIDP content runtime signature ignores recording mappings but keeps real configuration changes", function () {
+  const contentModule = loadContentModule();
+  const baseConfig = {
+    recordingImportTaskCode: "T000001",
+    aiRecommendEndpoint: "https://example.invalid/api/ai",
+    settings: {
+      meta: {
+        backendRootUrl: "https://backend.example.invalid",
+      },
+      platforms: {
+        bytedanceAidp: {
+          scripts: {
+            taizhouHelper: {
+              recordingImportTaskCode: "T000001",
+              recordingSyncMappings: [
+                {
+                  sourceItemId: "source-a",
+                  itemCode: "T000001-0000001",
+                  syncToken: "test-token-a",
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  };
+  const mappingOnlyChanged = JSON.parse(JSON.stringify(baseConfig));
+  mappingOnlyChanged.settings.platforms.bytedanceAidp.scripts.taizhouHelper.recordingSyncMappings = [
+    {
+      sourceItemId: "source-b",
+      itemCode: "T000001-0000002",
+      syncToken: "test-token-b",
+    },
+  ];
+  const taskCodeChanged = JSON.parse(JSON.stringify(baseConfig));
+  taskCodeChanged.recordingImportTaskCode = "T000002";
+  taskCodeChanged.settings.platforms.bytedanceAidp.scripts.taizhouHelper.recordingImportTaskCode =
+    "T000002";
+  const backendChanged = JSON.parse(JSON.stringify(baseConfig));
+  backendChanged.settings.meta.backendRootUrl = "https://next.example.invalid";
+
+  const buildSignature = contentModule.__testOnly.buildHelperRuntimeConfigSignature;
+  const initial = buildSignature("/segment-preview", baseConfig);
+
+  assert.equal(buildSignature("/segment-preview", mappingOnlyChanged), initial);
+  assert.notEqual(buildSignature("/segment-preview", taskCodeChanged), initial);
+  assert.notEqual(buildSignature("/segment-preview", backendChanged), initial);
+});
+
 test("ByteDance AIDP content resolves Taizhou AI config with normalized Omni params", function () {
   const contentModule = loadContentModule();
   const config = contentModule.__testOnly.resolveHelperConfig({
@@ -2017,10 +2067,11 @@ test("ByteDance AIDP content keeps passive recording readiness out of the common
   });
 });
 
-test("ByteDance AIDP content renders recording import success and a retryable safe failure", async function () {
+test("ByteDance AIDP content refreshes a newly created recording item once and keeps failures retryable", async function () {
   const contentModule = loadContentModule();
   const statuses = [];
   const results = [];
+  let refreshCalls = 0;
   let outcome = {
     ok: true,
     kind: "created",
@@ -2043,6 +2094,16 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
       async importCurrentItem() {
         return outcome;
       },
+      async refreshCurrentResult() {
+        refreshCalls += 1;
+        return {
+          sourceItemId: "source-item-1",
+          itemCode: "T000001-0000001",
+          status: "COMPLETED",
+          text: "完成文本",
+          audioAvailable: false,
+        };
+      },
     },
     recordingImportBusy: false,
     config: {},
@@ -2064,8 +2125,16 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
     itemCode: "T000001-0000001",
     status: "SUBMITTED",
   });
+  assert.deepEqual(results[1], {
+    sourceItemId: "source-item-1",
+    itemCode: "T000001-0000001",
+    status: "COMPLETED",
+    text: "完成文本",
+    audioAvailable: false,
+  });
+  assert.equal(refreshCalls, 1);
   assert.deepEqual(statuses.at(-1), {
-    message: "已导入录音任务：T000001-0000001",
+    message: "录音条目已添加，结果已刷新。",
     type: "success",
   });
 
@@ -2075,7 +2144,8 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
   };
   await contentModule.__testOnly.handleRecordingImportAction();
   assert.equal(runtime.recordingImportBusy, false);
-  assert.equal(results.length, 1);
+  assert.equal(results.length, 2);
+  assert.equal(refreshCalls, 1);
   assert.deepEqual(statuses.at(-1), {
     message: "视频下载失败，请确认当前页面登录状态后重试。",
     type: "error",
@@ -2083,16 +2153,13 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
-test("ByteDance AIDP content alerts for an existing recording mapping without changing the current result", async function () {
+test("ByteDance AIDP content shows one-second toast for an existing mapping without requests or redraw", async function () {
   const contentModule = loadContentModule();
   const statuses = [];
   const results = [];
+  const toasts = [];
   let importCalls = 0;
-  const previousAlert = globalThis.alert;
-  const alerts = [];
-  globalThis.alert = function (message) {
-    alerts.push(message);
-  };
+  let refreshCalls = 0;
   contentModule.__testOnly.setHelperRuntimeForTest({
     recording: {
       async inspectCurrentItem() {
@@ -2109,6 +2176,10 @@ test("ByteDance AIDP content alerts for an existing recording mapping without ch
         importCalls += 1;
         return null;
       },
+      async refreshCurrentResult() {
+        refreshCalls += 1;
+        return null;
+      },
     },
     recordingImportBusy: false,
     config: {},
@@ -2119,29 +2190,31 @@ test("ByteDance AIDP content alerts for an existing recording mapping without ch
       renderRecordingResult(result) {
         results.push(result);
       },
+      showToast(message, options) {
+        toasts.push({ message, options });
+      },
     },
   });
 
-  try {
-    await contentModule.__testOnly.handleRecordingImportAction();
-  } finally {
-    globalThis.alert = previousAlert;
-    contentModule.__testOnly.setHelperRuntimeForTest(null);
-  }
+  await contentModule.__testOnly.handleRecordingImportAction();
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
 
   assert.equal(importCalls, 0);
+  assert.equal(refreshCalls, 0);
   assert.deepEqual(results, []);
   assert.deepEqual(statuses, []);
-  assert.deepEqual(alerts, [
-    "当前题目已添加到录音平台，录音条目：T000001-0000001",
-  ]);
+  assert.deepEqual(toasts, [{
+    message: "当前题目已添加到录音平台，录音条目：T000001-0000001",
+    options: {
+      tone: "info",
+      durationMs: 1000,
+    },
+  }]);
 });
 
-test("ByteDance AIDP content falls back to the common status when native alert is unavailable", async function () {
+test("ByteDance AIDP content falls back to common status when toast UI is unavailable", async function () {
   const contentModule = loadContentModule();
   const statuses = [];
-  const previousAlert = globalThis.alert;
-  delete globalThis.alert;
   contentModule.__testOnly.setHelperRuntimeForTest({
     recording: {
       async inspectCurrentItem() {
@@ -2170,12 +2243,8 @@ test("ByteDance AIDP content falls back to the common status when native alert i
     },
   });
 
-  try {
-    await contentModule.__testOnly.handleRecordingImportAction();
-  } finally {
-    globalThis.alert = previousAlert;
-    contentModule.__testOnly.setHelperRuntimeForTest(null);
-  }
+  await contentModule.__testOnly.handleRecordingImportAction();
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
 
   assert.deepEqual(statuses, [
     {
@@ -2185,15 +2254,12 @@ test("ByteDance AIDP content falls back to the common status when native alert i
   ]);
 });
 
-test("ByteDance AIDP content restores a server replay mapping and alerts without a result request", async function () {
+test("ByteDance AIDP content restores a server replay mapping, shows toast and refreshes once", async function () {
   const contentModule = loadContentModule();
   const results = [];
   const statuses = [];
-  const previousAlert = globalThis.alert;
-  const alerts = [];
-  globalThis.alert = function (message) {
-    alerts.push(message);
-  };
+  const toasts = [];
+  let refreshCalls = 0;
   contentModule.__testOnly.setHelperRuntimeForTest({
     recording: {
       async inspectCurrentItem() {
@@ -2216,6 +2282,98 @@ test("ByteDance AIDP content restores a server replay mapping and alerts without
           },
         };
       },
+      async refreshCurrentResult() {
+        refreshCalls += 1;
+        return {
+          sourceItemId: "source-item-1",
+          itemCode: "T000001-0000009",
+          status: "COMPLETED",
+          text: "恢复后的完成文本",
+          audioAvailable: false,
+        };
+      },
+    },
+    recordingImportBusy: false,
+    config: {},
+    ui: {
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+      renderRecordingResult(result) {
+        results.push(result);
+      },
+      showToast(message, options) {
+        toasts.push({ message, options });
+      },
+    },
+  });
+
+  await contentModule.__testOnly.handleRecordingImportAction();
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+
+  assert.deepEqual(results, [
+    {
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000009",
+      status: "COMPLETED",
+    },
+    {
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000009",
+      status: "COMPLETED",
+      text: "恢复后的完成文本",
+      audioAvailable: false,
+    },
+  ]);
+  assert.equal(refreshCalls, 1);
+  assert.deepEqual(toasts, [{
+    message: "当前题目已添加到录音平台，录音条目：T000001-0000009",
+    options: {
+      tone: "info",
+      durationMs: 1000,
+    },
+  }]);
+  assert.deepEqual(statuses, [
+    {
+      message: "正在导入当前完整题目到录音平台...",
+      type: "",
+    },
+    {
+      message: "录音条目已存在，结果已刷新。",
+      type: "success",
+    },
+  ]);
+});
+
+test("ByteDance AIDP content keeps the created item visible when automatic result refresh fails", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const results = [];
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async inspectCurrentItem() {
+        return { ok: true, current: true, mapping: null };
+      },
+      async importCurrentItem() {
+        return {
+          ok: true,
+          current: true,
+          kind: "created",
+          message: "已导入录音任务：T000001-0000004",
+          mapping: {
+            sourceItemId: "source-item-4",
+            itemCode: "T000001-0000004",
+          },
+          initialResult: {
+            sourceItemId: "source-item-4",
+            itemCode: "T000001-0000004",
+            status: "AVAILABLE",
+          },
+        };
+      },
+      async refreshCurrentResult() {
+        throw new Error("network unavailable");
+      },
     },
     recordingImportBusy: false,
     config: {},
@@ -2229,29 +2387,18 @@ test("ByteDance AIDP content restores a server replay mapping and alerts without
     },
   });
 
-  try {
-    await contentModule.__testOnly.handleRecordingImportAction();
-  } finally {
-    globalThis.alert = previousAlert;
-    contentModule.__testOnly.setHelperRuntimeForTest(null);
-  }
+  await contentModule.__testOnly.handleRecordingImportAction();
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
 
-  assert.deepEqual(results, [
-    {
-      sourceItemId: "source-item-1",
-      itemCode: "T000001-0000009",
-      status: "COMPLETED",
-    },
-  ]);
-  assert.deepEqual(alerts, [
-    "当前题目已添加到录音平台，录音条目：T000001-0000009",
-  ]);
-  assert.deepEqual(statuses, [
-    {
-      message: "正在导入当前完整题目到录音平台...",
-      type: "",
-    },
-  ]);
+  assert.deepEqual(results, [{
+    sourceItemId: "source-item-4",
+    itemCode: "T000001-0000004",
+    status: "AVAILABLE",
+  }]);
+  assert.deepEqual(statuses.at(-1), {
+    message: "录音条目已添加，但结果刷新失败，可手动刷新。",
+    type: "warning",
+  });
 });
 
 test("ByteDance AIDP content does not render an A import after the current item switches to B", async function () {

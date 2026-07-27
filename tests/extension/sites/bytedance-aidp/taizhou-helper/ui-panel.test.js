@@ -746,6 +746,121 @@ test("AIDP taizhou ui panel renders read-only recording status, text and audio w
   }
 });
 
+test("AIDP taizhou ui panel shows one reusable top-center info toast for exactly one second", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const scheduled = [];
+  const cleared = [];
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({
+      setTimeout(callback, delayMs) {
+        const handle = { callback, delayMs, cleared: false };
+        scheduled.push(handle);
+        return handle;
+      },
+      clearTimeout(handle) {
+        if (handle) {
+          handle.cleared = true;
+          cleared.push(handle);
+        }
+      },
+    });
+    assert.equal(runtime.mount(), true);
+
+    runtime.showToast("当前题目已添加到录音平台，录音条目：T000001-0000001", {
+      tone: "info",
+      durationMs: 1000,
+    });
+    const firstToast = findNode(harness.body, function (node) {
+      return node.getAttribute("data-asc-taizhou-toast") === "true";
+    });
+    assert.ok(firstToast);
+    assert.equal(firstToast.getAttribute("role"), "status");
+    assert.equal(firstToast.getAttribute("aria-live"), "polite");
+    assert.equal(firstToast.getAttribute("data-toast-tone"), "info");
+    assert.equal(firstToast.style.position, "fixed");
+    assert.equal(firstToast.style.top, "24px");
+    assert.equal(firstToast.style.left, "50%");
+    assert.equal(firstToast.style.transform, "translateX(-50%)");
+    assert.match(firstToast.textContent, /当前题目已添加到录音平台/);
+    assert.ok(findNode(firstToast, function (node) {
+      return node.getAttribute("data-toast-icon") === "info";
+    }));
+    assert.equal(scheduled[0].delayMs, 1000);
+
+    runtime.showToast("新的提示", {
+      tone: "info",
+      durationMs: 1000,
+    });
+    const toastNodes = collectDescendants(harness.body).filter(function (node) {
+      return node.getAttribute("data-asc-taizhou-toast") === "true";
+    });
+    assert.equal(toastNodes.length, 1);
+    assert.equal(toastNodes[0], firstToast);
+    assert.match(firstToast.textContent, /新的提示/);
+    assert.equal(cleared.includes(scheduled[0]), true);
+    assert.equal(scheduled[1].delayMs, 1000);
+
+    scheduled[1].callback();
+    assert.equal(findNode(harness.body, function (node) {
+      return node.getAttribute("data-asc-taizhou-toast") === "true";
+    }), null);
+
+    runtime.showToast("销毁前提示", {
+      tone: "info",
+      durationMs: 1000,
+    });
+    const destroyTimer = scheduled[2];
+    runtime.destroy();
+    assert.equal(destroyTimer.cleared, true);
+    assert.equal(findNode(harness.body, function (node) {
+      return node.getAttribute("data-asc-taizhou-toast") === "true";
+    }), null);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("AIDP taizhou ui panel dismisses the toast when clicked", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({
+      setTimeout() {
+        return { id: 1 };
+      },
+      clearTimeout() {},
+    });
+    assert.equal(runtime.mount(), true);
+    runtime.showToast("可点击关闭", {
+      tone: "info",
+      durationMs: 1000,
+    });
+    const toast = findNode(harness.body, function (node) {
+      return node.getAttribute("data-asc-taizhou-toast") === "true";
+    });
+    assert.ok(toast);
+    toast.click();
+    assert.equal(findNode(harness.body, function (node) {
+      return node.getAttribute("data-asc-taizhou-toast") === "true";
+    }), null);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP taizhou ui panel maps the supported recording workflow statuses", function () {
   const module = loadUiPanelModule();
   const format = module.__testOnly.formatRecordingStatus;
