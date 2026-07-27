@@ -4574,10 +4574,6 @@
         if (inspected?.current === false) {
           return;
         }
-        if (inspected?.mapping) {
-          showRecordingAlreadyImported(inspected.mapping);
-          return;
-        }
         if (!inspected?.ok) {
           helperRuntime.ui?.setStatus?.(
             inspected?.message || "当前完整题目数据尚未就绪，请稍后重试。",

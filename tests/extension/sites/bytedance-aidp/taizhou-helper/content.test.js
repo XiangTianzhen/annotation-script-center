@@ -2153,7 +2153,7 @@ test("ByteDance AIDP content refreshes a newly created recording item once and k
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
-test("ByteDance AIDP content shows one-second toast for an existing mapping without requests or redraw", async function () {
+test("ByteDance AIDP content sends an existing local mapping through import and renders the recreated item", async function () {
   const contentModule = loadContentModule();
   const statuses = [];
   const results = [];
@@ -2174,11 +2174,29 @@ test("ByteDance AIDP content shows one-second toast for an existing mapping with
       },
       async importCurrentItem() {
         importCalls += 1;
-        return null;
+        return {
+          ok: true,
+          current: true,
+          kind: "created",
+          mapping: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000002",
+          },
+          initialResult: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000002",
+            status: "AVAILABLE",
+          },
+        };
       },
       async refreshCurrentResult() {
         refreshCalls += 1;
-        return null;
+        return {
+          sourceItemId: "source-item-1",
+          itemCode: "T000001-0000002",
+          status: "AVAILABLE",
+          audioAvailable: false,
+        };
       },
     },
     recordingImportBusy: false,
@@ -2199,22 +2217,39 @@ test("ByteDance AIDP content shows one-second toast for an existing mapping with
   await contentModule.__testOnly.handleRecordingImportAction();
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 
-  assert.equal(importCalls, 0);
-  assert.equal(refreshCalls, 0);
-  assert.deepEqual(results, []);
-  assert.deepEqual(statuses, []);
-  assert.deepEqual(toasts, [{
-    message: "当前题目已添加到录音平台，录音条目：T000001-0000001",
-    options: {
-      tone: "info",
-      durationMs: 1000,
+  assert.equal(importCalls, 1);
+  assert.equal(refreshCalls, 1);
+  assert.deepEqual(results, [
+    {
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000002",
+      status: "AVAILABLE",
     },
-  }]);
+    {
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000002",
+      status: "AVAILABLE",
+      audioAvailable: false,
+    },
+  ]);
+  assert.deepEqual(statuses, [
+    {
+      message: "正在导入当前完整题目到录音平台...",
+      type: "",
+    },
+    {
+      message: "录音条目已添加，结果已刷新。",
+      type: "success",
+    },
+  ]);
+  assert.deepEqual(toasts, []);
 });
 
-test("ByteDance AIDP content falls back to common status when toast UI is unavailable", async function () {
+test("ByteDance AIDP content lets the backend verify an existing mapping before using the fallback status", async function () {
   const contentModule = loadContentModule();
   const statuses = [];
+  const results = [];
+  let importCalls = 0;
   contentModule.__testOnly.setHelperRuntimeForTest({
     recording: {
       async inspectCurrentItem() {
@@ -2228,7 +2263,29 @@ test("ByteDance AIDP content falls back to common status when toast UI is unavai
         };
       },
       async importCurrentItem() {
-        throw new Error("existing mappings must not enter the create flow");
+        importCalls += 1;
+        return {
+          ok: true,
+          current: true,
+          kind: "replayed",
+          mapping: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000001",
+          },
+          initialResult: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000001",
+            status: "AVAILABLE",
+          },
+        };
+      },
+      async refreshCurrentResult() {
+        return {
+          sourceItemId: "source-item-1",
+          itemCode: "T000001-0000001",
+          status: "AVAILABLE",
+          audioAvailable: false,
+        };
       },
     },
     recordingImportBusy: false,
@@ -2237,8 +2294,8 @@ test("ByteDance AIDP content falls back to common status when toast UI is unavai
       setStatus(message, type) {
         statuses.push({ message, type });
       },
-      renderRecordingResult() {
-        throw new Error("existing mappings must not redraw the result");
+      renderRecordingResult(result) {
+        results.push(result);
       },
     },
   });
@@ -2246,10 +2303,20 @@ test("ByteDance AIDP content falls back to common status when toast UI is unavai
   await contentModule.__testOnly.handleRecordingImportAction();
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 
+  assert.equal(importCalls, 1);
+  assert.equal(results.length, 2);
   assert.deepEqual(statuses, [
+    {
+      message: "正在导入当前完整题目到录音平台...",
+      type: "",
+    },
     {
       message: "当前题目已添加到录音平台，录音条目：T000001-0000001",
       type: "warning",
+    },
+    {
+      message: "录音条目已存在，结果已刷新。",
+      type: "success",
     },
   ]);
 });
@@ -2263,7 +2330,14 @@ test("ByteDance AIDP content restores a server replay mapping, shows toast and r
   contentModule.__testOnly.setHelperRuntimeForTest({
     recording: {
       async inspectCurrentItem() {
-        return { ok: true, current: true, mapping: null };
+        return {
+          ok: true,
+          current: true,
+          mapping: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000001",
+          },
+        };
       },
       async importCurrentItem() {
         return {
