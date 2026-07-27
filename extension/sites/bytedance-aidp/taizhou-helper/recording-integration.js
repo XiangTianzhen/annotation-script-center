@@ -137,6 +137,46 @@
       return body;
     }
 
+    async function inspectCurrentItem() {
+      if (!recordingTaskCode) {
+        return {
+          ok: false,
+          message: "请先在 Options 基础设置中填写录音平台任务编号。",
+        };
+      }
+      if (
+        !dataApi ||
+        typeof dataApi.getRecordingImportContext !== "function"
+      ) {
+        return {
+          ok: false,
+          message: "当前完整题目数据尚未就绪，请稍后重试。",
+        };
+      }
+      const context = await dataApi.getRecordingImportContext();
+      if (!context?.ok) {
+        return {
+          ok: false,
+          reason: context?.reason || "waiting",
+          message:
+            normalizeText(context?.message) ||
+            "当前完整题目数据尚未就绪，请稍后重试。",
+        };
+      }
+      const sourceItemId = normalizeText(context.sourceItemId);
+      const entry = beginResultEntry(sourceItemId);
+      const mapping = await findMapping(sourceItemId);
+      return {
+        ok: true,
+        current: isCurrentResultEntry(entry),
+        context: {
+          ...context,
+          sourceItemId,
+        },
+        mapping,
+      };
+    }
+
     async function performImport() {
       if (!recordingTaskCode) {
         return {
@@ -176,6 +216,7 @@
         return {
           ok: true,
           current: isCurrentResultEntry(importEntry),
+          kind: "existing",
           replayed: true,
           message: "当前完整题目已导入录音任务：" + existing.itemCode,
           mapping: existing,
@@ -222,12 +263,21 @@
         }
         await storage.saveTaizhouRecordingSyncMapping(mapping);
         pendingCreates.delete(importKey);
+        const replayed = response.status === 200;
         return {
           ok: true,
           current: isCurrentResultEntry(importEntry),
-          replayed: response.status === 200,
-          message: "已导入录音任务：" + itemCode,
+          kind: replayed ? "replayed" : "created",
+          replayed,
+          message: replayed
+            ? "当前完整题目已导入录音任务：" + itemCode
+            : "已导入录音任务：" + itemCode,
           mapping: mapping,
+          initialResult: {
+            sourceItemId: importSourceItemId,
+            itemCode,
+            status: normalizeText(item.status) || "AVAILABLE",
+          },
         };
       } catch (error) {
         return {
@@ -308,6 +358,12 @@
       if (!isCurrentResultEntry(expected)) {
         return null;
       }
+      if (!mapping) {
+        return {
+          notImported: true,
+          sourceItemId: expected.sourceItemId,
+        };
+      }
       return refreshMapping(mapping, expected);
     }
 
@@ -342,6 +398,7 @@
       get recordingTaskCode() {
         return recordingTaskCode;
       },
+      inspectCurrentItem,
       importCurrentItem,
       beginResultEntry,
       isCurrentResultEntry,

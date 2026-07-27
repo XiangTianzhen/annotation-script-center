@@ -2023,14 +2023,23 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
   const results = [];
   let outcome = {
     ok: true,
+    kind: "created",
     message: "已导入录音任务：T000001-0000001",
     mapping: {
       sourceItemId: "source-item-1",
       itemCode: "T000001-0000001",
     },
+    initialResult: {
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000001",
+      status: "SUBMITTED",
+    },
   };
   const runtime = {
     recording: {
+      async inspectCurrentItem() {
+        return { ok: true, current: true, mapping: null };
+      },
       async importCurrentItem() {
         return outcome;
       },
@@ -2053,7 +2062,7 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
   assert.deepEqual(results[0], {
     sourceItemId: "source-item-1",
     itemCode: "T000001-0000001",
-    status: "AVAILABLE",
+    status: "SUBMITTED",
   });
   assert.deepEqual(statuses.at(-1), {
     message: "已导入录音任务：T000001-0000001",
@@ -2074,12 +2083,186 @@ test("ByteDance AIDP content renders recording import success and a retryable sa
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
+test("ByteDance AIDP content alerts for an existing recording mapping without changing the current result", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const results = [];
+  let importCalls = 0;
+  const previousAlert = globalThis.alert;
+  const alerts = [];
+  globalThis.alert = function (message) {
+    alerts.push(message);
+  };
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async inspectCurrentItem() {
+        return {
+          ok: true,
+          current: true,
+          mapping: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000001",
+          },
+        };
+      },
+      async importCurrentItem() {
+        importCalls += 1;
+        return null;
+      },
+    },
+    recordingImportBusy: false,
+    config: {},
+    ui: {
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+      renderRecordingResult(result) {
+        results.push(result);
+      },
+    },
+  });
+
+  try {
+    await contentModule.__testOnly.handleRecordingImportAction();
+  } finally {
+    globalThis.alert = previousAlert;
+    contentModule.__testOnly.setHelperRuntimeForTest(null);
+  }
+
+  assert.equal(importCalls, 0);
+  assert.deepEqual(results, []);
+  assert.deepEqual(statuses, []);
+  assert.deepEqual(alerts, [
+    "当前题目已添加到录音平台，录音条目：T000001-0000001",
+  ]);
+});
+
+test("ByteDance AIDP content falls back to the common status when native alert is unavailable", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const previousAlert = globalThis.alert;
+  delete globalThis.alert;
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async inspectCurrentItem() {
+        return {
+          ok: true,
+          current: true,
+          mapping: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000001",
+          },
+        };
+      },
+      async importCurrentItem() {
+        throw new Error("existing mappings must not enter the create flow");
+      },
+    },
+    recordingImportBusy: false,
+    config: {},
+    ui: {
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+      renderRecordingResult() {
+        throw new Error("existing mappings must not redraw the result");
+      },
+    },
+  });
+
+  try {
+    await contentModule.__testOnly.handleRecordingImportAction();
+  } finally {
+    globalThis.alert = previousAlert;
+    contentModule.__testOnly.setHelperRuntimeForTest(null);
+  }
+
+  assert.deepEqual(statuses, [
+    {
+      message: "当前题目已添加到录音平台，录音条目：T000001-0000001",
+      type: "warning",
+    },
+  ]);
+});
+
+test("ByteDance AIDP content restores a server replay mapping and alerts without a result request", async function () {
+  const contentModule = loadContentModule();
+  const results = [];
+  const statuses = [];
+  const previousAlert = globalThis.alert;
+  const alerts = [];
+  globalThis.alert = function (message) {
+    alerts.push(message);
+  };
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async inspectCurrentItem() {
+        return { ok: true, current: true, mapping: null };
+      },
+      async importCurrentItem() {
+        return {
+          ok: true,
+          current: true,
+          kind: "replayed",
+          message: "当前题目已添加到录音平台。",
+          mapping: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000009",
+          },
+          initialResult: {
+            sourceItemId: "source-item-1",
+            itemCode: "T000001-0000009",
+            status: "COMPLETED",
+          },
+        };
+      },
+    },
+    recordingImportBusy: false,
+    config: {},
+    ui: {
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+      renderRecordingResult(result) {
+        results.push(result);
+      },
+    },
+  });
+
+  try {
+    await contentModule.__testOnly.handleRecordingImportAction();
+  } finally {
+    globalThis.alert = previousAlert;
+    contentModule.__testOnly.setHelperRuntimeForTest(null);
+  }
+
+  assert.deepEqual(results, [
+    {
+      sourceItemId: "source-item-1",
+      itemCode: "T000001-0000009",
+      status: "COMPLETED",
+    },
+  ]);
+  assert.deepEqual(alerts, [
+    "当前题目已添加到录音平台，录音条目：T000001-0000009",
+  ]);
+  assert.deepEqual(statuses, [
+    {
+      message: "正在导入当前完整题目到录音平台...",
+      type: "",
+    },
+  ]);
+});
+
 test("ByteDance AIDP content does not render an A import after the current item switches to B", async function () {
   const contentModule = loadContentModule();
   const statuses = [];
   const results = [];
   contentModule.__testOnly.setHelperRuntimeForTest({
     recording: {
+      async inspectCurrentItem() {
+        return { ok: true, current: true, mapping: null };
+      },
       async importCurrentItem() {
         return {
           ok: true,
@@ -2227,6 +2410,43 @@ test("ByteDance AIDP content ignores a stale manual recording result after item 
   assert.deepEqual(rendered, []);
   assert.equal(
     statuses.some((item) => item.type === "success"),
+    false
+  );
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
+test("ByteDance AIDP content shows a normal empty state when refreshing an item without a mapping", async function () {
+  const contentModule = loadContentModule();
+  const rendered = [];
+  const statuses = [];
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async refreshCurrentResult() {
+        return {
+          notImported: true,
+          sourceItemId: "source-item-1",
+        };
+      },
+    },
+    ui: {
+      renderRecordingResult(result) {
+        rendered.push(result);
+      },
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+    },
+  });
+
+  await contentModule.__testOnly.handleRecordingRefreshAction();
+
+  assert.deepEqual(rendered, []);
+  assert.deepEqual(statuses.at(-1), {
+    message: "当前题目还未添加到录音平台，暂无可刷新结果。",
+    type: "",
+  });
+  assert.equal(
+    statuses.some((item) => item.type === "error"),
     false
   );
   contentModule.__testOnly.setHelperRuntimeForTest(null);

@@ -4565,13 +4565,44 @@
       return;
     }
     helperRuntime.recordingImportBusy = true;
-    helperRuntime.ui?.setStatus?.("正在导入当前完整题目到录音平台...", "");
-    if (typeof document !== "undefined") {
-      syncPlaybackSensitiveDecorations(document, helperRuntime.config || {});
-    }
     try {
+      if (
+        typeof helperRuntime.recording.inspectCurrentItem === "function"
+      ) {
+        const inspected =
+          await helperRuntime.recording.inspectCurrentItem();
+        if (inspected?.current === false) {
+          return;
+        }
+        if (inspected?.mapping) {
+          showRecordingAlreadyImported(inspected.mapping);
+          return;
+        }
+        if (!inspected?.ok) {
+          helperRuntime.ui?.setStatus?.(
+            inspected?.message || "当前完整题目数据尚未就绪，请稍后重试。",
+            "error"
+          );
+          return;
+        }
+      }
+      helperRuntime.ui?.setStatus?.("正在导入当前完整题目到录音平台...", "");
+      if (typeof document !== "undefined") {
+        syncPlaybackSensitiveDecorations(document, helperRuntime.config || {});
+      }
       const result = await helperRuntime.recording.importCurrentItem();
       if (result?.current === false) {
+        return;
+      }
+      if (result?.ok && result?.kind === "existing" && result.mapping) {
+        showRecordingAlreadyImported(result.mapping);
+        return;
+      }
+      if (result?.ok && result?.kind === "replayed" && result.mapping) {
+        if (result.initialResult) {
+          helperRuntime.ui?.renderRecordingResult?.(result.initialResult);
+        }
+        showRecordingAlreadyImported(result.mapping);
         return;
       }
       helperRuntime.ui?.setStatus?.(
@@ -4579,11 +4610,13 @@
         result?.ok ? "success" : "error"
       );
       if (result?.ok && result.mapping) {
-        helperRuntime.ui?.renderRecordingResult?.({
-          sourceItemId: result.mapping.sourceItemId,
-          itemCode: result.mapping.itemCode,
-          status: "AVAILABLE",
-        });
+        helperRuntime.ui?.renderRecordingResult?.(
+          result.initialResult || {
+            sourceItemId: result.mapping.sourceItemId,
+            itemCode: result.mapping.itemCode,
+            status: "AVAILABLE",
+          }
+        );
       }
     } catch (_error) {
       helperRuntime.ui?.setStatus?.("导入录音任务失败，请稍后重试。", "error");
@@ -4597,6 +4630,19 @@
     }
   }
 
+  function showRecordingAlreadyImported(mapping) {
+    const message =
+      "当前题目已添加到录音平台，录音条目：" +
+      normalizeText(mapping?.itemCode);
+    if (typeof globalThis.alert === "function") {
+      try {
+        globalThis.alert(message);
+        return;
+      } catch (_error) {}
+    }
+    helperRuntime?.ui?.setStatus?.(message, "warning");
+  }
+
   async function handleRecordingRefreshAction() {
     if (!helperRuntime?.recording) {
       return;
@@ -4606,6 +4652,13 @@
       const result = await helperRuntime.recording.refreshCurrentResult();
       if (!result) {
         helperRuntime.ui?.setStatus?.("题目已切换，已忽略过期的录音结果。", "");
+        return;
+      }
+      if (result.notImported === true) {
+        helperRuntime.ui?.setStatus?.(
+          "当前题目还未添加到录音平台，暂无可刷新结果。",
+          ""
+        );
         return;
       }
       helperRuntime.ui?.renderRecordingResult?.(result);

@@ -180,6 +180,12 @@ test("Taizhou recording integration creates a text-only full item and stores onl
   const result = await harness.runtime.importCurrentItem();
 
   assert.equal(result.ok, true);
+  assert.equal(result.kind, "created");
+  assert.deepEqual(result.initialResult, {
+    sourceItemId: "source-item-1",
+    itemCode: "T000001-0000001",
+    status: "AVAILABLE",
+  });
   assert.equal(result.mapping.itemCode, "T000001-0000001");
   assert.equal(harness.calls.length, 1);
   assert.equal(
@@ -202,6 +208,75 @@ test("Taizhou recording integration creates a text-only full item and stores onl
     "syncToken",
     "updatedAt",
   ]);
+});
+
+test("Taizhou recording integration preflights and rechecks an existing local mapping without requests", async function () {
+  const existing = {
+    recordingTaskCode: "T000001",
+    sourceItemId: "source-item-1",
+    recordingItemId: "recording-item-1",
+    itemCode: "T000001-0000001",
+    syncToken: "sync-token-1",
+    updatedAt: 1,
+  };
+  const harness = createRuntime({
+    storage: createStorageHarness([existing]),
+  });
+
+  const inspected = await harness.runtime.inspectCurrentItem();
+  const imported = await harness.runtime.importCurrentItem();
+
+  assert.equal(inspected.ok, true);
+  assert.equal(inspected.current, true);
+  assert.deepEqual(inspected.mapping, existing);
+  assert.equal(imported.ok, true);
+  assert.equal(imported.kind, "existing");
+  assert.deepEqual(imported.mapping, existing);
+  assert.equal(harness.calls.length, 0);
+});
+
+test("Taizhou recording integration returns a local empty result when the current item has no mapping", async function () {
+  const harness = createRuntime();
+
+  const result = await harness.runtime.refreshCurrentResult();
+
+  assert.deepEqual(result, {
+    notImported: true,
+    sourceItemId: "source-item-1",
+  });
+  assert.equal(harness.calls.length, 0);
+});
+
+test("Taizhou recording integration preserves the create response status and identifies server replay", async function () {
+  const harness = createRuntime({
+    fetch(call) {
+      assert.equal(call.url.endsWith("/recording-items"), true);
+      return response({
+        status: 200,
+        json: {
+          syncToken: "sync-token-replay",
+          item: {
+            itemId: "recording-item-replay",
+            taskId: "internal-task-id",
+            itemCode: "T000001-0000009",
+            status: "COMPLETED",
+          },
+        },
+      });
+    },
+  });
+
+  const result = await harness.runtime.importCurrentItem();
+
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, "replayed");
+  assert.deepEqual(result.initialResult, {
+    sourceItemId: "source-item-1",
+    itemCode: "T000001-0000009",
+    status: "COMPLETED",
+  });
+  assert.equal(harness.storage.mappings.length, 1);
+  assert.equal(harness.calls.length, 1);
 });
 
 test("Taizhou recording integration forwards URLs without downloading or uploading media and supports all reference combinations", async function () {
@@ -322,6 +397,7 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
   assert.equal(second.ok, true);
   assert.equal(repeated.ok, true);
   assert.equal(repeated.replayed, true);
+  assert.equal(repeated.kind, "existing");
   assert.equal(createCount, 1);
   assert.equal(resultCount, 2);
   assert.equal(autoFirst.status, "COMPLETED");
