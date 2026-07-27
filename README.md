@@ -30,7 +30,7 @@
 
 ByteDance AIDP 的苏州话、金华话与台州话三套脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
 
-台州话 Options“基础设置”可填写录音平台可见任务编号（例如 `T000001`）。只有该值同时存在于服务器私密配置 `allowedTaskCodes` 时，详情页才可人工导入当前完整题目；扩展把 Search Item 中的参考文字及公网 HTTPS 音视频 URL 交给脚本中心，由后端固定绑定 `BYTEDANCE_AIDP + ItemID` 后转发，不下载媒体、不接收机器 API Key，也不传递 AIDP Cookie、Authorization 或 Session。结果卡片不会写回 AIDP。完整边界见[录音任务平台接入规范](docs/recording-platform-integration.md)。
+台州话 Options“基础设置”可填写录音平台可见任务编号（例如 `T000001`）。只有该值同时存在于服务器私密配置 `allowedTaskCodes` 时，详情页才可人工导入当前完整题目；扩展把 Search Item 中的参考文字及公网 HTTPS 音视频 URL 交给脚本中心，由后端固定绑定 `BYTEDANCE_AIDP + ItemID` 后转发，不下载媒体、不接收机器 API Key，也不传递 AIDP Cookie、Authorization 或 Session。人工再次点击“添加数据”时，脚本中心会核验旧映射；录音平台明确返回 `TASK_ITEM_NOT_FOUND` 才轮换幂等操作键并重新创建，其他查询故障保留映射。页面进入、自动查询和手动刷新仍只读，结果卡片不会写回 AIDP 或自动创建。完整边界见[录音任务平台接入规范](docs/recording-platform-integration.md)。
 
 ## 前置环境
 

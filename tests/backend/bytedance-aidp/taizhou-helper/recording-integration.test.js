@@ -1,7 +1,6 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const os = require("node:os");
@@ -218,16 +217,16 @@ test("create forwards task code, source binding and every reference combination 
       sourceItemId: `source-${index}`,
     });
     assert.equal(call.headers["X-API-Key"], "test-server-key");
-    assert.equal(
-      call.headers["Idempotency-Key"],
-      crypto
-        .createHash("sha256")
-        .update(
-          `bytedance-aidp/taizhou-helper\nT000001\nsource-${index}`
-        )
-        .digest("hex")
-    );
+    assert.match(call.headers["Idempotency-Key"], /^[a-f0-9]{64}$/);
   }
+  assert.equal(
+    new Set(
+      fixture.upstreamCalls.map(
+        (call) => call.headers["Idempotency-Key"]
+      )
+    ).size,
+    cases.length
+  );
 });
 
 test("request rejects unknown fields, empty references, disallowed tasks and unsafe URLs", async (t) => {
@@ -299,10 +298,119 @@ test("same source replays by stable fingerprint and changed URL conflicts withou
   );
   assert.equal(conflict.status, 409);
   assert.equal((await bodyJson(conflict)).code, "SOURCE_ITEM_CONTENT_CONFLICT");
-  assert.equal(fixture.upstreamCalls.length, 1);
+  assert.deepEqual(
+    fixture.upstreamCalls.map((call) => call.method),
+    ["POST", "GET"]
+  );
   const serialized = JSON.stringify(fixture.integration.getSnapshot());
   assert.doesNotMatch(serialized, /参考文本|media\.example|token=secret/);
   assert.match(serialized, /requestFingerprint/);
+});
+
+test("missing completed mapping is recreated with a new operation key", async (t) => {
+  const upstreamCalls = [];
+  let createCount = 0;
+  const fixture = await createFixture(t, {
+    async fetchImpl(url, requestOptions) {
+      const call = {
+        url: String(url),
+        method: String(requestOptions?.method || "GET").toUpperCase(),
+        headers: { ...(requestOptions?.headers || {}) },
+        body: requestOptions?.body,
+      };
+      upstreamCalls.push(call);
+      if (call.method === "GET") {
+        return jsonResponse(404, {
+          code: "TASK_ITEM_NOT_FOUND",
+          message: "任务条目不存在",
+        });
+      }
+      createCount += 1;
+      return jsonResponse(201, {
+        itemId: `recording-item-${createCount}`,
+        taskId: "task-allowed",
+        itemCode: `T000001-${String(createCount).padStart(7, "0")}`,
+        status: "AVAILABLE",
+        createdAt: "2026-07-25T00:00:00Z",
+      });
+    },
+  });
+
+  const first = await postJson(fixture.baseUrl, fullBody());
+  const recreated = await postJson(fixture.baseUrl, fullBody());
+  const recreatedBody = await bodyJson(recreated);
+  const createCalls = upstreamCalls.filter((call) => call.method === "POST");
+
+  assert.equal(first.status, 201);
+  assert.equal(recreated.status, 201);
+  assert.equal(recreatedBody.item.itemId, "recording-item-2");
+  assert.equal(recreatedBody.item.itemCode, "T000001-0000002");
+  assert.deepEqual(
+    upstreamCalls.map((call) => call.method),
+    ["POST", "GET", "POST"]
+  );
+  assert.equal(createCalls.length, 2);
+  assert.match(createCalls[0].headers["Idempotency-Key"], /^[a-f0-9]{64}$/);
+  assert.match(createCalls[1].headers["Idempotency-Key"], /^[a-f0-9]{64}$/);
+  assert.notEqual(
+    createCalls[0].headers["Idempotency-Key"],
+    createCalls[1].headers["Idempotency-Key"]
+  );
+});
+
+test("completed mapping is retained when verification fails without a missing-item response", async (t) => {
+  for (const status of [401, 429, 503]) {
+    await t.test(`upstream ${status}`, async (subtest) => {
+      const upstreamCalls = [];
+      const fixture = await createFixture(subtest, {
+        async fetchImpl(url, requestOptions) {
+          const call = {
+            url: String(url),
+            method: String(requestOptions?.method || "GET").toUpperCase(),
+            headers: { ...(requestOptions?.headers || {}) },
+            body: requestOptions?.body,
+          };
+          upstreamCalls.push(call);
+          if (call.method === "GET") {
+            return jsonResponse(status, {
+              code: status === 401 ? "INVALID_INTEGRATION_API_KEY" : "TEMPORARY",
+            });
+          }
+          return jsonResponse(201, {
+            itemId: "recording-item-1",
+            taskId: "task-allowed",
+            itemCode: "T000001-0000001",
+            status: "AVAILABLE",
+            createdAt: "2026-07-25T00:00:00Z",
+          });
+        },
+      });
+      const first = await postJson(fixture.baseUrl, fullBody());
+      assert.equal(first.status, 201);
+      const originalMapping = Object.values(
+        fixture.integration.getSnapshot().mappings
+      )[0];
+      const originalOperationKey = originalMapping.operationKey;
+
+      const verification = await postJson(fixture.baseUrl, fullBody());
+      const retainedMapping = Object.values(
+        fixture.integration.getSnapshot().mappings
+      )[0];
+
+      assert.equal(verification.status, status >= 500 ? 503 : status);
+      assert.equal(
+        (await bodyJson(verification)).code,
+        "RECORDING_PLATFORM_QUERY_FAILED"
+      );
+      assert.deepEqual(
+        upstreamCalls.map((call) => call.method),
+        ["POST", "GET"]
+      );
+      assert.equal(retainedMapping.recordingItemId, "recording-item-1");
+      assert.equal(retainedMapping.itemCode, "T000001-0000001");
+      assert.equal(retainedMapping.operationKey, originalOperationKey);
+    });
+  }
 });
 
 test("removed upload and public reference media routes return 404", async (t) => {

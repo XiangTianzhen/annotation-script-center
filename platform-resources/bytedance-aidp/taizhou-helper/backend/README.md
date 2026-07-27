@@ -28,7 +28,9 @@ POST /api/bytedance-aidp/taizhou-helper/recording-items/result
 GET  /api/bytedance-aidp/taizhou-helper/recording-items/audio/:token
 ```
 
-创建接口只接受 `recordingTaskCode`、`sourceItemId`、`referenceText`、`referenceAudioUrl`、`referenceVideoUrl`；三类参考内容至少一项非空，媒体地址必须是不含用户信息的绝对 HTTPS URL。任务编号必须在服务器 `allowedTaskCodes` 中。后端调用录音平台任务编号端点并固定附加 `sourcePlatform=BYTEDANCE_AIDP` 与 AIDP `sourceItemId`。稳定幂等键由脚本命名空间、任务编号和来源条目 ID 组成；请求指纹由 trim 后文字和规范化 URL 的 SHA-256 计算。相同内容重放，不同内容返回冲突；映射状态只保存指纹，不持久化参考全文、原始 URL 或任何登录态。
+创建接口只接受 `recordingTaskCode`、`sourceItemId`、`referenceText`、`referenceAudioUrl`、`referenceVideoUrl`；三类参考内容至少一项非空，媒体地址必须是不含用户信息的绝对 HTTPS URL。任务编号必须在服务器 `allowedTaskCodes` 中。后端调用录音平台任务编号端点并固定附加 `sourcePlatform=BYTEDANCE_AIDP` 与 AIDP `sourceItemId`。稳定映射键由脚本命名空间、任务编号和来源条目 ID 组成；每次创建尝试使用独立且持久化的幂等操作键，请求指纹由 trim 后文字和规范化 URL 的 SHA-256 计算。相同内容重放，不同内容返回冲突；映射状态只保存指纹，不持久化参考全文、原始 URL 或任何登录态。
+
+浏览器只有在用户主动点击“添加数据”时调用创建接口，本地映射不再直接拦截这次人工请求。已有完成映射会先通过录音平台结果接口核验：条目存在时返回 HTTP 200 幂等重放；只有 `404 TASK_ITEM_NOT_FOUND` 会轮换幂等操作键并重新创建，成功返回 HTTP 201。超时、429、5xx、鉴权失败或无效响应均保留旧映射且不创建。页面进入、自动查询和手动刷新结果保持只读；缺失条目只提示用户再次点击“添加数据”。
 
 条目创建和结果查询的上游超时覆盖响应头与完整 JSON body，并对 body 执行 256KB 严格上限；超时或超限只返回固定脱敏错误，创建映射保留为可重试且会退出同源 single-flight。结果查询与短时音频代理每次重新核对当前 `allowedTaskCodes`；移除任务后旧同步 token 和已签发播放 token 都不能继续访问。音频代理超时覆盖响应体流，客户端断开时取消上游请求，并保留必要 Range 响应头。
 

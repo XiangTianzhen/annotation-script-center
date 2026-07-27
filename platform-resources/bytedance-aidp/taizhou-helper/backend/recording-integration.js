@@ -539,6 +539,10 @@ function createRecordingIntegration(options) {
     );
   }
 
+  function newOperationKey(mappingKey) {
+    return hashText(`${mappingKey}\n${randomOpaqueId()}`);
+  }
+
   function requestFingerprintFor(referenceText, audioUrl, videoUrl) {
     return hashText(
       JSON.stringify({
@@ -602,6 +606,32 @@ function createRecordingIntegration(options) {
     }
   }
 
+  async function fetchRecordingItem(mapping, config) {
+    return fetchUpstreamJson(
+      `${config.baseUrl}/api/integrations/items/${encodeURIComponent(
+        mapping.recordingItemId
+      )}`,
+      {
+        method: "GET",
+        headers: { "X-API-Key": config.apiKey },
+      }
+    );
+  }
+
+  function recordingQueryFailure(upstream) {
+    return new IntegrationError(
+      upstream.response.status >= 500 ? 503 : upstream.response.status,
+      "RECORDING_PLATFORM_QUERY_FAILED",
+      "录音结果查询失败。",
+      {
+        upstream: toSafeUpstreamSummary(
+          upstream.body,
+          "录音结果查询失败。"
+        ),
+      }
+    );
+  }
+
   async function createRecordingItem(body) {
     const config = getConfig();
     validateExactObject(body, ITEM_FIELDS);
@@ -661,11 +691,39 @@ function createRecordingIntegration(options) {
     const flightPromise = (async () => {
       let mapping = state.mappings[mappingKey];
       if (mapping?.recordingItemId) {
-        return {
-          replayed: true,
-          syncToken: issueSyncToken(mapping, config),
-          item: toItemSummary(mapping),
-        };
+        const upstream = await fetchRecordingItem(mapping, config);
+        if (upstream.response.ok) {
+          mapping.status =
+            normalizeText(upstream.body.status) || mapping.status;
+          mapping.itemCode =
+            normalizeText(upstream.body.itemCode) || mapping.itemCode;
+          mapping.updatedAt = now();
+          persistState();
+          return {
+            replayed: true,
+            syncToken: issueSyncToken(mapping, config),
+            item: toItemSummary(mapping),
+          };
+        }
+        const upstreamCode = sanitizeIdentifier(
+          upstream.body?.code,
+          64,
+          ""
+        );
+        if (
+          upstream.response.status !== 404 ||
+          upstreamCode !== "TASK_ITEM_NOT_FOUND"
+        ) {
+          throw recordingQueryFailure(upstream);
+        }
+        mapping.taskId = null;
+        mapping.operationKey = newOperationKey(mappingKey);
+        mapping.recordingItemId = null;
+        mapping.itemCode = null;
+        mapping.status = "PENDING";
+        mapping.recordingCreatedAt = null;
+        mapping.updatedAt = now();
+        persistState();
       }
       if (!mapping) {
         mapping = {
@@ -674,7 +732,7 @@ function createRecordingIntegration(options) {
           taskCode,
           taskId: null,
           sourceItemId,
-          operationKey: mappingKey,
+          operationKey: newOperationKey(mappingKey),
           recordingItemId: null,
           itemCode: null,
           status: "PENDING",
@@ -854,27 +912,9 @@ function createRecordingIntegration(options) {
       throw new IntegrationError(401, "SYNC_TOKEN_INVALID", "同步凭证无效。");
     }
     assertAllowedTask(config, mapping.taskCode);
-    const upstream = await fetchUpstreamJson(
-      `${config.baseUrl}/api/integrations/items/${encodeURIComponent(
-        mapping.recordingItemId
-      )}`,
-      {
-        method: "GET",
-        headers: { "X-API-Key": config.apiKey },
-      }
-    );
+    const upstream = await fetchRecordingItem(mapping, config);
     if (!upstream.response.ok) {
-      throw new IntegrationError(
-        upstream.response.status >= 500 ? 503 : upstream.response.status,
-        "RECORDING_PLATFORM_QUERY_FAILED",
-        "录音结果查询失败。",
-        {
-          upstream: toSafeUpstreamSummary(
-            upstream.body,
-            "录音结果查询失败。"
-          ),
-        }
-      );
+      throw recordingQueryFailure(upstream);
     }
     mapping.status = normalizeText(upstream.body.status) || mapping.status;
     mapping.updatedAt = now();

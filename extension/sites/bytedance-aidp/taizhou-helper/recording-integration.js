@@ -211,17 +211,6 @@
         ...context,
         sourceItemId: importSourceItemId,
       };
-      const existing = await findMapping(importSourceItemId);
-      if (existing) {
-        return {
-          ok: true,
-          current: isCurrentResultEntry(importEntry),
-          kind: "existing",
-          replayed: true,
-          message: "当前完整题目已导入录音任务：" + existing.itemCode,
-          mapping: existing,
-        };
-      }
 
       try {
         const createBody = await prepareCreateBody(importContext);
@@ -328,6 +317,13 @@
         return null;
       }
       if (!response?.ok) {
+        if (
+          normalizeText(body?.upstream?.code) === "TASK_ITEM_NOT_FOUND"
+        ) {
+          throw new Error(
+            "原录音条目已不存在，请点击添加数据重新创建。"
+          );
+        }
         throw new Error("刷新录音结果失败，请稍后重试。");
       }
       const result = {

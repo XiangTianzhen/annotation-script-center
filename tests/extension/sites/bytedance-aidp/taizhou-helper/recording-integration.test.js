@@ -210,7 +210,7 @@ test("Taizhou recording integration creates a text-only full item and stores onl
   ]);
 });
 
-test("Taizhou recording integration preflights and rechecks an existing local mapping without requests", async function () {
+test("Taizhou recording integration inspects locally but sends manual imports to the authoritative backend", async function () {
   const existing = {
     recordingTaskCode: "T000001",
     sourceItemId: "source-item-1",
@@ -221,6 +221,21 @@ test("Taizhou recording integration preflights and rechecks an existing local ma
   };
   const harness = createRuntime({
     storage: createStorageHarness([existing]),
+    fetch(call) {
+      assert.equal(call.url.endsWith("/recording-items"), true);
+      return response({
+        status: 200,
+        json: {
+          syncToken: "sync-token-authoritative",
+          item: {
+            itemId: "recording-item-authoritative",
+            taskId: "internal-task-id",
+            itemCode: "T000001-0000019",
+            status: "AVAILABLE",
+          },
+        },
+      });
+    },
   });
 
   const inspected = await harness.runtime.inspectCurrentItem();
@@ -230,9 +245,16 @@ test("Taizhou recording integration preflights and rechecks an existing local ma
   assert.equal(inspected.current, true);
   assert.deepEqual(inspected.mapping, existing);
   assert.equal(imported.ok, true);
-  assert.equal(imported.kind, "existing");
-  assert.deepEqual(imported.mapping, existing);
-  assert.equal(harness.calls.length, 0);
+  assert.equal(imported.kind, "replayed");
+  assert.equal(imported.mapping.recordingItemId, "recording-item-authoritative");
+  assert.equal(imported.mapping.itemCode, "T000001-0000019");
+  assert.equal(imported.mapping.syncToken, "sync-token-authoritative");
+  assert.equal(harness.calls.length, 1);
+  assert.equal(harness.storage.mappings.length, 1);
+  assert.equal(
+    harness.storage.mappings[0].recordingItemId,
+    "recording-item-authoritative"
+  );
 });
 
 test("Taizhou recording integration returns a local empty result when the current item has no mapping", async function () {
@@ -245,6 +267,47 @@ test("Taizhou recording integration returns a local empty result when the curren
     sourceItemId: "source-item-1",
   });
   assert.equal(harness.calls.length, 0);
+});
+
+test("Taizhou recording result reports a missing remote item without creating data", async function () {
+  const harness = createRuntime({
+    storage: createStorageHarness([
+      {
+        recordingTaskCode: "T000001",
+        sourceItemId: "source-item-1",
+        recordingItemId: "recording-item-missing",
+        itemCode: "T000001-0000019",
+        syncToken: "sync-token-missing",
+        updatedAt: 1,
+      },
+    ]),
+    fetch(call) {
+      assert.equal(call.url.endsWith("/recording-items/result"), true);
+      return response({
+        ok: false,
+        status: 404,
+        json: {
+          success: false,
+          code: "RECORDING_PLATFORM_QUERY_FAILED",
+          message: "录音结果查询失败。",
+          upstream: {
+            code: "TASK_ITEM_NOT_FOUND",
+            message: "任务条目不存在",
+          },
+        },
+      });
+    },
+  });
+
+  await assert.rejects(
+    harness.runtime.refreshCurrentResult(),
+    /原录音条目已不存在，请点击添加数据重新创建/
+  );
+  assert.equal(harness.calls.length, 1);
+  assert.equal(
+    harness.calls.some((call) => call.url.endsWith("/recording-items")),
+    false
+  );
 });
 
 test("Taizhou recording integration preserves the create response status and identifies server replay", async function () {
@@ -346,7 +409,7 @@ test("Taizhou recording integration forwards URLs without downloading or uploadi
   }
 });
 
-test("Taizhou recording integration reuses duplicate imports and refreshes results once per entered item", async function () {
+test("Taizhou recording integration deduplicates concurrent clicks and lets the backend verify later imports", async function () {
   const storage = createStorageHarness();
   let createCount = 0;
   let resultCount = 0;
@@ -370,7 +433,7 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
       }
       createCount += 1;
       return response({
-        status: 201,
+        status: createCount === 1 ? 201 : 200,
         json: {
           syncToken: "sync-token-1",
           item: {
@@ -397,8 +460,8 @@ test("Taizhou recording integration reuses duplicate imports and refreshes resul
   assert.equal(second.ok, true);
   assert.equal(repeated.ok, true);
   assert.equal(repeated.replayed, true);
-  assert.equal(repeated.kind, "existing");
-  assert.equal(createCount, 1);
+  assert.equal(repeated.kind, "replayed");
+  assert.equal(createCount, 2);
   assert.equal(resultCount, 2);
   assert.equal(autoFirst.status, "COMPLETED");
   assert.deepEqual(autoSecond, autoFirst);
