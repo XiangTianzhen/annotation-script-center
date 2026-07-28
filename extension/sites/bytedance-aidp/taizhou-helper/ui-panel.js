@@ -34,6 +34,21 @@
     return labels[status] || status || "未知状态";
   }
 
+  function formatRecordingAutomationPhase(value) {
+    const phase = normalizeText(value);
+    const labels = {
+      idle: "待命",
+      importing: "导入中",
+      "waiting-available": "等待待领取",
+      postponing: "押后中",
+      "waiting-next": "等待下一题",
+      completed: "已完成",
+      stopped: "已停止",
+      failed: "失败",
+    };
+    return labels[phase] || "待命";
+  }
+
   function pickUsageValue(usage, keys) {
     const source = usage && typeof usage === "object" ? usage : {};
     const keyList = Array.isArray(keys) ? keys : [keys];
@@ -471,6 +486,15 @@
     let recordingRefreshButtonNode = null;
     let recordingCollapseButtonNode = null;
     let latestRecordingResult = null;
+    let recordingAutomationStateNode = null;
+    let recordingAutomationStartButtonNode = null;
+    let recordingAutomationStopButtonNode = null;
+    let latestRecordingAutomationState = {
+      phase: "idle",
+      completedCount: 0,
+      itemCode: "",
+      message: "待命，等待手动开始。",
+    };
     let toastNode = null;
     let toastTimer = null;
     let batchStateNode = null;
@@ -998,6 +1022,44 @@
       grid.appendChild(metaSection);
       syncAiMetaSectionState();
 
+      const recordingAutomationSection = document.createElement("div");
+      recordingAutomationSection.className = "section";
+      recordingAutomationSection.setAttribute("data-span", "full");
+      const recordingAutomationHead = document.createElement("div");
+      recordingAutomationHead.className = "section-head";
+      recordingAutomationHead.appendChild(
+        createSectionTitleRow(
+          "全自动导入并押后",
+          "仅在手动开始后运行：每轮导入并刷新当前录音条目，确认待领取后点击页面原生“押后”，填写原因 1 并验证已进入下一题。可随时停止。"
+        )
+      );
+      const recordingAutomationActions = document.createElement("div");
+      recordingAutomationActions.className = "section-actions";
+      recordingAutomationStartButtonNode = createButton("开始", true, function () {
+        deps.onStartRecordingAutomation?.();
+      });
+      recordingAutomationStartButtonNode.setAttribute(
+        "data-recording-automation-start",
+        "true"
+      );
+      recordingAutomationStopButtonNode = createButton("停止", false, function () {
+        deps.onStopRecordingAutomation?.();
+      });
+      recordingAutomationStopButtonNode.setAttribute(
+        "data-recording-automation-stop",
+        "true"
+      );
+      recordingAutomationActions.appendChild(recordingAutomationStartButtonNode);
+      recordingAutomationActions.appendChild(recordingAutomationStopButtonNode);
+      recordingAutomationHead.appendChild(recordingAutomationActions);
+      recordingAutomationSection.appendChild(recordingAutomationHead);
+      recordingAutomationStateNode = document.createElement("div");
+      recordingAutomationStateNode.className = "info-card";
+      recordingAutomationStateNode.setAttribute("data-recording-automation-state", "true");
+      recordingAutomationSection.appendChild(recordingAutomationStateNode);
+      grid.appendChild(recordingAutomationSection);
+      renderRecordingAutomationStateView(latestRecordingAutomationState);
+
       rootNode.appendChild(grid);
       syncPanelVisibility();
 
@@ -1178,6 +1240,56 @@
           ? Object.assign({}, result)
           : {};
       renderRecordingResultView(latestRecordingResult);
+    }
+
+    function isRecordingAutomationActive(phase) {
+      return ["importing", "waiting-available", "postponing", "waiting-next"].includes(
+        normalizeText(phase)
+      );
+    }
+
+    function renderRecordingAutomationStateView(snapshot) {
+      if (!recordingAutomationStateNode) {
+        return;
+      }
+      const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+      const phase = normalizeText(source.phase) || "idle";
+      const completedCount = Math.max(0, Math.round(Number(source.completedCount) || 0));
+      const itemCode = normalizeText(source.itemCode);
+      const message = normalizeText(source.message) || "待命，等待手动开始。";
+      const active = isRecordingAutomationActive(phase);
+      clearNode(recordingAutomationStateNode);
+      const lines = [
+        "状态：" + formatRecordingAutomationPhase(phase),
+        "已成功 " + String(completedCount) + " 条",
+        itemCode ? "当前录音条目：" + itemCode : "",
+        message,
+      ].filter(Boolean);
+      lines.forEach(function (text) {
+        const line = document.createElement("div");
+        line.className = "info-line";
+        line.textContent = text;
+        recordingAutomationStateNode.appendChild(line);
+      });
+      if (recordingAutomationStartButtonNode) {
+        recordingAutomationStartButtonNode.disabled = active;
+      }
+      if (recordingAutomationStopButtonNode) {
+        recordingAutomationStopButtonNode.disabled = !active;
+      }
+    }
+
+    function renderRecordingAutomationState(snapshot) {
+      latestRecordingAutomationState = Object.assign(
+        {
+          phase: "idle",
+          completedCount: 0,
+          itemCode: "",
+          message: "待命，等待手动开始。",
+        },
+        snapshot && typeof snapshot === "object" ? snapshot : {}
+      );
+      renderRecordingAutomationStateView(latestRecordingAutomationState);
     }
 
     function renderBatchState(snapshot) {
@@ -1495,6 +1607,15 @@
       recordingRefreshButtonNode = null;
       recordingCollapseButtonNode = null;
       latestRecordingResult = null;
+      recordingAutomationStateNode = null;
+      recordingAutomationStartButtonNode = null;
+      recordingAutomationStopButtonNode = null;
+      latestRecordingAutomationState = {
+        phase: "idle",
+        completedCount: 0,
+        itemCode: "",
+        message: "待命，等待手动开始。",
+      };
       batchStateNode = null;
       batchSelectionGridNode = null;
       batchActionRowNode = null;
@@ -1529,6 +1650,7 @@
       renderAudioContext,
       renderCurrentRecommendation,
       renderRecordingResult,
+      renderRecordingAutomationState,
       renderBatchSelection,
       renderBatchState,
       renderBatchResultTabs,

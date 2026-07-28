@@ -1215,3 +1215,56 @@ test("AIDP taizhou ui panel renders batch AI tabs and switches the active segmen
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
+
+test("AIDP taizhou ui panel renders manual recording automation controls and state", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    let started = 0;
+    let stopped = 0;
+    const runtime = module.createRuntime({
+      onStartRecordingAutomation() {
+        started += 1;
+      },
+      onStopRecordingAutomation() {
+        stopped += 1;
+      },
+    });
+    assert.equal(runtime.mount(), true);
+    const panelRoot = findMountedPanelRoot(harness.body);
+
+    runtime.renderRecordingAutomationState({
+      phase: "waiting-next",
+      completedCount: 2,
+      itemCode: "T000001-0000022",
+      message: "押后已确认，正在验证是否进入下一题。",
+    });
+
+    const stateNode = findNode(panelRoot, function (node) {
+      return node.getAttribute("data-recording-automation-state") === "true";
+    });
+    const startButton = findNode(panelRoot, function (node) {
+      return node.getAttribute("data-recording-automation-start") === "true";
+    });
+    const stopButton = findNode(panelRoot, function (node) {
+      return node.getAttribute("data-recording-automation-stop") === "true";
+    });
+    assert.ok(stateNode);
+    assert.match(stateNode.textContent, /等待下一题/);
+    assert.match(stateNode.textContent, /已成功 2 条/);
+    assert.ok(startButton);
+    assert.ok(stopButton);
+    startButton.click();
+    stopButton.click();
+    assert.equal(started, 1);
+    assert.equal(stopped, 1);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});

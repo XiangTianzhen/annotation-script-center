@@ -25,12 +25,12 @@
 | DataBaker CVPC | 柳州话脚本 | `dataBakerCvpcLiuzhouAssistant` | 音频获取、两阶段 AI、分段建议、批量识别、字段辅助写入 |
 | ByteDance AIDP | 苏州话脚本 | `bytedanceAidpSuzhouHelper` | 分段建议、两阶段 AI、行内/批量识别、暂存写回 |
 | ByteDance AIDP | 金华话脚本 | `bytedanceAidpJinhuaHelper` | 单次 Omni 可编辑转写 Prompt、分段建议、行内/批量识别 |
-| ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、分段建议、行内/批量识别、完整题目人工导入录音平台与结果只读回显 |
+| ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、分段建议、行内/批量识别、完整题目导入录音平台、结果只读回显与显式启动的自动押后 |
 | Magic Data | 杭州话脚本 | `magicDataHangzhouAssistant` | AI 质检、单双模型方案、词表参考、结果填入与快捷键 |
 
 ByteDance AIDP 的苏州话、金华话与台州话三套脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
 
-台州话 Options“基础设置”可填写录音平台可见任务编号（例如 `T000001`）。只有该值同时存在于服务器私密配置 `allowedTaskCodes` 时，详情页才可人工导入当前完整题目；扩展把 Search Item 中的参考文字及公网 HTTPS 音视频 URL 交给脚本中心，由后端固定绑定 `BYTEDANCE_AIDP + ItemID` 后转发，不下载媒体、不接收机器 API Key，也不传递 AIDP Cookie、Authorization 或 Session。人工再次点击“添加数据”时，脚本中心会核验旧映射；录音平台明确返回 `TASK_ITEM_NOT_FOUND` 才轮换幂等操作键并重新创建，其他查询故障保留映射。页面进入、自动查询和手动刷新仍只读，结果卡片不会写回 AIDP 或自动创建。完整边界见[录音任务平台接入规范](docs/recording-platform-integration.md)。
+台州话 Options“基础设置”可填写录音平台可见任务编号（例如 `T000001`）。只有该值同时存在于服务器私密配置 `allowedTaskCodes` 时，详情页才可人工导入当前完整题目；扩展把 Search Item 中的参考文字及公网 HTTPS 音视频 URL 交给脚本中心，由后端固定绑定 `BYTEDANCE_AIDP + ItemID` 后转发，不下载媒体、不接收机器 API Key，也不传递 AIDP Cookie、Authorization 或 Session。人工再次点击“添加数据”时，脚本中心会核验旧映射；录音平台明确返回 `TASK_ITEM_NOT_FOUND` 才轮换幂等操作键并重新创建，其他查询故障保留映射。台州话详情页另有必须由用户点击“开始”的“全自动导入并押后”：仅处理当前任务，基于结果 `AVAILABLE`（待领取）后操作页面真实“押后”按钮，永不点击“提交”、领取或调用 AIDP 写接口；刷新页面或重载扩展即停止。页面进入、自动查询和手动刷新仍只读，结果卡片不会写回 AIDP 或自动创建。完整边界见[录音任务平台接入规范](docs/recording-platform-integration.md)。
 
 ## 前置环境
 

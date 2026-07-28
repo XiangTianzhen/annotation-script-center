@@ -512,6 +512,18 @@ test("AIDP data api builds current context from observer receive snapshot", asyn
   assert.equal(context.selectionKey, "7656690377962016562");
 });
 
+test("AIDP data api reads the current Receive ItemID independently from a newer Submit snapshot", async function () {
+  const harness = createRuntimeHarness();
+  const newerSubmitPayload = createBaseSubmitPayload();
+  newerSubmitPayload.body.AuditAnswers[0].ItemID = "submit-snapshot-item";
+  const newerSubmitAnswer = JSON.parse(newerSubmitPayload.body.AuditAnswers[0].Content);
+  newerSubmitAnswer.itemID = "submit-snapshot-item";
+  newerSubmitPayload.body.AuditAnswers[0].Content = JSON.stringify(newerSubmitAnswer);
+  emitSubmit(harness.windowLike, newerSubmitPayload);
+
+  assert.equal(await harness.runtime.getCurrentReceiveItemId(), "7656690377962016562");
+});
+
 test("AIDP data api exposes a safe full-item import context only for matching Receive ItemID", async function () {
   const harness = createRuntimeHarness();
   emitSearchItem(harness.windowLike, {

@@ -1161,6 +1161,10 @@
       return context;
     }
 
+    async function getCurrentReceiveItemId() {
+      return normalizeText(receiveSnapshot?.itemId);
+    }
+
     async function getRecordingImportContext() {
       if (!receiveSnapshot?.itemId || searchItemSnapshots.size === 0) {
         return {
@@ -1486,6 +1490,7 @@
 
     return {
       getCurrentContext,
+      getCurrentReceiveItemId,
       getRecordingImportContext,
       applySegmentPreview,
       clearCurrentSegments,

@@ -29,6 +29,9 @@
   const DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED = true;
   const DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED = true;
   const DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED = true;
+  const RECORDING_AUTOMATION_TIMEOUT_MS = 20000;
+  const RECORDING_AUTOMATION_POLL_INTERVAL_MS = 200;
+  const RECORDING_AUTOMATION_AVAILABLE_STATUS = "AVAILABLE";
   const COMMON_READY_MESSAGE =
     "台州话脚本已就绪，可使用当前页面中的辅助功能。";
   const TOOLBAR_ACTION_GROUP_ATTR = "data-asc-toolbar-action-group";
@@ -1071,6 +1074,519 @@
       return false;
     }
     return true;
+  }
+
+  function isEnabledNativeButton(node) {
+    if (!node) {
+      return false;
+    }
+    if (node.disabled === true || node.hasAttribute?.("disabled")) {
+      return false;
+    }
+    return normalizeText(node.getAttribute?.("aria-disabled") || "").toLowerCase() !== "true";
+  }
+
+  function isNodeAndAncestorsVisible(node) {
+    let current = node || null;
+    while (current && String(current.tagName || "").toUpperCase() !== "DOCUMENT") {
+      if (!isNodeVisible(current)) {
+        return false;
+      }
+      current = current.parentElement || current.parentNode || null;
+    }
+    return true;
+  }
+
+  function findExactVisibleButton(root, label, requireButtonGroup) {
+    const normalizedLabel = normalizeText(label);
+    const matches = [];
+    getSearchRoots(root).forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        const tagName = String(node?.tagName || "").toUpperCase();
+        if (
+          tagName !== "BUTTON" ||
+          getNodeText(node) !== normalizedLabel ||
+          !isNodeAndAncestorsVisible(node) ||
+          !isEnabledNativeButton(node)
+        ) {
+          return;
+        }
+        if (requireButtonGroup === true && !findAncestorWithClassFragment(node, "button-group")) {
+          return;
+        }
+        matches.push(node);
+      });
+    });
+    return {
+      node: matches.length === 1 ? matches[0] : null,
+      count: matches.length,
+    };
+  }
+
+  function findAncestorWithClassFragment(node, fragment) {
+    const normalizedFragment = normalizeText(fragment).toLowerCase();
+    let current = node?.parentElement || node?.parentNode || null;
+    while (current) {
+      if (getClassName(current).toLowerCase().indexOf(normalizedFragment) >= 0) {
+        return current;
+      }
+      current = current.parentElement || current.parentNode || null;
+    }
+    return null;
+  }
+
+  function findPostponeReasonPopover(root) {
+    const candidates = [];
+    getSearchRoots(root).forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        if (
+          normalizeText(node?.getAttribute?.("role") || "").toLowerCase() !== "tooltip" ||
+          !isNodeAndAncestorsVisible(node)
+        ) {
+          return;
+        }
+        const titles = collectDescendantElements(node).filter(function (child) {
+          return getNodeText(child) === "押后原因" && isNodeAndAncestorsVisible(child);
+        });
+        if (titles.length === 1) {
+          candidates.push(node);
+        }
+      });
+    });
+    return {
+      node: candidates.length === 1 ? candidates[0] : null,
+      count: candidates.length,
+    };
+  }
+
+  function findUniquePostponeTextarea(popover) {
+    const matches = collectDescendantElements(popover).filter(function (node) {
+      return (
+        String(node?.tagName || "").toUpperCase() === "TEXTAREA" &&
+        isNodeAndAncestorsVisible(node)
+      );
+    });
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function getNextElementSibling(node) {
+    if (node?.nextElementSibling?.nodeType === 1) {
+      return node.nextElementSibling;
+    }
+    const parent = node?.parentElement || node?.parentNode || null;
+    const children = parent?.children ? Array.from(parent.children) : [];
+    const index = children.indexOf(node);
+    for (let cursor = index + 1; cursor >= 0 && cursor < children.length; cursor += 1) {
+      if (children[cursor]?.nodeType === 1) {
+        return children[cursor];
+      }
+    }
+    return null;
+  }
+
+  function findPostponeTextareaActionButtonGroup(textarea) {
+    const candidate = getNextElementSibling(textarea);
+    if (
+      !candidate ||
+      getClassName(candidate).toLowerCase().indexOf("button-group") < 0 ||
+      !isNodeAndAncestorsVisible(candidate)
+    ) {
+      return null;
+    }
+    return candidate;
+  }
+
+  function writePostponeReason(textarea) {
+    if (!textarea) {
+      return false;
+    }
+    focusControl(textarea);
+    const changed = setControlValue(textarea, "1");
+    if (!changed && String(textarea.value || "") === "1") {
+      dispatchControlEvent(textarea, "input");
+      dispatchControlEvent(textarea, "change");
+      dispatchControlEvent(textarea, "blur");
+    }
+    return String(textarea.value || "") === "1";
+  }
+
+  function createRecordingAutomationController(options) {
+    const source = options && typeof options === "object" ? options : {};
+    const timeoutMs = Math.max(
+      1,
+      Math.round(Number(source.timeoutMs) || RECORDING_AUTOMATION_TIMEOUT_MS)
+    );
+    const pollIntervalMs = Math.max(
+      0,
+      Math.round(Number(source.pollIntervalMs) || RECORDING_AUTOMATION_POLL_INTERVAL_MS)
+    );
+    const getNow = typeof source.now === "function" ? source.now : Date.now;
+    const wait = typeof source.wait === "function" ? source.wait : waitFor;
+    const getRoot = function () {
+      return typeof source.root === "function"
+        ? source.root()
+        : source.root || (typeof document !== "undefined" ? document : null);
+    };
+    let runToken = 0;
+    let running = false;
+    let pendingPopover = null;
+    let pendingPopoverActionGroup = null;
+    let confirmationSent = false;
+    let state = {
+      phase: "idle",
+      completedCount: 0,
+      itemCode: "",
+      message: "待命，等待手动开始。",
+    };
+
+    function publish(patch) {
+      state = Object.assign({}, state, patch || {});
+      try {
+        source.onStateChange?.(Object.assign({}, state));
+      } catch (_error) {
+        // The automation safety boundary must not depend on panel rendering.
+      }
+      return state;
+    }
+
+    function isActive(token) {
+      return running === true && token === runToken;
+    }
+
+    function dismissPendingPopover() {
+      if (pendingPopoverActionGroup && !confirmationSent) {
+        const cancelLookup = findExactVisibleButton(pendingPopoverActionGroup, "取消", false);
+        if (cancelLookup.count === 1) {
+          invokeClick(cancelLookup.node);
+        }
+      }
+      pendingPopover = null;
+      pendingPopoverActionGroup = null;
+    }
+
+    function finish(phase, message, patch) {
+      running = false;
+      dismissPendingPopover();
+      confirmationSent = false;
+      publish(
+        Object.assign(
+          {
+            phase: phase,
+            message: message,
+          },
+          patch || {}
+        )
+      );
+    }
+
+    async function waitUntil(token, predicate) {
+      const startedAt = Number(getNow()) || 0;
+      while (isActive(token)) {
+        let value = null;
+        try {
+          value = await predicate();
+        } catch (_error) {
+          return { error: true };
+        }
+        if (value) {
+          return { value: value };
+        }
+        const elapsed = (Number(getNow()) || 0) - startedAt;
+        if (elapsed >= timeoutMs) {
+          return { timeout: true };
+        }
+        await wait(Math.min(pollIntervalMs, Math.max(0, timeoutMs - elapsed)));
+      }
+      return { stopped: true };
+    }
+
+    async function executeWithinTimeout(token, operation) {
+      let timer = null;
+      const setTimer = typeof source.setTimeout === "function" ? source.setTimeout : setTimeout;
+      const clearTimer = typeof source.clearTimeout === "function" ? source.clearTimeout : clearTimeout;
+      const timeoutResult = new Promise(function (resolve) {
+        if (typeof setTimer !== "function") {
+          return;
+        }
+        timer = setTimer(function () {
+          resolve({ timeout: true });
+        }, timeoutMs);
+      });
+      try {
+        const result = await Promise.race([
+          Promise.resolve()
+            .then(operation)
+            .then(function (value) {
+              return { value: value };
+            })
+            .catch(function () {
+              return { error: true };
+            }),
+          timeoutResult,
+        ]);
+        if (!isActive(token)) {
+          return { stopped: true };
+        }
+        return result || { error: true };
+      } finally {
+        if (timer !== null && typeof clearTimer === "function") {
+          clearTimer(timer);
+        }
+      }
+    }
+
+    async function getCurrentItemId(token) {
+      if (typeof source.getCurrentItemId !== "function") {
+        return { error: true };
+      }
+      const outcome = await executeWithinTimeout(token, source.getCurrentItemId);
+      if (outcome.value !== undefined) {
+        outcome.value = normalizeText(outcome.value);
+        if (!outcome.value) {
+          outcome.error = true;
+        }
+      }
+      return outcome;
+    }
+
+    async function run() {
+      const token = runToken;
+      let completedCount = 0;
+      let round = 0;
+      while (isActive(token)) {
+        const currentOutcome = await getCurrentItemId(token);
+        if (currentOutcome.stopped) {
+          return;
+        }
+        if (currentOutcome.timeout || currentOutcome.error) {
+          finish("failed", "读取当前 AIDP 条目超时或失败，自动流程已停止。", {
+            completedCount: completedCount,
+          });
+          return;
+        }
+        const currentItemId = currentOutcome.value;
+
+        if (round > 0) {
+          publish({
+            phase: "waiting-next",
+            completedCount: completedCount,
+            message: "正在等待下一题完成初始化。",
+          });
+          const nextButtonOutcome = await waitUntil(token, function () {
+            const lookup = findExactVisibleButton(getRoot(), "押后", false);
+            return lookup.count > 0 ? lookup : null;
+          });
+          if (nextButtonOutcome.stopped) {
+            return;
+          }
+          if (nextButtonOutcome.timeout) {
+            finish("completed", "已无可押后数据。", {
+              completedCount: completedCount,
+            });
+            return;
+          }
+          if (nextButtonOutcome.error || nextButtonOutcome.value?.count !== 1) {
+            finish("failed", "未找到唯一可用的“押后”按钮，自动流程已停止。", {
+              completedCount: completedCount,
+            });
+            return;
+          }
+        }
+
+        publish({
+          phase: "importing",
+          completedCount: completedCount,
+          itemCode: "",
+          message: "正在导入并刷新当前录音条目。",
+        });
+        if (typeof source.importAndRefresh !== "function") {
+          finish("failed", "录音导入流程不可用，自动流程已停止。", {
+            completedCount: completedCount,
+          });
+          return;
+        }
+        const importOutcome = await executeWithinTimeout(token, source.importAndRefresh);
+        if (importOutcome.stopped) {
+          return;
+        }
+        if (importOutcome.timeout) {
+          finish("failed", "导入或刷新录音结果超过 20 秒，自动流程已停止。", {
+            completedCount: completedCount,
+          });
+          return;
+        }
+        const imported = importOutcome.value;
+        if (importOutcome.error || !imported?.ok || imported?.current === false) {
+          finish("failed", normalizeText(imported?.message) || "导入或刷新录音结果失败，自动流程已停止。", {
+            completedCount: completedCount,
+          });
+          return;
+        }
+        const recordingResult = imported.result || imported.recordingResult || null;
+        const recordingStatus = normalizeText(recordingResult?.status || imported.status).toUpperCase();
+        const itemCode = normalizeText(imported.mapping?.itemCode || recordingResult?.itemCode);
+        publish({
+          phase: "waiting-available",
+          completedCount: completedCount,
+          itemCode: itemCode,
+          message: "正在确认录音条目是否为待领取。",
+        });
+        if (recordingStatus !== RECORDING_AUTOMATION_AVAILABLE_STATUS) {
+          finish("failed", "当前录音条目不是待领取，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+
+        const postponeLookup = findExactVisibleButton(getRoot(), "押后", false);
+        if (postponeLookup.count === 0) {
+          finish("completed", "已无可押后数据。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+        if (postponeLookup.count !== 1) {
+          finish("failed", "未找到唯一可用的“押后”按钮，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+
+        publish({
+          phase: "postponing",
+          completedCount: completedCount,
+          itemCode: itemCode,
+          message: "正在填写押后原因。",
+        });
+        if (!invokeClick(postponeLookup.node)) {
+          finish("failed", "无法点击“押后”按钮，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+        const popoverOutcome = await waitUntil(token, function () {
+          const lookup = findPostponeReasonPopover(getRoot());
+          return lookup.count > 0 ? lookup : null;
+        });
+        if (popoverOutcome.stopped) {
+          return;
+        }
+        if (popoverOutcome.timeout || popoverOutcome.error || popoverOutcome.value?.count !== 1) {
+          finish("failed", "未找到唯一可见的“押后原因”弹层，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+        pendingPopover = popoverOutcome.value.node;
+        confirmationSent = false;
+        const textarea = findUniquePostponeTextarea(pendingPopover);
+        pendingPopoverActionGroup = findPostponeTextareaActionButtonGroup(textarea);
+        if (!textarea || !pendingPopoverActionGroup || !writePostponeReason(textarea)) {
+          finish("failed", "无法写入押后原因，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+        if (!isActive(token)) {
+          return;
+        }
+        const confirmLookup = findExactVisibleButton(pendingPopoverActionGroup, "确定", false);
+        if (confirmLookup.count !== 1) {
+          finish("failed", "未找到唯一可用的押后确认按钮，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+        if (!invokeClick(confirmLookup.node)) {
+          finish("failed", "无法确认押后，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+        confirmationSent = true;
+        pendingPopover = null;
+        pendingPopoverActionGroup = null;
+        publish({
+          phase: "waiting-next",
+          completedCount: completedCount,
+          itemCode: itemCode,
+          message: "押后已确认，正在验证是否进入下一题。",
+        });
+        const nextItemOutcome = await waitUntil(token, async function () {
+          const nextOutcome = await getCurrentItemId(token);
+          if (nextOutcome.stopped || nextOutcome.timeout || nextOutcome.error) {
+            return null;
+          }
+          return nextOutcome.value !== currentItemId ? nextOutcome.value : null;
+        });
+        if (nextItemOutcome.stopped) {
+          return;
+        }
+        if (nextItemOutcome.timeout || nextItemOutcome.error) {
+          finish("failed", "押后可能已提交，但未验证下一题，自动流程已停止。", {
+            completedCount: completedCount,
+            itemCode: itemCode,
+          });
+          return;
+        }
+        completedCount += 1;
+        round += 1;
+      }
+    }
+
+    function start() {
+      if (running) {
+        return Promise.resolve(false);
+      }
+      running = true;
+      runToken += 1;
+      pendingPopover = null;
+      pendingPopoverActionGroup = null;
+      confirmationSent = false;
+      publish({
+        phase: "importing",
+        completedCount: 0,
+        itemCode: "",
+        message: "自动流程已开始。",
+      });
+      return run().then(function () {
+        return true;
+      });
+    }
+
+    function stop(message) {
+      if (!running) {
+        return false;
+      }
+      runToken += 1;
+      running = false;
+      dismissPendingPopover();
+      confirmationSent = false;
+      publish({
+        phase: "stopped",
+        message: normalizeText(message) || "已停止自动流程。",
+      });
+      return true;
+    }
+
+    return {
+      start: start,
+      stop: stop,
+      isRunning: function () {
+        return running;
+      },
+      getState: function () {
+        return Object.assign({}, state);
+      },
+    };
   }
 
   function findTaskListMountAnchor(root) {
@@ -4117,6 +4633,7 @@
       lastObservedAt: 0,
       activeUntil: 0,
     };
+    helperRuntime?.recordingAutomation?.stop?.("页面已切换，自动流程已停止。");
     if (helperRuntime?.ui?.destroy) {
       helperRuntime.ui.destroy();
     }
@@ -4560,63 +5077,115 @@
     }
   }
 
-  async function handleRecordingImportAction() {
-    if (!helperRuntime?.recording || helperRuntime.recordingImportBusy === true) {
-      return;
+  async function runRecordingImportAndRefresh(options) {
+    const source = options && typeof options === "object" ? options : {};
+    const runtime = helperRuntime;
+    if (!runtime?.recording || runtime.recordingImportBusy === true) {
+      return {
+        ok: false,
+        message: "录音导入正在进行或当前不可用。",
+      };
     }
-    helperRuntime.recordingImportBusy = true;
+    runtime.recordingImportBusy = true;
     try {
-      if (
-        typeof helperRuntime.recording.inspectCurrentItem === "function"
-      ) {
-        const inspected =
-          await helperRuntime.recording.inspectCurrentItem();
+      if (typeof runtime.recording.inspectCurrentItem === "function") {
+        const inspected = await runtime.recording.inspectCurrentItem();
+        if (helperRuntime !== runtime) {
+          return {
+            ok: false,
+            current: false,
+          };
+        }
         if (inspected?.current === false) {
-          return;
+          return {
+            ok: false,
+            current: false,
+          };
         }
         if (!inspected?.ok) {
-          helperRuntime.ui?.setStatus?.(
-            inspected?.message || "当前完整题目数据尚未就绪，请稍后重试。",
-            "error"
-          );
-          return;
+          const message =
+            inspected?.message || "当前完整题目数据尚未就绪，请稍后重试。";
+          runtime.ui?.setStatus?.(message, "error");
+          return {
+            ok: false,
+            message: message,
+          };
         }
       }
-      helperRuntime.ui?.setStatus?.("正在导入当前完整题目到录音平台...", "");
+      runtime.ui?.setStatus?.("正在导入当前完整题目到录音平台...", "");
       if (typeof document !== "undefined") {
-        syncPlaybackSensitiveDecorations(document, helperRuntime.config || {});
+        syncPlaybackSensitiveDecorations(document, runtime.config || {});
       }
-      const result = await helperRuntime.recording.importCurrentItem();
-      if (result?.current === false) {
-        return;
+      const imported = await runtime.recording.importCurrentItem();
+      if (helperRuntime !== runtime || imported?.current === false) {
+        return {
+          ok: false,
+          current: false,
+        };
       }
-      if (result?.ok && result?.kind === "existing" && result.mapping) {
-        showRecordingAlreadyImported(result.mapping);
-        return;
+      if (!imported?.ok || !imported?.mapping) {
+        const message = imported?.message || "导入录音任务失败，请稍后重试。";
+        runtime.ui?.setStatus?.(message, imported?.ok ? "success" : "error");
+        return {
+          ok: false,
+          message: message,
+          importResult: imported || null,
+        };
       }
-      if (result?.ok && result?.kind === "replayed" && result.mapping) {
-        showRecordingAlreadyImported(result.mapping);
-        await refreshRecordingResultAfterImport(result);
-        return;
-      }
-      if (result?.ok && result.mapping) {
-        await refreshRecordingResultAfterImport(result);
-        return;
-      }
-      helperRuntime.ui?.setStatus?.(
-        result?.message || "导入录音任务失败，请稍后重试。",
-        result?.ok ? "success" : "error"
-      );
-    } catch (_error) {
-      helperRuntime.ui?.setStatus?.("导入录音任务失败，请稍后重试。", "error");
-    } finally {
-      if (helperRuntime) {
-        helperRuntime.recordingImportBusy = false;
-        if (typeof document !== "undefined") {
-          syncPlaybackSensitiveDecorations(document, helperRuntime.config || {});
+      if (imported.kind === "existing") {
+        showRecordingAlreadyImported(imported.mapping);
+        if (source.refreshExisting !== true) {
+          return {
+            ok: true,
+            kind: imported.kind,
+            mapping: imported.mapping,
+            importResult: imported,
+            result: imported.initialResult || null,
+          };
         }
+      } else if (imported.kind === "replayed") {
+        showRecordingAlreadyImported(imported.mapping);
+      }
+      const refreshed = await refreshRecordingResultAfterImport(imported);
+      if (!refreshed?.ok) {
+        return {
+          ok: false,
+          current: refreshed?.current,
+          message: refreshed?.message || "录音结果刷新失败，请稍后重试。",
+          kind: imported.kind,
+          mapping: imported.mapping,
+          importResult: imported,
+        };
+      }
+      return {
+        ok: true,
+        kind: imported.kind,
+        mapping: imported.mapping,
+        importResult: imported,
+        result: refreshed.result,
+      };
+    } catch (_error) {
+      const message = "导入录音任务失败，请稍后重试。";
+      if (helperRuntime === runtime) {
+        runtime.ui?.setStatus?.(message, "error");
+      }
+      return {
+        ok: false,
+        current: helperRuntime === runtime,
+        message: message,
+      };
+    } finally {
+      runtime.recordingImportBusy = false;
+      if (helperRuntime === runtime && typeof document !== "undefined") {
+        syncPlaybackSensitiveDecorations(document, runtime.config || {});
       }
     }
+  }
+
+  async function handleRecordingImportAction() {
+    await runRecordingImportAndRefresh({
+      refreshExisting: false,
+    });
   }
 
   function showRecordingAlreadyImported(mapping) {
@@ -4636,7 +5205,10 @@
   async function refreshRecordingResultAfterImport(importResult) {
     const runtime = helperRuntime;
     if (!runtime?.recording || !importResult?.mapping) {
-      return;
+      return {
+        ok: false,
+        message: "录音映射不可用。",
+      };
     }
     runtime.ui?.renderRecordingResult?.(
       importResult.initialResult || {
@@ -4648,7 +5220,11 @@
     try {
       const refreshed = await runtime.recording.refreshCurrentResult();
       if (helperRuntime !== runtime || !refreshed) {
-        return;
+        return {
+          ok: false,
+          current: false,
+          message: "当前题目已切换，已忽略过期录音结果。",
+        };
       }
       if (refreshed.notImported === true) {
         throw new Error("recording mapping unavailable after import");
@@ -4660,6 +5236,11 @@
           : "录音条目已添加，结果已刷新。",
         "success"
       );
+      return {
+        ok: true,
+        current: true,
+        result: refreshed,
+      };
     } catch (_error) {
       if (helperRuntime === runtime) {
         runtime.ui?.setStatus?.(
@@ -4667,6 +5248,11 @@
           "warning"
         );
       }
+      return {
+        ok: false,
+        current: helperRuntime === runtime,
+        message: "录音条目已添加，但结果刷新失败，可手动刷新。",
+      };
     }
   }
 
@@ -4872,6 +5458,12 @@
       onRefreshRecordingResult: function () {
         void handleRecordingRefreshAction();
       },
+      onStartRecordingAutomation: function () {
+        void helperRuntime?.recordingAutomation?.start?.();
+      },
+      onStopRecordingAutomation: function () {
+        helperRuntime?.recordingAutomation?.stop?.();
+      },
     });
     const shortcuts =
       shortcutFactory && typeof shortcutFactory.createRuntime === "function"
@@ -4907,7 +5499,7 @@
       ai: ai,
       ui: ui,
     });
-    helperRuntime = {
+    const runtime = {
       dataApi: dataApi,
       ai: ai,
       batchController: batchController,
@@ -4936,6 +5528,38 @@
         scheduleRuntimeReload(helperRuntime);
       },
     };
+    helperRuntime = runtime;
+    runtime.recordingAutomation = createRecordingAutomationController({
+      root: function () {
+        return typeof document !== "undefined" ? document : null;
+      },
+      getCurrentItemId: async function () {
+        if (
+          helperRuntime !== runtime ||
+          typeof runtime.dataApi?.getCurrentReceiveItemId !== "function"
+        ) {
+          return "";
+        }
+        const itemId = await runtime.dataApi.getCurrentReceiveItemId();
+        return helperRuntime === runtime ? normalizeText(itemId) : "";
+      },
+      importAndRefresh: async function () {
+        if (helperRuntime !== runtime) {
+          return {
+            ok: false,
+            current: false,
+          };
+        }
+        return runRecordingImportAndRefresh({
+          refreshExisting: true,
+        });
+      },
+      onStateChange: function (state) {
+        if (helperRuntime === runtime) {
+          runtime.ui?.renderRecordingAutomationState?.(state);
+        }
+      },
+    });
     shortcuts?.bind?.();
     runWithProtectedScrollState(document, function () {
       ui.mount();
@@ -4950,6 +5574,7 @@
         phaseText: "",
       });
       ui.renderRecordingResult?.(null);
+      ui.renderRecordingAutomationState?.(runtime.recordingAutomation.getState());
       ui.setStatus(COMMON_READY_MESSAGE, "success");
     });
     syncPlaybackSensitiveDecorations(
@@ -5197,6 +5822,8 @@
       buildSegmentRecognizeButtonOptions: buildSegmentRecognizeButtonOptions,
       handleRecommendAction: handleRecommendAction,
       handleRowRecommendAction: handleRowRecommendAction,
+      createRecordingAutomationController: createRecordingAutomationController,
+      runRecordingImportAndRefresh: runRecordingImportAndRefresh,
       handleRecordingImportAction: handleRecordingImportAction,
       handleRecordingRefreshAction: handleRecordingRefreshAction,
       syncRecordingResultForContext: syncRecordingResultForContext,

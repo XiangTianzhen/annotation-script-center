@@ -3450,6 +3450,388 @@ test("ByteDance AIDP content exposes exactly the expected shortcut action handle
   ]);
 });
 
+function createRecordingAutomationHarness(options) {
+  const source = options && typeof options === "object" ? options : {};
+  let currentItemId = source.currentItemId || "source-a";
+  let postponeClicks = 0;
+  let submitClicks = 0;
+  let confirmClicks = 0;
+  let wrongConfirmClicks = 0;
+  let cancelClicks = 0;
+  let latestTextarea = null;
+  const postponeButton = new FakeElement({
+    tagName: "button",
+    text: "押后",
+  });
+  const submitButton = new FakeElement({
+    tagName: "button",
+    text: "提交",
+  });
+  const root = createFakeDocument([postponeButton, submitButton]);
+
+  function appendPopover() {
+    const textarea = new FakeElement({
+      tagName: "textarea",
+      className: "ve-o-textarea",
+    });
+    if (source.reasonWritable === false) {
+      Object.defineProperty(textarea, "value", {
+        configurable: true,
+        get() {
+          return "";
+        },
+        set() {},
+      });
+    }
+    const confirmButton = source.primaryConfirmAbsent
+      ? null
+      : new FakeElement({
+          tagName: "button",
+          text: "确定",
+        });
+    const cancelButton = new FakeElement({
+      tagName: "button",
+      text: "取消",
+    });
+    const buttonGroup = new FakeElement({
+      className: "button-group-UKARIg",
+      children: [confirmButton, cancelButton].filter(Boolean),
+    });
+    const extraConfirmButtonGroup = source.extraConfirmButtonGroup
+      ? new FakeElement({
+          className: "button-group-UKARIg",
+          children: [
+            new FakeElement({
+              tagName: "button",
+              text: "确定",
+            }),
+          ],
+        })
+      : null;
+    const popover = new FakeElement({
+      className: "ve-o-popover-content ve-o-popover-content-top",
+      attributes: {
+        role: "tooltip",
+      },
+      children: [
+        new FakeElement({ className: "ve-o-popover-title", text: "押后原因" }),
+        textarea,
+        buttonGroup,
+        extraConfirmButtonGroup,
+      ].filter(Boolean),
+    });
+    textarea.addEventListener("input", function () {
+      source.onTextareaInput?.();
+    });
+    if (confirmButton) {
+      confirmButton.addEventListener("click", function () {
+        confirmClicks += 1;
+        if (source.confirmChangesItem !== false) {
+          currentItemId = source.nextItemId || "source-b";
+          postponeButton.disabled = true;
+        }
+        if (popover.parentNode) {
+          popover.parentNode.removeChild(popover);
+        }
+      });
+    }
+    if (extraConfirmButtonGroup) {
+      extraConfirmButtonGroup.children[0].addEventListener("click", function () {
+        wrongConfirmClicks += 1;
+      });
+    }
+    cancelButton.addEventListener("click", function () {
+      cancelClicks += 1;
+      if (popover.parentNode) {
+        popover.parentNode.removeChild(popover);
+      }
+    });
+    latestTextarea = textarea;
+    root.appendChild(popover);
+  }
+
+  postponeButton.addEventListener("click", function () {
+    postponeClicks += 1;
+    const count = Math.max(0, Number(source.popoverCount ?? 1));
+    for (let index = 0; index < count; index += 1) {
+      appendPopover();
+    }
+  });
+  submitButton.addEventListener("click", function () {
+    submitClicks += 1;
+  });
+
+  let clock = 0;
+  const states = [];
+  return {
+    root,
+    states,
+    getCurrentItemId: async function () {
+      return currentItemId;
+    },
+    importAndRefresh: source.importAndRefresh || (async function () {
+      return {
+        ok: true,
+        kind: "created",
+        mapping: { itemCode: "T000001-0000022" },
+        result: { status: "AVAILABLE" },
+      };
+    }),
+    now: function () {
+      return clock;
+    },
+    wait: async function () {
+      clock += 1;
+    },
+    getCounters: function () {
+      return {
+        postponeClicks,
+        submitClicks,
+        confirmClicks,
+        wrongConfirmClicks,
+        cancelClicks,
+        textareaValue: latestTextarea?.value || "",
+      };
+    },
+  };
+}
+
+function createRecordingAutomationControllerForTest(contentModule, harness, overrides) {
+  const source = overrides && typeof overrides === "object" ? overrides : {};
+  return contentModule.__testOnly.createRecordingAutomationController({
+    root: harness.root,
+    getCurrentItemId: harness.getCurrentItemId,
+    importAndRefresh: harness.importAndRefresh,
+    timeoutMs: 4,
+    pollIntervalMs: 0,
+    now: harness.now,
+    wait: harness.wait,
+    onStateChange: function (state) {
+      harness.states.push(state);
+    },
+    ...source,
+  });
+}
+
+test("ByteDance AIDP recording automation completes one safe postpone without clicking submit", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness();
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.deepEqual(harness.getCounters(), {
+    postponeClicks: 1,
+    submitClicks: 0,
+    confirmClicks: 1,
+    wrongConfirmClicks: 0,
+    cancelClicks: 0,
+    textareaValue: "1",
+  });
+  assert.equal(harness.states.at(-1).phase, "completed");
+  assert.equal(harness.states.at(-1).completedCount, 1);
+});
+
+test("ByteDance AIDP recording automation accepts an existing mapping only when refreshed as available", async function () {
+  const contentModule = loadContentModule();
+  let importCalls = 0;
+  const harness = createRecordingAutomationHarness({
+    importAndRefresh: async function () {
+      importCalls += 1;
+      return {
+        ok: true,
+        kind: "existing",
+        mapping: { itemCode: "T000001-0000022" },
+        result: { status: "AVAILABLE" },
+      };
+    },
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(importCalls, 1);
+  assert.equal(harness.getCounters().confirmClicks, 1);
+  assert.equal(harness.states.at(-1).phase, "completed");
+});
+
+test("ByteDance AIDP recording import refreshes an existing mapping before automation can postpone it", async function () {
+  const contentModule = loadContentModule();
+  let refreshCalls = 0;
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recordingImportBusy: false,
+    config: {},
+    recording: {
+      async inspectCurrentItem() {
+        return { ok: true, current: true };
+      },
+      async importCurrentItem() {
+        return {
+          ok: true,
+          kind: "existing",
+          mapping: {
+            sourceItemId: "source-a",
+            itemCode: "T000001-0000022",
+          },
+        };
+      },
+      async refreshCurrentResult() {
+        refreshCalls += 1;
+        return {
+          sourceItemId: "source-a",
+          itemCode: "T000001-0000022",
+          status: "AVAILABLE",
+        };
+      },
+    },
+    ui: {
+      renderRecordingResult() {},
+      setStatus() {},
+      showToast() {},
+    },
+  });
+
+  const result = await contentModule.__testOnly.runRecordingImportAndRefresh({
+    refreshExisting: true,
+  });
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+
+  assert.equal(refreshCalls, 1);
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, "existing");
+  assert.equal(result.result.status, "AVAILABLE");
+});
+
+test("ByteDance AIDP recording automation stops before postponing a non-available recording item", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({
+    importAndRefresh: async function () {
+      return {
+        ok: true,
+        mapping: { itemCode: "T000001-0000022" },
+        result: { status: "COMPLETED" },
+      };
+    },
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().postponeClicks, 0);
+  assert.equal(harness.states.at(-1).phase, "failed");
+  assert.match(harness.states.at(-1).message, /待领取/);
+});
+
+test("ByteDance AIDP recording automation fails closed for missing or ambiguous postpone dialogs", async function () {
+  const contentModule = loadContentModule();
+  for (const popoverCount of [0, 2]) {
+    const harness = createRecordingAutomationHarness({ popoverCount });
+    const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+    await controller.start();
+
+    assert.equal(harness.getCounters().confirmClicks, 0);
+    assert.equal(harness.states.at(-1).phase, "failed");
+  }
+});
+
+test("ByteDance AIDP recording automation never confirms through a different postpone dialog button group", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({
+    primaryConfirmAbsent: true,
+    extraConfirmButtonGroup: true,
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().confirmClicks, 0);
+  assert.equal(harness.getCounters().wrongConfirmClicks, 0);
+  assert.equal(harness.getCounters().cancelClicks, 1);
+  assert.equal(harness.states.at(-1).phase, "failed");
+});
+
+test("ByteDance AIDP recording automation stops when it cannot write postpone reason", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({ reasonWritable: false });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().confirmClicks, 0);
+  assert.equal(harness.getCounters().cancelClicks, 1);
+  assert.equal(harness.states.at(-1).phase, "failed");
+  assert.match(harness.states.at(-1).message, /原因/);
+});
+
+test("ByteDance AIDP recording automation never repeats a confirmed postpone when next item is not verified", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({ confirmChangesItem: false });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().confirmClicks, 1);
+  assert.equal(harness.states.at(-1).phase, "failed");
+  assert.match(harness.states.at(-1).message, /未验证下一题/);
+});
+
+test("ByteDance AIDP recording automation stops when import or refresh reaches the twenty-second limit", async function () {
+  const contentModule = loadContentModule();
+  let timerCalls = 0;
+  const harness = createRecordingAutomationHarness({
+    importAndRefresh: async function () {
+      return new Promise(function () {});
+    },
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness, {
+    setTimeout(callback) {
+      timerCalls += 1;
+      if (timerCalls >= 2) {
+        callback();
+      }
+      return timerCalls;
+    },
+    clearTimeout() {},
+  });
+
+  await controller.start();
+
+  assert.equal(harness.states.at(-1).phase, "failed");
+  assert.match(harness.states.at(-1).message, /超过 20 秒/);
+});
+
+test("ByteDance AIDP recording automation cancels an open postpone dialog when the user stops before confirmation", async function () {
+  const contentModule = loadContentModule();
+  let controller = null;
+  const harness = createRecordingAutomationHarness({
+    onTextareaInput: function () {
+      controller.stop();
+    },
+  });
+  controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().confirmClicks, 0);
+  assert.equal(harness.getCounters().cancelClicks, 1);
+  assert.equal(harness.states.at(-1).phase, "stopped");
+});
+
+test("ByteDance AIDP recording automation finishes normally when no usable postpone button exists", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness();
+  const postponeButton = harness.root.children[0];
+  postponeButton.disabled = true;
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().submitClicks, 0);
+  assert.equal(harness.states.at(-1).phase, "completed");
+  assert.equal(harness.states.at(-1).completedCount, 0);
+});
+
 test("ByteDance AIDP content keeps header helper buttons on a single line", function () {
   const contentModule = loadContentModule();
   const headerActionGroup = new FakeElement({
