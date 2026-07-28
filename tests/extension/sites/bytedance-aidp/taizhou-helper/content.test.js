@@ -3463,6 +3463,14 @@ function createRecordingAutomationHarness(options) {
     tagName: "button",
     text: "押后",
   });
+  const postponeButtonAvailableAfter = Math.max(
+    0,
+    Math.round(Number(source.postponeButtonAvailableAfter) || 0)
+  );
+  if (postponeButtonAvailableAfter > 0) {
+    postponeButton.disabled = true;
+  }
+  let postponeButtonEnabledOnce = false;
   const submitButton = new FakeElement({
     tagName: "button",
     text: "提交",
@@ -3582,6 +3590,14 @@ function createRecordingAutomationHarness(options) {
     },
     wait: async function () {
       clock += 1;
+      if (
+        postponeButtonAvailableAfter > 0 &&
+        !postponeButtonEnabledOnce &&
+        clock >= postponeButtonAvailableAfter
+      ) {
+        postponeButton.disabled = false;
+        postponeButtonEnabledOnce = true;
+      }
     },
     getCounters: function () {
       return {
@@ -3628,6 +3644,21 @@ test("ByteDance AIDP recording automation completes one safe postpone without cl
     cancelClicks: 0,
     textareaValue: "1",
   });
+  assert.equal(harness.states.at(-1).phase, "completed");
+  assert.equal(harness.states.at(-1).completedCount, 1);
+});
+
+test("ByteDance AIDP recording automation waits for the initial native postpone button after result refresh", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({
+    postponeButtonAvailableAfter: 1,
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().postponeClicks, 1);
+  assert.equal(harness.getCounters().confirmClicks, 1);
   assert.equal(harness.states.at(-1).phase, "completed");
   assert.equal(harness.states.at(-1).completedCount, 1);
 });

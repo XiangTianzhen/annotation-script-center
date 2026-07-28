@@ -1439,21 +1439,28 @@
           return;
         }
 
-        const postponeLookup = findExactVisibleButton(getRoot(), "押后", false);
-        if (postponeLookup.count === 0) {
+        const postponeButtonOutcome = await waitUntil(token, function () {
+          const lookup = findExactVisibleButton(getRoot(), "押后", false);
+          return lookup.count > 0 ? lookup : null;
+        });
+        if (postponeButtonOutcome.stopped) {
+          return;
+        }
+        if (postponeButtonOutcome.timeout) {
           finish("completed", "已无可押后数据。", {
             completedCount: completedCount,
             itemCode: itemCode,
           });
           return;
         }
-        if (postponeLookup.count !== 1) {
+        if (postponeButtonOutcome.error || postponeButtonOutcome.value?.count !== 1) {
           finish("failed", "未找到唯一可用的“押后”按钮，自动流程已停止。", {
             completedCount: completedCount,
             itemCode: itemCode,
           });
           return;
         }
+        const postponeLookup = postponeButtonOutcome.value;
 
         publish({
           phase: "postponing",
