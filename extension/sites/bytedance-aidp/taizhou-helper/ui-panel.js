@@ -39,7 +39,7 @@
     const labels = {
       idle: "待命",
       importing: "导入中",
-      "waiting-available": "等待待领取",
+      "waiting-available": "等待可押后",
       postponing: "押后中",
       "waiting-next": "等待下一题",
       completed: "已完成",
@@ -1030,7 +1030,7 @@
       recordingAutomationHead.appendChild(
         createSectionTitleRow(
           "全自动导入并押后",
-          "仅在手动开始后运行：每轮导入并刷新当前录音条目，确认待领取后点击页面原生“押后”，填写原因 1 并验证已进入下一题。可随时停止。"
+          "仅在手动开始后运行：每轮导入并刷新当前录音条目，确认待领取或待审核领取后点击页面原生“押后”，填写原因 1 并验证已进入下一题。可随时停止。"
         )
       );
       const recordingAutomationActions = document.createElement("div");
@@ -1669,6 +1669,7 @@
     createRuntime,
     __testOnly: {
       formatRecordingStatus,
+      formatRecordingAutomationPhase,
     },
   };
 

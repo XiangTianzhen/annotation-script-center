@@ -31,7 +31,7 @@
   const DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED = true;
   const RECORDING_AUTOMATION_TIMEOUT_MS = 20000;
   const RECORDING_AUTOMATION_POLL_INTERVAL_MS = 200;
-  const RECORDING_AUTOMATION_AVAILABLE_STATUS = "AVAILABLE";
+  const RECORDING_AUTOMATION_POSTPONABLE_STATUSES = new Set(["AVAILABLE", "SUBMITTED"]);
   const COMMON_READY_MESSAGE =
     "台州话脚本已就绪，可使用当前页面中的辅助功能。";
   const TOOLBAR_ACTION_GROUP_ATTR = "data-asc-toolbar-action-group";
@@ -1429,13 +1429,19 @@
           phase: "waiting-available",
           completedCount: completedCount,
           itemCode: itemCode,
-          message: "正在确认录音条目是否为待领取。",
+          message: "正在确认录音条目是否可押后。",
         });
-        if (recordingStatus !== RECORDING_AUTOMATION_AVAILABLE_STATUS) {
-          finish("failed", "当前录音条目不是待领取，自动流程已停止。", {
+        if (!RECORDING_AUTOMATION_POSTPONABLE_STATUSES.has(recordingStatus)) {
+          finish(
+            "failed",
+            "当前录音条目不在可押后状态（当前状态：" +
+              (recordingStatus || "UNKNOWN") +
+              "），自动流程已停止。",
+            {
             completedCount: completedCount,
             itemCode: itemCode,
-          });
+            }
+          );
           return;
         }
 

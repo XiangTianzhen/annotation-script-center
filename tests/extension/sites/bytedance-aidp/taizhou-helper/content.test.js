@@ -3686,6 +3686,29 @@ test("ByteDance AIDP recording automation accepts an existing mapping only when 
   assert.equal(harness.states.at(-1).phase, "completed");
 });
 
+test("ByteDance AIDP recording automation postpones a submitted recording item", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({
+    importAndRefresh: async function () {
+      return {
+        ok: true,
+        kind: "replayed",
+        mapping: { itemCode: "T000001-0000003" },
+        result: { status: "SUBMITTED" },
+      };
+    },
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().postponeClicks, 1);
+  assert.equal(harness.getCounters().confirmClicks, 1);
+  assert.equal(harness.getCounters().submitClicks, 0);
+  assert.equal(harness.states.at(-1).phase, "completed");
+  assert.equal(harness.states.at(-1).completedCount, 1);
+});
+
 test("ByteDance AIDP recording import refreshes an existing mapping before automation can postpone it", async function () {
   const contentModule = loadContentModule();
   let refreshCalls = 0;
@@ -3733,14 +3756,14 @@ test("ByteDance AIDP recording import refreshes an existing mapping before autom
   assert.equal(result.result.status, "AVAILABLE");
 });
 
-test("ByteDance AIDP recording automation stops before postponing a non-available recording item", async function () {
+test("ByteDance AIDP recording automation reports the received status before stopping", async function () {
   const contentModule = loadContentModule();
   const harness = createRecordingAutomationHarness({
     importAndRefresh: async function () {
       return {
         ok: true,
         mapping: { itemCode: "T000001-0000022" },
-        result: { status: "COMPLETED" },
+        result: { status: "RECORDING_PENDING" },
       };
     },
   });
@@ -3750,7 +3773,8 @@ test("ByteDance AIDP recording automation stops before postponing a non-availabl
 
   assert.equal(harness.getCounters().postponeClicks, 0);
   assert.equal(harness.states.at(-1).phase, "failed");
-  assert.match(harness.states.at(-1).message, /待领取/);
+  assert.match(harness.states.at(-1).message, /可押后状态/);
+  assert.match(harness.states.at(-1).message, /RECORDING_PENDING/);
 });
 
 test("ByteDance AIDP recording automation fails closed for missing or ambiguous postpone dialogs", async function () {

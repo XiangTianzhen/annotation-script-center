@@ -876,6 +876,15 @@ test("AIDP taizhou ui panel maps the supported recording workflow statuses", fun
   assert.equal(format(""), "未知状态");
 });
 
+test("AIDP taizhou ui panel describes the automation eligibility check", function () {
+  const module = loadUiPanelModule();
+
+  assert.equal(
+    module.__testOnly.formatRecordingAutomationPhase("waiting-available"),
+    "等待可押后"
+  );
+});
+
 test("AIDP taizhou ui panel switches preview buttons from settings-only auto-apply state", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
