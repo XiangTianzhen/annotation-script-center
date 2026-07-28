@@ -1422,6 +1422,46 @@
           }
         }
 
+        if (typeof source.getImportContext === "function") {
+          publish({
+            phase: "importing",
+            completedCount: completedCount,
+            itemCode: "",
+            message: "正在等待当前完整题目数据刷新。",
+          });
+          const importContextOutcome = await waitUntil(token, async function () {
+            const context = await source.getImportContext();
+            if (context?.ok === true) {
+              return { ready: true };
+            }
+            const reason = normalizeText(context?.reason).toLowerCase();
+            if (reason === "waiting" || reason === "stale") {
+              return null;
+            }
+            return { invalid: context || null };
+          });
+          if (importContextOutcome.stopped) {
+            return;
+          }
+          if (importContextOutcome.timeout) {
+            finish("failed", "等待当前完整题目数据刷新超过 20 秒，自动流程已停止。", {
+              completedCount: completedCount,
+            });
+            return;
+          }
+          if (importContextOutcome.error || importContextOutcome.value?.invalid) {
+            finish(
+              "failed",
+              normalizeText(importContextOutcome.value?.invalid?.message) ||
+                "当前完整题目数据不可用，自动流程已停止。",
+              {
+                completedCount: completedCount,
+              }
+            );
+            return;
+          }
+        }
+
         publish({
           phase: "importing",
           completedCount: completedCount,
@@ -5584,6 +5624,27 @@
         }
         const itemId = await runtime.dataApi.getCurrentReceiveItemId();
         return helperRuntime === runtime ? normalizeText(itemId) : "";
+      },
+      getImportContext: async function () {
+        if (
+          helperRuntime !== runtime ||
+          typeof runtime.dataApi?.getRecordingImportContext !== "function"
+        ) {
+          return {
+            ok: false,
+            reason: "unavailable",
+            message: "当前完整题目数据不可用。",
+          };
+        }
+        const context = await runtime.dataApi.getRecordingImportContext();
+        if (helperRuntime !== runtime) {
+          return {
+            ok: false,
+            reason: "unavailable",
+            message: "页面已切换，当前完整题目数据不可用。",
+          };
+        }
+        return context;
       },
       importAndRefresh: async function () {
         if (helperRuntime !== runtime) {

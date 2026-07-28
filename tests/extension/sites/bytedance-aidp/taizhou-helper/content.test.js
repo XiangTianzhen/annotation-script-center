@@ -3550,8 +3550,11 @@ function createRecordingAutomationHarness(options) {
       confirmButton.addEventListener("click", function () {
         confirmClicks += 1;
         if (source.confirmChangesItem !== false) {
-          currentItemId = source.nextItemId || "source-b";
-          postponeButton.disabled = true;
+          const nextItemId = Array.isArray(source.nextItemIds)
+            ? source.nextItemIds[confirmClicks - 1]
+            : source.nextItemId;
+          currentItemId = nextItemId || "source-b";
+          postponeButton.disabled = source.keepPostponeEnabledAfterConfirm !== true;
         }
         if (popover.parentNode) {
           popover.parentNode.removeChild(popover);
@@ -3740,6 +3743,52 @@ test("ByteDance AIDP recording automation postpones a submitted recording item",
   assert.equal(harness.getCounters().submitClicks, 0);
   assert.equal(harness.states.at(-1).phase, "completed");
   assert.equal(harness.states.at(-1).completedCount, 1);
+});
+
+test("ByteDance AIDP recording automation waits for the next matching complete-item snapshot before importing", async function () {
+  const contentModule = loadContentModule();
+  let contextPolls = 0;
+  let importCalls = 0;
+  let controller = null;
+  const harness = createRecordingAutomationHarness({
+    keepPostponeEnabledAfterConfirm: true,
+    nextItemIds: ["source-b"],
+  });
+  controller = createRecordingAutomationControllerForTest(contentModule, harness, {
+    getImportContext: async function () {
+      contextPolls += 1;
+      if (contextPolls === 1 || contextPolls >= 4) {
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        reason: "stale",
+        message: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
+      };
+    },
+    importAndRefresh: async function () {
+      importCalls += 1;
+      return {
+        ok: true,
+        mapping: { itemCode: "T000001-0000022" },
+        result: { status: "AVAILABLE" },
+      };
+    },
+    onStateChange: function (state) {
+      harness.states.push(state);
+      if (state.phase === "postponing" && importCalls === 2) {
+        controller.stop("测试停止");
+      }
+    },
+  });
+
+  await controller.start();
+
+  assert.equal(contextPolls, 4);
+  assert.equal(importCalls, 2);
+  assert.equal(harness.getCounters().confirmClicks, 1);
+  assert.equal(harness.getCounters().submitClicks, 0);
+  assert.equal(harness.states.at(-1).phase, "stopped");
 });
 
 test("ByteDance AIDP recording import refreshes an existing mapping before automation can postpone it", async function () {
