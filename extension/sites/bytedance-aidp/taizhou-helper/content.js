@@ -1088,7 +1088,11 @@
 
   function isNodeAndAncestorsVisible(node) {
     let current = node || null;
-    while (current && String(current.tagName || "").toUpperCase() !== "DOCUMENT") {
+    while (
+      current &&
+      current.nodeType !== 9 &&
+      String(current.tagName || "").toUpperCase() !== "DOCUMENT"
+    ) {
       if (!isNodeVisible(current)) {
         return false;
       }

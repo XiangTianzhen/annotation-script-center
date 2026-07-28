@@ -334,6 +334,13 @@ function createFakeDocument(children) {
   return documentNode;
 }
 
+function createBrowserLikeDocument(children) {
+  const documentNode = createFakeDocument(children);
+  documentNode.nodeType = 9;
+  documentNode.tagName = "";
+  return documentNode;
+}
+
 function createFakeIframe(contentChildren) {
   const iframe = new FakeElement({
     tagName: "iframe",
@@ -3482,9 +3489,8 @@ function createRecordingAutomationHarness(options) {
         text: "押后",
       })
     : null;
-  const root = createFakeDocument(
-    [postponeButton, genericPostponeLabel, submitButton].filter(Boolean)
-  );
+  const rootFactory = source.browserLikeDocument ? createBrowserLikeDocument : createFakeDocument;
+  const root = rootFactory([postponeButton, genericPostponeLabel, submitButton].filter(Boolean));
 
   function appendPopover() {
     const textarea = new FakeElement({
@@ -3663,6 +3669,7 @@ test("ByteDance AIDP recording automation clicks the verified defer div without 
     postponeControlTagName: "div",
     postponeControlClassName: "button-style-UOaJCn defer-button-C58HAE",
     extraGenericPostponeLabel: true,
+    browserLikeDocument: true,
   });
   const controller = createRecordingAutomationControllerForTest(contentModule, harness);
 
