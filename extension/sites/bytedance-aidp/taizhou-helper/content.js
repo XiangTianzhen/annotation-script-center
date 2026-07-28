@@ -1123,6 +1123,31 @@
     };
   }
 
+  function findExactVisiblePostponeControl(root) {
+    const matches = [];
+    getSearchRoots(root).forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        const tagName = String(node?.tagName || "").toUpperCase();
+        const isNativeButton = tagName === "BUTTON";
+        const isVerifiedDeferControl =
+          tagName === "DIV" && getClassName(node).toLowerCase().indexOf("defer-button") >= 0;
+        if (
+          getNodeText(node) !== "押后" ||
+          (!isNativeButton && !isVerifiedDeferControl) ||
+          !isNodeAndAncestorsVisible(node) ||
+          !isEnabledNativeButton(node)
+        ) {
+          return;
+        }
+        matches.push(node);
+      });
+    });
+    return {
+      node: matches.length === 1 ? matches[0] : null,
+      count: matches.length,
+    };
+  }
+
   function findAncestorWithClassFragment(node, fragment) {
     const normalizedFragment = normalizeText(fragment).toLowerCase();
     let current = node?.parentElement || node?.parentNode || null;
@@ -1373,7 +1398,7 @@
             message: "正在等待下一题完成初始化。",
           });
           const nextButtonOutcome = await waitUntil(token, function () {
-            const lookup = findExactVisibleButton(getRoot(), "押后", false);
+            const lookup = findExactVisiblePostponeControl(getRoot());
             return lookup.count > 0 ? lookup : null;
           });
           if (nextButtonOutcome.stopped) {
@@ -1446,7 +1471,7 @@
         }
 
         const postponeButtonOutcome = await waitUntil(token, function () {
-          const lookup = findExactVisibleButton(getRoot(), "押后", false);
+          const lookup = findExactVisiblePostponeControl(getRoot());
           return lookup.count > 0 ? lookup : null;
         });
         if (postponeButtonOutcome.stopped) {

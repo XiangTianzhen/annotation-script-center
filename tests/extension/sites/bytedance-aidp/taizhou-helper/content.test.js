@@ -3460,7 +3460,8 @@ function createRecordingAutomationHarness(options) {
   let cancelClicks = 0;
   let latestTextarea = null;
   const postponeButton = new FakeElement({
-    tagName: "button",
+    tagName: source.postponeControlTagName || "button",
+    className: source.postponeControlClassName || "",
     text: "押后",
   });
   const postponeButtonAvailableAfter = Math.max(
@@ -3475,7 +3476,15 @@ function createRecordingAutomationHarness(options) {
     tagName: "button",
     text: "提交",
   });
-  const root = createFakeDocument([postponeButton, submitButton]);
+  const genericPostponeLabel = source.extraGenericPostponeLabel
+    ? new FakeElement({
+        tagName: "div",
+        text: "押后",
+      })
+    : null;
+  const root = createFakeDocument(
+    [postponeButton, genericPostponeLabel, submitButton].filter(Boolean)
+  );
 
   function appendPopover() {
     const textarea = new FakeElement({
@@ -3645,6 +3654,23 @@ test("ByteDance AIDP recording automation completes one safe postpone without cl
     textareaValue: "1",
   });
   assert.equal(harness.states.at(-1).phase, "completed");
+  assert.equal(harness.states.at(-1).completedCount, 1);
+});
+
+test("ByteDance AIDP recording automation clicks the verified defer div without clicking submit", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({
+    postponeControlTagName: "div",
+    postponeControlClassName: "button-style-UOaJCn defer-button-C58HAE",
+    extraGenericPostponeLabel: true,
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness);
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().postponeClicks, 1);
+  assert.equal(harness.getCounters().confirmClicks, 1);
+  assert.equal(harness.getCounters().submitClicks, 0);
   assert.equal(harness.states.at(-1).completedCount, 1);
 });
 
