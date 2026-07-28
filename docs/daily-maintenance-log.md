@@ -164,3 +164,11 @@
 - 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md，未修改业务代码、接口、页面、数据库、依赖、配置文件或环境变量文件
 - 后续待办：继续关注扩展运行时契约、五脚本平台资料索引、录音平台接入说明与统一后端 README 是否保持一致
 - 自动维护记录说明：本条由 automation-3 每日维护任务自动生成，用于记录本轮只执行文档级维护并按固定 add、commit、push 流程归档
+
+## 2026-07-28
+- 日期：2026-07-28
+- 项目：标注脚本中心（annotation-script-center），当前维护三个平台、五个浏览器扩展辅助脚本、平台资料与统一 Node.js 后端
+- 本次检查范围：已阅读 AGENTS.md、README.md、AI 修改日志 log.md、docs/README.md、docs/platforms-index.md、extension/README.md、platform-resources/README.md、platform-resources/backend/README.md，并确认维护前 main 工作区无未提交改动
+- 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md，未修改业务代码、接口、页面、数据库、依赖、配置文件或环境变量文件
+- 后续待办：继续关注扩展运行时契约、五脚本平台资料索引、录音平台接入边界与统一后端 README 是否保持一致
+- 自动维护记录说明：本条由 automation-3 每日维护任务自动生成，用于记录本轮只执行文档级维护并按固定 add、commit、push 流程归档
