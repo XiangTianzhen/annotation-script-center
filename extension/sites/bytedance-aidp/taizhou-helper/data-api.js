@@ -3,6 +3,7 @@
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+  const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
   const DEFAULT_SEARCH_CONTEXT_TTL_MS = 10 * 60 * 1000;
   const APPLY_SUCCESS_MESSAGE = "已通过平台暂存接口应用分段建议，请刷新页面复核。";
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
@@ -1114,6 +1115,11 @@
     let submitSnapshot = null;
     let searchItemSnapshots = new Map();
     let snapshotEventSequence = 0;
+    let pageNetworkActivity = {
+      pendingCount: 0,
+      lastActivityAt: 0,
+      activitySequence: 0,
+    };
 
     function withSnapshotEventSequence(snapshot) {
       snapshotEventSequence += 1;
@@ -1146,6 +1152,22 @@
           nextSnapshots.set(sequencedSnapshot.sourceItemId, sequencedSnapshot);
         });
         searchItemSnapshots = nextSnapshots;
+        return;
+      }
+      if (data.type === NETWORK_ACTIVITY_TYPE) {
+        const pendingCount = Math.max(0, Math.round(Number(data.payload?.pendingCount) || 0));
+        const activitySequence = Math.max(
+          0,
+          Math.round(Number(data.payload?.activitySequence) || 0)
+        );
+        if (activitySequence <= pageNetworkActivity.activitySequence) {
+          return;
+        }
+        pageNetworkActivity = {
+          pendingCount: pendingCount,
+          lastActivityAt: Number(now()) || 0,
+          activitySequence: activitySequence,
+        };
       }
     }
 
@@ -1163,6 +1185,10 @@
 
     async function getCurrentReceiveItemId() {
       return normalizeText(receiveSnapshot?.itemId);
+    }
+
+    function getPageNetworkActivity() {
+      return Object.assign({}, pageNetworkActivity);
     }
 
     async function getRecordingImportContext() {
@@ -1491,6 +1517,7 @@
     return {
       getCurrentContext,
       getCurrentReceiveItemId,
+      getPageNetworkActivity,
       getRecordingImportContext,
       applySegmentPreview,
       clearCurrentSegments,

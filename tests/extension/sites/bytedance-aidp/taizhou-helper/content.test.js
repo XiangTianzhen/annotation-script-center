@@ -3465,6 +3465,9 @@ function createRecordingAutomationHarness(options) {
   let confirmClicks = 0;
   let wrongConfirmClicks = 0;
   let cancelClicks = 0;
+  let clock = 0;
+  const postponeClickTimes = [];
+  const confirmClickTimes = [];
   let latestTextarea = null;
   const postponeButton = new FakeElement({
     tagName: source.postponeControlTagName || "button",
@@ -3549,6 +3552,7 @@ function createRecordingAutomationHarness(options) {
     if (confirmButton) {
       confirmButton.addEventListener("click", function () {
         confirmClicks += 1;
+        confirmClickTimes.push(clock);
         if (source.confirmChangesItem !== false) {
           const nextItemId = Array.isArray(source.nextItemIds)
             ? source.nextItemIds[confirmClicks - 1]
@@ -3578,6 +3582,8 @@ function createRecordingAutomationHarness(options) {
 
   postponeButton.addEventListener("click", function () {
     postponeClicks += 1;
+    postponeClickTimes.push(clock);
+    source.onPostponeClick?.({ now: clock });
     const count = Math.max(0, Number(source.popoverCount ?? 1));
     for (let index = 0; index < count; index += 1) {
       appendPopover();
@@ -3587,7 +3593,6 @@ function createRecordingAutomationHarness(options) {
     submitClicks += 1;
   });
 
-  let clock = 0;
   const states = [];
   return {
     root,
@@ -3608,6 +3613,7 @@ function createRecordingAutomationHarness(options) {
     },
     wait: async function () {
       clock += 1;
+      source.onWait?.({ now: clock });
       if (
         postponeButtonAvailableAfter > 0 &&
         !postponeButtonEnabledOnce &&
@@ -3617,6 +3623,11 @@ function createRecordingAutomationHarness(options) {
         postponeButtonEnabledOnce = true;
       }
     },
+    getNetworkActivity: function () {
+      return typeof source.getNetworkActivity === "function"
+        ? source.getNetworkActivity({ now: clock })
+        : { pendingCount: 0, lastActivityAt: 0 };
+    },
     getCounters: function () {
       return {
         postponeClicks,
@@ -3625,6 +3636,12 @@ function createRecordingAutomationHarness(options) {
         wrongConfirmClicks,
         cancelClicks,
         textareaValue: latestTextarea?.value || "",
+      };
+    },
+    getClickTimes: function () {
+      return {
+        postponeClickTimes: postponeClickTimes.slice(),
+        confirmClickTimes: confirmClickTimes.slice(),
       };
     },
   };
@@ -3640,6 +3657,8 @@ function createRecordingAutomationControllerForTest(contentModule, harness, over
     pollIntervalMs: 0,
     now: harness.now,
     wait: harness.wait,
+    getNetworkActivity: harness.getNetworkActivity,
+    networkQuietMs: 0,
     onStateChange: function (state) {
       harness.states.push(state);
     },
@@ -3664,6 +3683,101 @@ test("ByteDance AIDP recording automation completes one safe postpone without cl
   });
   assert.equal(harness.states.at(-1).phase, "completed");
   assert.equal(harness.states.at(-1).completedCount, 1);
+});
+
+test("ByteDance AIDP recording automation waits for network settlement and quiet time before confirmation", async function () {
+  const contentModule = loadContentModule();
+  let pendingCount = 0;
+  let lastActivityAt = 0;
+  const harness = createRecordingAutomationHarness({
+    onPostponeClick: function ({ now }) {
+      pendingCount = 1;
+      lastActivityAt = now;
+    },
+    onWait: function ({ now }) {
+      if (now === 2) {
+        pendingCount = 0;
+        lastActivityAt = now;
+      }
+    },
+    getNetworkActivity: function () {
+      return { pendingCount, lastActivityAt };
+    },
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness, {
+    timeoutMs: 8,
+    networkQuietMs: 3,
+  });
+
+  await controller.start();
+
+  const counters = harness.getCounters();
+  const clickTimes = harness.getClickTimes();
+  assert.equal(counters.postponeClicks, 1);
+  assert.equal(counters.confirmClicks, 1);
+  assert.equal(counters.submitClicks, 0);
+  assert.ok(clickTimes.confirmClickTimes[0] >= 5);
+  assert.ok(harness.states.some((state) => state.phase === "waiting-network"));
+});
+
+test("ByteDance AIDP recording automation restarts the quiet interval when page activity resumes", async function () {
+  const contentModule = loadContentModule();
+  let lastActivityAt = 0;
+  const harness = createRecordingAutomationHarness({
+    onWait: function ({ now }) {
+      if (now === 1) {
+        lastActivityAt = now;
+      }
+    },
+    getNetworkActivity: function () {
+      return { pendingCount: 0, lastActivityAt };
+    },
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness, {
+    timeoutMs: 8,
+    networkQuietMs: 3,
+  });
+
+  await controller.start();
+
+  assert.ok(harness.getClickTimes().confirmClickTimes[0] >= 4);
+  assert.equal(harness.getCounters().submitClicks, 0);
+});
+
+test("ByteDance AIDP recording automation keeps a minimum quiet interval without page requests", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness();
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness, {
+    timeoutMs: 8,
+    networkQuietMs: 3,
+  });
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().confirmClicks, 1);
+  assert.ok(harness.getClickTimes().confirmClickTimes[0] >= 3);
+  assert.equal(harness.getCounters().submitClicks, 0);
+});
+
+test("ByteDance AIDP recording automation stops before confirmation when page requests never settle", async function () {
+  const contentModule = loadContentModule();
+  const harness = createRecordingAutomationHarness({
+    onPostponeClick: function () {},
+    getNetworkActivity: function () {
+      return { pendingCount: 2, lastActivityAt: 0 };
+    },
+  });
+  const controller = createRecordingAutomationControllerForTest(contentModule, harness, {
+    timeoutMs: 4,
+    networkQuietMs: 1,
+  });
+
+  await controller.start();
+
+  assert.equal(harness.getCounters().confirmClicks, 0);
+  assert.equal(harness.getCounters().submitClicks, 0);
+  assert.equal(harness.states.at(-1).phase, "failed");
+  assert.match(harness.states.at(-1).message, /网络请求.*2/);
 });
 
 test("ByteDance AIDP recording automation clicks the verified defer div without clicking submit", async function () {

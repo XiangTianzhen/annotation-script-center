@@ -31,6 +31,7 @@
   const DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED = true;
   const RECORDING_AUTOMATION_TIMEOUT_MS = 20000;
   const RECORDING_AUTOMATION_POLL_INTERVAL_MS = 200;
+  const RECORDING_AUTOMATION_NETWORK_QUIET_MS = 1000;
   const RECORDING_AUTOMATION_POSTPONABLE_STATUSES = new Set(["AVAILABLE", "SUBMITTED"]);
   const COMMON_READY_MESSAGE =
     "台州话脚本已就绪，可使用当前页面中的辅助功能。";
@@ -1249,6 +1250,14 @@
       0,
       Math.round(Number(source.pollIntervalMs) || RECORDING_AUTOMATION_POLL_INTERVAL_MS)
     );
+    const networkQuietMs = Math.max(
+      0,
+      Math.round(
+        Number.isFinite(Number(source.networkQuietMs))
+          ? Number(source.networkQuietMs)
+          : RECORDING_AUTOMATION_NETWORK_QUIET_MS
+      )
+    );
     const getNow = typeof source.now === "function" ? source.now : Date.now;
     const wait = typeof source.wait === "function" ? source.wait : waitFor;
     const getRoot = function () {
@@ -1261,6 +1270,8 @@
     let pendingPopover = null;
     let pendingPopoverActionGroup = null;
     let confirmationSent = false;
+    let lastForwardClickAt = 0;
+    let hasForwardClick = false;
     let state = {
       phase: "idle",
       completedCount: 0,
@@ -1376,6 +1387,76 @@
         }
       }
       return outcome;
+    }
+
+    function getPageNetworkActivity() {
+      try {
+        const activity =
+          typeof source.getNetworkActivity === "function" ? source.getNetworkActivity() : null;
+        return {
+          pendingCount: Math.max(0, Math.round(Number(activity?.pendingCount) || 0)),
+          lastActivityAt: Math.max(0, Number(activity?.lastActivityAt) || 0),
+          activitySequence: Math.max(0, Math.round(Number(activity?.activitySequence) || 0)),
+        };
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    async function waitForPageNetworkQuiet(token, completedCount, itemCode) {
+      let latestActivity = {
+        pendingCount: 0,
+        lastActivityAt: 0,
+        activitySequence: 0,
+      };
+      const outcome = await waitUntil(token, function () {
+        const activity = getPageNetworkActivity();
+        if (!activity) {
+          throw new Error("network activity unavailable");
+        }
+        latestActivity = activity;
+        const currentTime = Math.max(0, Number(getNow()) || 0);
+        const hasObservedNetworkActivity =
+          activity.activitySequence > 0 || activity.lastActivityAt > 0;
+        const quietSince = hasForwardClick
+          ? Math.max(lastForwardClickAt, activity.lastActivityAt)
+          : activity.lastActivityAt;
+        const remainingQuietMs =
+          hasForwardClick || hasObservedNetworkActivity
+            ? Math.max(0, networkQuietMs - (currentTime - quietSince))
+            : 0;
+        if (activity.pendingCount <= 0 && remainingQuietMs <= 0) {
+          return true;
+        }
+        publish({
+          phase: "waiting-network",
+          completedCount: completedCount,
+          itemCode: itemCode,
+          pendingRequestCount: activity.pendingCount,
+          message:
+            activity.pendingCount > 0
+              ? "正在等待网络结算（" + String(activity.pendingCount) + " 个请求）。"
+              : "网络请求已结算，正在等待 " + String(networkQuietMs) + "ms 安全间隔。",
+        });
+        return null;
+      });
+      return Object.assign({}, outcome, {
+        activity: latestActivity,
+      });
+    }
+
+    function finishForNetworkWaitFailure(completedCount, itemCode, pendingCount) {
+      finish(
+        "failed",
+        "页面网络请求在 20 秒内未结算或未连续静默（" +
+          String(Math.max(0, Math.round(Number(pendingCount) || 0))) +
+          " 个未结算请求），自动流程已停止。",
+        {
+          completedCount: completedCount,
+          itemCode: itemCode,
+          pendingRequestCount: Math.max(0, Math.round(Number(pendingCount) || 0)),
+        }
+      );
     }
 
     async function run() {
@@ -1537,6 +1618,23 @@
         }
         const postponeLookup = postponeButtonOutcome.value;
 
+        const postponeNetworkOutcome = await waitForPageNetworkQuiet(
+          token,
+          completedCount,
+          itemCode
+        );
+        if (postponeNetworkOutcome.stopped) {
+          return;
+        }
+        if (postponeNetworkOutcome.timeout || postponeNetworkOutcome.error) {
+          finishForNetworkWaitFailure(
+            completedCount,
+            itemCode,
+            postponeNetworkOutcome.activity?.pendingCount
+          );
+          return;
+        }
+
         publish({
           phase: "postponing",
           completedCount: completedCount,
@@ -1550,6 +1648,8 @@
           });
           return;
         }
+        lastForwardClickAt = Math.max(0, Number(getNow()) || 0);
+        hasForwardClick = true;
         const popoverOutcome = await waitUntil(token, function () {
           const lookup = findPostponeReasonPopover(getRoot());
           return lookup.count > 0 ? lookup : null;
@@ -1586,6 +1686,22 @@
           });
           return;
         }
+        const confirmNetworkOutcome = await waitForPageNetworkQuiet(
+          token,
+          completedCount,
+          itemCode
+        );
+        if (confirmNetworkOutcome.stopped) {
+          return;
+        }
+        if (confirmNetworkOutcome.timeout || confirmNetworkOutcome.error) {
+          finishForNetworkWaitFailure(
+            completedCount,
+            itemCode,
+            confirmNetworkOutcome.activity?.pendingCount
+          );
+          return;
+        }
         if (!invokeClick(confirmLookup.node)) {
           finish("failed", "无法确认押后，自动流程已停止。", {
             completedCount: completedCount,
@@ -1593,6 +1709,8 @@
           });
           return;
         }
+        lastForwardClickAt = Math.max(0, Number(getNow()) || 0);
+        hasForwardClick = true;
         confirmationSent = true;
         pendingPopover = null;
         pendingPopoverActionGroup = null;
@@ -5645,6 +5763,16 @@
           };
         }
         return context;
+      },
+      getNetworkActivity: function () {
+        if (helperRuntime !== runtime || typeof runtime.dataApi?.getPageNetworkActivity !== "function") {
+          return {
+            pendingCount: 0,
+            lastActivityAt: 0,
+            activitySequence: 0,
+          };
+        }
+        return runtime.dataApi.getPageNetworkActivity();
       },
       importAndRefresh: async function () {
         if (helperRuntime !== runtime) {

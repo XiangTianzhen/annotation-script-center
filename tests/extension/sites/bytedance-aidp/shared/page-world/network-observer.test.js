@@ -22,7 +22,7 @@ function createFakeWindow(options) {
     this.responseText = "";
   }
   FakeXhr.prototype.open = function () {};
-  FakeXhr.prototype.send = function () {};
+  FakeXhr.prototype.send = source.xhrSend || function () {};
   FakeXhr.prototype.setRequestHeader = function () {};
   FakeXhr.prototype.addEventListener = function (type, listener) {
     this._listeners.set(String(type || ""), listener);
@@ -163,8 +163,10 @@ test("shared AIDP network observer sends safe fields for every Search Item fetch
     );
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.equal(windowLike.messages.length, 1);
-    assert.deepEqual(windowLike.messages[0], {
+    const searchMessage = windowLike.messages.find(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+    });
+    assert.deepEqual(searchMessage, {
       targetOrigin: "https://aidp.bytedance.com",
       message: {
         source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
@@ -225,8 +227,10 @@ test("shared AIDP network observer captures and sanitizes Search Item XHR respon
     });
     xhr.emit("load");
 
-    assert.equal(windowLike.messages.length, 1);
-    assert.deepEqual(windowLike.messages[0].message.payload, {
+    const searchMessage = windowLike.messages.find(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+    });
+    assert.deepEqual(searchMessage.message.payload, {
       items: [
         {
           sourceItemId: "source-item-xhr",
@@ -237,6 +241,212 @@ test("shared AIDP network observer captures and sanitizes Search Item XHR respon
       ],
     });
     assert.doesNotMatch(JSON.stringify(windowLike.messages), /authorization|must-not-send/i);
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer publishes count-only lifecycle for every fetch settlement", async function () {
+  let resolveFetch = null;
+  const windowLike = createFakeWindow({
+    fetch: function () {
+      return new Promise(function (resolve) {
+        resolveFetch = resolve;
+      });
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    const request = windowLike.fetch(
+      "https://aidp.bytedance.com/api/dispatch/Defer?authorization=must-not-send"
+    );
+
+    assert.deepEqual(windowLike.messages.at(-1), {
+      targetOrigin: "https://aidp.bytedance.com",
+      message: {
+        source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+        type: "BYTEDANCE_AIDP_NETWORK_ACTIVITY",
+        payload: {
+          pendingCount: 1,
+          activitySequence: 1,
+        },
+      },
+    });
+
+    resolveFetch({ ok: true });
+    await request;
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(windowLike.messages.at(-1), {
+      targetOrigin: "https://aidp.bytedance.com",
+      message: {
+        source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+        type: "BYTEDANCE_AIDP_NETWORK_ACTIVITY",
+        payload: {
+          pendingCount: 0,
+          activitySequence: 2,
+        },
+      },
+    });
+    assert.doesNotMatch(JSON.stringify(windowLike.messages), /Defer|authorization|must-not-send/i);
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer settles XHR activity on loadend", function () {
+  const windowLike = createFakeWindow();
+
+  try {
+    loadObserverModule(windowLike);
+    const xhr = new windowLike.XMLHttpRequest();
+    xhr.open("POST", "https://aidp.bytedance.com/api/dispatch/Defer");
+    xhr.send("sensitive-body");
+    xhr.emit("loadend");
+
+    assert.deepEqual(
+      windowLike.messages.map((entry) => entry.message),
+      [
+        {
+          source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+          type: "BYTEDANCE_AIDP_NETWORK_ACTIVITY",
+          payload: { pendingCount: 1, activitySequence: 1 },
+        },
+        {
+          source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+          type: "BYTEDANCE_AIDP_NETWORK_ACTIVITY",
+          payload: { pendingCount: 0, activitySequence: 2 },
+        },
+      ]
+    );
+    assert.doesNotMatch(JSON.stringify(windowLike.messages), /Defer|sensitive-body/i);
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer settles rejected fetch activity", async function () {
+  const windowLike = createFakeWindow({
+    fetch: function () {
+      return Promise.reject(new Error("network rejected"));
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await assert.rejects(
+      windowLike.fetch("https://aidp.bytedance.com/api/dispatch/Defer"),
+      /network rejected/
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(
+      windowLike.messages.map((entry) => entry.message.payload),
+      [
+        { pendingCount: 1, activitySequence: 1 },
+        { pendingCount: 0, activitySequence: 2 },
+      ]
+    );
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer settles a canceled fetch without exposing its details", async function () {
+  const cancellation = Object.assign(new Error("request canceled"), { name: "AbortError" });
+  const windowLike = createFakeWindow({
+    fetch: function () {
+      return Promise.reject(cancellation);
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await assert.rejects(
+      windowLike.fetch("https://aidp.bytedance.com/api/dispatch/Defer?request=private"),
+      cancellation
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(
+      windowLike.messages.map((entry) => entry.message.payload),
+      [
+        { pendingCount: 1, activitySequence: 1 },
+        { pendingCount: 0, activitySequence: 2 },
+      ]
+    );
+    assert.doesNotMatch(JSON.stringify(windowLike.messages), /request=private|AbortError/i);
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer settles XHR timeout through loadend", function () {
+  const windowLike = createFakeWindow();
+
+  try {
+    loadObserverModule(windowLike);
+    const xhr = new windowLike.XMLHttpRequest();
+    xhr.open("GET", "https://aidp.bytedance.com/api/dispatch/Defer");
+    xhr.send();
+    xhr.emit("timeout");
+    assert.deepEqual(windowLike.messages.at(-1).message.payload, {
+      pendingCount: 1,
+      activitySequence: 1,
+    });
+
+    xhr.emit("loadend");
+    assert.deepEqual(windowLike.messages.at(-1).message.payload, {
+      pendingCount: 0,
+      activitySequence: 2,
+    });
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer settles a synchronous XHR send exception", function () {
+  const windowLike = createFakeWindow({
+    xhrSend: function () {
+      throw new Error("send failed");
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    const xhr = new windowLike.XMLHttpRequest();
+    xhr.open("POST", "https://aidp.bytedance.com/api/dispatch/Defer");
+    assert.throws(function () {
+      xhr.send("private body");
+    }, /send failed/);
+
+    assert.deepEqual(
+      windowLike.messages.map((entry) => entry.message.payload),
+      [
+        { pendingCount: 1, activitySequence: 1 },
+        { pendingCount: 0, activitySequence: 2 },
+      ]
+    );
+    assert.doesNotMatch(JSON.stringify(windowLike.messages), /private body|send failed/i);
   } finally {
     delete require.cache[modulePath];
     delete globalThis.window;

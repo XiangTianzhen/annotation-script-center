@@ -883,6 +883,10 @@ test("AIDP taizhou ui panel describes the automation eligibility check", functio
     module.__testOnly.formatRecordingAutomationPhase("waiting-available"),
     "等待可押后"
   );
+  assert.equal(
+    module.__testOnly.formatRecordingAutomationPhase("waiting-network"),
+    "等待网络结算"
+  );
 });
 
 test("AIDP taizhou ui panel switches preview buttons from settings-only auto-apply state", function () {
@@ -1248,10 +1252,10 @@ test("AIDP taizhou ui panel renders manual recording automation controls and sta
     const panelRoot = findMountedPanelRoot(harness.body);
 
     runtime.renderRecordingAutomationState({
-      phase: "waiting-next",
+      phase: "waiting-network",
       completedCount: 2,
       itemCode: "T000001-0000022",
-      message: "押后已确认，正在验证是否进入下一题。",
+      message: "正在等待网络结算（2 个请求）。",
     });
 
     const stateNode = findNode(panelRoot, function (node) {
@@ -1264,10 +1268,13 @@ test("AIDP taizhou ui panel renders manual recording automation controls and sta
       return node.getAttribute("data-recording-automation-stop") === "true";
     });
     assert.ok(stateNode);
-    assert.match(stateNode.textContent, /等待下一题/);
+    assert.match(stateNode.textContent, /等待网络结算/);
+    assert.match(stateNode.textContent, /2 个请求/);
     assert.match(stateNode.textContent, /已成功 2 条/);
     assert.ok(startButton);
     assert.ok(stopButton);
+    assert.equal(startButton.disabled, true);
+    assert.equal(stopButton.disabled, false);
     startButton.click();
     stopButton.click();
     assert.equal(started, 1);

@@ -3,6 +3,7 @@
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+  const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
   const RECEIVE_PATH = "/api/dispatch/Receive";
   const SUBMIT_PATH = "/api/dispatch/SubmitTempItemAnswer";
   const SEARCH_ITEM_PATH = "/dispatcher/search_item/category";
@@ -181,6 +182,8 @@
     const windowLike = deps.window || globalThis.window || globalThis;
     const locationLike = deps.location || windowLike.location || globalThis.location || {};
     let installed = false;
+    let pendingNetworkRequestCount = 0;
+    let networkActivitySequence = 0;
 
     function notifyReceive(rawUrl, payload) {
       postMessage(windowLike, locationLike, RECEIVE_TYPE, {
@@ -208,6 +211,28 @@
       );
     }
 
+    function notifyNetworkActivity() {
+      networkActivitySequence += 1;
+      postMessage(windowLike, locationLike, NETWORK_ACTIVITY_TYPE, {
+        pendingCount: pendingNetworkRequestCount,
+        activitySequence: networkActivitySequence,
+      });
+    }
+
+    function beginNetworkActivity() {
+      let settled = false;
+      pendingNetworkRequestCount += 1;
+      notifyNetworkActivity();
+      return function settleNetworkActivity() {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        pendingNetworkRequestCount = Math.max(0, pendingNetworkRequestCount - 1);
+        notifyNetworkActivity();
+      };
+    }
+
     function installFetchObserver() {
       const nativeFetch = windowLike.fetch;
       if (typeof nativeFetch !== "function") {
@@ -228,30 +253,44 @@
             notifySubmit(rawUrl, mergeHeaderSources(input?.headers, init?.headers), bodyText);
           });
         }
-        return nativeFetch.apply(this, args).then(function (response) {
-          const receiveRequest = isReceiveUrl(rawUrl, locationLike);
-          const searchItemRequest = isSearchItemUrl(rawUrl, locationLike);
-          if (!receiveRequest && !searchItemRequest) {
-            return response;
+        const settleNetworkActivity = beginNetworkActivity();
+        let request;
+        try {
+          request = nativeFetch.apply(this, args);
+        } catch (error) {
+          settleNetworkActivity();
+          throw error;
+        }
+        Promise.resolve(request).then(
+          function (response) {
+            settleNetworkActivity();
+            const receiveRequest = isReceiveUrl(rawUrl, locationLike);
+            const searchItemRequest = isSearchItemUrl(rawUrl, locationLike);
+            if (!receiveRequest && !searchItemRequest) {
+              return;
+            }
+            try {
+              response
+                .clone()
+                .text()
+                .then(function (text) {
+                  const payload = parseJsonSafely(text);
+                  if (receiveRequest && payload) {
+                    notifyReceive(rawUrl, payload);
+                  } else if (searchItemRequest) {
+                    notifySearchItem(text);
+                  }
+                })
+                .catch(function () {});
+            } catch (_error) {
+              // Keep page behavior unchanged if response cloning fails.
+            }
+          },
+          function () {
+            settleNetworkActivity();
           }
-          try {
-            response
-              .clone()
-              .text()
-              .then(function (text) {
-                const payload = parseJsonSafely(text);
-                if (receiveRequest && payload) {
-                  notifyReceive(rawUrl, payload);
-                } else if (searchItemRequest) {
-                  notifySearchItem(text);
-                }
-              })
-              .catch(function () {});
-          } catch (_error) {
-            // Keep page behavior unchanged if response cloning fails.
-          }
-          return response;
-        });
+        );
+        return request;
       };
     }
 
@@ -288,6 +327,10 @@
       NativeXhr.prototype.send = function (body) {
         const xhr = this;
         const rawUrl = xhr.__ascAidpRawUrl || "";
+        const settleNetworkActivity = beginNetworkActivity();
+        if (typeof xhr.addEventListener === "function") {
+          xhr.addEventListener("loadend", settleNetworkActivity);
+        }
         if (isSubmitUrl(rawUrl, locationLike)) {
           notifySubmit(rawUrl, xhr.__ascAidpHeaders, stringifyBodyCandidate(body));
         }
@@ -305,7 +348,12 @@
             }
           });
         }
-        return nativeSend.apply(this, arguments);
+        try {
+          return nativeSend.apply(this, arguments);
+        } catch (error) {
+          settleNetworkActivity();
+          throw error;
+        }
       };
     }
 
@@ -330,6 +378,7 @@
       RECEIVE_TYPE: RECEIVE_TYPE,
       SUBMIT_TYPE: SUBMIT_TYPE,
       SEARCH_ITEM_TYPE: SEARCH_ITEM_TYPE,
+      NETWORK_ACTIVITY_TYPE: NETWORK_ACTIVITY_TYPE,
     },
   };
 

@@ -40,6 +40,7 @@
       idle: "待命",
       importing: "导入中",
       "waiting-available": "等待可押后",
+      "waiting-network": "等待网络结算",
       postponing: "押后中",
       "waiting-next": "等待下一题",
       completed: "已完成",
@@ -1243,7 +1244,7 @@
     }
 
     function isRecordingAutomationActive(phase) {
-      return ["importing", "waiting-available", "postponing", "waiting-next"].includes(
+      return ["importing", "waiting-available", "waiting-network", "postponing", "waiting-next"].includes(
         normalizeText(phase)
       );
     }

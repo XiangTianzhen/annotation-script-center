@@ -10,6 +10,7 @@ const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
 const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
 const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
 const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
 
 function loadModule() {
   delete require.cache[modulePath];
@@ -424,6 +425,17 @@ function emitSearchItem(windowLike, payload) {
   );
 }
 
+function emitNetworkActivity(windowLike, payload, origin) {
+  windowLike.emitMessage(
+    {
+      source: OBSERVER_SOURCE,
+      type: NETWORK_ACTIVITY_TYPE,
+      payload: payload,
+    },
+    origin || "https://aidp.bytedance.com"
+  );
+}
+
 function createRuntimeHarness(options) {
   const settings = options && typeof options === "object" ? options : {};
   const moduleApi = loadModule();
@@ -522,6 +534,43 @@ test("AIDP data api reads the current Receive ItemID independently from a newer 
   emitSubmit(harness.windowLike, newerSubmitPayload);
 
   assert.equal(await harness.runtime.getCurrentReceiveItemId(), "7656690377962016562");
+});
+
+test("AIDP data api exposes only same-origin page-network activity snapshots", function () {
+  let currentTime = 100;
+  const harness = createRuntimeHarness({
+    now: function () {
+      return currentTime;
+    },
+  });
+
+  emitNetworkActivity(harness.windowLike, {
+    pendingCount: 2,
+    activitySequence: 4,
+    url: "https://must-not-store.example.test/path",
+  });
+  assert.deepEqual(harness.runtime.getPageNetworkActivity?.(), {
+    pendingCount: 2,
+    lastActivityAt: 100,
+    activitySequence: 4,
+  });
+
+  currentTime = 250;
+  emitNetworkActivity(harness.windowLike, {
+    pendingCount: 0,
+    activitySequence: 5,
+  });
+  emitNetworkActivity(
+    harness.windowLike,
+    { pendingCount: 99, activitySequence: 6 },
+    "https://untrusted.example.test"
+  );
+
+  assert.deepEqual(harness.runtime.getPageNetworkActivity?.(), {
+    pendingCount: 0,
+    lastActivityAt: 250,
+    activitySequence: 5,
+  });
 });
 
 test("AIDP data api exposes a safe full-item import context only for matching Receive ItemID", async function () {
