@@ -330,7 +330,15 @@
 
   function isDetailPagePathname(pathname) {
     const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
-    return /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+$/i.test(text);
+    return (
+      /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+$/i.test(text) ||
+      isReadOnlyScanPagePathname(text)
+    );
+  }
+
+  function isReadOnlyScanPagePathname(pathname) {
+    const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
+    return /^\/management\/task-v2\/[^/]+\/scan-v3\/14\/[^/]+$/i.test(text);
   }
 
   function isManagementPagePathname(pathname) {
@@ -1126,6 +1134,20 @@
       node: matches.length === 1 ? matches[0] : null,
       count: matches.length,
     };
+  }
+
+  function isReadOnlyScanPage() {
+    try {
+      return isReadOnlyScanPagePathname(globalThis.location?.pathname || "");
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function getCurrentHelperPageMode(pathname) {
+    const resolvedPathname =
+      pathname === undefined ? globalThis.location?.pathname || "" : pathname;
+    return isReadOnlyScanPagePathname(resolvedPathname) ? "scan-read-only" : "mark-write";
   }
 
   function findExactVisiblePostponeControl(root) {
@@ -4204,6 +4226,7 @@
       normalizeText(resolvedConfig.playbackScopeKey) ||
       helperRuntime?.playbackScopeKey ||
       getCurrentPlaybackScopeKey();
+    const readOnly = isReadOnlyScanPage() || resolvedConfig.readOnly === true;
     return runWithProtectedScrollState(root, function () {
       let changed = false;
       changed =
@@ -4213,24 +4236,26 @@
             playbackScopeKey: playbackScopeKey,
           })
         ) || changed;
-      changed =
-        ensureClearSegmentsButton(root, function () {
-          void handleClearSegmentsAction();
-        }) || changed;
-      changed =
-        ensureFillLanguageKindsButton(root, function () {
-          void handleFillLanguageKindsAction();
-        }) || changed;
-      changed =
-        syncRecordingImportButton(root, {
-          recordingTaskCode: resolvedConfig.recordingImportTaskCode,
-          contextReady: helperRuntime?.recordingContextReady === true,
-          contextMessage: helperRuntime?.recordingContextMessage,
-          busy: helperRuntime?.recordingImportBusy === true,
-          onClick: function () {
-            void handleRecordingImportAction();
-          },
-        }) || changed;
+      if (!readOnly) {
+        changed =
+          ensureClearSegmentsButton(root, function () {
+            void handleClearSegmentsAction();
+          }) || changed;
+        changed =
+          ensureFillLanguageKindsButton(root, function () {
+            void handleFillLanguageKindsAction();
+          }) || changed;
+        changed =
+          syncRecordingImportButton(root, {
+            recordingTaskCode: resolvedConfig.recordingImportTaskCode,
+            contextReady: helperRuntime?.recordingContextReady === true,
+            contextMessage: helperRuntime?.recordingContextMessage,
+            busy: helperRuntime?.recordingImportBusy === true,
+            onClick: function () {
+              void handleRecordingImportAction();
+            },
+          }) || changed;
+      }
       changed =
         ensureHideAuxiliaryZoneButton(root, function () {
           setTaizhouAuxiliaryZonesHidden(root, !taizhouAuxiliaryZonesHidden);
@@ -4297,9 +4322,10 @@
     const dataApi = deps.dataApi || null;
     const ai = deps.ai || null;
     const ui = deps.ui || null;
+    const readOnly = deps.readOnly === true;
     let activeRun = null;
     function getIdleActionMode() {
-      return "recognizeAndWrite";
+      return readOnly ? "recognizeOnly" : "recognizeAndWrite";
     }
 
     function pickBatchAiActiveSegment(results) {
@@ -4337,7 +4363,12 @@
           message: "当前已有正在运行的批量识别，请先等待完成或点击停止批量。",
         };
       }
-      if (!dataApi?.getCurrentContext || !dataApi?.writeBatchRegionTexts || !ai?.recommendForSegment || !ai?.createSharedAudioSource) {
+      if (
+        !dataApi?.getCurrentContext ||
+        (!readOnly && !dataApi?.writeBatchRegionTexts) ||
+        !ai?.recommendForSegment ||
+        !ai?.createSharedAudioSource
+      ) {
         throw new Error("当前脚本缺少批量识别运行时依赖。");
       }
       const lockedContext = await dataApi.getCurrentContext();
@@ -4474,6 +4505,14 @@
     }
 
     async function writeUpdates(selectionKey, currentSignature, updates) {
+      if (readOnly) {
+        return {
+          ok: true,
+          message: "批量识别完成，结果仅供预览和复制。",
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
       return dataApi.writeBatchRegionTexts({
         selectionKey: selectionKey,
         currentSignature: currentSignature,
@@ -4521,7 +4560,7 @@
           skippedCount: skippedCount,
           failures: result.failures,
         },
-        saveResult.ok ? "批量写回完成" : "批量写回失败",
+        readOnly ? "批量识别完成" : saveResult.ok ? "批量写回完成" : "批量写回失败",
         getIdleActionMode()
       );
       ui?.setStatus?.(
@@ -4875,15 +4914,17 @@
           return;
         }
         const context = await helperRuntime.dataApi.getCurrentContext();
-        const recordingImportContext =
-          typeof helperRuntime.dataApi.getRecordingImportContext === "function"
-            ? await helperRuntime.dataApi.getRecordingImportContext()
-            : null;
-        updateRecordingImportContextState(
-          helperRuntime,
-          normalizeText(context?.itemId),
-          recordingImportContext
-        );
+        if (!helperRuntime.readOnly) {
+          const recordingImportContext =
+            typeof helperRuntime.dataApi.getRecordingImportContext === "function"
+              ? await helperRuntime.dataApi.getRecordingImportContext()
+              : null;
+          updateRecordingImportContextState(
+            helperRuntime,
+            normalizeText(context?.itemId),
+            recordingImportContext
+          );
+        }
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
           helperRuntime.playbackScopeKey ||
@@ -4905,8 +4946,10 @@
               normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
           });
         });
-        const sourceItemId = normalizeText(context?.itemId);
-        await syncRecordingResultForContext(sourceItemId);
+        if (!helperRuntime.readOnly) {
+          const sourceItemId = normalizeText(context?.itemId);
+          await syncRecordingResultForContext(sourceItemId);
+        }
         syncPlaybackSensitiveDecorations(
           document,
           Object.assign({}, helperRuntime.config || {}, {
@@ -4985,7 +5028,11 @@
       helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
       helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
       helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
-      await fillCurrentRecommendation(helperRuntime, helperRuntime.lastRecommendation);
+      if (helperRuntime.readOnly) {
+        helperRuntime.ui.setStatus("识别完成，结果仅供预览和复制。", "success");
+      } else {
+        await fillCurrentRecommendation(helperRuntime, helperRuntime.lastRecommendation);
+      }
     } catch (error) {
       helperRuntime.ui.setStatus(
         "识别失败：" + (error && error.message ? error.message : String(error)),
@@ -5031,7 +5078,11 @@
       helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
       helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
       helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
-      await fillCurrentRecommendation(helperRuntime, helperRuntime.lastRecommendation);
+      if (helperRuntime.readOnly) {
+        helperRuntime.ui.setStatus("识别完成，结果仅供预览和复制。", "success");
+      } else {
+        await fillCurrentRecommendation(helperRuntime, helperRuntime.lastRecommendation);
+      }
     } catch (error) {
       helperRuntime.ui.setStatus(
         "第 " +
@@ -5569,7 +5620,10 @@
       return;
     }
     const endpoint = resolveSegmentPreviewEndpoint(settings);
-    const helperConfig = resolveHelperConfig(settings);
+    const readOnly = getCurrentHelperPageMode() === "scan-read-only";
+    const helperConfig = Object.assign({}, resolveHelperConfig(settings), {
+      readOnly: readOnly,
+    });
     if (typeof document !== "undefined") {
       ensurePlaybackScrollGuardWatchdog(document);
     }
@@ -5614,7 +5668,7 @@
         helperConfig.mergeContiguousSuggestedSegmentsEnabled,
     });
     const recording =
-      recordingFactory && typeof recordingFactory.createRuntime === "function"
+      !readOnly && recordingFactory && typeof recordingFactory.createRuntime === "function"
         ? recordingFactory.createRuntime({
             dataApi: dataApi,
             storage: STORAGE,
@@ -5629,6 +5683,7 @@
         : null;
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: helperConfig.segmentPreviewAutoApplyEnabled,
+      readOnly: readOnly,
       onRecommend: function () {
         if (helperConfig.aiRecommendEnabled === false) {
           ui.setStatus("当前已关闭台州话 AI 功能。", "error");
@@ -5647,21 +5702,39 @@
         helperRuntime?.batchController?.stop?.();
       },
       onPreview: function () {
+        if (readOnly) {
+          return;
+        }
         void handlePreviewAction();
       },
       onApplyPreview: function () {
+        if (readOnly) {
+          return;
+        }
         void handleApplyPreviewAction();
       },
       onClearSegments: function () {
+        if (readOnly) {
+          return;
+        }
         void handleClearSegmentsAction();
       },
       onRefreshRecordingResult: function () {
+        if (readOnly) {
+          return;
+        }
         void handleRecordingRefreshAction();
       },
       onStartRecordingAutomation: function () {
+        if (readOnly) {
+          return;
+        }
         void helperRuntime?.recordingAutomation?.start?.();
       },
       onStopRecordingAutomation: function () {
+        if (readOnly) {
+          return;
+        }
         helperRuntime?.recordingAutomation?.stop?.();
       },
     });
@@ -5683,12 +5756,21 @@
                 return triggerDeleteCurrentSelectionAction(document);
               },
               onClearSegments: function () {
+                if (readOnly) {
+                  return;
+                }
                 return handleClearSegmentsAction();
               },
               onPreviewSegments: function () {
+                if (readOnly) {
+                  return;
+                }
                 return handlePreviewAction();
               },
               onApplyPreviewSegments: function () {
+                if (readOnly) {
+                  return;
+                }
                 return handleApplyPreviewAction();
               },
             }),
@@ -5698,10 +5780,13 @@
       dataApi: dataApi,
       ai: ai,
       ui: ui,
+      readOnly: readOnly,
     });
     const runtime = {
       dataApi: dataApi,
       ai: ai,
+      readOnly: readOnly,
+      pageMode: getCurrentHelperPageMode(),
       batchController: batchController,
       segment: segment,
       recording: recording,
@@ -5729,7 +5814,19 @@
       },
     };
     helperRuntime = runtime;
-    runtime.recordingAutomation = createRecordingAutomationController({
+    runtime.recordingAutomation = readOnly
+      ? {
+          getState: function () {
+            return { phase: "idle", completedCount: 0, itemCode: "", message: "" };
+          },
+          start: function () {
+            return false;
+          },
+          stop: function () {
+            return false;
+          },
+        }
+      : createRecordingAutomationController({
       root: function () {
         return typeof document !== "undefined" ? document : null;
       },
@@ -5790,7 +5887,7 @@
           runtime.ui?.renderRecordingAutomationState?.(state);
         }
       },
-    });
+      });
     shortcuts?.bind?.();
     runWithProtectedScrollState(document, function () {
       ui.mount();
@@ -5825,6 +5922,7 @@
       syncPlaybackSensitiveDecorations(
         document,
         Object.assign({}, resolveHelperConfig(settings), {
+          readOnly: isReadOnlyScanPage(),
           playbackScopeKey: helperRuntime?.playbackScopeKey || getCurrentPlaybackScopeKey(),
         })
       );
@@ -5996,6 +6094,10 @@
         ensurePlaybackScrollGuardWatchdog(document);
         scheduleDomSync();
         if (helperRuntime) {
+          if (helperRuntime.pageMode !== getCurrentHelperPageMode()) {
+            void refreshRuntimePolicy();
+            return;
+          }
           if (!isWavePlaybackActive(document)) {
             runWithProtectedScrollState(document, function () {
               helperRuntime.ui.mount();
@@ -6024,6 +6126,8 @@
       findPlatformAiTargets: findPlatformAiTargets,
       syncPlatformAiVisibility: syncPlatformAiVisibility,
       isDetailPagePathname: isDetailPagePathname,
+      isReadOnlyScanPagePathname: isReadOnlyScanPagePathname,
+      getCurrentHelperPageMode: getCurrentHelperPageMode,
       isTaskListPagePathname: isTaskListPagePathname,
       isManagementPagePathname: isManagementPagePathname,
       normalizeInsightTarget: normalizeInsightTarget,

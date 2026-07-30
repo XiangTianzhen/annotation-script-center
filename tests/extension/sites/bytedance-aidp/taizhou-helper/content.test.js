@@ -924,7 +924,7 @@ test("ByteDance AIDP content also finds targets inside same-origin iframes", fun
   assert.deepEqual(targets, [insightCard]);
 });
 
-test("ByteDance AIDP content only matches mark-v3 detail routes", function () {
+test("ByteDance AIDP content recognizes writable mark-v3 and read-only scan-v3 detail routes", function () {
   const contentModule = loadContentModule();
 
   assert.equal(
@@ -932,6 +932,36 @@ test("ByteDance AIDP content only matches mark-v3 detail routes", function () {
       "/management/task-v2/7632228385175129882/mark-v3/1"
     ),
     true
+  );
+  assert.equal(
+    contentModule.__testOnly.isDetailPagePathname(
+      "/management/task-v2/7632228385175129882/scan-v3/14/7664531650324500251"
+    ),
+    true
+  );
+  assert.equal(
+    contentModule.__testOnly.isReadOnlyScanPagePathname(
+      "/management/task-v2/7632228385175129882/scan-v3/14/7664531650324500251"
+    ),
+    true
+  );
+  assert.equal(
+    contentModule.__testOnly.isReadOnlyScanPagePathname(
+      "/management/task-v2/7632228385175129882/mark-v3/1"
+    ),
+    false
+  );
+  assert.equal(
+    contentModule.__testOnly.getCurrentHelperPageMode(
+      "/management/task-v2/7632228385175129882/scan-v3/14/7664531650324500251"
+    ),
+    "scan-read-only"
+  );
+  assert.equal(
+    contentModule.__testOnly.getCurrentHelperPageMode(
+      "/management/task-v2/7632228385175129882/mark-v3/1"
+    ),
+    "mark-write"
   );
   assert.equal(
     contentModule.__testOnly.isDetailPagePathname("/management/task-v2?page=1"),
@@ -4264,6 +4294,38 @@ test("ByteDance AIDP stopped batch keeps returned listenText out of platform wri
   const result = await pending;
   assert.equal(result.stopRequested, true);
   assert.equal(writes.length, 0);
+});
+
+test("ByteDance AIDP read-only batch controller previews results without requiring or calling writeBatchRegionTexts", async function () {
+  const contentModule = loadContentModule();
+  const renderedResults = [];
+  const context = {
+    readOnly: true,
+    audioUrl: "https://example.test/audio.m4a",
+    selectionKey: "scan-item",
+    currentSignature: "scan-signature",
+    currentSegments: [{ segmentNumber: 2, startMs: 1000, endMs: 2000, text: "", language: "" }],
+  };
+  const controller = contentModule.__testOnly.createBatchRecommendController({
+    readOnly: true,
+    dataApi: { async getCurrentContext() { return context; } },
+    ai: {
+      createSharedAudioSource() { return {}; },
+      async recommendForSegment() { return { segmentNumber: 2, listenText: "preview text" }; },
+    },
+    ui: {
+      renderBatchState() {},
+      renderBatchAiResults(results) { renderedResults.push(results); },
+      setStatus() {},
+    },
+  });
+
+  const result = await controller.start([2]);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.writtenCount, 0);
+  assert.equal(result.results[0].listenText, "preview text");
+  assert.equal(renderedResults.length, 1);
 });
 
 test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Space play-pause toggle", function () {

@@ -7,7 +7,7 @@
 
 ## 适用范围 / 当前覆盖
 
-- 当前保留 4 份稳定参考页。
+- 当前保留 5 份稳定参考页。
 - 当前目录聚焦 `mark-v3` 详情页路由、query 上下文、当前条读取、完整题目最小读取和暂存写回边界。
 - 过程型记录已移出主参考目录；如需追加历史过程，统一写入 `log.md`。
 
@@ -19,6 +19,7 @@
 | `02-mark-v3-receive-current-item.md` | 02 当前条读取与临时答案读取 |
 | `03-mark-v3-submit-temp-answer.md` | 03 平台暂存写回 |
 | `04-search-item-category.md` | 04 完整题目 Search Item 最小安全读取 |
+| `05-scan-v3-get-work-item.md` | 05 检查包当前题只读快照 |
 
 ## 阅读顺序
 
@@ -27,6 +28,7 @@
 2. `02-mark-v3-receive-current-item.md`
 3. `03-mark-v3-submit-temp-answer.md`
 4. `04-search-item-category.md`
+5. `05-scan-v3-get-work-item.md`
 
 ## 通用约定
 

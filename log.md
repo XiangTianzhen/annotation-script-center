@@ -1,5 +1,11 @@
 # 标注脚本中心修改总账
 
+## 2026-07-30
+
+- 新增(taizhou): 台州话支持 AIDP `scan-v3/14` 检查包只读识别。当前题从最小 `GetWorkItem` 快照读取媒体与分段，按 Arco 行键关联 `region.id`，支持单段/当前可见分段批量识别、停止、预览与复制。
+- 安全(taizhou): 检查包模式不显示或执行写入型操作；数据层对分段应用、清空、填语言、单段填入和批量写回均 fail-closed，不修改 textarea、不调用暂存、提交、领取、切题、录音导入或押后流程。
+- 测试(taizhou): 覆盖检查包路由、GetWorkItem fetch 快照最小化、regions 关联、批量只读预览、停止以及无写请求回归。
+
 本总账只记录 DataBaker CVPC 柳州话、ByteDance AIDP 苏州话、金华话与台州话、Magic Data 杭州话，以及五脚本共同依赖的扩展、Options、后端、测试和发布能力。
 
 ## 2026-07-27

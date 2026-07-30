@@ -3,10 +3,12 @@
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+  const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
   const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
   const RECEIVE_PATH = "/api/dispatch/Receive";
   const SUBMIT_PATH = "/api/dispatch/SubmitTempItemAnswer";
   const SEARCH_ITEM_PATH = "/dispatcher/search_item/category";
+  const WORK_ITEM_PATH = "/api/dispatch/GetWorkItem";
   const ALLOWED_SUBMIT_HEADERS = ["accept", "content-type", "x-secsdk-csrf-token"];
 
   function normalizeText(value) {
@@ -31,6 +33,10 @@
 
   function isSearchItemUrl(rawUrl, locationLike) {
     return getUrl(rawUrl, locationLike)?.pathname === SEARCH_ITEM_PATH;
+  }
+
+  function isWorkItemUrl(rawUrl, locationLike) {
+    return getUrl(rawUrl, locationLike)?.pathname === WORK_ITEM_PATH;
   }
 
   function readHeaderEntries(source) {
@@ -146,6 +152,33 @@
       });
   }
 
+  function sanitizeWorkItemSnapshots(value) {
+    const response = parseJsonSafely(value);
+    const items = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.Items)
+        ? response.Items
+        : [];
+    return items
+      .map(function (entry) {
+        const item = entry?.Item && typeof entry.Item === "object" ? entry.Item : {};
+        const answer = typeof entry?.Answer === "string" ? entry.Answer : "";
+        const content = typeof item.Content === "string" ? item.Content : "";
+        const itemId = normalizeText(item.ItemID);
+        if (!itemId || !answer) {
+          return null;
+        }
+        return {
+          Item: {
+            ItemID: itemId,
+            Content: content,
+          },
+          Answer: answer,
+        };
+      })
+      .filter(Boolean);
+  }
+
   function postMessage(windowLike, locationLike, type, payload) {
     if (!windowLike || typeof windowLike.postMessage !== "function") {
       return;
@@ -211,6 +244,12 @@
       );
     }
 
+    function notifyWorkItem(payload) {
+      postMessage(windowLike, locationLike, WORK_ITEM_TYPE, {
+        response: sanitizeWorkItemSnapshots(payload),
+      });
+    }
+
     function notifyNetworkActivity() {
       networkActivitySequence += 1;
       postMessage(windowLike, locationLike, NETWORK_ACTIVITY_TYPE, {
@@ -266,7 +305,8 @@
             settleNetworkActivity();
             const receiveRequest = isReceiveUrl(rawUrl, locationLike);
             const searchItemRequest = isSearchItemUrl(rawUrl, locationLike);
-            if (!receiveRequest && !searchItemRequest) {
+            const workItemRequest = isWorkItemUrl(rawUrl, locationLike);
+            if (!receiveRequest && !searchItemRequest && !workItemRequest) {
               return;
             }
             try {
@@ -277,6 +317,8 @@
                   const payload = parseJsonSafely(text);
                   if (receiveRequest && payload) {
                     notifyReceive(rawUrl, payload);
+                  } else if (workItemRequest && payload) {
+                    notifyWorkItem(payload);
                   } else if (searchItemRequest) {
                     notifySearchItem(text);
                   }
@@ -336,13 +378,16 @@
         }
         if (
           (isReceiveUrl(rawUrl, locationLike) ||
-            isSearchItemUrl(rawUrl, locationLike)) &&
+            isSearchItemUrl(rawUrl, locationLike) ||
+            isWorkItemUrl(rawUrl, locationLike)) &&
           typeof xhr.addEventListener === "function"
         ) {
           xhr.addEventListener("load", function () {
             const payload = parseJsonSafely(xhr.responseText);
             if (isReceiveUrl(rawUrl, locationLike) && payload) {
               notifyReceive(rawUrl, payload);
+            } else if (isWorkItemUrl(rawUrl, locationLike) && payload) {
+              notifyWorkItem(payload);
             } else if (isSearchItemUrl(rawUrl, locationLike)) {
               notifySearchItem(xhr.responseText);
             }
@@ -378,6 +423,7 @@
       RECEIVE_TYPE: RECEIVE_TYPE,
       SUBMIT_TYPE: SUBMIT_TYPE,
       SEARCH_ITEM_TYPE: SEARCH_ITEM_TYPE,
+      WORK_ITEM_TYPE: WORK_ITEM_TYPE,
       NETWORK_ACTIVITY_TYPE: NETWORK_ACTIVITY_TYPE,
     },
   };

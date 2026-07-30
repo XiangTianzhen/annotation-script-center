@@ -454,3 +454,66 @@ test("shared AIDP network observer settles a synchronous XHR send exception", fu
     delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
   }
 });
+
+test("shared AIDP network observer publishes a GetWorkItem response without request credentials", async function () {
+  const workItemResponse = [{
+    Item: {
+      ItemID: "item-1",
+      Content: JSON.stringify({ audio: "https://media.example.test/audio?signature=masked" }),
+    },
+    Answer: JSON.stringify({
+      data: {
+        regions: [{ id: "region-a", no: 1, start: 0, end: 1 }],
+      },
+    }),
+    AuditHistory: [{ User: { Email: "private@example.test" } }],
+  }];
+  const windowLike = createFakeWindow({
+    fetch: async function () {
+      return {
+        clone() {
+          return {
+            async text() {
+              return JSON.stringify(workItemResponse);
+            },
+          };
+        },
+      };
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await windowLike.fetch(
+      "https://aidp.bytedance.com/api/dispatch/GetWorkItem?msToken=must-not-send",
+      { headers: { Cookie: "must-not-send", Authorization: "must-not-send" } }
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const message = windowLike.messages.find(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
+    });
+    assert.deepEqual(message, {
+      targetOrigin: "https://aidp.bytedance.com",
+      message: {
+        source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+        type: "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT",
+        payload: {
+          response: [{
+            Item: workItemResponse[0].Item,
+            Answer: workItemResponse[0].Answer,
+          }],
+        },
+      },
+    });
+    assert.doesNotMatch(
+      JSON.stringify(message),
+      /msToken|Cookie|Authorization|must-not-send|AuditHistory|private@example/
+    );
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});

@@ -10,6 +10,7 @@ const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
 const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
 const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
 const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
 const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
 
 function loadModule() {
@@ -425,6 +426,17 @@ function emitSearchItem(windowLike, payload) {
   );
 }
 
+function emitWorkItem(windowLike, payload) {
+  windowLike.emitMessage(
+    {
+      source: OBSERVER_SOURCE,
+      type: WORK_ITEM_TYPE,
+      payload: { response: payload },
+    },
+    "https://aidp.bytedance.com"
+  );
+}
+
 function emitNetworkActivity(windowLike, payload, origin) {
   windowLike.emitMessage(
     {
@@ -444,7 +456,7 @@ function createRuntimeHarness(options) {
   const runtime = moduleApi.createRuntime({
     window: windowLike,
     document: settings.document,
-    location: {
+    location: settings.location || {
       origin: "https://aidp.bytedance.com",
       href:
         "https://aidp.bytedance.com/management/task-v2/7632228385175129882/mark-v3/1?from_pathname=%2Ftask-v2%3Fpage%3D1",
@@ -489,11 +501,15 @@ function createRuntimeHarness(options) {
     searchContextTtlMs: settings.searchContextTtlMs,
   });
 
-  emitReceive(windowLike, createBaseReceivePayload(settings.receiveRegions));
-  emitSubmit(
-    windowLike,
-    settings.submitPayload || createSubmitPayloadWithRegions(settings.submitRegions)
-  );
+  if (settings.skipReceiveSnapshot !== true) {
+    emitReceive(windowLike, createBaseReceivePayload(settings.receiveRegions));
+  }
+  if (settings.skipSubmitSnapshot !== true) {
+    emitSubmit(
+      windowLike,
+      settings.submitPayload || createSubmitPayloadWithRegions(settings.submitRegions)
+    );
+  }
 
   return {
     runtime,
@@ -1358,4 +1374,105 @@ test("AIDP data api prefers a later same-millisecond external receive after loca
     currentContext.currentSignature,
     "1:1000:2500:外部变更:目标方言"
   );
+});
+
+test("AIDP data api builds a read-only scan-v3 context from GetWorkItem regions", async function () {
+  const textarea = new FakeElement({ tagName: "textarea", value: "original text" });
+  const row = new FakeElement({
+    className: "arco-table-tr",
+    attributes: { "data-neeko-table-row-key": "region-b" },
+    children: [textarea],
+  });
+  const document = createFakeDocument([
+    new FakeElement({ className: "arco-table-body", children: [row] }),
+  ]);
+  const harness = createRuntimeHarness({
+    document,
+    readCurrentTableState() {
+      return {
+        rows: [{ regionId: "region-b", segmentNumber: 2, text: "second", language: "" }],
+        activeSegmentNumber: 2,
+        hasUnsafeData: false,
+        unsafeReason: "",
+      };
+    },
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-1/scan-v3/14/item-1",
+      pathname: "/management/task-v2/task-1/scan-v3/14/item-1",
+      search: "",
+    },
+  });
+  emitWorkItem(harness.windowLike, [{
+    Item: {
+      ItemID: "item-1",
+      Content: JSON.stringify({
+        id: "entry-1",
+        audio: "https://media.example.test/audio?signature=masked",
+      }),
+    },
+    Answer: JSON.stringify({
+      templateID: "template-1",
+      itemID: "item-1",
+      dataMap: {
+        duration: 2.5,
+        regions: [
+          { id: "region-a", no: 1, start: 0, end: 1, txt: "first" },
+          { id: "region-b", no: 2, start: 1, end: 2, txt: "second" },
+        ],
+      },
+    }),
+  }]);
+
+  const context = await harness.runtime.getCurrentContext();
+
+  assert.equal(context.readOnly, true);
+  assert.equal(context.itemId, "item-1");
+  assert.equal(context.audioUrl, "https://media.example.test/audio?signature=masked");
+  assert.deepEqual(context.currentSegments.map((segment) => segment.regionId), ["region-b"]);
+  assert.equal(context.currentSegments[0].segmentNumber, 2);
+});
+
+test("AIDP data api refuses every scan-v3 write path without changing the page or calling SubmitTempItemAnswer", async function () {
+  const textarea = new FakeElement({ tagName: "textarea", value: "unchanged" });
+  const harness = createRuntimeHarness({
+    document: createFakeDocument([textarea]),
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-1/scan-v3/14/item-1",
+      pathname: "/management/task-v2/task-1/scan-v3/14/item-1",
+      search: "",
+    },
+  });
+  emitWorkItem(harness.windowLike, [{
+    Item: { ItemID: "item-1", Content: JSON.stringify({ audio: "https://media.example.test/audio" }) },
+    Answer: JSON.stringify({
+      itemID: "item-1",
+      data: { regions: [{ id: "region-a", no: 1, start: 0, end: 1 }] },
+    }),
+  }]);
+  const context = await harness.runtime.getCurrentContext();
+
+  const results = await Promise.all([
+    harness.runtime.applySegmentPreview({
+      selectionKey: context.selectionKey,
+      proposedSegments: [{ startMs: 0, endMs: 1000 }],
+    }),
+    harness.runtime.clearCurrentSegments(),
+    harness.runtime.fillEmptyRegionLanguages(),
+    harness.runtime.fillCurrentRegionTextIntoDom({ segmentNumber: 1, listenText: "new text" }),
+    harness.runtime.writeBatchRegionTexts({
+      selectionKey: context.selectionKey,
+      currentSignature: context.currentSignature,
+      updates: [{ segmentNumber: 1, listenText: "new text" }],
+    }),
+  ]);
+
+  assert.equal(results.every((result) => result.reason === "read-only"), true);
+  assert.equal(textarea.value, "unchanged");
+  assert.equal(harness.fetchCalls.length, 0);
 });

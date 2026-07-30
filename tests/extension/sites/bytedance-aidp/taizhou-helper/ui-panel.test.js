@@ -1284,3 +1284,68 @@ test("AIDP taizhou ui panel renders manual recording automation controls and sta
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
+
+test("AIDP taizhou ui panel exposes read-only batch and recognition copy actions", async function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const previousNavigator = globalThis.navigator;
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  let copiedText = "";
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: { clipboard: { async writeText(value) { copiedText = String(value || ""); } } },
+  });
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({ readOnly: true });
+    assert.equal(runtime.mount(), true);
+    const panelRoot = findMountedPanelRoot(harness.body);
+    runtime.renderBatchState({ actionMode: "recognizeOnly" });
+    runtime.renderBatchAiResults([
+      { segmentNumber: 1, listenText: "first result" },
+      { segmentNumber: 2, listenText: "second result" },
+    ], 1);
+
+    const readOnlyButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.textContent.includes("批量识别");
+    });
+    const copyCurrentButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.textContent.includes("复制识别文本");
+    });
+    const copyAllButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.textContent.includes("复制全部识别文本");
+    });
+    assert.ok(readOnlyButton);
+    assert.doesNotMatch(readOnlyButton.textContent, /填入/);
+    assert.equal(
+      collectDescendants(panelRoot).some(function (node) {
+        return node.tagName === "BUTTON" && /生成分段|应用分段/.test(node.textContent);
+      }),
+      false
+    );
+    assert.ok(copyCurrentButton);
+    assert.ok(copyAllButton);
+
+    copyCurrentButton.click();
+    await Promise.resolve();
+    assert.equal(copiedText, "first result");
+    copyAllButton.click();
+    await Promise.resolve();
+    assert.match(copiedText, /第 1 段：first result/);
+    assert.match(copiedText, /第 2 段：second result/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+    if (navigatorDescriptor) {
+      Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
+    } else if (previousNavigator === undefined) {
+      delete globalThis.navigator;
+    } else {
+      Object.defineProperty(globalThis, "navigator", { configurable: true, value: previousNavigator });
+    }
+  }
+});

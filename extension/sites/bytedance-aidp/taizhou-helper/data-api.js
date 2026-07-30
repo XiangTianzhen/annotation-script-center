@@ -3,6 +3,7 @@
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+  const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
   const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
   const DEFAULT_SEARCH_CONTEXT_TTL_MS = 10 * 60 * 1000;
   const APPLY_SUCCESS_MESSAGE = "已通过平台暂存接口应用分段建议，请刷新页面复核。";
@@ -23,6 +24,7 @@
     "未获取到平台暂存请求的访问凭据，请刷新页面或手动暂存一次后重试。";
   const DETAIL_CONTEXT_MISSING_MESSAGE = "当前页详情上下文尚未就绪，请刷新后重试。";
   const ACTIVE_SEGMENT_MISSING_MESSAGE = "请先在当前题里激活要识别的段。";
+  const READ_ONLY_MESSAGE = "检查包页面仅支持识别预览，不能修改、暂存或提交平台数据。";
   const KNOWN_REGION_FIELDS = new Set(["no", "id", "start", "end", "disabled", "txt", "ms"]);
 
   function normalizeText(value) {
@@ -273,13 +275,55 @@
       });
   }
 
+  function extractWorkItemItems(response) {
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (Array.isArray(response?.Items)) {
+      return response.Items;
+    }
+    if (Array.isArray(response?.Data?.Items)) {
+      return response.Data.Items;
+    }
+    return [];
+  }
+
+  function parseWorkItemSnapshot(payload) {
+    const response = payload?.response || payload?.Response || payload || {};
+    const items = extractWorkItemItems(response);
+    const firstItem = items[0] && typeof items[0] === "object" ? items[0] : {};
+    const item = firstItem.Item && typeof firstItem.Item === "object" ? firstItem.Item : {};
+    const itemContent = parseJsonSafely(item.Content, {});
+    const answer = parseJsonSafely(firstItem.Answer, {});
+    const currentRegions = normalizeRegions(answer?.data?.regions || answer?.dataMap?.regions || []);
+    return {
+      at: Date.now(),
+      rawResponse: clone(response),
+      itemId: normalizeText(item.ItemID || answer?.itemID),
+      entryId: normalizeText(itemContent?.id),
+      templateID: normalizeText(answer?.templateID),
+      audioUrl: normalizeText(itemContent?.audio),
+      videoUrl: normalizeText(itemContent?.video),
+      itemContent: itemContent && typeof itemContent === "object" ? itemContent : {},
+      tempAnswer: answer && typeof answer === "object" ? answer : {},
+      currentSegments: currentRegions,
+      currentSignature: buildRegionSignature(currentRegions),
+    };
+  }
+
   function resolveDetailRoute(locationLike) {
     const pathname = normalizeText(locationLike?.pathname || "");
-    const matched = pathname.match(/^\/management\/task-v2\/([^/]+)\/mark-v3\/([^/?#]+)/i);
+    const matched = pathname.match(/^\/management\/task-v2\/([^/]+)\/(mark-v3|scan-v3)\/([^/?#]+)(?:\/([^/?#]+))?/i);
     const searchParams = new URLSearchParams(String(locationLike?.search || ""));
+    const pageType = normalizeText(matched?.[2]).toLowerCase();
+    const readOnly = pageType === "scan-v3" && normalizeText(matched?.[3]) === "14";
     return {
       taskId: normalizeText(matched?.[1]),
-      markIndex: normalizeText(matched?.[2]),
+      mode: readOnly ? "scan" : "mark",
+      readOnly: readOnly,
+      markIndex: pageType === "mark-v3" ? normalizeText(matched?.[3]) : "",
+      nodeId: pageType === "scan-v3" ? normalizeText(matched?.[3]) : "",
+      itemId: pageType === "scan-v3" ? normalizeText(matched?.[4]) : "",
       templateID: normalizeText(searchParams.get("templateID")),
       templateType: normalizeText(searchParams.get("templateType")),
       fromPathname: normalizeText(searchParams.get("from_pathname")),
@@ -349,17 +393,17 @@
         unsafeReason: "",
       };
     }
-    const textareas = queryAll(tableRoot, "textarea");
-    const selects = queryAll(tableRoot, "select");
-    const totalRows = Math.max(textareas.length, selects.length);
-    const rows = [];
-    for (let index = 0; index < totalRows; index += 1) {
-      rows.push({
-        segmentNumber: index + 1,
-        text: normalizeText(textareas[index]?.value || textareas[index]?.textContent),
-        language: normalizeLanguageValue(selects[index]),
-      });
-    }
+    const segmentRows = getSegmentInputRows(documentLike);
+    const rows = segmentRows.map(function (rowNode, index) {
+      const textareas = queryAll(rowNode, "textarea");
+      const selects = queryAll(rowNode, "select");
+      return {
+        regionId: normalizeText(rowNode?.getAttribute?.("data-neeko-table-row-key")),
+        segmentNumber: getSegmentNumberFromInputRow(rowNode, index + 1),
+        text: normalizeText(textareas[0]?.value || textareas[0]?.textContent),
+        language: normalizeLanguageValue(selects[0]),
+      };
+    });
     const hasUnsafeData = rows.some(function (row) {
       return Boolean(normalizeText(row.text) || normalizeText(row.language));
     });
@@ -701,9 +745,29 @@
     return normalizeRegions(answer?.data?.regions || answer?.dataMap?.regions || []);
   }
 
+  function filterReadOnlySegmentsByVisibleRegionIds(currentSegments, tableState) {
+    const visibleRegionIds = new Set(
+      (Array.isArray(tableState?.rows) ? tableState.rows : [])
+        .map(function (row) {
+          return normalizeText(row?.regionId);
+        })
+        .filter(Boolean)
+    );
+    if (visibleRegionIds.size <= 0) {
+      return currentSegments;
+    }
+    const visibleSegments = currentSegments.filter(function (segment) {
+      return visibleRegionIds.has(normalizeText(segment?.regionId));
+    });
+    return visibleSegments.length > 0 ? visibleSegments : currentSegments;
+  }
+
   function buildCurrentContext(receiveSnapshot, submitSnapshot, route, tableState) {
     const currentAnswer = resolveCurrentAnswerSnapshot(receiveSnapshot, submitSnapshot);
-    const currentSegments = resolveCurrentSegments(receiveSnapshot, submitSnapshot);
+    const resolvedSegments = resolveCurrentSegments(receiveSnapshot, submitSnapshot);
+    const currentSegments = route?.readOnly
+      ? filterReadOnlySegmentsByVisibleRegionIds(resolvedSegments, tableState)
+      : resolvedSegments;
     const durationSeconds = toFiniteNumber(
       currentAnswer?.data?.duration,
       toFiniteNumber(currentAnswer?.dataMap?.duration, 0)
@@ -718,7 +782,7 @@
       }) || null;
     return {
       taskId: normalizeText(submitSnapshot?.body?.TaskID || route?.taskId),
-      nodeId: normalizeText(submitSnapshot?.body?.NodeID || route?.markIndex || "1"),
+      nodeId: normalizeText(submitSnapshot?.body?.NodeID || route?.nodeId || route?.markIndex || "1"),
       stagingTime: normalizeText(submitSnapshot?.body?.StagingTime || "604800"),
       itemId: normalizeText(
         submitSnapshot?.itemId || receiveSnapshot?.itemId || currentAnswer?.itemID
@@ -741,6 +805,8 @@
       ),
       currentSegments: currentSegments,
       currentSignature: buildRegionSignature(currentSegments),
+      readOnly: route?.readOnly === true,
+      pageMode: normalizeText(route?.mode || "mark"),
       activeSegmentNumber: activeSegmentNumber,
       activeSegment: activeSegment,
       selectionKey: normalizeText(
@@ -1112,6 +1178,7 @@
             return defaultReadCurrentTableState(documentLike);
     };
     let receiveSnapshot = null;
+    let workItemSnapshot = null;
     let submitSnapshot = null;
     let searchItemSnapshots = new Map();
     let snapshotEventSequence = 0;
@@ -1138,6 +1205,10 @@
       }
       if (data.type === RECEIVE_TYPE) {
         receiveSnapshot = withSnapshotEventSequence(parseReceiveSnapshot(data.payload));
+        return;
+      }
+      if (data.type === WORK_ITEM_TYPE) {
+        workItemSnapshot = withSnapshotEventSequence(parseWorkItemSnapshot(data.payload));
         return;
       }
       if (data.type === SUBMIT_TYPE) {
@@ -1178,9 +1249,25 @@
     async function getCurrentContext() {
       const route = resolveDetailRoute(locationLike);
       const tableState = readCurrentTableState();
-      const context = buildCurrentContext(receiveSnapshot, submitSnapshot, route, tableState);
+      const context = buildCurrentContext(
+        route.readOnly ? workItemSnapshot : receiveSnapshot,
+        route.readOnly ? null : submitSnapshot,
+        route,
+        tableState
+      );
       context.unsafeReason = buildUnsafeReason(context);
       return context;
+    }
+
+    function createReadOnlyResult(extra) {
+      return Object.assign(
+        {
+          ok: false,
+          reason: "read-only",
+          message: READ_ONLY_MESSAGE,
+        },
+        extra && typeof extra === "object" ? extra : {}
+      );
     }
 
     async function getCurrentReceiveItemId() {
@@ -1245,6 +1332,9 @@
         };
       }
       const context = await getCurrentContext();
+      if (context.readOnly) {
+        return createReadOnlyResult();
+      }
       if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
         return {
           ok: false,
@@ -1296,6 +1386,9 @@
 
     async function clearCurrentSegments() {
       const context = await getCurrentContext();
+      if (context.readOnly) {
+        return createReadOnlyResult();
+      }
       if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
         return {
           ok: false,
@@ -1325,6 +1418,9 @@
 
     async function fillEmptyRegionLanguages() {
       const context = await getCurrentContext();
+      if (context.readOnly) {
+        return createReadOnlyResult({ filledCount: 0 });
+      }
       if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
         return {
           ok: false,
@@ -1386,6 +1482,10 @@
           skippedCount: 0,
         };
       }
+      const context = await getCurrentContext();
+      if (context.readOnly) {
+        return createReadOnlyResult({ filledCount: 0, skippedCount: 0 });
+      }
       const nextText = preserveListenText(source.listenText);
       if (nextText === "") {
         return {
@@ -1431,6 +1531,9 @@
     async function writeBatchRegionTexts(input) {
       const source = input && typeof input === "object" ? input : {};
       const context = await getCurrentContext();
+      if (context.readOnly) {
+        return createReadOnlyResult({ writtenCount: 0, skippedCount: 0 });
+      }
       if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
         return {
           ok: false,
@@ -1535,6 +1638,8 @@
       parseSubmitSnapshot,
       parseSearchItemSnapshot,
       parseSearchItemSnapshots,
+      parseWorkItemSnapshot,
+      resolveDetailRoute,
       buildRegionSignature,
       buildUpdatedRegions,
       defaultReadCurrentTableState,

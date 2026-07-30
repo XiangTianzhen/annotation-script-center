@@ -472,6 +472,7 @@
 
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
+    const readOnly = deps.readOnly === true;
     let rootNode = null;
     let statusNode = null;
     let latestStatusMessage = "正在读取当前详情上下文...";
@@ -686,6 +687,9 @@
         return;
       }
       clearNode(previewActionRowNode);
+      if (readOnly) {
+        return;
+      }
       if (segmentPreviewAutoApplyEnabled) {
         previewActionRowNode.appendChild(
           createButton("生成分段并应用", true, function () {
@@ -717,7 +721,7 @@
           deps.onBatchStop?.();
         });
       } else {
-        actionButton = createButton("批量识别并填入", true, function () {
+        actionButton = createButton(batchActionMode === "recognizeOnly" ? "批量识别" : "批量识别并填入", true, function () {
           deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
         });
       }
@@ -993,8 +997,10 @@
       recordingResultNode.setAttribute("data-recording-result-card", "true");
       renderRecordingResultView(latestRecordingResult || {});
       recordingSection.appendChild(recordingResultNode);
-      grid.appendChild(recordingSection);
-      syncRecordingResultSectionState();
+      if (!readOnly) {
+        grid.appendChild(recordingSection);
+        syncRecordingResultSectionState();
+      }
 
       const metaSection = document.createElement("div");
       metaSection.className = "section";
@@ -1058,8 +1064,10 @@
       recordingAutomationStateNode.className = "info-card";
       recordingAutomationStateNode.setAttribute("data-recording-automation-state", "true");
       recordingAutomationSection.appendChild(recordingAutomationStateNode);
-      grid.appendChild(recordingAutomationSection);
-      renderRecordingAutomationStateView(latestRecordingAutomationState);
+      if (!readOnly) {
+        grid.appendChild(recordingAutomationSection);
+        renderRecordingAutomationStateView(latestRecordingAutomationState);
+      }
 
       rootNode.appendChild(grid);
       syncPanelVisibility();
@@ -1531,6 +1539,35 @@
           grid.appendChild(line);
         });
       infoPane.appendChild(grid);
+      const copyActions = document.createElement("div");
+      copyActions.className = "action-row";
+      const listenText = typeof source.listenText === "string" ? source.listenText : "";
+      const copyCurrentButton = createButton("复制识别文本", false, async function () {
+        const copied = await copyTextToClipboard(listenText);
+        copyCurrentButton.textContent = copied ? "已复制" : "复制失败";
+        if (!copied) {
+          setStatus("复制识别文本失败，请手动复制。", "error");
+        }
+      });
+      copyCurrentButton.disabled = listenText === "";
+      copyActions.appendChild(copyCurrentButton);
+      if (batchAiResults.length > 0) {
+        const batchText = batchAiResults
+          .map(function (item) {
+            return "第 " + String(Number(item.segmentNumber || 0) || 0) + " 段：" + String(item.listenText || "");
+          })
+          .join("\n");
+        const copyAllButton = createButton("复制全部识别文本", false, async function () {
+          const copied = await copyTextToClipboard(batchText);
+          copyAllButton.textContent = copied ? "已复制" : "复制失败";
+          if (!copied) {
+            setStatus("复制全部识别文本失败，请手动复制。", "error");
+          }
+        });
+        copyAllButton.disabled = batchText === "";
+        copyActions.appendChild(copyAllButton);
+      }
+      infoPane.appendChild(copyActions);
       layout.appendChild(infoPane);
 
       const debugPane = document.createElement("div");
