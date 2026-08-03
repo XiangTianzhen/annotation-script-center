@@ -27,6 +27,8 @@ const {
 
 const CREATE_PATH =
   "/api/bytedance-aidp/taizhou-helper/recording-items";
+const RECOVER_PATH =
+  "/api/bytedance-aidp/taizhou-helper/recording-items/result/recover";
 
 function jsonResponse(status, body, headers) {
   return new Response(JSON.stringify(body), {
@@ -133,6 +135,14 @@ async function createFixture(t, options) {
 
 async function postJson(baseUrl, body) {
   return fetch(baseUrl + CREATE_PATH, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function recoverJson(baseUrl, body) {
+  return fetch(baseUrl + RECOVER_PATH, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -246,6 +256,123 @@ test("request rejects unknown fields, empty references, disallowed tasks and uns
     assert.equal((await bodyJson(response)).code, expectedCode);
   }
   assert.equal(fixture.upstreamCalls.length, 0);
+});
+
+test("read-only recovery returns an existing result and never creates a recording item", async (t) => {
+  const fixture = await createFixture(t);
+  const createdResponse = await postJson(fixture.baseUrl, fullBody());
+  assert.equal(createdResponse.status, 201);
+
+  const recoveredResponse = await recoverJson(fixture.baseUrl, fullBody());
+  assert.equal(recoveredResponse.status, 200);
+  const recovered = await bodyJson(recoveredResponse);
+
+  assert.equal(recovered.itemId, "recording-item-1");
+  assert.equal(recovered.itemCode, "T000001-0000001");
+  assert.equal(recovered.status, "COMPLETED");
+  assert.equal(recovered.text, "完成文本");
+  assert.equal(recovered.audioAvailable, true);
+  assert.match(recovered.syncToken, /^[A-Za-z0-9_-]+$/);
+  assert.equal(
+    fixture.upstreamCalls.filter((call) => call.method === "POST").length,
+    1
+  );
+  assert.equal(
+    fixture.upstreamCalls.filter((call) => call.method === "GET").length,
+    1
+  );
+});
+
+test("read-only recovery fails closed when the server mapping is absent or mismatched", async (t) => {
+  await t.test("absent mapping", async (t) => {
+    const fixture = await createFixture(t);
+    const recoveredResponse = await recoverJson(fixture.baseUrl, fullBody());
+    assert.equal(recoveredResponse.status, 404);
+    assert.equal(
+      (await bodyJson(recoveredResponse)).code,
+      "RECORDING_MAPPING_NOT_FOUND"
+    );
+    assert.equal(fixture.upstreamCalls.length, 0);
+    assert.deepEqual(fixture.integration.getSnapshot().mappings, {});
+  });
+
+  await t.test("reference fingerprint mismatch", async (t) => {
+    const fixture = await createFixture(t);
+    assert.equal((await postJson(fixture.baseUrl, fullBody())).status, 201);
+    const before = fixture.integration.getSnapshot();
+
+    const recoveredResponse = await recoverJson(
+      fixture.baseUrl,
+      fullBody({ referenceText: "被改动的参考文本" })
+    );
+
+    assert.equal(recoveredResponse.status, 409);
+    assert.equal(
+      (await bodyJson(recoveredResponse)).code,
+      "SOURCE_ITEM_CONTENT_CONFLICT"
+    );
+    assert.deepEqual(fixture.integration.getSnapshot(), before);
+    assert.equal(
+      fixture.upstreamCalls.filter((call) => call.method === "POST").length,
+      1
+    );
+  });
+
+  await t.test("disallowed task", async (t) => {
+    const fixture = await createFixture(t);
+    const recoveredResponse = await recoverJson(
+      fixture.baseUrl,
+      fullBody({ recordingTaskCode: "T999999" })
+    );
+    assert.equal(recoveredResponse.status, 403);
+    assert.equal(
+      (await bodyJson(recoveredResponse)).code,
+      "RECORDING_TASK_NOT_ALLOWED"
+    );
+    assert.equal(fixture.upstreamCalls.length, 0);
+    assert.deepEqual(fixture.integration.getSnapshot().mappings, {});
+  });
+
+  for (const status of [404, 503]) {
+    await t.test(`upstream ${status}`, async (t) => {
+      let method = "";
+      let upstreamCount = 0;
+      const fixture = await createFixture(t, {
+        async fetchImpl(_url, requestOptions) {
+          method = String(requestOptions?.method || "GET").toUpperCase();
+          upstreamCount += 1;
+          if (method === "POST") {
+            return jsonResponse(201, {
+              itemId: "recording-item-1",
+              taskId: "task-allowed",
+              itemCode: "T000001-0000001",
+              status: "AVAILABLE",
+              createdAt: "2026-07-25T00:00:00Z",
+            });
+          }
+          return jsonResponse(status, {
+            code: status === 404 ? "TASK_ITEM_NOT_FOUND" : "TEMPORARY",
+            message: status === 404 ? "任务条目不存在" : "暂时不可用",
+          });
+        },
+      });
+      assert.equal((await postJson(fixture.baseUrl, fullBody())).status, 201);
+      const before = fixture.integration.getSnapshot();
+
+      const recoveredResponse = await recoverJson(fixture.baseUrl, fullBody());
+
+      assert.equal(recoveredResponse.status, status === 404 ? 404 : 503);
+      const recovered = await bodyJson(recoveredResponse);
+      assert.equal(recovered.code, "RECORDING_PLATFORM_QUERY_FAILED");
+      assert.equal(
+        recovered.upstream.code,
+        status === 404 ? "TASK_ITEM_NOT_FOUND" : "TEMPORARY"
+      );
+      assert.equal(method, "GET");
+      assert.equal(upstreamCount, 2);
+      assert.deepEqual(fixture.integration.getSnapshot(), before);
+    });
+  }
 });
 
 test("retryable upstream failures retain one mapping while deterministic 4xx clears it", async (t) => {

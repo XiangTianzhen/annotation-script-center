@@ -5,6 +5,8 @@
     "/api/bytedance-aidp/taizhou-helper/recording-items";
   const RESULT_PATH =
     "/api/bytedance-aidp/taizhou-helper/recording-items/result";
+  const RESULT_RECOVER_PATH =
+    "/api/bytedance-aidp/taizhou-helper/recording-items/result/recover";
   function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
   }
@@ -121,18 +123,22 @@
       );
     }
 
-    async function prepareCreateBody(context) {
-      const key = mappingKey(context.sourceItemId);
-      if (pendingCreates.has(key)) {
-        return pendingCreates.get(key);
-      }
-      const body = {
+    function buildItemBody(context) {
+      return {
         recordingTaskCode: recordingTaskCode,
         sourceItemId: normalizeText(context.sourceItemId),
         referenceText: normalizeText(context.referenceText) || null,
         referenceAudioUrl: normalizeText(context.audioUrl) || null,
         referenceVideoUrl: normalizeText(context.videoUrl) || null,
       };
+    }
+
+    async function prepareCreateBody(context) {
+      const key = mappingKey(context.sourceItemId);
+      if (pendingCreates.has(key)) {
+        return pendingCreates.get(key);
+      }
+      const body = buildItemBody(context);
       pendingCreates.set(key, body);
       return body;
     }
@@ -355,12 +361,88 @@
         return null;
       }
       if (!mapping) {
+        return recoverCurrentResult(expected);
+      }
+      return refreshMapping(mapping, expected);
+    }
+
+    async function recoverCurrentResult(expected) {
+      if (!dataApi || typeof dataApi.getRecordingImportContext !== "function") {
         return {
           notImported: true,
           sourceItemId: expected.sourceItemId,
         };
       }
-      return refreshMapping(mapping, expected);
+      const context = await dataApi.getRecordingImportContext();
+      if (
+        !context?.ok ||
+        normalizeText(context.sourceItemId) !== expected.sourceItemId
+      ) {
+        return isCurrentResultEntry(expected)
+          ? { notImported: true, sourceItemId: expected.sourceItemId }
+          : null;
+      }
+      const response = await fetchImpl(buildBackendUrl(RESULT_RECOVER_PATH), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildItemBody(context)),
+      });
+      const body = await readJsonResponse(response);
+      if (!response?.ok) {
+        if (!isCurrentResultEntry(expected)) {
+          return null;
+        }
+        if (normalizeText(body?.code) === "RECORDING_MAPPING_NOT_FOUND") {
+          return isCurrentResultEntry(expected)
+            ? { notImported: true, sourceItemId: expected.sourceItemId }
+            : null;
+        }
+        if (normalizeText(body?.upstream?.code) === "TASK_ITEM_NOT_FOUND") {
+          throw new Error(
+            "原录音条目已不存在，请点击添加数据重新创建。"
+          );
+        }
+        throw new Error(
+          normalizeText(body?.message) || "刷新录音结果失败，请稍后重试。"
+        );
+      }
+      const syncToken = normalizeText(body.syncToken);
+      const recordingItemId = normalizeText(body.itemId);
+      const itemCode = normalizeText(body.itemCode);
+      if (!syncToken || !recordingItemId || !itemCode) {
+        throw new Error("只读恢复接口返回了无效响应。");
+      }
+      const mapping = {
+        recordingTaskCode,
+        sourceItemId: expected.sourceItemId,
+        recordingItemId,
+        itemCode,
+        syncToken,
+        updatedAt: Math.max(1, Math.round(Number(now()) || Date.now())),
+      };
+      if (
+        !storage ||
+        typeof storage.saveTaizhouRecordingSyncMapping !== "function"
+      ) {
+        throw new Error("录音同步映射保存失败，请重新加载扩展后重试。");
+      }
+      await storage.saveTaizhouRecordingSyncMapping(mapping);
+      if (!isCurrentResultEntry(expected)) {
+        return null;
+      }
+      const result = {
+        sourceItemId: expected.sourceItemId,
+        itemCode,
+        status: normalizeText(body.status),
+        updatedAt: normalizeText(body.updatedAt),
+        text: typeof body.text === "string" ? body.text : null,
+        audioAvailable: body.audioAvailable === true,
+      };
+      const audioUrl = normalizeText(body.audioUrl);
+      if (result.audioAvailable && isAllowedResultAudioPath(audioUrl)) {
+        result.audioUrl = buildBackendUrl(audioUrl);
+      }
+      return saveCachedResult(expected, result);
     }
 
     async function autoRefreshForEntry(expected, knownMapping) {

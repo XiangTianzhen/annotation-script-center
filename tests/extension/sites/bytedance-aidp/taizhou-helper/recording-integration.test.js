@@ -257,8 +257,84 @@ test("Taizhou recording integration inspects locally but sends manual imports to
   );
 });
 
-test("Taizhou recording integration returns a local empty result when the current item has no mapping", async function () {
+test("Taizhou recording integration recovers a missing local mapping during manual refresh", async function () {
+  const harness = createRuntime({
+    fetch(call) {
+      assert.equal(
+        call.url.endsWith("/recording-items/result/recover"),
+        true
+      );
+      return response({
+        status: 200,
+        json: {
+          syncToken: "sync-token-recovered",
+          itemId: "recording-item-recovered",
+          itemCode: "T000001-0000720",
+          status: "AVAILABLE",
+          updatedAt: "2026-08-03T01:00:00Z",
+          text: null,
+          audioAvailable: false,
+        },
+      });
+    },
+  });
+
+  const result = await harness.runtime.refreshCurrentResult();
+
+  assert.deepEqual(result, {
+    sourceItemId: "source-item-1",
+    itemCode: "T000001-0000720",
+    status: "AVAILABLE",
+    updatedAt: "2026-08-03T01:00:00Z",
+    text: null,
+    audioAvailable: false,
+  });
+  assert.equal(harness.calls.length, 1);
+  assert.deepEqual(JSON.parse(harness.calls[0].body), {
+    recordingTaskCode: "T000001",
+    sourceItemId: "source-item-1",
+    referenceText: "完整题目文本",
+    referenceAudioUrl: null,
+    referenceVideoUrl: null,
+  });
+  assert.deepEqual(harness.storage.mappings, [
+    {
+      recordingTaskCode: "T000001",
+      sourceItemId: "source-item-1",
+      recordingItemId: "recording-item-recovered",
+      itemCode: "T000001-0000720",
+      syncToken: "sync-token-recovered",
+      updatedAt: 1721780000000,
+    },
+  ]);
+});
+
+test("Taizhou recording integration keeps automatic entry recovery disabled without a local mapping", async function () {
   const harness = createRuntime();
+
+  const result = await harness.runtime.autoRefreshForCurrentItem("source-item-1");
+
+  assert.equal(result, null);
+  assert.equal(harness.calls.length, 0);
+});
+
+test("Taizhou recording integration keeps a normal empty result when read-only recovery finds no server mapping", async function () {
+  const harness = createRuntime({
+    fetch(call) {
+      assert.equal(
+        call.url.endsWith("/recording-items/result/recover"),
+        true
+      );
+      return response({
+        ok: false,
+        status: 404,
+        json: {
+          code: "RECORDING_MAPPING_NOT_FOUND",
+          message: "录音同步映射不存在。",
+        },
+      });
+    },
+  });
 
   const result = await harness.runtime.refreshCurrentResult();
 
@@ -266,7 +342,51 @@ test("Taizhou recording integration returns a local empty result when the curren
     notImported: true,
     sourceItemId: "source-item-1",
   });
-  assert.equal(harness.calls.length, 0);
+  assert.equal(harness.calls.length, 1);
+  assert.equal(
+    harness.calls.some((call) => call.url.endsWith("/recording-items")),
+    false
+  );
+});
+
+test("Taizhou recording integration suppresses a stale recovery error after switching items", async function () {
+  let releaseRecovery;
+  let markRecoveryStarted;
+  const recoveryGate = new Promise((resolve) => {
+    releaseRecovery = resolve;
+  });
+  const recoveryStarted = new Promise((resolve) => {
+    markRecoveryStarted = resolve;
+  });
+  const harness = createRuntime({
+    fetch: async function (call) {
+      assert.equal(
+        call.url.endsWith("/recording-items/result/recover"),
+        true
+      );
+      markRecoveryStarted();
+      await recoveryGate;
+      return response({
+        ok: false,
+        status: 503,
+        json: {
+          code: "RECORDING_PLATFORM_UNAVAILABLE",
+          message: "录音平台暂时不可用。",
+        },
+      });
+    },
+  });
+
+  const staleRecovery = harness.runtime.refreshCurrentResult();
+  await recoveryStarted;
+  assert.equal(
+    await harness.runtime.autoRefreshForCurrentItem("source-item-2"),
+    null
+  );
+  releaseRecovery();
+
+  assert.equal(await staleRecovery, null);
+  assert.deepEqual(harness.storage.mappings, []);
 });
 
 test("Taizhou recording result reports a missing remote item without creating data", async function () {

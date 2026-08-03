@@ -2710,6 +2710,33 @@ test("ByteDance AIDP content shows a normal empty state when refreshing an item 
   contentModule.__testOnly.setHelperRuntimeForTest(null);
 });
 
+test("ByteDance AIDP content preserves the safe refresh failure message", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  contentModule.__testOnly.setHelperRuntimeForTest({
+    recording: {
+      async refreshCurrentResult() {
+        throw new Error(
+          "原录音条目已不存在，请点击添加数据重新创建。"
+        );
+      },
+    },
+    ui: {
+      setStatus(message, type) {
+        statuses.push({ message, type });
+      },
+    },
+  });
+
+  await contentModule.__testOnly.handleRecordingRefreshAction();
+
+  assert.deepEqual(statuses.at(-1), {
+    message: "原录音条目已不存在，请点击添加数据重新创建。",
+    type: "error",
+  });
+  contentModule.__testOnly.setHelperRuntimeForTest(null);
+});
+
 test("ByteDance AIDP content never replaces the current recording card with an empty status", async function () {
   const contentModule = loadContentModule();
   const rendered = [];

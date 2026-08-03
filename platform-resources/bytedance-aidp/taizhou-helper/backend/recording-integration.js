@@ -632,8 +632,7 @@ function createRecordingIntegration(options) {
     );
   }
 
-  async function createRecordingItem(body) {
-    const config = getConfig();
+  function parseRecordingItemRequest(body, config) {
     validateExactObject(body, ITEM_FIELDS);
     validateStringFields(
       body,
@@ -665,6 +664,28 @@ function createRecordingIntegration(options) {
       canonicalizeHttpsReference(referenceAudioUrl),
       canonicalizeHttpsReference(referenceVideoUrl)
     );
+    return {
+      taskCode,
+      sourceItemId,
+      referenceText,
+      referenceAudioUrl,
+      referenceVideoUrl,
+      mappingKey,
+      requestFingerprint,
+    };
+  }
+
+  async function createRecordingItem(body) {
+    const config = getConfig();
+    const {
+      taskCode,
+      sourceItemId,
+      referenceText,
+      referenceAudioUrl,
+      referenceVideoUrl,
+      mappingKey,
+      requestFingerprint,
+    } = parseRecordingItemRequest(body, config);
     const existingMapping = state.mappings[mappingKey];
     if (
       existingMapping?.requestFingerprint &&
@@ -905,13 +926,7 @@ function createRecordingIntegration(options) {
     }
   }
 
-  async function queryRecordingResult(syncToken) {
-    const config = getConfig();
-    const mapping = findMappingBySyncToken(syncToken);
-    if (!mapping) {
-      throw new IntegrationError(401, "SYNC_TOKEN_INVALID", "同步凭证无效。");
-    }
-    assertAllowedTask(config, mapping.taskCode);
+  async function queryMappingResult(mapping, config) {
     const upstream = await fetchRecordingItem(mapping, config);
     if (!upstream.response.ok) {
       throw recordingQueryFailure(upstream);
@@ -939,6 +954,44 @@ function createRecordingIntegration(options) {
         signAudioToken(mapping, config);
     }
     return result;
+  }
+
+  async function queryRecordingResult(syncToken) {
+    const config = getConfig();
+    const mapping = findMappingBySyncToken(syncToken);
+    if (!mapping) {
+      throw new IntegrationError(401, "SYNC_TOKEN_INVALID", "同步凭证无效。");
+    }
+    assertAllowedTask(config, mapping.taskCode);
+    return queryMappingResult(mapping, config);
+  }
+
+  async function recoverRecordingResult(body) {
+    const config = getConfig();
+    const { mappingKey, requestFingerprint } = parseRecordingItemRequest(
+      body,
+      config
+    );
+    const mapping = state.mappings[mappingKey];
+    if (!mapping?.recordingItemId || !mapping.requestFingerprint) {
+      throw new IntegrationError(
+        404,
+        "RECORDING_MAPPING_NOT_FOUND",
+        "录音同步映射不存在。"
+      );
+    }
+    if (mapping.requestFingerprint !== requestFingerprint) {
+      throw new IntegrationError(
+        409,
+        "SOURCE_ITEM_CONTENT_CONFLICT",
+        "相同来源条目的参考内容与首次请求不一致。"
+      );
+    }
+    const result = await queryMappingResult(mapping, config);
+    return {
+      ...result,
+      syncToken: issueSyncToken(mapping, config),
+    };
   }
 
   async function proxyRecordingAudio(request, response, token) {
@@ -1032,6 +1085,7 @@ function createRecordingIntegration(options) {
   return {
     createRecordingItem,
     queryRecordingResult,
+    recoverRecordingResult,
     proxyRecordingAudio,
     close() {},
     getSnapshot() {
@@ -1100,6 +1154,21 @@ function registerRecordingIntegrationRoutes(router, options) {
       sendIntegrationError(context.response, error);
     }
   });
+  router.post(
+    `${ROUTE_PREFIX}/recording-items/result/recover`,
+    async function (context) {
+      try {
+        const body = await readJsonBody(context.request);
+        sendJson(
+          context.response,
+          200,
+          await integration.recoverRecordingResult(body)
+        );
+      } catch (error) {
+        sendIntegrationError(context.response, error);
+      }
+    }
+  );
   router.get(
     `${ROUTE_PREFIX}/recording-items/audio/:token`,
     async function (context) {

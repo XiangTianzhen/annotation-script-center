@@ -5527,8 +5527,11 @@
       }
       helperRuntime.ui?.renderRecordingResult?.(result);
       helperRuntime.ui?.setStatus?.("录音平台结果已刷新。", "success");
-    } catch (_error) {
-      helperRuntime.ui?.setStatus?.("刷新录音结果失败，请稍后重试。", "error");
+    } catch (error) {
+      helperRuntime.ui?.setStatus?.(
+        normalizeText(error?.message) || "刷新录音结果失败，请稍后重试。",
+        "error"
+      );
     }
   }
 
