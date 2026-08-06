@@ -4,7 +4,9 @@
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
   const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
+  const WORK_ITEM_REPLAY_REQUEST_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT_REQUEST";
   const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
+  const RECEIVE_SNAPSHOT_VERSION = 1;
   const RECEIVE_PATH = "/api/dispatch/Receive";
   const SUBMIT_PATH = "/api/dispatch/SubmitTempItemAnswer";
   const SEARCH_ITEM_PATH = "/dispatcher/search_item/category";
@@ -179,6 +181,45 @@
       .filter(Boolean);
   }
 
+  function sanitizeReceiveEntry(entry) {
+    const item = entry?.Item && typeof entry.Item === "object" ? entry.Item : {};
+    const tempAnswer =
+      entry?.TempAnswer && typeof entry.TempAnswer === "object" ? entry.TempAnswer : {};
+    const itemId = normalizeText(item.ItemID);
+    const content = typeof item.Content === "string" ? item.Content : "";
+    const tempAnswerContent =
+      typeof tempAnswer.Content === "string" ? tempAnswer.Content : "";
+    if (!itemId || !content || !tempAnswerContent) {
+      return null;
+    }
+    return {
+      Item: {
+        ItemID: itemId,
+        Content: content,
+      },
+      TempAnswer: {
+        Content: tempAnswerContent,
+      },
+    };
+  }
+
+  function sanitizeReceiveSnapshots(value) {
+    const response = parseJsonSafely(value) || {};
+    const sanitizeItems = function (items) {
+      return (Array.isArray(items) ? items : []).map(sanitizeReceiveEntry).filter(Boolean);
+    };
+    if (Array.isArray(response?.Items)) {
+      return { Items: sanitizeItems(response.Items) };
+    }
+    if (Array.isArray(response?.Data?.Items)) {
+      return { Data: { Items: sanitizeItems(response.Data.Items) } };
+    }
+    if (Array.isArray(response?.data?.items)) {
+      return { data: { items: sanitizeItems(response.data.items) } };
+    }
+    return { Items: [] };
+  }
+
   function postMessage(windowLike, locationLike, type, payload) {
     if (!windowLike || typeof windowLike.postMessage !== "function") {
       return;
@@ -217,11 +258,12 @@
     let installed = false;
     let pendingNetworkRequestCount = 0;
     let networkActivitySequence = 0;
+    let latestWorkItemResponse = null;
 
-    function notifyReceive(rawUrl, payload) {
+    function notifyReceive(payload) {
       postMessage(windowLike, locationLike, RECEIVE_TYPE, {
-        url: getUrl(rawUrl, locationLike)?.href || String(rawUrl || ""),
-        response: payload,
+        snapshotVersion: RECEIVE_SNAPSHOT_VERSION,
+        response: sanitizeReceiveSnapshots(payload),
       });
     }
 
@@ -245,8 +287,27 @@
     }
 
     function notifyWorkItem(payload) {
+      latestWorkItemResponse = sanitizeWorkItemSnapshots(payload);
       postMessage(windowLike, locationLike, WORK_ITEM_TYPE, {
-        response: sanitizeWorkItemSnapshots(payload),
+        response: latestWorkItemResponse,
+      });
+    }
+
+    function replayLatestWorkItem(event) {
+      const data = event?.data && typeof event.data === "object" ? event.data : {};
+      if (
+        data.source !== SOURCE ||
+        data.type !== WORK_ITEM_REPLAY_REQUEST_TYPE ||
+        !Array.isArray(latestWorkItemResponse)
+      ) {
+        return;
+      }
+      const origin = normalizeText(event?.origin);
+      if (origin && origin !== normalizeText(locationLike?.origin)) {
+        return;
+      }
+      postMessage(windowLike, locationLike, WORK_ITEM_TYPE, {
+        response: latestWorkItemResponse,
       });
     }
 
@@ -316,7 +377,7 @@
                 .then(function (text) {
                   const payload = parseJsonSafely(text);
                   if (receiveRequest && payload) {
-                    notifyReceive(rawUrl, payload);
+                    notifyReceive(payload);
                   } else if (workItemRequest && payload) {
                     notifyWorkItem(payload);
                   } else if (searchItemRequest) {
@@ -385,7 +446,7 @@
           xhr.addEventListener("load", function () {
             const payload = parseJsonSafely(xhr.responseText);
             if (isReceiveUrl(rawUrl, locationLike) && payload) {
-              notifyReceive(rawUrl, payload);
+              notifyReceive(payload);
             } else if (isWorkItemUrl(rawUrl, locationLike) && payload) {
               notifyWorkItem(payload);
             } else if (isSearchItemUrl(rawUrl, locationLike)) {
@@ -407,6 +468,9 @@
         return;
       }
       installed = true;
+      if (typeof windowLike.addEventListener === "function") {
+        windowLike.addEventListener("message", replayLatestWorkItem);
+      }
       installFetchObserver();
       installXhrObserver();
     }
@@ -435,9 +499,11 @@
   }
 
   if (typeof window !== "undefined") {
-    const flag = "__ASREdgeBytedanceAidpNetworkObserverInstalled";
-    if (!window[flag]) {
-      window[flag] = true;
+    const legacyFlag = "__ASREdgeBytedanceAidpNetworkObserverInstalled";
+    const workItemObserverFlag = "__ASREdgeBytedanceAidpWorkItemObserverInstalled";
+    if (!window[workItemObserverFlag]) {
+      window[legacyFlag] = true;
+      window[workItemObserverFlag] = true;
       createObserver({ window, location: window.location }).install();
     }
   }

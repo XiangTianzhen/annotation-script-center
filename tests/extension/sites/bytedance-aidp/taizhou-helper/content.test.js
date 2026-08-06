@@ -924,7 +924,7 @@ test("ByteDance AIDP content also finds targets inside same-origin iframes", fun
   assert.deepEqual(targets, [insightCard]);
 });
 
-test("ByteDance AIDP content recognizes writable mark-v3 and read-only scan-v3 detail routes", function () {
+test("ByteDance AIDP content recognizes writable mark-v3 and read-only check-package detail routes", function () {
   const contentModule = loadContentModule();
 
   assert.equal(
@@ -946,6 +946,18 @@ test("ByteDance AIDP content recognizes writable mark-v3 and read-only scan-v3 d
     true
   );
   assert.equal(
+    contentModule.__testOnly.isDetailPagePathname(
+      "/management/task-v2/7659349631994793763/mark-package/7668242832788803380/14"
+    ),
+    true
+  );
+  assert.equal(
+    contentModule.__testOnly.isReadOnlyScanPagePathname(
+      "/management/task-v2/7659349631994793763/mark-package/7668242832788803380/14"
+    ),
+    true
+  );
+  assert.equal(
     contentModule.__testOnly.isReadOnlyScanPagePathname(
       "/management/task-v2/7632228385175129882/mark-v3/1"
     ),
@@ -954,6 +966,12 @@ test("ByteDance AIDP content recognizes writable mark-v3 and read-only scan-v3 d
   assert.equal(
     contentModule.__testOnly.getCurrentHelperPageMode(
       "/management/task-v2/7632228385175129882/scan-v3/14/7664531650324500251"
+    ),
+    "scan-read-only"
+  );
+  assert.equal(
+    contentModule.__testOnly.getCurrentHelperPageMode(
+      "/management/task-v2/7659349631994793763/mark-package/7668242832788803380/14"
     ),
     "scan-read-only"
   );
@@ -3512,6 +3530,45 @@ test("ByteDance AIDP content exposes exactly the expected shortcut action handle
     "previewSegments",
     "applyPreviewSegments",
   ]);
+});
+
+test("ByteDance AIDP read-only shortcut actions never delete or modify the current selection", async function () {
+  const contentModule = loadContentModule();
+  const calls = [];
+  const actions = contentModule.__testOnly.createShortcutActions({
+    readOnly: true,
+    onTogglePlayPause() {
+      calls.push("togglePlayPause");
+    },
+    onPlaySelection() {
+      calls.push("playSelection");
+    },
+    onJumpToFirstFrame() {
+      calls.push("jumpToFirstFrame");
+    },
+    onDeleteCurrentSelection() {
+      calls.push("deleteCurrentSelection");
+    },
+    onClearSegments() {
+      calls.push("clearSegments");
+    },
+    onPreviewSegments() {
+      calls.push("previewSegments");
+    },
+    onApplyPreviewSegments() {
+      calls.push("applyPreviewSegments");
+    },
+  });
+
+  await actions.togglePlayPause();
+  await actions.playSelection();
+  await actions.jumpToFirstFrame();
+  await actions.deleteCurrentSelection();
+  await actions.clearSegments();
+  await actions.previewSegments();
+  await actions.applyPreviewSegments();
+
+  assert.deepEqual(calls, ["togglePlayPause", "playSelection", "jumpToFirstFrame"]);
 });
 
 function createRecordingAutomationHarness(options) {

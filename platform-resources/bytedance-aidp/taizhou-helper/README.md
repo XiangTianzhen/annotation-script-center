@@ -13,10 +13,11 @@
 
 ## 检查包只读识别边界
 
-- `scan-v3/14` 仅使用 `GetWorkItem` 中的 `Item.Content` 和答案 `regions` 构建当前题识别上下文；跨世界快照不包含审计历史、用户资料、Cookie、请求头或请求参数。
-- 当前可见分段通过 `data-neeko-table-row-key` 与 `regions[*].id` 关联；识别结果仅用于预览和复制。
+- `scan-v3/14/{itemId}` 与 `mark-package/{packageId}/14?itemID={itemId}` 优先使用 `GetWorkItem` 中的 `Item.Content` 和答案 `regions` 构建当前题识别上下文；当前检查包未发起该接口时，仅回退使用同页已观察到的 `Receive` 最小快照。两类快照都必须按路由 `itemId` 精确选中条目，未匹配即不建立上下文。`Receive` 仅保留 `Items[].Item.ItemID`、`Items[].Item.Content` 与 `Items[].TempAnswer.Content`，并带固定 `snapshotVersion: 1`；跨世界快照不包含请求 URL、审计历史、用户资料、Cookie、请求头或请求参数，未带版本标记的旧观察器消息不被只读页消费。
+- 主世界观察器只在当前页面内存保留脱敏后的最近一条 `GetWorkItem` 快照；检查包运行时启动后会请求回放该快照，避免在异步读取扩展设置期间错过初始化请求。`Receive` 只复用已有同页最小快照，不写入 storage、日志或网络请求。
+- 当前可见分段通过 `data-neeko-table-row-key` 与 `regions[*].id` 关联；没有行键或没有任何精确匹配时不返回分段。识别结果仅用于预览和复制，批量识别默认不选段，必须由用户人工选择，`check_status` 不参与自动选择。
 - 单段与批量识别复用现有 AI 接口、60 秒超时、用量与人民币估算，不新增模型或后端接口。
-- 此模式所有写入口均 fail-closed：不得修改 DOM、不得调用暂存接口，也不得触发保存、提交、领取、切题、录音导入或押后流程。
+- 此模式所有写入口均 fail-closed：不得修改 DOM、不得调用暂存接口，也不得触发保存、提交、领取、切题、删除当前选区、录音导入或押后流程。
 
 ## 写入边界
 

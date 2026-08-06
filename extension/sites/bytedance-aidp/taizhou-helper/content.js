@@ -338,7 +338,10 @@
 
   function isReadOnlyScanPagePathname(pathname) {
     const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
-    return /^\/management\/task-v2\/[^/]+\/scan-v3\/14\/[^/]+$/i.test(text);
+    return (
+      /^\/management\/task-v2\/[^/]+\/scan-v3\/14\/[^/]+$/i.test(text) ||
+      /^\/management\/task-v2\/[^/]+\/mark-package\/[^/]+\/14$/i.test(text)
+    );
   }
 
   function isManagementPagePathname(pathname) {
@@ -4595,6 +4598,7 @@
 
   function createShortcutActions(deps) {
     const source = deps && typeof deps === "object" ? deps : {};
+    const readOnly = source.readOnly === true;
     return {
       togglePlayPause: function () {
         return source.onTogglePlayPause?.();
@@ -4606,15 +4610,27 @@
         return source.onJumpToFirstFrame?.();
       },
       deleteCurrentSelection: function () {
+        if (readOnly) {
+          return;
+        }
         return source.onDeleteCurrentSelection?.();
       },
       clearSegments: function () {
+        if (readOnly) {
+          return;
+        }
         return source.onClearSegments?.();
       },
       previewSegments: function () {
+        if (readOnly) {
+          return;
+        }
         return source.onPreviewSegments?.();
       },
       applyPreviewSegments: function () {
+        if (readOnly) {
+          return;
+        }
         return source.onApplyPreviewSegments?.();
       },
     };
@@ -5746,6 +5762,7 @@
         ? shortcutFactory.createRuntime({
             shortcuts: helperConfig.shortcuts,
             actions: createShortcutActions({
+              readOnly: readOnly,
               onTogglePlayPause: function () {
                 return triggerPlayPauseAction(document);
               },

@@ -17,6 +17,7 @@ const modulePath = resolveRepo(
 function createFakeWindow(options) {
   const source = options || {};
   const messages = [];
+  const messageListeners = new Map();
   function FakeXhr() {
     this._listeners = new Map();
     this.responseText = "";
@@ -31,7 +32,7 @@ function createFakeWindow(options) {
     this._listeners.get(String(type || ""))?.call(this);
   };
 
-  return {
+  const windowLike = {
     location: {
       href: "https://aidp.bytedance.com/management/task-v2/1/mark-v3/1",
       origin: "https://aidp.bytedance.com",
@@ -53,8 +54,25 @@ function createFakeWindow(options) {
     postMessage(message, targetOrigin) {
       messages.push({ message, targetOrigin });
     },
+    addEventListener(type, listener) {
+      messageListeners.set(String(type || ""), listener);
+    },
+    removeEventListener(type, listener) {
+      const key = String(type || "");
+      if (messageListeners.get(key) === listener) {
+        messageListeners.delete(key);
+      }
+    },
+    emitMessage(data, origin) {
+      messageListeners.get("message")?.({
+        data,
+        origin: origin || "https://aidp.bytedance.com",
+        source: windowLike,
+      });
+    },
     messages,
   };
+  return windowLike;
 }
 
 function loadObserverModule(windowLike) {
@@ -455,6 +473,227 @@ test("shared AIDP network observer settles a synchronous XHR send exception", fu
   }
 });
 
+test("shared AIDP network observer sends only the current Receive snapshot fields for fetch", async function () {
+  const itemContent = JSON.stringify({
+    audio: "https://media.example.test/audio?signature=masked",
+    video: "https://media.example.test/video?signature=masked",
+  });
+  const tempAnswerContent = JSON.stringify({
+    itemID: "item-receive-fetch",
+    data: {
+      regions: [{ id: "region-receive-fetch", no: 1, start: 0, end: 1 }],
+    },
+  });
+  const receiveResponse = {
+    PackageID: "private-package",
+    Items: [{
+      PackageID: "private-package",
+      Item: {
+        ItemID: "item-receive-fetch",
+        Content: itemContent,
+        Users: [{ Email: "private@example.test" }],
+      },
+      TempAnswer: {
+        Content: tempAnswerContent,
+        TimeStamp: "private-timestamp",
+      },
+      Answer: "private-answer",
+      AuditHistory: [{ User: { Email: "audit-private@example.test" } }],
+    }],
+    BaseResp: { StatusCode: 0 },
+  };
+  const windowLike = createFakeWindow({
+    fetch: async function () {
+      return {
+        clone() {
+          return {
+            async text() {
+              return JSON.stringify(receiveResponse);
+            },
+          };
+        },
+      };
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await windowLike.fetch(
+      "https://aidp.bytedance.com/api/dispatch/Receive?msToken=must-not-send"
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const receiveMessage = windowLike.messages.find(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
+    });
+    assert.deepEqual(receiveMessage, {
+      targetOrigin: "https://aidp.bytedance.com",
+      message: {
+        source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+        type: "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT",
+        payload: {
+          snapshotVersion: 1,
+          response: {
+            Items: [{
+              Item: {
+                ItemID: "item-receive-fetch",
+                Content: itemContent,
+              },
+              TempAnswer: {
+                Content: tempAnswerContent,
+              },
+            }],
+          },
+        },
+      },
+    });
+    assert.doesNotMatch(
+      JSON.stringify(receiveMessage),
+      /msToken|must-not-send|private-package|private@example|audit-private|private-answer|private-timestamp|BaseResp/
+    );
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer sends only the current Receive snapshot fields for XHR", function () {
+  const itemContent = JSON.stringify({ audio: "https://media.example.test/audio-xhr" });
+  const tempAnswerContent = JSON.stringify({
+    itemID: "item-receive-xhr",
+    dataMap: {
+      regions: [{ id: "region-receive-xhr", no: 2, start: 1, end: 2 }],
+    },
+  });
+  const windowLike = createFakeWindow();
+
+  try {
+    loadObserverModule(windowLike);
+    const xhr = new windowLike.XMLHttpRequest();
+    xhr.open(
+      "POST",
+      "https://aidp.bytedance.com/api/dispatch/Receive?authorization=must-not-send"
+    );
+    xhr.send("private-request-body");
+    xhr.responseText = JSON.stringify({
+      Data: {
+        Items: [{
+          Item: {
+            ItemID: "item-receive-xhr",
+            Content: itemContent,
+            User: { Email: "private-xhr@example.test" },
+          },
+          TempAnswer: {
+            Content: tempAnswerContent,
+            ItemID: "private-temp-answer-item-id",
+          },
+          AuditHistory: [{ User: { Email: "audit-xhr@example.test" } }],
+        }],
+      },
+      Authorization: "must-not-send",
+    });
+    xhr.emit("load");
+
+    const receiveMessage = windowLike.messages.find(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
+    });
+    assert.deepEqual(receiveMessage?.message?.payload, {
+      snapshotVersion: 1,
+      response: {
+        Data: {
+          Items: [{
+            Item: {
+              ItemID: "item-receive-xhr",
+              Content: itemContent,
+            },
+            TempAnswer: {
+              Content: tempAnswerContent,
+            },
+          }],
+        },
+      },
+    });
+    assert.doesNotMatch(
+      JSON.stringify(receiveMessage),
+      /authorization|must-not-send|private-request-body|private-xhr|audit-xhr|private-temp-answer-item-id/i
+    );
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer preserves and sanitizes lowercase Receive data.items containers", async function () {
+  const itemContent = JSON.stringify({ audio: "https://media.example.test/audio-lowercase" });
+  const tempAnswerContent = JSON.stringify({
+    itemID: "item-receive-lowercase",
+    data: { regions: [{ id: "region-receive-lowercase", no: 3, start: 2, end: 3 }] },
+  });
+  const windowLike = createFakeWindow({
+    fetch: async function () {
+      return {
+        clone() {
+          return {
+            async text() {
+              return JSON.stringify({
+                data: {
+                  items: [{
+                    Item: {
+                      ItemID: "item-receive-lowercase",
+                      Content: itemContent,
+                      User: { Email: "private-lowercase@example.test" },
+                    },
+                    TempAnswer: {
+                      Content: tempAnswerContent,
+                      AuditHistory: [{ User: { Email: "audit-lowercase@example.test" } }],
+                    },
+                  }],
+                },
+              });
+            },
+          };
+        },
+      };
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await windowLike.fetch("https://aidp.bytedance.com/api/dispatch/Receive?opaque=must-not-send");
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const receiveMessage = windowLike.messages.find(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
+    });
+    assert.deepEqual(receiveMessage?.message?.payload, {
+      snapshotVersion: 1,
+      response: {
+        data: {
+          items: [{
+            Item: {
+              ItemID: "item-receive-lowercase",
+              Content: itemContent,
+            },
+            TempAnswer: {
+              Content: tempAnswerContent,
+            },
+          }],
+        },
+      },
+    });
+    assert.doesNotMatch(JSON.stringify(receiveMessage), /opaque|must-not-send|private-lowercase|audit-lowercase/i);
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
 test("shared AIDP network observer publishes a GetWorkItem response without request credentials", async function () {
   const workItemResponse = [{
     Item: {
@@ -510,6 +749,88 @@ test("shared AIDP network observer publishes a GetWorkItem response without requ
       JSON.stringify(message),
       /msToken|Cookie|Authorization|must-not-send|AuditHistory|private@example/
     );
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer upgrades a legacy install flag so GetWorkItem stays observable", async function () {
+  const workItemResponse = [{
+    Item: {
+      ItemID: "item-legacy",
+      Content: JSON.stringify({ audio: "https://media.example.test/audio?signature=masked" }),
+    },
+    Answer: JSON.stringify({ data: { regions: [{ id: "region-legacy", no: 1, start: 0, end: 1 }] } }),
+  }];
+  const windowLike = createFakeWindow({
+    fetch: async function () {
+      return {
+        clone() {
+          return {
+            async text() {
+              return JSON.stringify(workItemResponse);
+            },
+          };
+        },
+      };
+    },
+  });
+  windowLike.__ASREdgeBytedanceAidpNetworkObserverInstalled = true;
+
+  try {
+    loadObserverModule(windowLike);
+    await windowLike.fetch("https://aidp.bytedance.com/api/dispatch/GetWorkItem?opaque=masked");
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const workItemMessage = windowLike.messages.find(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
+    });
+    assert.equal(workItemMessage?.message?.payload?.response?.[0]?.Item?.ItemID, "item-legacy");
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer replays only the sanitized latest GetWorkItem snapshot on request", async function () {
+  const workItemResponse = [{
+    Item: {
+      ItemID: "item-1",
+      Content: JSON.stringify({ audio: "https://media.example.test/audio?signature=masked" }),
+    },
+    Answer: JSON.stringify({ data: { regions: [{ id: "region-a", no: 1, start: 0, end: 1 }] } }),
+    AuditHistory: [{ User: { Email: "private@example.test" } }],
+  }];
+  const windowLike = createFakeWindow({
+    fetch: async function () {
+      return {
+        clone() {
+          return { text: async function () { return JSON.stringify(workItemResponse); } };
+        },
+      };
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await windowLike.fetch("https://aidp.bytedance.com/api/dispatch/GetWorkItem?msToken=must-not-send");
+    await new Promise((resolve) => setImmediate(resolve));
+    windowLike.emitMessage({
+      source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+      type: "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT_REQUEST",
+    });
+
+    const snapshots = windowLike.messages.filter(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
+    });
+    assert.equal(snapshots.length, 2);
+    assert.deepEqual(snapshots[1], snapshots[0]);
+    assert.doesNotMatch(JSON.stringify(snapshots[1]), /msToken|AuditHistory|private@example/);
   } finally {
     delete require.cache[modulePath];
     delete globalThis.window;

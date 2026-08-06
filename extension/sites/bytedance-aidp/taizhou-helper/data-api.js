@@ -4,7 +4,9 @@
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
   const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
+  const WORK_ITEM_REPLAY_REQUEST_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT_REQUEST";
   const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
+  const RECEIVE_SNAPSHOT_VERSION = 1;
   const DEFAULT_SEARCH_CONTEXT_TTL_MS = 10 * 60 * 1000;
   const APPLY_SUCCESS_MESSAGE = "已通过平台暂存接口应用分段建议，请刷新页面复核。";
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
@@ -196,10 +198,26 @@
     return [];
   }
 
-  function parseReceiveSnapshot(payload) {
+  function selectSnapshotItem(items, expectedItemId, requireExactItemId) {
+    const candidates = Array.isArray(items) ? items : [];
+    const expectedId = normalizeText(expectedItemId);
+    if (!expectedId) {
+      if (requireExactItemId) {
+        return {};
+      }
+      return candidates[0] && typeof candidates[0] === "object" ? candidates[0] : {};
+    }
+    return (
+      candidates.find(function (entry) {
+        return normalizeText(entry?.Item?.ItemID) === expectedId;
+      }) || {}
+    );
+  }
+
+  function parseReceiveSnapshot(payload, expectedItemId, requireExactItemId) {
     const response = payload?.response || payload?.Response || payload || {};
     const items = extractReceiveItems(response);
-    const firstItem = items[0] && typeof items[0] === "object" ? items[0] : {};
+    const firstItem = selectSnapshotItem(items, expectedItemId, requireExactItemId);
     const item = firstItem.Item && typeof firstItem.Item === "object" ? firstItem.Item : {};
     const tempAnswerWrapper =
       firstItem.TempAnswer && typeof firstItem.TempAnswer === "object" ? firstItem.TempAnswer : {};
@@ -288,10 +306,10 @@
     return [];
   }
 
-  function parseWorkItemSnapshot(payload) {
+  function parseWorkItemSnapshot(payload, expectedItemId, requireExactItemId) {
     const response = payload?.response || payload?.Response || payload || {};
     const items = extractWorkItemItems(response);
-    const firstItem = items[0] && typeof items[0] === "object" ? items[0] : {};
+    const firstItem = selectSnapshotItem(items, expectedItemId, requireExactItemId);
     const item = firstItem.Item && typeof firstItem.Item === "object" ? firstItem.Item : {};
     const itemContent = parseJsonSafely(item.Content, {});
     const answer = parseJsonSafely(firstItem.Answer, {});
@@ -313,21 +331,52 @@
 
   function resolveDetailRoute(locationLike) {
     const pathname = normalizeText(locationLike?.pathname || "");
-    const matched = pathname.match(/^\/management\/task-v2\/([^/]+)\/(mark-v3|scan-v3)\/([^/?#]+)(?:\/([^/?#]+))?/i);
+    const matched = pathname.match(
+      /^\/management\/task-v2\/([^/]+)\/(mark-v3|scan-v3|mark-package)\/([^/?#]+)(?:\/([^/?#]+))?/i
+    );
     const searchParams = new URLSearchParams(String(locationLike?.search || ""));
     const pageType = normalizeText(matched?.[2]).toLowerCase();
-    const readOnly = pageType === "scan-v3" && normalizeText(matched?.[3]) === "14";
+    const readOnly =
+      (pageType === "scan-v3" && normalizeText(matched?.[3]) === "14") ||
+      (pageType === "mark-package" && normalizeText(matched?.[4]) === "14");
     return {
       taskId: normalizeText(matched?.[1]),
       mode: readOnly ? "scan" : "mark",
       readOnly: readOnly,
       markIndex: pageType === "mark-v3" ? normalizeText(matched?.[3]) : "",
-      nodeId: pageType === "scan-v3" ? normalizeText(matched?.[3]) : "",
-      itemId: pageType === "scan-v3" ? normalizeText(matched?.[4]) : "",
+      nodeId:
+        pageType === "scan-v3"
+          ? normalizeText(matched?.[3])
+          : pageType === "mark-package"
+            ? normalizeText(matched?.[4])
+            : "",
+      itemId:
+        pageType === "scan-v3"
+          ? normalizeText(matched?.[4])
+          : pageType === "mark-package"
+            ? normalizeText(searchParams.get("itemID"))
+            : "",
       templateID: normalizeText(searchParams.get("templateID")),
       templateType: normalizeText(searchParams.get("templateType")),
       fromPathname: normalizeText(searchParams.get("from_pathname")),
     };
+  }
+
+  function requestWorkItemSnapshotReplay(windowLike, locationLike) {
+    if (!windowLike || typeof windowLike.postMessage !== "function") {
+      return;
+    }
+    try {
+      windowLike.postMessage(
+        {
+          source: OBSERVER_SOURCE,
+          type: WORK_ITEM_REPLAY_REQUEST_TYPE,
+        },
+        normalizeText(locationLike?.origin) || "*"
+      );
+    } catch (_error) {
+      // A replay request is optional; future GetWorkItem messages remain observable.
+    }
   }
 
   function findSegmentTableRoot(documentLike) {
@@ -754,17 +803,21 @@
         .filter(Boolean)
     );
     if (visibleRegionIds.size <= 0) {
-      return currentSegments;
+      return [];
     }
-    const visibleSegments = currentSegments.filter(function (segment) {
+    return currentSegments.filter(function (segment) {
       return visibleRegionIds.has(normalizeText(segment?.regionId));
     });
-    return visibleSegments.length > 0 ? visibleSegments : currentSegments;
   }
 
   function buildCurrentContext(receiveSnapshot, submitSnapshot, route, tableState) {
-    const currentAnswer = resolveCurrentAnswerSnapshot(receiveSnapshot, submitSnapshot);
-    const resolvedSegments = resolveCurrentSegments(receiveSnapshot, submitSnapshot);
+    const expectedReadOnlyItemId = route?.readOnly ? normalizeText(route?.itemId) : "";
+    const snapshotMatchesRoute = route?.readOnly
+      ? Boolean(expectedReadOnlyItemId) && normalizeText(receiveSnapshot?.itemId) === expectedReadOnlyItemId
+      : true;
+    const currentSnapshot = snapshotMatchesRoute ? receiveSnapshot : null;
+    const currentAnswer = resolveCurrentAnswerSnapshot(currentSnapshot, submitSnapshot);
+    const resolvedSegments = resolveCurrentSegments(currentSnapshot, submitSnapshot);
     const currentSegments = route?.readOnly
       ? filterReadOnlySegmentsByVisibleRegionIds(resolvedSegments, tableState)
       : resolvedSegments;
@@ -785,19 +838,19 @@
       nodeId: normalizeText(submitSnapshot?.body?.NodeID || route?.nodeId || route?.markIndex || "1"),
       stagingTime: normalizeText(submitSnapshot?.body?.StagingTime || "604800"),
       itemId: normalizeText(
-        submitSnapshot?.itemId || receiveSnapshot?.itemId || currentAnswer?.itemID
+        submitSnapshot?.itemId || currentSnapshot?.itemId || currentAnswer?.itemID
       ),
       entryId: normalizeText(
-        receiveSnapshot?.entryId || currentAnswer?.item?.id || receiveSnapshot?.itemContent?.id
+        currentSnapshot?.entryId || currentAnswer?.item?.id || currentSnapshot?.itemContent?.id
       ),
       templateID: normalizeText(
-        currentAnswer?.templateID || receiveSnapshot?.templateID || route?.templateID
+        currentAnswer?.templateID || currentSnapshot?.templateID || route?.templateID
       ),
       audioUrl: normalizeText(
-        receiveSnapshot?.audioUrl || receiveSnapshot?.itemContent?.audio || currentAnswer?.item?.audio
+        currentSnapshot?.audioUrl || currentSnapshot?.itemContent?.audio || currentAnswer?.item?.audio
       ),
       videoUrl: normalizeText(
-        receiveSnapshot?.videoUrl || receiveSnapshot?.itemContent?.video || currentAnswer?.item?.video
+        currentSnapshot?.videoUrl || currentSnapshot?.itemContent?.video || currentAnswer?.item?.video
       ),
       audioDurationMs: Math.max(0, Math.round(durationSeconds * 1000)),
       discard: normalizeText(
@@ -810,7 +863,7 @@
       activeSegmentNumber: activeSegmentNumber,
       activeSegment: activeSegment,
       selectionKey: normalizeText(
-        submitSnapshot?.itemId || receiveSnapshot?.itemId || currentAnswer?.itemID
+        submitSnapshot?.itemId || currentSnapshot?.itemId || currentAnswer?.itemID
       ),
       tempAnswer: currentAnswer,
       tableState: tableState,
@@ -1204,11 +1257,20 @@
         return;
       }
       if (data.type === RECEIVE_TYPE) {
-        receiveSnapshot = withSnapshotEventSequence(parseReceiveSnapshot(data.payload));
+        if (Number(data.payload?.snapshotVersion) !== RECEIVE_SNAPSHOT_VERSION) {
+          return;
+        }
+        const route = resolveDetailRoute(locationLike);
+        receiveSnapshot = withSnapshotEventSequence(
+          parseReceiveSnapshot(data.payload, route.readOnly ? route.itemId : "", route.readOnly)
+        );
         return;
       }
       if (data.type === WORK_ITEM_TYPE) {
-        workItemSnapshot = withSnapshotEventSequence(parseWorkItemSnapshot(data.payload));
+        const route = resolveDetailRoute(locationLike);
+        workItemSnapshot = withSnapshotEventSequence(
+          parseWorkItemSnapshot(data.payload, route.readOnly ? route.itemId : "", route.readOnly)
+        );
         return;
       }
       if (data.type === SUBMIT_TYPE) {
@@ -1245,12 +1307,22 @@
     if (windowLike && typeof windowLike.addEventListener === "function") {
       windowLike.addEventListener("message", handleObserverMessage);
     }
+    if (resolveDetailRoute(locationLike).readOnly) {
+      requestWorkItemSnapshotReplay(windowLike, locationLike);
+    }
 
     async function getCurrentContext() {
       const route = resolveDetailRoute(locationLike);
       const tableState = readCurrentTableState();
+      const expectedReadOnlyItemId = route.readOnly ? normalizeText(route.itemId) : "";
+      const currentReadOnlySnapshot = expectedReadOnlyItemId &&
+        normalizeText(workItemSnapshot?.itemId) === expectedReadOnlyItemId
+        ? workItemSnapshot
+        : expectedReadOnlyItemId && normalizeText(receiveSnapshot?.itemId) === expectedReadOnlyItemId
+          ? receiveSnapshot
+          : null;
       const context = buildCurrentContext(
-        route.readOnly ? workItemSnapshot : receiveSnapshot,
+        route.readOnly ? currentReadOnlySnapshot : receiveSnapshot,
         route.readOnly ? null : submitSnapshot,
         route,
         tableState

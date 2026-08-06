@@ -1134,6 +1134,51 @@ test("AIDP taizhou ui panel toggles batch selection with a normal click without 
   }
 });
 
+test("AIDP taizhou ui panel keeps read-only batch selection empty until a user selects segments", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const batchSelections = [];
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({
+      readOnly: true,
+      onBatchRecommend(selectedNumbers) {
+        batchSelections.push(selectedNumbers);
+      },
+    });
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = findMountedPanelRoot(harness.body);
+    runtime.renderBatchSelection({ totalSegments: 3, resetSelection: true });
+
+    const batchButtonTwo = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-segment-number") === "2";
+    });
+    const batchAllButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-all") === "true";
+    });
+    const primaryAction = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-batch-primary-action") === "true";
+    });
+
+    assert.equal(batchButtonTwo.getAttribute("data-selected"), "false");
+    assert.equal(batchAllButton.getAttribute("data-selected"), "false");
+    primaryAction.click();
+    assert.deepEqual(batchSelections, [[]]);
+
+    batchButtonTwo.click();
+    primaryAction.click();
+    assert.deepEqual(batchSelections, [[], [2]]);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP taizhou ui panel keeps one batch recognition-and-write control", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;

@@ -1,14 +1,14 @@
-# scan-v3/14 检查包只读识别页
+# 检查包只读识别页
 
 ## 页面标识 / 路由 / 前置条件
 
-- 路由：`/management/task-v2/{taskId}/scan-v3/14/{itemId}`。
-- 前置条件：已进入 AIDP 检查包浏览页，并已收到对应 `GetWorkItem` 响应。
+- 路由：`/management/task-v2/{taskId}/scan-v3/14/{itemId}`，或实际检查包页的 `/management/task-v2/{taskId}/mark-package/{packageId}/14?itemID={itemId}`。
+- 前置条件：已进入 AIDP 检查包浏览页，并已收到对应当前 `itemId` 的 `GetWorkItem` 响应，或在缺少该响应时收到带 `snapshotVersion: 1` 的同页最小 `Receive` 快照。
 
 ## 页面总览
 
 - 页面展示当前题的音频波形与一个或多个现有分段。
-- 台州话辅助面板在此模式仅提供单段识别、当前可见分段选择、批量识别、停止、预览与复制。
+- 台州话辅助面板在此模式仅提供单段识别、人工选择当前可见分段、批量识别、停止、预览与复制；批量默认不选择任何分段，也不按审核状态自动选择。
 
 ## DOM 树 / 区域结构
 
@@ -38,11 +38,11 @@
 
 | 页面区域 | 只读数据来源 |
 | --- | --- |
-| 媒体信息 | `GetWorkItem.Item.Content` |
-| 分段选择与行内识别 | `GetWorkItem.Answer.data.regions` / `dataMap.regions` |
+| 媒体信息 | `GetWorkItem.Item.Content`，或回退 `Receive.Item.Content` |
+| 分段选择与行内识别 | `GetWorkItem.Answer.data.regions` / `dataMap.regions`，或回退 `Receive.TempAnswer.Content` 中的同字段 |
 | 批量结果预览 | 台州话 AI 识别返回的 `listenText` |
 
 ## 写操作边界 / 未确认项
 
-- 此页面禁止修改 textarea，禁止调用 `SubmitTempItemAnswer`，禁止暂存、提交、领取、切题或自动流转。
+- 此页面禁止修改 textarea，禁止调用 `SubmitTempItemAnswer`，禁止暂存、提交、领取、切题、删除当前选区或自动流转；所有写入型快捷键必须拒绝执行。
 - 停止批量后不再发起新的 AI 请求；已发出的请求可返回并仅显示结果。

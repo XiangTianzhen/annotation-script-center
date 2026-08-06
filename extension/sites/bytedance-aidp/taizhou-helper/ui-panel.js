@@ -781,11 +781,15 @@
         return;
       }
 
-      const resetSelection = source.resetSelection === true || batchSelectionState.selectedNumbers.length <= 0;
+      const resetSelection =
+        source.resetSelection === true ||
+        (!readOnly && batchSelectionState.selectedNumbers.length <= 0);
       const nextSelectedNumbers = resetSelection
-        ? Array.from({ length: total }, function (_item, index) {
-            return index + 1;
-          })
+        ? readOnly
+          ? []
+          : Array.from({ length: total }, function (_item, index) {
+              return index + 1;
+            })
         : batchSelectionState.selectedNumbers;
       batchSelectionState.selectedNumbers = normalizeBatchSelectionNumbers(total, nextSelectedNumbers);
 
@@ -859,7 +863,9 @@
       panelTitleRow.appendChild(panelTitle);
       panelTitleRow.appendChild(
         createTooltipDot(
-          "当前支持原始听音识别、批量识别、分段建议和平台暂存写回；单段识别只直填当前输入框，批量识别和分段建议继续走平台暂存写回。"
+          readOnly
+            ? "当前为检查包只读模式：支持原始听音识别、人工勾选的批量识别、预览和复制，不会修改页面或调用平台写接口。"
+            : "当前支持原始听音识别、批量识别、分段建议和平台暂存写回；单段识别只直填当前输入框，批量识别和分段建议继续走平台暂存写回。"
         )
       );
       panelHead.appendChild(panelTitleRow);
@@ -914,7 +920,9 @@
       batchHead.appendChild(
         createSectionTitleRow(
           "批量识别",
-          "只处理当前题当前页 regions；默认全选，支持段号点选和拖选，停止后不再继续发新请求；只更新目标段的 txt，不改 ms，不自动提交、不自动切题。"
+          readOnly
+            ? "只处理当前题当前页 regions；默认不选，需人工点选或拖选后再识别，停止后不再继续发新请求；结果仅供预览和复制。"
+            : "只处理当前题当前页 regions；默认全选，支持段号点选和拖选，停止后不再继续发新请求；只更新目标段的 txt，不改 ms，不自动提交、不自动切题。"
         )
       );
       batchSection.appendChild(batchHead);
