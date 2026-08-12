@@ -3,6 +3,9 @@
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+  const SEARCH_MODIFY_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT";
+  const SEARCH_MODIFY_ITEM_REPLAY_REQUEST_TYPE =
+    "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT_REQUEST";
   const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
   const WORK_ITEM_REPLAY_REQUEST_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT_REQUEST";
   const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
@@ -10,6 +13,7 @@
   const RECEIVE_PATH = "/api/dispatch/Receive";
   const SUBMIT_PATH = "/api/dispatch/SubmitTempItemAnswer";
   const SEARCH_ITEM_PATH = "/dispatcher/search_item/category";
+  const SEARCH_MODIFY_ITEM_PATH = "/api/dispatch/SearchModifyItem";
   const WORK_ITEM_PATH = "/api/dispatch/GetWorkItem";
   const ALLOWED_SUBMIT_HEADERS = ["accept", "content-type", "x-secsdk-csrf-token"];
 
@@ -35,6 +39,10 @@
 
   function isSearchItemUrl(rawUrl, locationLike) {
     return getUrl(rawUrl, locationLike)?.pathname === SEARCH_ITEM_PATH;
+  }
+
+  function isSearchModifyItemUrl(rawUrl, locationLike) {
+    return getUrl(rawUrl, locationLike)?.pathname === SEARCH_MODIFY_ITEM_PATH;
   }
 
   function isWorkItemUrl(rawUrl, locationLike) {
@@ -154,6 +162,51 @@
       });
   }
 
+  function sanitizeSearchModifyItemSnapshot(requestBody, responseValue, capturedAt) {
+    const request = parseJsonSafely(requestBody) || {};
+    const filter = request?.Filter && typeof request.Filter === "object" ? request.Filter : {};
+    const pageRequest =
+      request?.PageRequest && typeof request.PageRequest === "object"
+        ? request.PageRequest
+        : {};
+    const response = parseJsonSafely(responseValue) || {};
+    const items = (Array.isArray(response.Items) ? response.Items : [])
+      .map(function (item) {
+        const content =
+          item && typeof item.Content === "string"
+            ? parseJsonSafely(item.Content)
+            : null;
+        if (!content || typeof content !== "object") {
+          return null;
+        }
+        const sanitized = {
+          sourceItemId: normalizeText(item?.ItemID),
+          taskId: normalizeText(item?.TaskID),
+          nodeId: Number(item?.NodeID),
+          referenceText: normalizeText(content.asr_text),
+          audioUrl: normalizeText(content.audio),
+          videoUrl: normalizeText(content.video),
+        };
+        if (
+          !sanitized.sourceItemId ||
+          (!sanitized.referenceText && !sanitized.audioUrl && !sanitized.videoUrl)
+        ) {
+          return null;
+        }
+        return sanitized;
+      })
+      .filter(Boolean);
+    return {
+      taskId: normalizeText(filter.TaskID),
+      filterNodeId: Number(filter.NodeID),
+      direction: Number(filter.Direction),
+      pageNo: Number(pageRequest.PageNo),
+      pageSize: Number(pageRequest.PageSize),
+      capturedAt: Number(capturedAt),
+      items: items,
+    };
+  }
+
   function sanitizeWorkItemSnapshots(value) {
     const response = parseJsonSafely(value);
     const items = Array.isArray(response)
@@ -255,10 +308,13 @@
     const deps = options && typeof options === "object" ? options : {};
     const windowLike = deps.window || globalThis.window || globalThis;
     const locationLike = deps.location || windowLike.location || globalThis.location || {};
+    const now = typeof deps.now === "function" ? deps.now : Date.now;
     let installed = false;
     let pendingNetworkRequestCount = 0;
     let networkActivitySequence = 0;
     let latestWorkItemResponse = null;
+    let latestWorkItemCapturedAt = Number.NaN;
+    let latestSearchModifyItemSnapshot = null;
 
     function notifyReceive(payload) {
       postMessage(windowLike, locationLike, RECEIVE_TYPE, {
@@ -286,9 +342,25 @@
       );
     }
 
+    function notifySearchModifyItem(requestBody, responseValue) {
+      latestSearchModifyItemSnapshot = sanitizeSearchModifyItemSnapshot(
+        requestBody,
+        responseValue,
+        now()
+      );
+      postMessage(
+        windowLike,
+        locationLike,
+        SEARCH_MODIFY_ITEM_TYPE,
+        latestSearchModifyItemSnapshot
+      );
+    }
+
     function notifyWorkItem(payload) {
       latestWorkItemResponse = sanitizeWorkItemSnapshots(payload);
+      latestWorkItemCapturedAt = Number(now());
       postMessage(windowLike, locationLike, WORK_ITEM_TYPE, {
+        capturedAt: latestWorkItemCapturedAt,
         response: latestWorkItemResponse,
       });
     }
@@ -307,8 +379,35 @@
         return;
       }
       postMessage(windowLike, locationLike, WORK_ITEM_TYPE, {
+        capturedAt: latestWorkItemCapturedAt,
         response: latestWorkItemResponse,
       });
+    }
+
+    function replayLatestSearchModifyItem(event) {
+      const data = event?.data && typeof event.data === "object" ? event.data : {};
+      if (
+        data.source !== SOURCE ||
+        data.type !== SEARCH_MODIFY_ITEM_REPLAY_REQUEST_TYPE ||
+        !latestSearchModifyItemSnapshot
+      ) {
+        return;
+      }
+      const origin = normalizeText(event?.origin);
+      if (origin && origin !== normalizeText(locationLike?.origin)) {
+        return;
+      }
+      postMessage(
+        windowLike,
+        locationLike,
+        SEARCH_MODIFY_ITEM_TYPE,
+        latestSearchModifyItemSnapshot
+      );
+    }
+
+    function replayLatestSnapshot(event) {
+      replayLatestWorkItem(event);
+      replayLatestSearchModifyItem(event);
     }
 
     function notifyNetworkActivity() {
@@ -353,6 +452,9 @@
             notifySubmit(rawUrl, mergeHeaderSources(input?.headers, init?.headers), bodyText);
           });
         }
+        const searchModifyItemBodyPromise = isSearchModifyItemUrl(rawUrl, locationLike)
+          ? readFetchBodyText(input, init)
+          : null;
         const settleNetworkActivity = beginNetworkActivity();
         let request;
         try {
@@ -366,8 +468,14 @@
             settleNetworkActivity();
             const receiveRequest = isReceiveUrl(rawUrl, locationLike);
             const searchItemRequest = isSearchItemUrl(rawUrl, locationLike);
+            const searchModifyItemRequest = isSearchModifyItemUrl(rawUrl, locationLike);
             const workItemRequest = isWorkItemUrl(rawUrl, locationLike);
-            if (!receiveRequest && !searchItemRequest && !workItemRequest) {
+            if (
+              !receiveRequest &&
+              !searchItemRequest &&
+              !searchModifyItemRequest &&
+              !workItemRequest
+            ) {
               return;
             }
             try {
@@ -382,6 +490,10 @@
                     notifyWorkItem(payload);
                   } else if (searchItemRequest) {
                     notifySearchItem(text);
+                  } else if (searchModifyItemRequest) {
+                    Promise.resolve(searchModifyItemBodyPromise).then(function (requestBody) {
+                      notifySearchModifyItem(requestBody, text);
+                    });
                   }
                 })
                 .catch(function () {});
@@ -430,6 +542,7 @@
       NativeXhr.prototype.send = function (body) {
         const xhr = this;
         const rawUrl = xhr.__ascAidpRawUrl || "";
+        const requestBody = stringifyBodyCandidate(body);
         const settleNetworkActivity = beginNetworkActivity();
         if (typeof xhr.addEventListener === "function") {
           xhr.addEventListener("loadend", settleNetworkActivity);
@@ -440,6 +553,7 @@
         if (
           (isReceiveUrl(rawUrl, locationLike) ||
             isSearchItemUrl(rawUrl, locationLike) ||
+            isSearchModifyItemUrl(rawUrl, locationLike) ||
             isWorkItemUrl(rawUrl, locationLike)) &&
           typeof xhr.addEventListener === "function"
         ) {
@@ -451,6 +565,8 @@
               notifyWorkItem(payload);
             } else if (isSearchItemUrl(rawUrl, locationLike)) {
               notifySearchItem(xhr.responseText);
+            } else if (isSearchModifyItemUrl(rawUrl, locationLike)) {
+              notifySearchModifyItem(requestBody, xhr.responseText);
             }
           });
         }
@@ -469,7 +585,7 @@
       }
       installed = true;
       if (typeof windowLike.addEventListener === "function") {
-        windowLike.addEventListener("message", replayLatestWorkItem);
+        windowLike.addEventListener("message", replayLatestSnapshot);
       }
       installFetchObserver();
       installXhrObserver();
@@ -487,6 +603,8 @@
       RECEIVE_TYPE: RECEIVE_TYPE,
       SUBMIT_TYPE: SUBMIT_TYPE,
       SEARCH_ITEM_TYPE: SEARCH_ITEM_TYPE,
+      SEARCH_MODIFY_ITEM_TYPE: SEARCH_MODIFY_ITEM_TYPE,
+      SEARCH_MODIFY_ITEM_REPLAY_REQUEST_TYPE: SEARCH_MODIFY_ITEM_REPLAY_REQUEST_TYPE,
       WORK_ITEM_TYPE: WORK_ITEM_TYPE,
       NETWORK_ACTIVITY_TYPE: NETWORK_ACTIVITY_TYPE,
     },

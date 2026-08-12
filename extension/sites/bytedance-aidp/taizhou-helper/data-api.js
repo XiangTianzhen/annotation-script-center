@@ -3,8 +3,11 @@
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
   const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+  const SEARCH_MODIFY_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT";
   const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
   const WORK_ITEM_REPLAY_REQUEST_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT_REQUEST";
+  const SEARCH_MODIFY_ITEM_REPLAY_REQUEST_TYPE =
+    "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT_REQUEST";
   const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
   const RECEIVE_SNAPSHOT_VERSION = 1;
   const DEFAULT_SEARCH_CONTEXT_TTL_MS = 10 * 60 * 1000;
@@ -332,16 +335,23 @@
   function resolveDetailRoute(locationLike) {
     const pathname = normalizeText(locationLike?.pathname || "");
     const matched = pathname.match(
-      /^\/management\/task-v2\/([^/]+)\/(mark-v3|scan-v3|mark-package)\/([^/?#]+)(?:\/([^/?#]+))?/i
+      /^\/management\/task-v2\/([^/]+)\/(mark-v3|scan-v3|mark-package|modify-v2)\/([^/?#]+)(?:\/([^/?#]+))?/i
     );
     const searchParams = new URLSearchParams(String(locationLike?.search || ""));
     const pageType = normalizeText(matched?.[2]).toLowerCase();
+    const nodeId =
+      pageType === "scan-v3"
+        ? normalizeText(matched?.[3])
+        : pageType === "mark-package"
+          ? normalizeText(matched?.[4])
+          : "";
     const readOnly =
-      (pageType === "scan-v3" && normalizeText(matched?.[3]) === "14") ||
-      (pageType === "mark-package" && normalizeText(matched?.[4]) === "14");
+      (pageType === "scan-v3" || pageType === "mark-package") &&
+      (nodeId === "14" || nodeId === "17") || pageType === "modify-v2";
     return {
       taskId: normalizeText(matched?.[1]),
-      mode: readOnly ? "scan" : "mark",
+      pageType: pageType,
+      mode: pageType === "modify-v2" ? "modify" : readOnly ? "scan" : "mark",
       readOnly: readOnly,
       markIndex: pageType === "mark-v3" ? normalizeText(matched?.[3]) : "",
       nodeId:
@@ -349,13 +359,19 @@
           ? normalizeText(matched?.[3])
           : pageType === "mark-package"
             ? normalizeText(matched?.[4])
-            : "",
+            : pageType === "modify-v2"
+              ? normalizeText(matched?.[3])
+              : "",
+      packageId:
+        pageType === "mark-package" ? normalizeText(matched?.[3]) : "",
       itemId:
         pageType === "scan-v3"
           ? normalizeText(matched?.[4])
           : pageType === "mark-package"
             ? normalizeText(searchParams.get("itemID"))
-            : "",
+            : pageType === "modify-v2"
+              ? normalizeText(matched?.[4])
+              : "",
       templateID: normalizeText(searchParams.get("templateID")),
       templateType: normalizeText(searchParams.get("templateType")),
       fromPathname: normalizeText(searchParams.get("from_pathname")),
@@ -376,6 +392,67 @@
       );
     } catch (_error) {
       // A replay request is optional; future GetWorkItem messages remain observable.
+    }
+  }
+
+  function resolveReviseListRoute(locationLike) {
+    const pathname = normalizeText(locationLike?.pathname || "").replace(/\/+$/, "");
+    const matched = pathname.match(
+      /^\/management\/task-v2\/([^/]+)\/node\/14\/revise$/i
+    );
+    const searchParams = new URLSearchParams(String(locationLike?.search || ""));
+    const page = Math.max(1, Math.round(Number(searchParams.get("page")) || 1));
+    return {
+      taskId: normalizeText(matched?.[1]),
+      page,
+      matched: Boolean(matched),
+      scopeKey: matched
+        ? "taskId=" + normalizeText(matched?.[1]) + "|page=" + String(page)
+        : "",
+    };
+  }
+
+  function parseSearchModifyItemSnapshot(payload) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    return {
+      taskId: normalizeText(source.taskId),
+      filterNodeId: Math.max(0, Math.round(Number(source.filterNodeId) || 0)),
+      direction: Math.round(Number(source.direction) || 0),
+      pageNo: Math.max(0, Math.round(Number(source.pageNo) || 0)),
+      pageSize: Math.max(0, Math.round(Number(source.pageSize) || 0)),
+      capturedAt: Number(source.capturedAt),
+      items: (Array.isArray(source.items) ? source.items : [])
+        .slice(0, 10)
+        .map(function (item) {
+          return {
+            sourceItemId: normalizeText(item?.sourceItemId),
+            taskId: normalizeText(item?.taskId),
+            nodeId: Math.max(0, Math.round(Number(item?.nodeId) || 0)),
+            referenceText: normalizeText(item?.referenceText),
+            audioUrl: normalizeText(item?.audioUrl),
+            videoUrl: normalizeText(item?.videoUrl),
+          };
+        })
+        .filter(function (item) {
+          return Boolean(item.sourceItemId);
+        }),
+    };
+  }
+
+  function requestSearchModifyItemSnapshotReplay(windowLike, locationLike) {
+    if (!windowLike || typeof windowLike.postMessage !== "function") {
+      return;
+    }
+    try {
+      windowLike.postMessage(
+        {
+          source: OBSERVER_SOURCE,
+          type: SEARCH_MODIFY_ITEM_REPLAY_REQUEST_TYPE,
+        },
+        normalizeText(locationLike?.origin) || "*"
+      );
+    } catch (_error) {
+      // A replay request is optional; future SearchModifyItem messages remain observable.
     }
   }
 
@@ -667,6 +744,43 @@
       return true;
     }
     return false;
+  }
+
+  function isModifyTextareaUsable(node) {
+    if (!node || String(node.tagName || "").toUpperCase() !== "TEXTAREA") {
+      return false;
+    }
+    if (node.disabled === true || node.readOnly === true || node.hasAttribute?.("disabled") || node.hasAttribute?.("readonly")) {
+      return false;
+    }
+    if (normalizeText(node.getAttribute?.("aria-disabled")).toLowerCase() === "true") {
+      return false;
+    }
+    let current = node;
+    while (current && current.nodeType !== 9) {
+      if (
+        current.hasAttribute?.("hidden") ||
+        normalizeText(current.getAttribute?.("aria-hidden")).toLowerCase() === "true"
+      ) {
+        return false;
+      }
+      const className = getClassName(current).toLowerCase();
+      if (
+        current.getAttribute?.("data-asc-taizhou-panel") === "true" ||
+        className.includes("arco-trigger-popup") ||
+        className.includes("arco-modal") ||
+        normalizeText(current.getAttribute?.("role")).toLowerCase() === "dialog"
+      ) {
+        return false;
+      }
+      current = current.parentElement || current.parentNode || null;
+    }
+    return true;
+  }
+
+  function findUniqueModifyTextarea(documentLike) {
+    const matches = queryAll(documentLike, "textarea").filter(isModifyTextareaUsable);
+    return matches.length === 1 ? matches[0] : null;
   }
 
   function resolveActiveSegmentNumber(tableRoot, rows, documentLike) {
@@ -1234,6 +1348,7 @@
     let workItemSnapshot = null;
     let submitSnapshot = null;
     let searchItemSnapshots = new Map();
+    let searchModifyItemSnapshot = null;
     let snapshotEventSequence = 0;
     let pageNetworkActivity = {
       pendingCount: 0,
@@ -1262,14 +1377,21 @@
         }
         const route = resolveDetailRoute(locationLike);
         receiveSnapshot = withSnapshotEventSequence(
-          parseReceiveSnapshot(data.payload, route.readOnly ? route.itemId : "", route.readOnly)
+          Object.assign(
+            parseReceiveSnapshot(data.payload, route.readOnly ? route.itemId : "", route.readOnly),
+            { at: Number(now()) || 0 }
+          )
         );
         return;
       }
       if (data.type === WORK_ITEM_TYPE) {
         const route = resolveDetailRoute(locationLike);
+        const capturedAt = Number(data.payload?.capturedAt);
         workItemSnapshot = withSnapshotEventSequence(
-          parseWorkItemSnapshot(data.payload, route.readOnly ? route.itemId : "", route.readOnly)
+          Object.assign(
+            parseWorkItemSnapshot(data.payload, route.readOnly ? route.itemId : "", route.readOnly),
+            { at: Number.isFinite(capturedAt) ? capturedAt : Number.NaN }
+          )
         );
         return;
       }
@@ -1285,6 +1407,10 @@
           nextSnapshots.set(sequencedSnapshot.sourceItemId, sequencedSnapshot);
         });
         searchItemSnapshots = nextSnapshots;
+        return;
+      }
+      if (data.type === SEARCH_MODIFY_ITEM_TYPE) {
+        searchModifyItemSnapshot = parseSearchModifyItemSnapshot(data.payload);
         return;
       }
       if (data.type === NETWORK_ACTIVITY_TYPE) {
@@ -1309,6 +1435,12 @@
     }
     if (resolveDetailRoute(locationLike).readOnly) {
       requestWorkItemSnapshotReplay(windowLike, locationLike);
+    }
+    if (
+      resolveDetailRoute(locationLike).pageType === "modify-v2" ||
+      resolveReviseListRoute(locationLike).matched
+    ) {
+      requestSearchModifyItemSnapshotReplay(windowLike, locationLike);
     }
 
     async function getCurrentContext() {
@@ -1346,52 +1478,174 @@
       return normalizeText(receiveSnapshot?.itemId);
     }
 
+    function isFreshRecordingSnapshot(snapshot) {
+      if (!snapshot) {
+        return false;
+      }
+      const timestamp = Number(snapshot.at);
+      if (!Number.isFinite(timestamp)) {
+        return false;
+      }
+      return Math.max(0, Number(now()) - timestamp) <= searchContextTtlMs;
+    }
+
+    function createRecordingImportFailure(reason) {
+      const messages = {
+        waiting: "正在等待当前完整题目数据，请稍后重试。",
+        stale: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
+        expired: "当前完整题目数据已过期，请等待页面重新加载后重试。",
+        empty: "当前完整题目没有可导入的文字、音频或视频参考内容。",
+      };
+      return {
+        ok: false,
+        reason: reason,
+        message: messages[reason] || messages.waiting,
+      };
+    }
+
+    function validateRecordingImportContext(context) {
+      if (!context.referenceText && !context.audioUrl && !context.videoUrl) {
+        return createRecordingImportFailure("empty");
+      }
+      return context;
+    }
+
+    async function getCurrentAutomationItemId() {
+      const route = resolveDetailRoute(locationLike);
+      if (route.pageType === "modify-v2") {
+        const expectedItemId = normalizeText(route.itemId);
+        const taskMatches =
+          normalizeText(searchModifyItemSnapshot?.taskId) === normalizeText(route.taskId);
+        const matchingItem = searchModifyItemSnapshot?.items?.find(function (item) {
+          return (
+            normalizeText(item?.sourceItemId) === expectedItemId &&
+            normalizeText(item?.taskId) === normalizeText(route.taskId)
+          );
+        });
+        return expectedItemId && taskMatches && matchingItem &&
+          isFreshRecordingSnapshot({ at: searchModifyItemSnapshot.capturedAt })
+          ? expectedItemId
+          : "";
+      }
+      if (!route.readOnly) {
+        return normalizeText(receiveSnapshot?.itemId);
+      }
+      const expectedItemId = normalizeText(route.itemId);
+      if (!expectedItemId) {
+        return "";
+      }
+      const hasFreshMatchingSnapshot = [workItemSnapshot, receiveSnapshot].some(
+        function (snapshot) {
+          return (
+            normalizeText(snapshot?.itemId) === expectedItemId &&
+            isFreshRecordingSnapshot(snapshot)
+          );
+        }
+      );
+      return hasFreshMatchingSnapshot ? expectedItemId : "";
+    }
+
+    async function getAutomationScopeKey() {
+      const route = resolveDetailRoute(locationLike);
+      if (!route.pageType || !route.taskId) {
+        return "";
+      }
+      return [
+        "pageType=" + normalizeText(route.pageType),
+        "taskId=" + normalizeText(route.taskId),
+        "packageId=" + normalizeText(route.packageId),
+        "nodeId=" + normalizeText(route.nodeId),
+      ].join("|");
+    }
+
     function getPageNetworkActivity() {
       return Object.assign({}, pageNetworkActivity);
     }
 
     async function getRecordingImportContext() {
-      if (!receiveSnapshot?.itemId || searchItemSnapshots.size === 0) {
-        return {
-          ok: false,
-          reason: "waiting",
-          message: "正在等待当前完整题目数据，请稍后重试。",
-        };
+      const route = resolveDetailRoute(locationLike);
+      const expectedItemId = normalizeText(
+        route.readOnly ? route.itemId : receiveSnapshot?.itemId
+      );
+      if (!expectedItemId) {
+        return createRecordingImportFailure("waiting");
       }
-      const searchItemSnapshot = searchItemSnapshots.get(receiveSnapshot.itemId);
+      if (route.pageType === "modify-v2") {
+        if (!searchModifyItemSnapshot) {
+          return createRecordingImportFailure("waiting");
+        }
+        const taskMatches =
+          normalizeText(searchModifyItemSnapshot.taskId) === normalizeText(route.taskId);
+        const matchingItem = searchModifyItemSnapshot.items.find(function (item) {
+          return (
+            normalizeText(item?.sourceItemId) === expectedItemId &&
+            normalizeText(item?.taskId) === normalizeText(route.taskId)
+          );
+        });
+        if (!taskMatches || !matchingItem) {
+          return createRecordingImportFailure("stale");
+        }
+        if (
+          !isFreshRecordingSnapshot({ at: searchModifyItemSnapshot.capturedAt })
+        ) {
+          return createRecordingImportFailure("expired");
+        }
+        return validateRecordingImportContext({
+          ok: true,
+          sourceItemId: expectedItemId,
+          referenceText: normalizeText(matchingItem.referenceText),
+          audioUrl: normalizeText(matchingItem.audioUrl),
+          videoUrl: normalizeText(matchingItem.videoUrl),
+        });
+      }
+      const searchItemSnapshot = searchItemSnapshots.get(expectedItemId);
+      if (searchItemSnapshot && isFreshRecordingSnapshot(searchItemSnapshot)) {
+        return validateRecordingImportContext({
+          ok: true,
+          sourceItemId: expectedItemId,
+          referenceText: normalizeText(searchItemSnapshot.referenceText),
+          audioUrl: normalizeText(searchItemSnapshot.audioUrl),
+          videoUrl: normalizeText(searchItemSnapshot.videoUrl),
+        });
+      }
+      if (route.readOnly) {
+        const matchingFallbackSnapshots = [workItemSnapshot, receiveSnapshot].filter(
+          function (snapshot) {
+            return normalizeText(snapshot?.itemId) === expectedItemId;
+          }
+        );
+        const fallbackSnapshot = matchingFallbackSnapshots.find(
+          isFreshRecordingSnapshot
+        );
+        if (fallbackSnapshot) {
+          const itemContent =
+            fallbackSnapshot.itemContent &&
+            typeof fallbackSnapshot.itemContent === "object"
+              ? fallbackSnapshot.itemContent
+              : {};
+          return validateRecordingImportContext({
+            ok: true,
+            sourceItemId: expectedItemId,
+            referenceText: normalizeText(itemContent.asr_text),
+            audioUrl: normalizeText(itemContent.audio),
+            videoUrl: normalizeText(itemContent.video),
+          });
+        }
+        if (searchItemSnapshot || matchingFallbackSnapshots.length > 0) {
+          return createRecordingImportFailure("expired");
+        }
+        if (searchItemSnapshots.size > 0 || workItemSnapshot || receiveSnapshot) {
+          return createRecordingImportFailure("stale");
+        }
+        return createRecordingImportFailure("waiting");
+      }
+      if (searchItemSnapshots.size === 0) {
+        return createRecordingImportFailure("waiting");
+      }
       if (!searchItemSnapshot) {
-        return {
-          ok: false,
-          reason: "stale",
-          message: "当前完整题目数据与页面题目不一致，请等待页面数据刷新后重试。",
-        };
+        return createRecordingImportFailure("stale");
       }
-      if (now() - Number(searchItemSnapshot.at || 0) > searchContextTtlMs) {
-        return {
-          ok: false,
-          reason: "expired",
-          message: "当前完整题目数据已过期，请等待页面重新加载后重试。",
-        };
-      }
-      const safeContext = {
-        ok: true,
-        sourceItemId: searchItemSnapshot.sourceItemId,
-        referenceText: searchItemSnapshot.referenceText,
-        audioUrl: searchItemSnapshot.audioUrl,
-        videoUrl: searchItemSnapshot.videoUrl,
-      };
-      if (
-        !safeContext.referenceText &&
-        !safeContext.audioUrl &&
-        !safeContext.videoUrl
-      ) {
-        return {
-          ok: false,
-          reason: "empty",
-          message: "当前完整题目没有可导入的文字、音频或视频参考内容。",
-        };
-      }
-      return safeContext;
+      return createRecordingImportFailure("expired");
     }
 
     async function applySegmentPreview(preview) {
@@ -1600,6 +1854,90 @@
       };
     }
 
+    function getReviseListImportContext() {
+      const route = resolveReviseListRoute(locationLike);
+      if (!route.matched || !route.taskId || !searchModifyItemSnapshot) {
+        return createRecordingImportFailure("waiting");
+      }
+      if (
+        normalizeText(searchModifyItemSnapshot.taskId) !== route.taskId ||
+        Number(searchModifyItemSnapshot.filterNodeId) !== 14 ||
+        Number(searchModifyItemSnapshot.pageNo) !== route.page - 1
+      ) {
+        return createRecordingImportFailure("stale");
+      }
+      if (!isFreshRecordingSnapshot({ at: searchModifyItemSnapshot.capturedAt })) {
+        return createRecordingImportFailure("expired");
+      }
+      const items = searchModifyItemSnapshot.items
+        .filter(function (item) {
+          return (
+            normalizeText(item.taskId) === route.taskId &&
+            normalizeText(item.sourceItemId) &&
+            (normalizeText(item.referenceText) || normalizeText(item.audioUrl) || normalizeText(item.videoUrl))
+          );
+        })
+        .slice(0, 10)
+        .map(function (item) {
+          return {
+            sourceItemId: normalizeText(item.sourceItemId),
+            referenceText: normalizeText(item.referenceText),
+            audioUrl: normalizeText(item.audioUrl),
+            videoUrl: normalizeText(item.videoUrl),
+          };
+        });
+      if (items.length === 0) {
+        return createRecordingImportFailure("empty");
+      }
+      return { ok: true, scopeKey: route.scopeKey, items };
+    }
+
+    async function appendRecordingResultIntoModifyDom(input) {
+      const source = input && typeof input === "object" ? input : {};
+      const route = resolveDetailRoute(locationLike);
+      if (route.pageType !== "modify-v2" || !route.readOnly) {
+        return { ok: false, reason: "not-modify-page", appended: false };
+      }
+      const sourceItemId = normalizeText(source.sourceItemId);
+      if (!sourceItemId || sourceItemId !== normalizeText(route.itemId)) {
+        return { ok: false, reason: "item-mismatch", appended: false };
+      }
+      if (normalizeText(source.status).toUpperCase() !== "COMPLETED") {
+        return { ok: false, reason: "result-not-completed", appended: false };
+      }
+      const text = preserveListenText(source.text).trim();
+      if (!text) {
+        return { ok: false, reason: "result-empty", appended: false };
+      }
+      const textarea = findUniqueModifyTextarea(documentLike);
+      if (!textarea) {
+        return { ok: false, reason: "textarea-ambiguous", appended: false };
+      }
+      const currentValue = preserveListenText(textarea.value);
+      if (currentValue === text || currentValue.endsWith("\n" + text)) {
+        return { ok: true, reason: "already-present", appended: false };
+      }
+      const nextValue = currentValue ? currentValue + "\n" + text : text;
+      focusControl(textarea);
+      dispatchSyntheticControlEvent(textarea, windowLike, "beforeinput", {
+        data: text,
+        inputType: "insertText",
+      });
+      setFormControlValue(textarea, nextValue);
+      dispatchSyntheticControlEvent(textarea, windowLike, "input", {
+        data: text,
+        inputType: "insertText",
+      });
+      dispatchSyntheticControlEvent(textarea, windowLike, "change");
+      blurControl(textarea, documentLike);
+      return {
+        ok: true,
+        reason: "appended",
+        appended: true,
+        message: "已把审核结果换行追加到返修文本框，请人工复核后使用平台原生操作。",
+      };
+    }
+
     async function writeBatchRegionTexts(input) {
       const source = input && typeof input === "object" ? input : {};
       const context = await getCurrentContext();
@@ -1692,12 +2030,16 @@
     return {
       getCurrentContext,
       getCurrentReceiveItemId,
+      getCurrentAutomationItemId,
+      getAutomationScopeKey,
       getPageNetworkActivity,
       getRecordingImportContext,
+      getReviseListImportContext,
       applySegmentPreview,
       clearCurrentSegments,
       fillEmptyRegionLanguages,
       fillCurrentRegionTextIntoDom,
+      appendRecordingResultIntoModifyDom,
       writeBatchRegionTexts,
       destroy,
     };
@@ -1710,12 +2052,15 @@
       parseSubmitSnapshot,
       parseSearchItemSnapshot,
       parseSearchItemSnapshots,
+      parseSearchModifyItemSnapshot,
       parseWorkItemSnapshot,
       resolveDetailRoute,
+      resolveReviseListRoute,
       buildRegionSignature,
       buildUpdatedRegions,
       defaultReadCurrentTableState,
       findSegmentTextarea,
+      findUniqueModifyTextarea,
       setFormControlValue,
       updateTempAnswerWithRegionTexts,
     },

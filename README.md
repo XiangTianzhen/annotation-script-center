@@ -2,7 +2,7 @@
 
 用于维护 Chrome / Edge 标注辅助扩展、统一 Node.js 后端，以及三个平台的稳定页面与 Network 参考资料。
 
-当前本地验收版本为 `1.1.5`，正式发布版本仍为 `1.1.3`；本仓库维护三个平台的五个脚本。AI 结果默认用于人工辅助，不会自动领取、自动审核或自动流转任务。
+当前本地验收版本为 `1.1.5`，正式发布版本仍为 `1.1.3`；本仓库维护三个平台的五个脚本。AI 结果默认用于人工辅助；唯一任务流转例外是台州话 `mark-v3` 与两类检查包中由用户显式启动的原生“押后”，不会自动领取、自动审核或点击“提交”。
 
 首次安装或重置设置时，五个脚本全部默认关闭，必须由使用者在脚本中心显式启用；已有安装中明确保存的启停状态继续保留。
 
@@ -25,12 +25,16 @@
 | DataBaker CVPC | 柳州话脚本 | `dataBakerCvpcLiuzhouAssistant` | 音频获取、两阶段 AI、分段建议、批量识别、字段辅助写入 |
 | ByteDance AIDP | 苏州话脚本 | `bytedanceAidpSuzhouHelper` | 分段建议、两阶段 AI、行内/批量识别、暂存写回 |
 | ByteDance AIDP | 金华话脚本 | `bytedanceAidpJinhuaHelper` | 单次 Omni 可编辑转写 Prompt、分段建议、行内/批量识别 |
-| ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、分段建议、行内/批量识别、完整题目导入录音平台、结果只读回显与显式启动的自动押后 |
+| ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、完整题目录音导入、返修当前页批量导入与审核结果人工回填、显式启动的自动押后 |
 | Magic Data | 杭州话脚本 | `magicDataHangzhouAssistant` | AI 质检、单双模型方案、词表参考、结果填入与快捷键 |
 
 ByteDance AIDP 的苏州话、金华话与台州话三套脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
 
-台州话 Options“基础设置”可填写录音平台可见任务编号（例如 `T000001`）。只有该值同时存在于服务器私密配置 `allowedTaskCodes` 时，详情页才可人工导入当前完整题目；扩展把 Search Item 中的参考文字及公网 HTTPS 音视频 URL 交给脚本中心，由后端固定绑定 `BYTEDANCE_AIDP + ItemID` 后转发，不下载媒体、不接收机器 API Key，也不传递 AIDP Cookie、Authorization 或 Session。人工再次点击“添加数据”时，脚本中心会核验旧映射；录音平台明确返回 `TASK_ITEM_NOT_FOUND` 才轮换幂等操作键并重新创建，其他查询故障保留映射。台州话详情页另有必须由用户点击“开始”的“全自动导入并押后”：仅处理当前任务，基于结果 `AVAILABLE`（待领取）或 `SUBMITTED`（待审核领取）后操作页面真实“押后”控件，永不点击“提交”、领取或调用 AIDP 写接口；每次自动点击前都要等待页面 fetch/XHR 全部结算并静默 1 秒，20 秒未满足即停止。刷新页面或重载扩展即停止。页面进入、自动查询和手动刷新仍只读，结果卡片不会写回 AIDP 或自动创建。完整边界见[录音任务平台接入规范](docs/recording-platform-integration.md)。
+台州话 Options“基础设置”可填写录音平台可见任务编号（例如 `T000001`）。只有该值同时存在于服务器私密配置 `allowedTaskCodes` 时，`mark-v3` 详情页与检查包路由 `/management/task-v2/{taskId}/scan-v3/{nodeId}/{itemId}`、`/management/task-v2/{taskId}/mark-package/{packageId}/{nodeId}?itemID={itemId}` 才可导入当前完整题目；当前 `nodeId` 仅白名单 `14、17`，不表示任意节点开放。`mark-v3` 使用同题、未过期的 Search Item；检查包同样优先使用 Search Item，缺失时才回退同题、未过期的 GetWorkItem/Receive，并且只提取 `asr_text`、`audio`、`video`。扩展只把参考文字及公网 HTTPS 音视频 URL 交给脚本中心，由后端固定绑定 `BYTEDANCE_AIDP + ItemID` 后转发，不下载媒体、不接收机器 API Key，也不传递 AIDP Cookie、Authorization 或 Session。人工再次点击“添加数据”时，脚本中心会核验旧映射；录音平台明确返回 `TASK_ITEM_NOT_FOUND` 才轮换幂等操作键并重新创建，其他查询故障保留映射。
+
+上述三类台州话页面均支持必须由用户点击“开始”的“全自动导入并押后”：只在当前页面类型、任务与检查包范围内连续处理，范围变化立即停止；仅当录音结果为 `AVAILABLE`（待领取）或 `SUBMITTED`（待审核领取）时操作页面真实“押后”控件并填写原因 `1`，永不点击“提交”、领取或直接调用 AIDP 写接口。每次自动点击前都要等待页面 fetch/XHR 全部结算并静默 1 秒，20 秒未满足即停止。刷新页面、重载扩展或用户停止也会结束流程。检查包仍禁止文本写回、分段修改、暂存、提交、领取和扩展直接切题；页面进入、结果查询和手动刷新仍只读。完整边界见[录音任务平台接入规范](docs/recording-platform-integration.md)。
+
+台州话返修列表 `/management/task-v2/{taskId}/node/14/revise?page={page}` 可逐条串行添加当前已加载的最多 10 条数据，并提供停止和成功、复用、跳过、失败统计；不会翻页。返修详情 `/management/task-v2/{taskId}/modify-v2/4/{itemId}` 支持当前题添加、刷新结果，并仅在 `COMPLETED`、ItemID 一致且页面只有一个可写转写框时，由用户点击“填入审核结果”换行追加文本。返修不提供自动押后，不会自动暂存、审核、切题或调用 AIDP 写接口。
 
 ## 前置环境
 

@@ -473,6 +473,17 @@
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     const readOnly = deps.readOnly === true;
+    const recordingImportEnabled =
+      deps.recordingImportEnabled === true ||
+      (!readOnly && deps.recordingImportEnabled !== false);
+    const recordingAutomationEnabled =
+      deps.recordingAutomationEnabled === true ||
+      (!readOnly && deps.recordingAutomationEnabled !== false);
+    const recordingResultFillEnabled = deps.recordingResultFillEnabled === true;
+    const recordingResultEnabled =
+      recordingImportEnabled || recordingAutomationEnabled;
+    const effectiveRecordingResultEnabled =
+      recordingResultEnabled || recordingResultFillEnabled;
     let rootNode = null;
     let statusNode = null;
     let latestStatusMessage = "正在读取当前详情上下文...";
@@ -486,8 +497,17 @@
     let aiMetaCollapseButtonNode = null;
     let recordingResultNode = null;
     let recordingRefreshButtonNode = null;
+    let recordingFillButtonNode = null;
     let recordingCollapseButtonNode = null;
     let latestRecordingResult = null;
+    let recordingImportButtonNode = null;
+    let recordingImportInFlight = null;
+    let latestRecordingImportState = {
+      enabled: false,
+      busy: false,
+      reason: "waiting-context",
+      message: "正在读取当前录音导入上下文。",
+    };
     let recordingAutomationStateNode = null;
     let recordingAutomationStartButtonNode = null;
     let recordingAutomationStopButtonNode = null;
@@ -864,7 +884,11 @@
       panelTitleRow.appendChild(
         createTooltipDot(
           readOnly
-            ? "当前为检查包只读模式：支持原始听音识别、人工勾选的批量识别、预览和复制，不会修改页面或调用平台写接口。"
+            ? recordingResultFillEnabled
+              ? "当前为返修辅助模式：支持录音数据添加、结果刷新和用户手动填入审核结果；不会自动暂存、审核、切题或押后。"
+              : recordingResultEnabled
+                ? "当前为检查包只读模式：支持原始听音识别、人工勾选的批量识别、预览和复制；仅额外开放录音数据添加和手动启动的原生押后，其他页面写入仍保持禁用。"
+              : "当前为检查包只读模式：支持原始听音识别、人工勾选的批量识别、预览和复制，不会修改页面或调用平台写接口。"
             : "当前支持原始听音识别、批量识别、分段建议和平台暂存写回；单段识别只直填当前输入框，批量识别和分段建议继续走平台暂存写回。"
         )
       );
@@ -973,11 +997,19 @@
       recordingHead.appendChild(
         createSectionTitleRow(
           "当前录音平台结果",
-          "只读显示当前完整题目对应的录音任务状态、完成文本与结果音频，默认折叠；不会写入 AIDP 输入框、画段、暂存或提交接口。"
+          recordingResultFillEnabled
+            ? "显示当前 ItemID 对应的录音任务状态与完成文本；仅在用户点击后把审核结果换行追加到返修文本框，不会自动暂存、审核或切题。"
+            : "只读显示当前完整题目对应的录音任务状态、完成文本与结果音频，默认折叠；不会写入 AIDP 输入框、画段、暂存或提交接口。"
         )
       );
       const recordingActions = document.createElement("div");
       recordingActions.className = "section-actions";
+      if (readOnly && recordingImportEnabled) {
+        recordingImportButtonNode = createButton("添加数据", true, runRecordingImport);
+        recordingImportButtonNode.setAttribute("data-recording-import-add", "true");
+        recordingActions.appendChild(recordingImportButtonNode);
+        renderRecordingImportStateView(latestRecordingImportState);
+      }
       recordingCollapseButtonNode = createCollapseToggle(
         "当前录音平台结果",
         recordingResultCollapsed,
@@ -999,13 +1031,24 @@
         "data-recording-result-refresh",
         "true"
       );
+      recordingActions.appendChild(recordingRefreshButtonNode);
+      if (recordingResultFillEnabled) {
+        recordingFillButtonNode = createButton("填入审核结果", false, function () {
+          if (recordingFillButtonNode.disabled) {
+            return;
+          }
+          deps.onFillRecordingResult?.(Object.assign({}, latestRecordingResult));
+        });
+        recordingFillButtonNode.setAttribute("data-recording-result-fill", "true");
+        recordingActions.appendChild(recordingFillButtonNode);
+      }
       recordingSection.appendChild(recordingHead);
       recordingResultNode = document.createElement("div");
       recordingResultNode.className = "summary-card collapsible-body";
       recordingResultNode.setAttribute("data-recording-result-card", "true");
       renderRecordingResultView(latestRecordingResult || {});
       recordingSection.appendChild(recordingResultNode);
-      if (!readOnly) {
+      if (effectiveRecordingResultEnabled) {
         grid.appendChild(recordingSection);
         syncRecordingResultSectionState();
       }
@@ -1072,7 +1115,7 @@
       recordingAutomationStateNode.className = "info-card";
       recordingAutomationStateNode.setAttribute("data-recording-automation-state", "true");
       recordingAutomationSection.appendChild(recordingAutomationStateNode);
-      if (!readOnly) {
+      if (recordingAutomationEnabled) {
         grid.appendChild(recordingAutomationSection);
         renderRecordingAutomationStateView(latestRecordingAutomationState);
       }
@@ -1194,6 +1237,84 @@
       latestRecommendation = result && typeof result === "object" ? Object.assign({}, result) : null;
     }
 
+    function renderRecordingImportStateView(snapshot) {
+      if (!recordingImportButtonNode) {
+        return;
+      }
+      const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+      const busy = source.busy === true || recordingImportInFlight !== null;
+      const canStart =
+        recordingImportEnabled &&
+        source.enabled === true &&
+        !busy &&
+        typeof deps.onAddRecordingData === "function";
+      const reason = busy
+        ? "importing"
+        : normalizeText(source.reason) || (canStart ? "ready" : "unavailable");
+      const message = normalizeText(source.message);
+      recordingImportButtonNode.disabled = !canStart;
+      recordingImportButtonNode.textContent = busy ? "正在添加..." : "添加数据";
+      recordingImportButtonNode.setAttribute("data-recording-import-reason", reason);
+      recordingImportButtonNode.setAttribute(
+        "title",
+        message ||
+          (busy
+            ? "正在添加当前数据。"
+            : canStart
+              ? "添加当前题数据到录音平台。"
+              : "当前没有可添加的录音数据。")
+      );
+    }
+
+    function renderRecordingImportState(snapshot) {
+      latestRecordingImportState = Object.assign(
+        { enabled: false, busy: false, reason: "unavailable", message: "" },
+        snapshot && typeof snapshot === "object" ? snapshot : {}
+      );
+      renderRecordingImportStateView(latestRecordingImportState);
+    }
+
+    function settleRecordingImport(inFlight) {
+      if (recordingImportInFlight !== inFlight) {
+        return;
+      }
+      recordingImportInFlight = null;
+      renderRecordingImportStateView(latestRecordingImportState);
+    }
+
+    function runRecordingImport() {
+      if (
+        !recordingImportEnabled ||
+        recordingImportInFlight !== null ||
+        latestRecordingImportState.enabled !== true ||
+        latestRecordingImportState.busy === true ||
+        typeof deps.onAddRecordingData !== "function"
+      ) {
+        return false;
+      }
+      let callbackResult;
+      try {
+        callbackResult = deps.onAddRecordingData();
+      } catch (error) {
+        latestRecordingImportState = {
+          enabled: false,
+          busy: false,
+          reason: "callback-error",
+          message: normalizeText(error?.message || error) || "添加数据失败。",
+        };
+        renderRecordingImportStateView(latestRecordingImportState);
+        return false;
+      }
+      const inFlight = Promise.resolve(callbackResult);
+      recordingImportInFlight = inFlight;
+      renderRecordingImportStateView(latestRecordingImportState);
+      inFlight.then(
+        function () { settleRecordingImport(inFlight); },
+        function () { settleRecordingImport(inFlight); }
+      );
+      return true;
+    }
+
     function renderRecordingResultView(result) {
       if (!recordingResultNode) {
         return;
@@ -1202,6 +1323,13 @@
       clearNode(recordingResultNode);
       const itemCode = normalizeText(source.itemCode);
       const status = normalizeText(source.status);
+      if (recordingFillButtonNode) {
+        recordingFillButtonNode.disabled = !(
+          status === "COMPLETED" &&
+          typeof source.text === "string" &&
+          normalizeText(source.text)
+        );
+      }
       const summaryRow = document.createElement("div");
       summaryRow.className = "recording-result-summary-row";
       summaryRow.setAttribute("data-recording-result-summary-row", "true");
@@ -1651,8 +1779,17 @@
       aiMetaNode = null;
       recordingResultNode = null;
       recordingRefreshButtonNode = null;
+      recordingFillButtonNode = null;
       recordingCollapseButtonNode = null;
       latestRecordingResult = null;
+      recordingImportButtonNode = null;
+      recordingImportInFlight = null;
+      latestRecordingImportState = {
+        enabled: false,
+        busy: false,
+        reason: "waiting-context",
+        message: "正在读取当前录音导入上下文。",
+      };
       recordingAutomationStateNode = null;
       recordingAutomationStartButtonNode = null;
       recordingAutomationStopButtonNode = null;
@@ -1696,6 +1833,7 @@
       renderAudioContext,
       renderCurrentRecommendation,
       renderRecordingResult,
+      renderRecordingImportState,
       renderRecordingAutomationState,
       renderBatchSelection,
       renderBatchState,

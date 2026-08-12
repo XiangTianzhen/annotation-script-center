@@ -989,6 +989,251 @@ test("ByteDance AIDP content recognizes writable mark-v3 and read-only check-pac
     contentModule.__testOnly.isDetailPagePathname("/management/task-v2"),
     false
   );
+  assert.equal(
+    contentModule.__testOnly.isDetailPagePathname(
+      "/management/task-v2/task-1/modify-v2/4/item-1"
+    ),
+    true
+  );
+  assert.equal(
+    contentModule.__testOnly.getCurrentHelperPageMode(
+      "/management/task-v2/task-1/modify-v2/4/item-1"
+    ),
+    "modify-read-only"
+  );
+});
+
+test("ByteDance AIDP content recognizes only the node 14 revise list route", function () {
+  const contentModule = loadContentModule();
+  assert.equal(
+    contentModule.__testOnly.isReviseListPagePathname(
+      "/management/task-v2/task-1/node/14/revise"
+    ),
+    true
+  );
+  assert.equal(
+    contentModule.__testOnly.isReviseListPagePathname(
+      "/management/task-v2/task-1/node/17/revise"
+    ),
+    false
+  );
+});
+
+test("ByteDance AIDP revise batch controller waits one second after success before starting the next item", async function () {
+  const contentModule = loadContentModule();
+  const events = [];
+  let releaseInterval;
+  const intervalPending = new Promise((resolve) => { releaseInterval = resolve; });
+  const controller = contentModule.__testOnly.createReviseBatchImportController({
+    getScopeKey() { return "task-1|page=1"; },
+    async importItemContext(context) {
+      events.push("start:" + context.sourceItemId);
+      events.push("end:" + context.sourceItemId);
+      return { ok: true, kind: "created" };
+    },
+    async waitFor(delayMs) {
+      events.push("wait:" + delayMs);
+      await intervalPending;
+    },
+  });
+  const promise = controller.start([
+    { sourceItemId: "item-1", referenceText: "one" },
+    { sourceItemId: "item-2", referenceText: "two" },
+  ]);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(events, ["start:item-1", "end:item-1", "wait:1000"]);
+  releaseInterval();
+  const result = await promise;
+  assert.deepEqual(events, [
+    "start:item-1", "end:item-1",
+    "wait:1000",
+    "start:item-2", "end:item-2",
+  ]);
+  assert.deepEqual(
+    { phase: result.phase, processed: result.processed, succeeded: result.succeeded, failed: result.failed },
+    { phase: "completed", processed: 2, succeeded: 2, failed: 0 }
+  );
+});
+
+test("ByteDance AIDP revise batch controller stops the whole batch immediately after an import failure", async function () {
+  const contentModule = loadContentModule();
+  const imported = [];
+  const waits = [];
+  const controller = contentModule.__testOnly.createReviseBatchImportController({
+    getScopeKey() { return "task-1|page=1"; },
+    async importItemContext(context) {
+      imported.push(context.sourceItemId);
+      return context.sourceItemId === "item-2"
+        ? { ok: false, message: "network failed" }
+        : { ok: true, kind: "created" };
+    },
+    async waitFor(delayMs) {
+      waits.push(delayMs);
+    },
+  });
+
+  const result = await controller.start([
+    { sourceItemId: "item-1", referenceText: "one" },
+    { sourceItemId: "item-2", referenceText: "two" },
+    { sourceItemId: "item-3", referenceText: "three" },
+  ]);
+
+  assert.deepEqual(imported, ["item-1", "item-2"]);
+  assert.deepEqual(waits, [1000]);
+  assert.deepEqual(
+    { phase: result.phase, processed: result.processed, succeeded: result.succeeded, failed: result.failed },
+    { phase: "stopped", processed: 2, succeeded: 1, failed: 1 }
+  );
+  assert.match(result.message, /失败.*停止/);
+
+  let releaseStop;
+  const pendingStop = new Promise((resolve) => { releaseStop = resolve; });
+  const stoppedItems = [];
+  const stoppedController = contentModule.__testOnly.createReviseBatchImportController({
+    getScopeKey() { return "task-1|page=1"; },
+    async importItemContext(context) {
+      stoppedItems.push(context.sourceItemId);
+      await pendingStop;
+      return { ok: true, kind: "created" };
+    },
+  });
+  const stoppedPromise = stoppedController.start([
+    { sourceItemId: "item-a", referenceText: "a" },
+    { sourceItemId: "item-b", referenceText: "b" },
+  ]);
+  await Promise.resolve();
+  stoppedController.stop();
+  releaseStop();
+  const stopped = await stoppedPromise;
+  assert.deepEqual(stoppedItems, ["item-a"]);
+  assert.equal(stopped.phase, "stopped");
+  assert.equal(stopped.processed, 1);
+});
+
+test("ByteDance AIDP revise batch controller stops when the list scope changes", async function () {
+  const contentModule = loadContentModule();
+  let scopeKey = "task-1|page=1";
+  const imported = [];
+  const controller = contentModule.__testOnly.createReviseBatchImportController({
+    getScopeKey() { return scopeKey; },
+    async waitFor() {},
+    async importItemContext(context) {
+      imported.push(context.sourceItemId);
+      scopeKey = "task-1|page=2";
+      return { ok: true, kind: "created" };
+    },
+  });
+
+  const result = await controller.start([
+    { sourceItemId: "item-1", referenceText: "one" },
+    { sourceItemId: "item-2", referenceText: "two" },
+  ]);
+
+  assert.deepEqual(imported, ["item-1"]);
+  assert.equal(result.phase, "stopped");
+  assert.equal(result.processed, 1);
+  assert.match(result.message, /页码已变化/);
+});
+
+test("ByteDance AIDP revise list import availability requires a configured recording task", function () {
+  const resolve = loadContentModule().__testOnly.resolveReviseImportAvailability;
+
+  assert.deepEqual(
+    resolve({ context: { ok: true, items: [{ sourceItemId: "item-1" }] }, recordingTaskCode: "" }),
+    {
+      enabled: false,
+      message: "请先在 Options 基础设置中填写录音平台任务编号。",
+    }
+  );
+  assert.deepEqual(
+    resolve({ context: { ok: true, items: [{ sourceItemId: "item-1" }] }, recordingTaskCode: "TASK-1" }),
+    { enabled: true, message: "" }
+  );
+});
+
+test("ByteDance AIDP content splits read-only and recording capabilities", function () {
+  const contentModule = loadContentModule();
+  const resolve = contentModule.__testOnly.resolveHelperPageCapabilities;
+  assert.deepEqual(resolve("/management/task-v2/task/scan-v3/14/item"), {
+    readOnly: true,
+    recordingImportEnabled: true,
+    recordingAutomationEnabled: true,
+    recordingResultFillEnabled: false,
+  });
+  assert.deepEqual(resolve("/management/task-v2/task/mark-package/package-a/14"), {
+    readOnly: true,
+    recordingImportEnabled: true,
+    recordingAutomationEnabled: true,
+    recordingResultFillEnabled: false,
+  });
+  assert.deepEqual(resolve("/management/task-v2/task/mark-v3/1"), {
+    readOnly: false,
+    recordingImportEnabled: true,
+    recordingAutomationEnabled: true,
+    recordingResultFillEnabled: false,
+  });
+  assert.deepEqual(resolve("/management/task-v2"), {
+    readOnly: false,
+    recordingImportEnabled: false,
+    recordingAutomationEnabled: false,
+    recordingResultFillEnabled: false,
+  });
+  assert.deepEqual(resolve("/management/task-v2/task/modify-v2/4/item"), {
+    readOnly: true,
+    recordingImportEnabled: true,
+    recordingAutomationEnabled: false,
+    recordingResultFillEnabled: true,
+  });
+});
+
+test("ByteDance AIDP content recognizes node 17 check-package routes", function () {
+  const contentModule = loadContentModule();
+  const routes = [
+    "/management/task-v2/task-17/scan-v3/17/item-17",
+    "/management/task-v2/task-17/mark-package/package-17/17",
+  ];
+
+  routes.forEach(function (route) {
+    assert.equal(contentModule.__testOnly.isDetailPagePathname(route), true, route);
+    assert.equal(contentModule.__testOnly.isReadOnlyScanPagePathname(route), true, route);
+    assert.equal(contentModule.__testOnly.getCurrentHelperPageMode(route), "scan-read-only", route);
+    assert.deepEqual(contentModule.__testOnly.resolveHelperPageCapabilities(route), {
+      readOnly: true,
+      recordingImportEnabled: true,
+      recordingAutomationEnabled: true,
+      recordingResultFillEnabled: false,
+    });
+  });
+});
+
+test("ByteDance AIDP content rejects non-whitelisted check-package nodes", function () {
+  const contentModule = loadContentModule();
+  const routes = [
+    "/management/task-v2/task-16/scan-v3/16/item-16",
+    "/management/task-v2/task-18/mark-package/package-18/18",
+  ];
+
+  routes.forEach(function (route) {
+    assert.equal(contentModule.__testOnly.isDetailPagePathname(route), false, route);
+    assert.equal(contentModule.__testOnly.isReadOnlyScanPagePathname(route), false, route);
+    assert.deepEqual(contentModule.__testOnly.resolveHelperPageCapabilities(route), {
+      readOnly: false,
+      recordingImportEnabled: false,
+      recordingAutomationEnabled: false,
+      recordingResultFillEnabled: false,
+    });
+  });
+});
+
+test("ByteDance AIDP taizhou recording runtime gates use recording capabilities, not writable mode", function () {
+  const source = fs.readFileSync(contentModulePath, "utf8");
+  assert.match(source, /recordingImportEnabled/);
+  assert.match(source, /recordingAutomationEnabled/);
+  assert.doesNotMatch(source, /const recording\s*=\s*!readOnly\s*&&/);
+  assert.doesNotMatch(source, /runtime\.recordingAutomation\s*=\s*readOnly\s*\?/);
+  assert.match(source, /if \(readOnly\) \{\s*return;\s*\}\s*void handlePreviewAction/);
+  assert.match(source, /if \(readOnly\) \{\s*return;\s*\}\s*void handleApplyPreviewAction/);
 });
 
 test("ByteDance AIDP content matches management routes for account-switch header UI", function () {
@@ -2119,6 +2364,35 @@ test("ByteDance AIDP content keeps passive recording readiness out of the common
   assert.deepEqual(statuses.at(-1), {
     message: "台州话脚本已就绪，可使用当前页面中的辅助功能。",
     tone: "success",
+  });
+});
+
+test("ByteDance AIDP content keeps check-package recording import disabled without a task code", function () {
+  const contentModule = loadContentModule();
+  let renderedState = null;
+  const runtime = {
+    recordingImportEnabled: true,
+    recordingImportBusy: false,
+    recordingContextReady: true,
+    recordingContextReason: "ready",
+    recordingContextMessage: "当前完整题目数据已就绪，可添加数据。",
+    config: {
+      recordingImportTaskCode: "",
+    },
+    ui: {
+      renderRecordingImportState(state) {
+        renderedState = state;
+      },
+    },
+  };
+
+  contentModule.__testOnly.renderRecordingImportState(runtime);
+
+  assert.deepEqual(renderedState, {
+    enabled: false,
+    busy: false,
+    reason: "missing-task-code",
+    message: "请先在 Options 基础设置中填写录音平台任务编号。",
   });
 });
 
@@ -3674,6 +3948,10 @@ function createRecordingAutomationHarness(options) {
           currentItemId = nextItemId || "source-b";
           postponeButton.disabled = source.keepPostponeEnabledAfterConfirm !== true;
         }
+        source.onConfirmClick?.({
+          confirmClicks: confirmClicks,
+          currentItemId: currentItemId,
+        });
         if (popover.parentNode) {
           popover.parentNode.removeChild(popover);
         }
@@ -3809,7 +4087,7 @@ test("ByteDance AIDP recording automation waits for network settlement and quiet
       lastActivityAt = now;
     },
     onWait: function ({ now }) {
-      if (now === 2) {
+      if (pendingCount > 0 && now >= lastActivityAt + 2) {
         pendingCount = 0;
         lastActivityAt = now;
       }
@@ -3858,7 +4136,7 @@ test("ByteDance AIDP recording automation restarts the quiet interval when page 
   assert.equal(harness.getCounters().submitClicks, 0);
 });
 
-test("ByteDance AIDP recording automation keeps a minimum quiet interval without page requests", async function () {
+test("ByteDance AIDP recording automation keeps a minimum quiet interval before every click without page requests", async function () {
   const contentModule = loadContentModule();
   const harness = createRecordingAutomationHarness();
   const controller = createRecordingAutomationControllerForTest(contentModule, harness, {
@@ -3869,7 +4147,8 @@ test("ByteDance AIDP recording automation keeps a minimum quiet interval without
   await controller.start();
 
   assert.equal(harness.getCounters().confirmClicks, 1);
-  assert.ok(harness.getClickTimes().confirmClickTimes[0] >= 3);
+  assert.ok(harness.getClickTimes().postponeClickTimes[0] >= 3);
+  assert.ok(harness.getClickTimes().confirmClickTimes[0] >= 6);
   assert.equal(harness.getCounters().submitClicks, 0);
 });
 
@@ -4139,6 +4418,39 @@ test("ByteDance AIDP recording automation never repeats a confirmed postpone whe
   assert.equal(harness.getCounters().confirmClicks, 1);
   assert.equal(harness.states.at(-1).phase, "failed");
   assert.match(harness.states.at(-1).message, /未验证下一题/);
+});
+
+test("ByteDance AIDP recording automation stops after package or page-type scope changes", async function () {
+  const contentModule = loadContentModule();
+  const nextScopes = [
+    "mark-package:task-a:package-b:14",
+    "scan-v3:task-a:14",
+  ];
+  for (const nextScope of nextScopes) {
+    let scope = "mark-package:task-a:package-a:14";
+    let importCalls = 0;
+    const harness = createRecordingAutomationHarness({
+      keepPostponeEnabledAfterConfirm: true,
+      nextItemIds: ["source-b"],
+      onConfirmClick() { scope = nextScope; },
+      async importAndRefresh() {
+        importCalls += 1;
+        return {
+          ok: true,
+          mapping: { itemCode: "T000001-0000022" },
+          result: { status: "AVAILABLE" },
+        };
+      },
+    });
+    const controller = createRecordingAutomationControllerForTest(contentModule, harness, {
+      async getAutomationScopeKey() { return scope; },
+    });
+    await controller.start();
+    assert.equal(importCalls, 1, nextScope);
+    assert.equal(harness.getCounters().confirmClicks, 1, nextScope);
+    assert.equal(harness.getCounters().submitClicks, 0, nextScope);
+    assert.equal(harness.states.at(-1).phase, "stopped", nextScope);
+  }
 });
 
 test("ByteDance AIDP recording automation stops when import or refresh reaches the twenty-second limit", async function () {
@@ -4504,4 +4816,51 @@ test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Spa
     globalThis.window = previousWindow;
     globalThis.document = previousDocument;
   }
+});
+
+test('ByteDance AIDP content keeps mark-v3 recording and helper header entries singular after repeated sync', function () {
+  const contentModule = loadContentModule();
+  const capabilities = contentModule.__testOnly.resolveHelperPageCapabilities(
+    '/management/task-v2/task-mark/mark-v3/item-mark'
+  );
+  assert.deepEqual(capabilities, {
+    readOnly: false,
+    recordingImportEnabled: true,
+    recordingAutomationEnabled: true,
+    recordingResultFillEnabled: false,
+  });
+  const headerActionGroup = new FakeElement({
+    className: 'operation-group-btn-GcvnvK',
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: 'item-info-Gr9sCs',
+      children: [
+        new FakeElement({
+          className: 'item-content-YPvk0h',
+          children: [
+            new FakeElement({
+              className: 'agent-wrapper-g36cL8',
+              children: [headerActionGroup],
+            }),
+          ],
+        }),
+      ],
+    }),
+  ]);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    contentModule.__testOnly.ensureClearSegmentsButton(root, function () {});
+    contentModule.__testOnly.ensureFillLanguageKindsButton(root, function () {});
+    contentModule.__testOnly.syncRecordingImportButton(root, {
+      recordingTaskCode: 'T000001',
+      contextReady: true,
+      busy: false,
+      onClick() {},
+    });
+  }
+
+  assert.equal(root.querySelectorAll(`[data-asc-recording-import-button='true']`).length, 1);
+  assert.equal(root.querySelectorAll(`[data-asc-clear-segments-button='true']`).length, 1);
+  assert.equal(root.querySelectorAll(`[data-asc-fill-language-kind-button='true']`).length, 1);
 });

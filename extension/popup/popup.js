@@ -103,7 +103,16 @@
     }
     if (url.hostname === aidpHost) {
       const scriptId = resolveAidpScript(settings);
-      const detailMatched = url.pathname.includes("/mark-v3/");
+      const taizhouCheckPackageMatched =
+        scriptId === taizhouScriptId &&
+        (
+          /^\/management\/task-v2\/[^/]+\/scan-v3\/(?:14|17)\/[^/]+\/?$/i.test(url.pathname) ||
+          /^\/management\/task-v2\/[^/]+\/mark-package\/[^/]+\/(?:14|17)\/?$/i.test(url.pathname) ||
+          /^\/management\/task-v2\/[^/]+\/modify-v2\/4\/[^/]+\/?$/i.test(url.pathname) ||
+          /^\/management\/task-v2\/[^/]+\/node\/14\/revise\/?$/i.test(url.pathname)
+        );
+      const detailMatched =
+        url.pathname.includes("/mark-v3/") || taizhouCheckPackageMatched;
       const config = getScriptConfig(settings, scriptId);
       return {
         scriptId,

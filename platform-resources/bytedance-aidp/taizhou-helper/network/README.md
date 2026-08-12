@@ -7,8 +7,8 @@
 
 ## 适用范围 / 当前覆盖
 
-- 当前保留 5 份稳定参考页。
-- 当前目录聚焦 `mark-v3` 详情页路由、query 上下文、当前条读取、完整题目最小读取和暂存写回边界。
+- 当前保留 6 份稳定参考页。
+- 当前目录聚焦 `mark-v3`、检查包与返修页的当前题读取、完整题目最小读取和写操作边界。
 - 过程型记录已移出主参考目录；如需追加历史过程，统一写入 `log.md`。
 
 ## 文件列表
@@ -20,6 +20,7 @@
 | `03-mark-v3-submit-temp-answer.md` | 03 平台暂存写回 |
 | `04-search-item-category.md` | 04 完整题目 Search Item 最小安全读取 |
 | `05-scan-v3-get-work-item.md` | 05 检查包当前题只读快照 |
+| `06-search-modify-item.md` | 06 返修列表与详情的最小安全快照 |
 
 ## 阅读顺序
 
@@ -29,6 +30,7 @@
 3. `03-mark-v3-submit-temp-answer.md`
 4. `04-search-item-category.md`
 5. `05-scan-v3-get-work-item.md`
+6. `06-search-modify-item.md`
 
 ## 通用约定
 
@@ -39,5 +41,5 @@
 
 ## 当前边界 / 待补项
 
-- 当前已补到详情页首轮初始化、当前条读取、完整题目 Search Item 最小读取和暂存写回链路；列表摘要和更多模板扩展链路仍待补采。
+- 当前已补到详情页首轮初始化、当前条读取、完整题目 Search Item、检查包 GetWorkItem/Receive，以及返修 SearchModifyItem 最小读取链路；更多模板扩展链路仍待补采。
 - 新增缺口时，先补稳定参考结论，再同步更新脚本 README 或 `log.md`。

@@ -357,6 +357,133 @@ test("popup shows the detected Taizhou script when AIDP activeScriptId switches 
     "chrome-extension://test/options/options.html#/script/bytedanceAidpTaizhouHelper",
   ]);
 });
+
+test("popup recognizes Taizhou node 17 check-package routes", async function () {
+  const activeUrls = [
+    "https://aidp.bytedance.com/management/task-v2/task-17/scan-v3/17/item-17",
+    "https://aidp.bytedance.com/management/task-v2/task-17/mark-package/package-17/17?itemID=item-17",
+  ];
+  const storageLike = {
+    async getSettings() {
+      return {
+        platforms: {
+          bytedanceAidp: {
+            enabled: true,
+            activeScriptId: "bytedanceAidpTaizhouHelper",
+            scripts: {
+              suzhouHelper: { enabled: false },
+              jinhuaHelper: { enabled: false },
+              taizhouHelper: {
+                enabled: true,
+                platformAiEnabled: false,
+              },
+            },
+          },
+        },
+      };
+    },
+    async setScriptEnabled() {
+      throw new Error("not-needed");
+    },
+  };
+
+  for (const activeUrl of activeUrls) {
+    const documentLike = createDocument();
+    loadPopup(documentLike, createChrome(activeUrl), storageLike);
+    await documentLike.dispatchDOMContentLoaded();
+    await flushTasks();
+
+    assert.equal(documentLike.getElementById("detected-title").textContent, "\u53f0\u5dde\u8bdd\u811a\u672c");
+    assert.equal(
+      documentLike.getElementById("detected-description").textContent,
+      "\u8fd0\u884c\u72b6\u6001\uff1a\u8be6\u60c5\u9875\u547d\u4e2d\uff08\u5e73\u53f0 AI \u5df2\u9690\u85cf\uff09",
+      activeUrl
+    );
+    assert.equal(documentLike.getElementById("detected-status-pill").textContent, "\u5df2\u542f\u7528");
+  }
+});
+
+test("popup rejects Taizhou non-whitelisted check-package nodes", async function () {
+  const activeUrls = [
+    "https://aidp.bytedance.com/management/task-v2/task-16/scan-v3/16/item-16",
+    "https://aidp.bytedance.com/management/task-v2/task-18/mark-package/package-18/18?itemID=item-18",
+  ];
+  const storageLike = {
+    async getSettings() {
+      return {
+        platforms: {
+          bytedanceAidp: {
+            enabled: true,
+            activeScriptId: "bytedanceAidpTaizhouHelper",
+            scripts: {
+              suzhouHelper: { enabled: false },
+              jinhuaHelper: { enabled: false },
+              taizhouHelper: {
+                enabled: true,
+                platformAiEnabled: false,
+              },
+            },
+          },
+        },
+      };
+    },
+    async setScriptEnabled() {
+      throw new Error("not-needed");
+    },
+  };
+
+  for (const activeUrl of activeUrls) {
+    const documentLike = createDocument();
+    loadPopup(documentLike, createChrome(activeUrl), storageLike);
+    await documentLike.dispatchDOMContentLoaded();
+    await flushTasks();
+
+    assert.equal(documentLike.getElementById("detected-title").textContent, "\u53f0\u5dde\u8bdd\u811a\u672c");
+    assert.equal(
+      documentLike.getElementById("detected-description").textContent,
+      "\u8bf7\u8fdb\u5165 AIDP \u6807\u6ce8\u8be6\u60c5\u9875\u540e\u4f7f\u7528\u811a\u672c\u3002",
+      activeUrl
+    );
+    assert.equal(documentLike.getElementById("detected-status-pill").textContent, "\u5df2\u542f\u7528");
+  }
+});
+
+test("popup detects Taizhou revise list and modify detail routes", async function () {
+  const activeUrls = [
+    "https://aidp.bytedance.com/management/task-v2/task-1/node/14/revise?page=1",
+    "https://aidp.bytedance.com/management/task-v2/task-1/modify-v2/4/item-1?direction=0",
+  ];
+  const storageLike = {
+    async getSettings() {
+      return {
+        platforms: {
+          bytedanceAidp: {
+            enabled: true,
+            activeScriptId: "bytedanceAidpTaizhouHelper",
+            scripts: {
+              suzhouHelper: { enabled: false },
+              jinhuaHelper: { enabled: false },
+              taizhouHelper: { enabled: true, platformAiEnabled: false },
+            },
+          },
+        },
+      };
+    },
+    async setScriptEnabled() { throw new Error("not-needed"); },
+  };
+  for (const activeUrl of activeUrls) {
+    const documentLike = createDocument();
+    loadPopup(documentLike, createChrome(activeUrl), storageLike);
+    await documentLike.dispatchDOMContentLoaded();
+    await flushTasks();
+    assert.equal(documentLike.getElementById("detected-title").textContent, "台州话脚本");
+    assert.equal(
+      documentLike.getElementById("detected-description").textContent,
+      "运行状态：详情页命中（平台 AI 已隐藏）"
+    );
+  }
+});
+
 test("popup shows the detected Hangzhou script when Magic Data activeScriptId switches to hangzhou", async function () {
   const documentLike = createDocument();
   const chromeLike = createChrome(

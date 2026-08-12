@@ -126,7 +126,12 @@ function createRuntime(options) {
         bytedanceAidp: {
           scripts: {
             taizhouHelper: {
-              recordingImportTaskCode: source.taskCode || "T000001",
+              recordingImportTaskCode: Object.prototype.hasOwnProperty.call(
+                source,
+                "taskCode"
+              )
+                ? source.taskCode
+                : "T000001",
             },
           },
         },
@@ -165,6 +170,82 @@ function createRuntime(options) {
   });
   return { moduleApi, runtime, storage, calls };
 }
+
+test("Taizhou recording integration imports an explicit safe item context", async function () {
+  const harness = createRuntime({
+    context: {
+      ok: false,
+      message: "the current-page context must not be read",
+    },
+  });
+
+  const result = await harness.runtime.importItemContext({
+    sourceItemId: " source-explicit ",
+    referenceText: " explicit text ",
+    audioUrl: " https://aidp.example.test/audio ",
+    videoUrl: "",
+    operatorEmail: "must-not-be-forwarded@example.test",
+    requestUrl: "https://aidp.example.test/private?token=secret",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, "created");
+  assert.equal(harness.calls.length, 1);
+  assert.deepEqual(JSON.parse(harness.calls[0].body), {
+    recordingTaskCode: "T000001",
+    sourceItemId: "source-explicit",
+    referenceText: "explicit text",
+    referenceAudioUrl: "https://aidp.example.test/audio",
+    referenceVideoUrl: null,
+  });
+  assert.deepEqual(harness.storage.mappings, [
+    {
+      recordingTaskCode: "T000001",
+      sourceItemId: "source-explicit",
+      recordingItemId: "recording-item-1",
+      itemCode: "T000001-0000001",
+      syncToken: "sync-token-1",
+      updatedAt: 1721780000000,
+    },
+  ]);
+});
+
+test("Taizhou recording integration rejects invalid explicit item contexts before calling the backend", async function () {
+  const cases = [
+    {
+      taskCode: "",
+      context: {
+        sourceItemId: "source-no-task",
+        referenceText: "text",
+      },
+    },
+    {
+      context: {
+        sourceItemId: " ",
+        referenceText: "text",
+      },
+    },
+    {
+      context: {
+        sourceItemId: "source-empty",
+        referenceText: " ",
+        audioUrl: "",
+        videoUrl: null,
+      },
+    },
+  ];
+
+  for (const testCase of cases) {
+    const harness = createRuntime(testCase);
+    const result = await harness.runtime.importItemContext(testCase.context);
+
+    assert.equal(result.ok, false);
+    assert.equal(typeof result.message, "string");
+    assert.notEqual(result.message.trim(), "");
+    assert.equal(harness.calls.length, 0);
+    assert.deepEqual(harness.storage.mappings, []);
+  }
+});
 
 test("Taizhou recording integration creates a text-only full item and stores only the safe mapping", async function () {
   const harness = createRuntime({

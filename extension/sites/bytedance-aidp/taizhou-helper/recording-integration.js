@@ -183,40 +183,46 @@
       };
     }
 
-    async function performImport() {
+    function normalizeImportContext(context) {
+      const source = context && typeof context === "object" ? context : {};
+      return {
+        sourceItemId: normalizeText(source.sourceItemId),
+        referenceText: normalizeText(source.referenceText),
+        audioUrl: normalizeText(source.audioUrl),
+        videoUrl: normalizeText(source.videoUrl),
+      };
+    }
+
+    async function performImportContext(context) {
       if (!recordingTaskCode) {
         return {
           ok: false,
           message: "请先在 Options 基础设置中填写录音平台任务编号。",
         };
       }
+      const importContext = normalizeImportContext(context);
+      if (!importContext.sourceItemId) {
+        return {
+          ok: false,
+          reason: "missing-item-id",
+          message: "当前数据缺少 ItemID，无法导入。",
+        };
+      }
       if (
-        !dataApi ||
-        typeof dataApi.getRecordingImportContext !== "function"
+        !importContext.referenceText &&
+        !importContext.audioUrl &&
+        !importContext.videoUrl
       ) {
         return {
           ok: false,
-          message: "当前完整题目数据尚未就绪，请稍后重试。",
-        };
-      }
-      const context = await dataApi.getRecordingImportContext();
-      if (!context?.ok) {
-        return {
-          ok: false,
-          reason: context?.reason || "waiting",
-          message:
-            normalizeText(context?.message) ||
-            "当前完整题目数据尚未就绪，请稍后重试。",
+          reason: "empty-content",
+          message: "当前数据没有可导入的文字、音频或视频。",
         };
       }
       const importTaskCode = recordingTaskCode;
-      const importSourceItemId = normalizeText(context.sourceItemId);
+      const importSourceItemId = importContext.sourceItemId;
       const importEntry = beginResultEntry(importSourceItemId);
       const importKey = mappingKey(importSourceItemId);
-      const importContext = {
-        ...context,
-        sourceItemId: importSourceItemId,
-      };
 
       try {
         const createBody = await prepareCreateBody(importContext);
@@ -283,6 +289,35 @@
             "导入录音任务失败，请稍后重试。",
         };
       }
+    }
+
+    async function performImport() {
+      if (!recordingTaskCode) {
+        return {
+          ok: false,
+          message: "请先在 Options 基础设置中填写录音平台任务编号。",
+        };
+      }
+      if (
+        !dataApi ||
+        typeof dataApi.getRecordingImportContext !== "function"
+      ) {
+        return {
+          ok: false,
+          message: "当前完整题目数据尚未就绪，请稍后重试。",
+        };
+      }
+      const context = await dataApi.getRecordingImportContext();
+      if (!context?.ok) {
+        return {
+          ok: false,
+          reason: context?.reason || "waiting",
+          message:
+            normalizeText(context?.message) ||
+            "当前完整题目数据尚未就绪，请稍后重试。",
+        };
+      }
+      return performImportContext(context);
     }
 
     function importCurrentItem() {
@@ -477,6 +512,7 @@
         return recordingTaskCode;
       },
       inspectCurrentItem,
+      importItemContext: performImportContext,
       importCurrentItem,
       beginResultEntry,
       isCurrentResultEntry,

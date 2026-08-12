@@ -1330,6 +1330,173 @@ test("AIDP taizhou ui panel renders manual recording automation controls and sta
   }
 });
 
+test("AIDP taizhou package panel exposes recording capabilities", function () {
+  const harness = createHarness();
+  const oldDocument = globalThis.document;
+  const oldHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  try {
+    const calls = { refresh: 0, start: 0, stop: 0 };
+    const runtime = loadUiPanelModule().createRuntime({
+      readOnly: true,
+      recordingImportEnabled: true,
+      recordingAutomationEnabled: true,
+      onAddRecordingData() {},
+      onRefreshRecordingResult() { calls.refresh += 1; },
+      onStartRecordingAutomation() { calls.start += 1; },
+      onStopRecordingAutomation() { calls.stop += 1; },
+    });
+    assert.equal(runtime.mount(), true);
+    const root = findMountedPanelRoot(harness.body);
+    const byAttr = (name) => findNode(root, (node) => node.getAttribute(name) === "true");
+    const add = byAttr("data-recording-import-add");
+    const refresh = byAttr("data-recording-result-refresh");
+    const state = byAttr("data-recording-automation-state");
+    const start = byAttr("data-recording-automation-start");
+    const stop = byAttr("data-recording-automation-stop");
+    assert.ok(byAttr("data-recording-result-card"));
+    assert.ok(add && refresh && state && start && stop);
+    assert.equal(add.textContent, "添加数据");
+    refresh.click();
+    start.click();
+    runtime.renderRecordingAutomationState({ phase: "waiting-next", completedCount: 1, message: "正在验证下一题。" });
+    stop.click();
+    assert.deepEqual(calls, { refresh: 1, start: 1, stop: 1 });
+    assert.match(state.textContent, /正在验证下一题/);
+    assert.equal(collectDescendants(root).some((node) => node.tagName === "BUTTON" && /生成分段|应用分段|暂存|提交|领取/.test(node.textContent)), false);
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.HTMLElement = oldHTMLElement;
+  }
+});
+
+test("AIDP taizhou modify panel exposes manual result fill without automation controls", function () {
+  const harness = createHarness();
+  const oldDocument = globalThis.document;
+  const oldHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  try {
+    let filled = 0;
+    const runtime = loadUiPanelModule().createRuntime({
+      readOnly: true,
+      recordingImportEnabled: true,
+      recordingAutomationEnabled: false,
+      recordingResultFillEnabled: true,
+      onFillRecordingResult() { filled += 1; },
+    });
+    assert.equal(runtime.mount(), true);
+    const root = findMountedPanelRoot(harness.body);
+    runtime.renderRecordingResult({
+      sourceItemId: "item-1",
+      itemCode: "R0001",
+      status: "COMPLETED",
+      text: "审核完成文本",
+    });
+    const fill = findNode(root, (node) => node.getAttribute("data-recording-result-fill") === "true");
+    assert.ok(fill);
+    assert.equal(fill.disabled, false);
+    fill.click();
+    assert.equal(filled, 1);
+    assert.equal(
+      collectDescendants(root).some((node) =>
+        node.getAttribute("data-recording-automation-state") === "true"
+      ),
+      false
+    );
+    runtime.renderRecordingResult({ sourceItemId: "item-1", status: "AVAILABLE", text: "not ready" });
+    assert.equal(fill.disabled, true);
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.HTMLElement = oldHTMLElement;
+  }
+});
+
+test("AIDP taizhou recording import button is fail-closed and single-flight", async function () {
+  const harness = createHarness();
+  const oldDocument = globalThis.document;
+  const oldHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  let finishImport;
+  const pendingImport = new Promise((resolve) => { finishImport = resolve; });
+  try {
+    let addCount = 0;
+    const runtime = loadUiPanelModule().createRuntime({
+      readOnly: true,
+      recordingImportEnabled: true,
+      recordingAutomationEnabled: true,
+      onAddRecordingData() {
+        addCount += 1;
+        return pendingImport;
+      },
+    });
+    assert.equal(runtime.mount(), true);
+    const root = findMountedPanelRoot(harness.body);
+    const add = findNode(root, (node) => node.getAttribute("data-recording-import-add") === "true");
+    runtime.renderRecordingImportState({
+      enabled: false,
+      busy: false,
+      reason: "stale-snapshot",
+      message: "当前题目快照已过期，请等待页面重新加载。",
+    });
+    assert.equal(add.disabled, true);
+    assert.equal(add.getAttribute("data-recording-import-reason"), "stale-snapshot");
+    assert.match(add.getAttribute("title"), /快照已过期/);
+    add.click();
+    assert.equal(addCount, 0);
+    runtime.renderRecordingImportState({ enabled: true, busy: false, reason: "ready" });
+    add.click();
+    add.click();
+    await Promise.resolve();
+    assert.equal(addCount, 1);
+    assert.equal(add.disabled, true);
+    assert.equal(add.textContent, "正在添加...");
+    runtime.renderRecordingImportState({ enabled: true, busy: true, reason: "importing", message: "正在添加当前数据。" });
+    add.click();
+    assert.equal(addCount, 1);
+    finishImport();
+    await pendingImport;
+    await Promise.resolve();
+    runtime.renderRecordingImportState({ enabled: true, busy: false, reason: "ready" });
+    assert.equal(add.disabled, false);
+    assert.equal(add.textContent, "添加数据");
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.HTMLElement = oldHTMLElement;
+  }
+});
+
+test("AIDP taizhou panel hides recording capabilities when they are disabled", function () {
+  const harness = createHarness();
+  const oldDocument = globalThis.document;
+  const oldHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+  try {
+    const runtime = loadUiPanelModule().createRuntime({
+      readOnly: true,
+      recordingImportEnabled: false,
+      recordingAutomationEnabled: false,
+    });
+    assert.equal(runtime.mount(), true);
+    const root = findMountedPanelRoot(harness.body);
+    const attrs = [
+      "data-recording-result-card",
+      "data-recording-import-add",
+      "data-recording-automation-state",
+    ];
+    assert.equal(
+      collectDescendants(root).some((node) => attrs.some((name) => node.getAttribute(name) === "true")),
+      false
+    );
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.HTMLElement = oldHTMLElement;
+  }
+});
+
 test("AIDP taizhou ui panel exposes read-only batch and recognition copy actions", async function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;

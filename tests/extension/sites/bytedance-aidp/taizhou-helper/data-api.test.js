@@ -10,6 +10,7 @@ const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
 const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
 const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
 const SEARCH_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT";
+const SEARCH_MODIFY_ITEM_TYPE = "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT";
 const WORK_ITEM_TYPE = "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
 const NETWORK_ACTIVITY_TYPE = "BYTEDANCE_AIDP_NETWORK_ACTIVITY";
 const RECEIVE_SNAPSHOT_VERSION = 1;
@@ -61,6 +62,8 @@ class FakeElement {
     this.parentNode = null;
     this.ownerDocument = null;
     this.value = source.value !== undefined ? String(source.value) : "";
+    this.disabled = source.disabled === true;
+    this.readOnly = source.readOnly === true;
     this._listeners = new Map();
     this._attrs = new Map();
     this._text = String(source.text || "");
@@ -432,15 +435,66 @@ function emitSearchItem(windowLike, payload) {
   );
 }
 
-function emitWorkItem(windowLike, payload) {
+function emitSearchModifyItem(windowLike, payload) {
+  windowLike.emitMessage(
+    {
+      source: OBSERVER_SOURCE,
+      type: SEARCH_MODIFY_ITEM_TYPE,
+      payload: payload,
+    },
+    "https://aidp.bytedance.com"
+  );
+}
+
+function emitWorkItem(windowLike, payload, capturedAt) {
   windowLike.emitMessage(
     {
       source: OBSERVER_SOURCE,
       type: WORK_ITEM_TYPE,
-      payload: { response: payload },
+      payload: {
+        capturedAt:
+          capturedAt === undefined ? Date.now() : Number(capturedAt),
+        response: payload,
+      },
     },
     "https://aidp.bytedance.com"
   );
+}
+
+function createRecordingWorkItem(itemId, content) {
+  return {
+    Item: {
+      ItemID: itemId,
+      Content: JSON.stringify(content || {}),
+    },
+    Answer: JSON.stringify({
+      itemID: itemId,
+      data: {
+        regions: [],
+      },
+    }),
+  };
+}
+
+function createRecordingReceivePayload(itemId, content) {
+  return {
+    Items: [
+      {
+        Item: {
+          ItemID: itemId,
+          Content: JSON.stringify(content || {}),
+        },
+        TempAnswer: {
+          Content: JSON.stringify({
+            itemID: itemId,
+            data: {
+              regions: [],
+            },
+          }),
+        },
+      },
+    ],
+  };
 }
 
 function emitNetworkActivity(windowLike, payload, origin) {
@@ -543,6 +597,93 @@ test("AIDP data api asks the page observer to replay the latest GetWorkItem snap
     },
     targetOrigin: "https://aidp.bytedance.com",
   }]);
+});
+
+test("AIDP data api keeps node 17 check-package routes read-only", function () {
+  const resolveRoute = loadModule().__testOnly.resolveDetailRoute;
+  const scanRoute = resolveRoute({
+    pathname: "/management/task-v2/task-17/scan-v3/17/item-17",
+    search: "",
+  });
+  const packageRoute = resolveRoute({
+    pathname: "/management/task-v2/task-17/mark-package/package-17/17",
+    search: "?itemID=item-17",
+  });
+
+  assert.equal(scanRoute.pageType, "scan-v3");
+  assert.equal(scanRoute.mode, "scan");
+  assert.equal(scanRoute.readOnly, true);
+  assert.equal(scanRoute.nodeId, "17");
+  assert.equal(scanRoute.itemId, "item-17");
+
+  assert.equal(packageRoute.pageType, "mark-package");
+  assert.equal(packageRoute.mode, "scan");
+  assert.equal(packageRoute.readOnly, true);
+  assert.equal(packageRoute.nodeId, "17");
+  assert.equal(packageRoute.packageId, "package-17");
+  assert.equal(packageRoute.itemId, "item-17");
+});
+
+test("AIDP data api imports matching GetWorkItem on a node 17 package route", async function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-17/mark-package/package-17/17?itemID=item-17",
+      pathname: "/management/task-v2/task-17/mark-package/package-17/17",
+      search: "?itemID=item-17",
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem("item-17", {
+      asr_text: "node 17 reference",
+      audio: "https://media.example.test/node-17-audio",
+      video: "",
+    }),
+  ], 1000);
+
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: true,
+    sourceItemId: "item-17",
+    referenceText: "node 17 reference",
+    audioUrl: "https://media.example.test/node-17-audio",
+    videoUrl: "",
+  });
+  assert.equal(await harness.runtime.getCurrentAutomationItemId(), "item-17");
+});
+
+test("AIDP data api imports matching Receive on a node 17 scan-v3 route", async function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-17/scan-v3/17/item-17",
+      pathname: "/management/task-v2/task-17/scan-v3/17/item-17",
+      search: "",
+    },
+  });
+  emitReceive(harness.windowLike, createRecordingReceivePayload("item-17", {
+    asr_text: "  node 17 Receive reference  ",
+    audio: " https://media.example.test/node-17-receive-audio ",
+    video: "https://media.example.test/node-17-receive-video",
+    cookie: "must-not-keep",
+  }));
+
+  const importContext = await harness.runtime.getRecordingImportContext();
+  assert.deepEqual(importContext, {
+    ok: true,
+    sourceItemId: "item-17",
+    referenceText: "node 17 Receive reference",
+    audioUrl: "https://media.example.test/node-17-receive-audio",
+    videoUrl: "https://media.example.test/node-17-receive-video",
+  });
+  assert.doesNotMatch(JSON.stringify(importContext), /cookie|must-not-keep/i);
 });
 
 test("AIDP data api builds current context from observer receive snapshot", async function () {
@@ -730,6 +871,352 @@ test("AIDP data api distinguishes waiting, stale and empty Search Item contexts"
     reason: "expired",
     message: "当前完整题目数据已过期，请等待页面重新加载后重试。",
   });
+});
+
+test("AIDP data api prefers fresh Search Item on read-only scan-v3", async function () {
+  let currentTime = 1000;
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => currentTime,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-scan/scan-v3/14/item-scan",
+      pathname: "/management/task-v2/task-scan/scan-v3/14/item-scan",
+      search: "",
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem("item-scan", {
+      asr_text: "GetWorkItem 回退文本",
+      audio: "https://media.example.test/work-audio",
+      video: "https://media.example.test/work-video",
+    }),
+  ]);
+  emitSearchItem(harness.windowLike, {
+    sourceItemId: "item-scan",
+    referenceText: "  Search Item 优先文本  ",
+    audioUrl: " https://media.example.test/search-audio ",
+    videoUrl: "https://media.example.test/search-video",
+    authorization: "must-not-keep",
+  });
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.deepEqual(context, {
+    ok: true,
+    sourceItemId: "item-scan",
+    referenceText: "Search Item 优先文本",
+    audioUrl: "https://media.example.test/search-audio",
+    videoUrl: "https://media.example.test/search-video",
+  });
+  assert.doesNotMatch(JSON.stringify(context), /GetWorkItem|authorization|must-not-keep/i);
+});
+
+test("AIDP data api falls back to fresh matching GetWorkItem Item.Content", async function () {
+  let currentTime = 1000;
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => currentTime,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task/mark-package/package-1/14?itemID=item-package",
+      pathname: "/management/task-v2/task/mark-package/package-1/14",
+      search: "?itemID=item-package",
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem("item-package", {
+      asr_text: "  GetWorkItem 参考文本  ",
+      audio: " https://media.example.test/work-audio ",
+      video: "https://media.example.test/work-video",
+      id: "entry-must-not-leak",
+      authorization: "must-not-keep",
+      customer: { email: "private@example.test" },
+    }),
+  ]);
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.deepEqual(context, {
+    ok: true,
+    sourceItemId: "item-package",
+    referenceText: "GetWorkItem 参考文本",
+    audioUrl: "https://media.example.test/work-audio",
+    videoUrl: "https://media.example.test/work-video",
+  });
+  assert.doesNotMatch(JSON.stringify(context), /entry-must-not-leak|authorization|private@example|customer/i);
+});
+
+test('AIDP data api imports a same-item fresh GetWorkItem fallback on scan-v3 without Search', async function () {
+  let currentTime = 1000;
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => currentTime,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: 'https://aidp.bytedance.com',
+      href: 'https://aidp.bytedance.com/management/task-v2/task-scan/scan-v3/14/item-scan',
+      pathname: '/management/task-v2/task-scan/scan-v3/14/item-scan',
+      search: '',
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem('item-scan', {
+      asr_text: '  scan-v3 GetWorkItem 文本  ',
+      audio: ' https://media.example.test/scan-work-audio ',
+      video: 'https://media.example.test/scan-work-video',
+    }),
+  ], currentTime);
+
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: true,
+    sourceItemId: 'item-scan',
+    referenceText: 'scan-v3 GetWorkItem 文本',
+    audioUrl: 'https://media.example.test/scan-work-audio',
+    videoUrl: 'https://media.example.test/scan-work-video',
+  });
+});
+
+test('AIDP data api fails closed for a wrong Receive on scan-v3 without Search or GetWorkItem', async function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: 'https://aidp.bytedance.com',
+      href: 'https://aidp.bytedance.com/management/task-v2/task-scan/scan-v3/14/item-current',
+      pathname: '/management/task-v2/task-scan/scan-v3/14/item-current',
+      search: '',
+    },
+  });
+  emitReceive(harness.windowLike, createRecordingReceivePayload('item-other', {
+    asr_text: '不允许导入的错题 Receive 文本',
+    audio: 'https://media.example.test/wrong-receive-audio',
+  }));
+
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.equal(context.ok, false);
+  assert.match(String(context.reason || ''), /^(waiting|stale)$/);
+  assert.doesNotMatch(JSON.stringify(context), /错题 Receive|wrong-receive-audio/);
+});
+
+test("AIDP data api falls back to fresh Receive when Search is wrong or expired", async function () {
+  let currentTime = 1000;
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => currentTime,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task/scan-v3/14/item-current",
+      pathname: "/management/task-v2/task/scan-v3/14/item-current",
+      search: "",
+    },
+  });
+  emitReceive(harness.windowLike, createRecordingReceivePayload("item-current", {
+    asr_text: "Receive 回退文本",
+    audio: "https://media.example.test/receive-audio",
+    video: "https://media.example.test/receive-video",
+    cookie: "must-not-keep",
+  }));
+  emitSearchItem(harness.windowLike, {
+    sourceItemId: "item-other",
+    referenceText: "不允许错题导入",
+    audioUrl: "https://media.example.test/other-audio",
+  });
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: true,
+    sourceItemId: "item-current",
+    referenceText: "Receive 回退文本",
+    audioUrl: "https://media.example.test/receive-audio",
+    videoUrl: "https://media.example.test/receive-video",
+  });
+  emitSearchItem(harness.windowLike, {
+    sourceItemId: "item-current",
+    referenceText: "过期 Search 文本",
+    audioUrl: "https://media.example.test/expired-audio",
+  });
+  currentTime = 7001;
+  emitReceive(harness.windowLike, createRecordingReceivePayload("item-current", {
+    asr_text: "新鲜 Receive 文本",
+    audio: "https://media.example.test/fresh-audio",
+  }));
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: true,
+    sourceItemId: "item-current",
+    referenceText: "新鲜 Receive 文本",
+    audioUrl: "https://media.example.test/fresh-audio",
+    videoUrl: "",
+  });
+});
+
+test("AIDP data api rejects a mismatched package snapshot", async function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task/mark-package/package-1/14?itemID=item-current",
+      pathname: "/management/task-v2/task/mark-package/package-1/14",
+      search: "?itemID=item-current",
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem("item-other", {
+      asr_text: "不允许错题导入",
+      audio: "https://media.example.test/other-audio",
+    }),
+  ]);
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.equal(context.ok, false);
+  assert.match(String(context.reason || ""), /^(waiting|stale)$/);
+  assert.doesNotMatch(JSON.stringify(context), /不允许错题导入|other-audio/);
+});
+
+test("AIDP data api rejects an expired package fallback snapshot", async function () {
+  let currentTime = 1000;
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => currentTime,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task/mark-package/package-1/14?itemID=item-current",
+      pathname: "/management/task-v2/task/mark-package/package-1/14",
+      search: "?itemID=item-current",
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem("item-current", { asr_text: "已过期内容" }),
+  ], 1000);
+  currentTime = 7001;
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.equal(context.ok, false);
+  assert.equal(context.reason, "expired");
+  assert.doesNotMatch(JSON.stringify(context), /已过期内容/);
+});
+
+test("AIDP data api preserves GetWorkItem capture time when an old snapshot is replayed", async function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 7001,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task/mark-package/package-1/14?itemID=item-current",
+      pathname: "/management/task-v2/task/mark-package/package-1/14",
+      search: "?itemID=item-current",
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem("item-current", {
+      asr_text: "旧回放不得导入",
+      audio: "https://media.example.test/old-replay-audio",
+    }),
+  ], 1000);
+
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.equal(context.ok, false);
+  assert.equal(context.reason, "expired");
+  assert.doesNotMatch(JSON.stringify(context), /旧回放不得导入|old-replay-audio/);
+});
+
+test("AIDP data api rejects fallback content when all allowed fields are empty", async function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task/mark-package/package-1/14?itemID=item-current",
+      pathname: "/management/task-v2/task/mark-package/package-1/14",
+      search: "?itemID=item-current",
+    },
+  });
+  emitWorkItem(harness.windowLike, [
+    createRecordingWorkItem("item-current", {
+      asr_text: "   ",
+      audio: "",
+      video: "   ",
+      authorization: "must-not-keep",
+    }),
+  ]);
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.equal(context.ok, false);
+  assert.equal(context.reason, "empty");
+  assert.doesNotMatch(JSON.stringify(context), /authorization|must-not-keep/i);
+});
+
+test("AIDP data api resolves current automation ItemID on both package routes", async function () {
+  const location = {
+    origin: "https://aidp.bytedance.com",
+    href: "https://aidp.bytedance.com/management/task-v2/task-1/scan-v3/14/item-1",
+    pathname: "/management/task-v2/task-1/scan-v3/14/item-1",
+    search: "",
+  };
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    location,
+  });
+  emitWorkItem(harness.windowLike, [createRecordingWorkItem("item-1", { asr_text: "one" })]);
+  assert.equal(await harness.runtime.getCurrentAutomationItemId(), "item-1");
+  location.href = "https://aidp.bytedance.com/management/task-v2/task-1/scan-v3/14/item-2";
+  location.pathname = "/management/task-v2/task-1/scan-v3/14/item-2";
+  assert.equal(await harness.runtime.getCurrentAutomationItemId(), "");
+  emitReceive(harness.windowLike, createRecordingReceivePayload("item-2", { asr_text: "two" }));
+  assert.equal(await harness.runtime.getCurrentAutomationItemId(), "item-2");
+  location.href = "https://aidp.bytedance.com/management/task-v2/task-1/mark-package/package-2/14?itemID=item-3";
+  location.pathname = "/management/task-v2/task-1/mark-package/package-2/14";
+  location.search = "?itemID=item-3";
+  assert.equal(await harness.runtime.getCurrentAutomationItemId(), "");
+  emitWorkItem(harness.windowLike, [createRecordingWorkItem("item-3", { asr_text: "three" })]);
+  assert.equal(await harness.runtime.getCurrentAutomationItemId(), "item-3");
+});
+
+test("AIDP data api keeps automation scope stable per package", async function () {
+  const location = {
+    origin: "https://aidp.bytedance.com",
+    href: "https://aidp.bytedance.com/management/task-v2/task-1/scan-v3/14/item-1",
+    pathname: "/management/task-v2/task-1/scan-v3/14/item-1",
+    search: "",
+  };
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    location,
+  });
+  const scanScope = await harness.runtime.getAutomationScopeKey();
+  assert.match(scanScope, /scan-v3/i);
+  assert.match(scanScope, /task-1/);
+  assert.match(scanScope, /14/);
+  assert.doesNotMatch(scanScope, /item-1/);
+  location.href = "https://aidp.bytedance.com/management/task-v2/task-1/scan-v3/14/item-2";
+  location.pathname = "/management/task-v2/task-1/scan-v3/14/item-2";
+  assert.equal(await harness.runtime.getAutomationScopeKey(), scanScope);
+  location.href = "https://aidp.bytedance.com/management/task-v2/task-1/mark-package/package-1/14?itemID=item-2";
+  location.pathname = "/management/task-v2/task-1/mark-package/package-1/14";
+  location.search = "?itemID=item-2";
+  const packageScope = await harness.runtime.getAutomationScopeKey();
+  assert.notEqual(packageScope, scanScope);
+  assert.match(packageScope, /mark-package/i);
+  assert.match(packageScope, /task-1/);
+  assert.match(packageScope, /package-1/);
+  assert.match(packageScope, /14/);
+  assert.doesNotMatch(packageScope, /item-2/);
+  location.href = "https://aidp.bytedance.com/management/task-v2/task-1/mark-package/package-2/14?itemID=item-3";
+  location.pathname = "/management/task-v2/task-1/mark-package/package-2/14";
+  const nextScope = await harness.runtime.getAutomationScopeKey();
+  assert.notEqual(nextScope, packageScope);
+  assert.match(nextScope, /package-2/);
 });
 
 test("AIDP data api applies preview through SubmitTempItemAnswer with rebuilt regions", async function () {
@@ -1750,4 +2237,347 @@ test("AIDP data api refuses every mark-package write path without changing the p
   assert.equal(results.every((result) => result.reason === "read-only"), true);
   assert.equal(textarea.value, "unchanged");
   assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api refuses every node 17 mark-package write path", async function () {
+  const textarea = new FakeElement({ tagName: "textarea", value: "unchanged" });
+  const harness = createRuntimeHarness({
+    document: createFakeDocument([textarea]),
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-17/mark-package/package-17/17?itemID=item-17",
+      pathname: "/management/task-v2/task-17/mark-package/package-17/17",
+      search: "?itemID=item-17",
+    },
+  });
+  emitWorkItem(harness.windowLike, [{
+    Item: { ItemID: "item-17", Content: JSON.stringify({ audio: "https://media.example.test/audio" }) },
+    Answer: JSON.stringify({
+      itemID: "item-17",
+      data: { regions: [{ id: "region-a", no: 1, start: 0, end: 1 }] },
+    }),
+  }]);
+  const context = await harness.runtime.getCurrentContext();
+
+  const results = await Promise.all([
+    harness.runtime.applySegmentPreview({
+      selectionKey: context.selectionKey,
+      proposedSegments: [{ startMs: 0, endMs: 1000 }],
+    }),
+    harness.runtime.clearCurrentSegments(),
+    harness.runtime.fillEmptyRegionLanguages(),
+    harness.runtime.fillCurrentRegionTextIntoDom({ segmentNumber: 1, listenText: "new text" }),
+    harness.runtime.writeBatchRegionTexts({
+      selectionKey: context.selectionKey,
+      currentSignature: context.currentSignature,
+      updates: [{ segmentNumber: 1, listenText: "new text" }],
+    }),
+  ]);
+
+  assert.equal(results.every((result) => result.reason === "read-only"), true);
+  assert.equal(textarea.value, "unchanged");
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api imports only allowed fields and refuses every node 17 scan-v3 write path", async function () {
+  const textarea = new FakeElement({ tagName: "textarea", value: "unchanged" });
+  const harness = createRuntimeHarness({
+    document: createFakeDocument([textarea]),
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-17/scan-v3/17/item-17",
+      pathname: "/management/task-v2/task-17/scan-v3/17/item-17",
+      search: "",
+    },
+  });
+  const workItem = createRecordingWorkItem("item-17", {
+    asr_text: "  node 17 scan reference  ",
+    audio: " https://media.example.test/node-17-scan-audio ",
+    video: "https://media.example.test/node-17-scan-video",
+    authorization: "must-not-keep",
+    customer: { email: "private@example.test" },
+  });
+  workItem.Answer = JSON.stringify({
+    itemID: "item-17",
+    data: {
+      regions: [{ id: "region-a", no: 1, start: 0, end: 1 }],
+    },
+  });
+  emitWorkItem(harness.windowLike, [workItem], 1000);
+
+  const importContext = await harness.runtime.getRecordingImportContext();
+  assert.deepEqual(importContext, {
+    ok: true,
+    sourceItemId: "item-17",
+    referenceText: "node 17 scan reference",
+    audioUrl: "https://media.example.test/node-17-scan-audio",
+    videoUrl: "https://media.example.test/node-17-scan-video",
+  });
+  assert.doesNotMatch(
+    JSON.stringify(importContext),
+    /authorization|must-not-keep|customer|private@example/i
+  );
+
+  const context = await harness.runtime.getCurrentContext();
+  const results = await Promise.all([
+    harness.runtime.applySegmentPreview({
+      selectionKey: context.selectionKey,
+      proposedSegments: [{ startMs: 0, endMs: 1000 }],
+    }),
+    harness.runtime.clearCurrentSegments(),
+    harness.runtime.fillEmptyRegionLanguages(),
+    harness.runtime.fillCurrentRegionTextIntoDom({ segmentNumber: 1, listenText: "new text" }),
+    harness.runtime.writeBatchRegionTexts({
+      selectionKey: context.selectionKey,
+      currentSignature: context.currentSignature,
+      updates: [{ segmentNumber: 1, listenText: "new text" }],
+    }),
+  ]);
+
+  assert.equal(results.every((result) => result.reason === "read-only"), true);
+  assert.equal(textarea.value, "unchanged");
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api resolves modify-v2 as a read-only recording detail route", function () {
+  const route = loadModule().__testOnly.resolveDetailRoute({
+    pathname: "/management/task-v2/task-1/modify-v2/4/item-1",
+    search: "?direction=0&nextIndex=0&status=0",
+  });
+
+  assert.deepEqual(
+    {
+      taskId: route.taskId,
+      pageType: route.pageType,
+      mode: route.mode,
+      readOnly: route.readOnly,
+      nodeId: route.nodeId,
+      itemId: route.itemId,
+    },
+    {
+      taskId: "task-1",
+      pageType: "modify-v2",
+      mode: "modify",
+      readOnly: true,
+      nodeId: "4",
+      itemId: "item-1",
+    }
+  );
+});
+
+test("AIDP data api imports the matching replayed SearchModifyItem snapshot on modify-v2", async function () {
+  const location = {
+    origin: "https://aidp.bytedance.com",
+    href: "https://aidp.bytedance.com/management/task-v2/task-1/modify-v2/4/item-1?direction=0",
+    pathname: "/management/task-v2/task-1/modify-v2/4/item-1",
+    search: "?direction=0",
+  };
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location,
+  });
+  emitSearchModifyItem(harness.windowLike, {
+    taskId: "task-1",
+    filterNodeId: 14,
+    direction: 0,
+    pageNo: 0,
+    pageSize: 10,
+    capturedAt: 1000,
+    items: [{
+      sourceItemId: "item-1",
+      taskId: "task-1",
+      nodeId: 4,
+      referenceText: "  revise reference  ",
+      audioUrl: " https://media.example.test/revise-audio ",
+      videoUrl: "",
+    }],
+  });
+
+  assert.deepEqual(await harness.runtime.getRecordingImportContext(), {
+    ok: true,
+    sourceItemId: "item-1",
+    referenceText: "revise reference",
+    audioUrl: "https://media.example.test/revise-audio",
+    videoUrl: "",
+  });
+  assert.equal(await harness.runtime.getCurrentAutomationItemId(), "item-1");
+  assert.equal(
+    harness.windowLike.postedMessages.some((entry) =>
+      entry.data?.type === "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT_REQUEST"
+    ),
+    true
+  );
+});
+
+test("AIDP data api exposes only the current revise list page import contexts", function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 1000,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-1/node/14/revise?page=1",
+      pathname: "/management/task-v2/task-1/node/14/revise",
+      search: "?page=1",
+    },
+  });
+  emitSearchModifyItem(harness.windowLike, {
+    taskId: "task-1",
+    filterNodeId: 14,
+    direction: 0,
+    pageNo: 0,
+    pageSize: 10,
+    capturedAt: 1000,
+    items: Array.from({ length: 12 }, (_, index) => ({
+      sourceItemId: "item-" + String(index + 1),
+      taskId: "task-1",
+      nodeId: 4,
+      referenceText: "text-" + String(index + 1),
+      audioUrl: "",
+      videoUrl: "",
+    })),
+  });
+
+  const context = harness.runtime.getReviseListImportContext();
+  assert.equal(context.ok, true);
+  assert.equal(context.items.length, 10);
+  assert.equal(context.scopeKey, "taskId=task-1|page=1");
+  assert.equal(context.items[0].sourceItemId, "item-1");
+  assert.equal(context.items[9].sourceItemId, "item-10");
+});
+
+test("AIDP data api rejects stale and wrong-task SearchModifyItem snapshots", async function () {
+  const harness = createRuntimeHarness({
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    now: () => 7001,
+    searchContextTtlMs: 5000,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-1/modify-v2/4/item-1",
+      pathname: "/management/task-v2/task-1/modify-v2/4/item-1",
+      search: "",
+    },
+  });
+  emitSearchModifyItem(harness.windowLike, {
+    taskId: "other-task",
+    filterNodeId: 14,
+    pageNo: 0,
+    pageSize: 10,
+    capturedAt: 1000,
+    items: [{ sourceItemId: "item-1", taskId: "other-task", nodeId: 4, referenceText: "wrong" }],
+  });
+
+  const context = await harness.runtime.getRecordingImportContext();
+  assert.equal(context.ok, false);
+  assert.ok(["stale", "expired"].includes(context.reason));
+});
+
+test("AIDP data api appends a completed recording result to the unique revise textarea", async function () {
+  const textarea = new FakeElement({ tagName: "textarea", value: "原返修文本" });
+  const harness = createRuntimeHarness({
+    document: createFakeDocument([textarea]),
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-1/modify-v2/4/item-1",
+      pathname: "/management/task-v2/task-1/modify-v2/4/item-1",
+      search: "",
+    },
+  });
+
+  const result = await harness.runtime.appendRecordingResultIntoModifyDom({
+    sourceItemId: "item-1",
+    status: "COMPLETED",
+    text: "审核完成文本",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.appended, true);
+  assert.equal(textarea.value, "原返修文本\n审核完成文本");
+  const repeated = await harness.runtime.appendRecordingResultIntoModifyDom({
+    sourceItemId: "item-1",
+    status: "COMPLETED",
+    text: "审核完成文本",
+  });
+  assert.equal(repeated.ok, true);
+  assert.equal(repeated.appended, false);
+  assert.equal(repeated.reason, "already-present");
+  assert.equal(textarea.value, "原返修文本\n审核完成文本");
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api fails closed when a revise result is unsafe to append", async function () {
+  const first = new FakeElement({ tagName: "textarea", value: "one" });
+  const second = new FakeElement({ tagName: "textarea", value: "two" });
+  const harness = createRuntimeHarness({
+    document: createFakeDocument([first, second]),
+    skipReceiveSnapshot: true,
+    skipSubmitSnapshot: true,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href: "https://aidp.bytedance.com/management/task-v2/task-1/modify-v2/4/item-1",
+      pathname: "/management/task-v2/task-1/modify-v2/4/item-1",
+      search: "",
+    },
+  });
+
+  for (const input of [
+    { sourceItemId: "wrong-item", status: "COMPLETED", text: "text" },
+    { sourceItemId: "item-1", status: "AVAILABLE", text: "text" },
+    { sourceItemId: "item-1", status: "COMPLETED", text: "" },
+  ]) {
+    const result = await harness.runtime.appendRecordingResultIntoModifyDom(input);
+    assert.equal(result.ok, false);
+  }
+  const ambiguous = await harness.runtime.appendRecordingResultIntoModifyDom({
+    sourceItemId: "item-1",
+    status: "COMPLETED",
+    text: "text",
+  });
+  assert.equal(ambiguous.ok, false);
+  assert.equal(ambiguous.reason, "textarea-ambiguous");
+  assert.equal(first.value, "one");
+  assert.equal(second.value, "two");
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api refuses disabled and readonly revise textareas", async function () {
+  for (const textarea of [
+    new FakeElement({ tagName: "textarea", value: "disabled", disabled: true }),
+    new FakeElement({ tagName: "textarea", value: "readonly", readOnly: true }),
+  ]) {
+    const harness = createRuntimeHarness({
+      document: createFakeDocument([textarea]),
+      skipReceiveSnapshot: true,
+      skipSubmitSnapshot: true,
+      location: {
+        origin: "https://aidp.bytedance.com",
+        href: "https://aidp.bytedance.com/management/task-v2/task-1/modify-v2/4/item-1",
+        pathname: "/management/task-v2/task-1/modify-v2/4/item-1",
+        search: "",
+      },
+    });
+
+    const result = await harness.runtime.appendRecordingResultIntoModifyDom({
+      sourceItemId: "item-1",
+      status: "COMPLETED",
+      text: "审核完成文本",
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "textarea-ambiguous");
+    assert.equal(textarea.value === "disabled" || textarea.value === "readonly", true);
+    assert.equal(harness.fetchCalls.length, 0);
+  }
 });

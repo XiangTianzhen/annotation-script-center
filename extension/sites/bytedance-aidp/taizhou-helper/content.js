@@ -43,6 +43,7 @@
   const ACCOUNT_SWITCH_BAR_ATTR = "data-asc-aidp-account-switch-bar";
   const ACCOUNT_SWITCH_BUTTON_ATTR = "data-asc-aidp-account-switch-button";
   const ACCOUNT_SWITCH_STATUS_ATTR = "data-asc-aidp-account-switch-status";
+  const REVISE_IMPORT_CARD_ATTR = "data-asc-taizhou-revise-import-card";
   const SEGMENT_RECOGNIZE_HEADER_ATTR = "data-asc-segment-recognize-header";
   const SEGMENT_RECOGNIZE_CELL_ATTR = "data-asc-segment-recognize-cell";
   const SEGMENT_RECOGNIZE_BUTTON_ATTR = "data-asc-segment-recognize-button";
@@ -103,6 +104,8 @@
   let storageListenerBound = false;
   let helperRuntime = null;
   let managementUiActive = false;
+  let reviseListRuntime = null;
+  let managementSettings = null;
   let taizhouAuxiliaryZonesHidden = false;
 
   function createPlaybackScrollGuardTargetState(name) {
@@ -332,16 +335,41 @@
     const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
     return (
       /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+$/i.test(text) ||
+      /^\/management\/task-v2\/[^/]+\/modify-v2\/4\/[^/]+$/i.test(text) ||
       isReadOnlyScanPagePathname(text)
     );
+  }
+
+  function isModifyPagePathname(pathname) {
+    const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
+    return /^\/management\/task-v2\/[^/]+\/modify-v2\/4\/[^/]+$/i.test(text);
+  }
+
+  function isReviseListPagePathname(pathname) {
+    const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
+    return /^\/management\/task-v2\/[^/]+\/node\/14\/revise$/i.test(text);
   }
 
   function isReadOnlyScanPagePathname(pathname) {
     const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
     return (
-      /^\/management\/task-v2\/[^/]+\/scan-v3\/14\/[^/]+$/i.test(text) ||
-      /^\/management\/task-v2\/[^/]+\/mark-package\/[^/]+\/14$/i.test(text)
+      /^\/management\/task-v2\/[^/]+\/scan-v3\/(?:14|17)\/[^/]+$/i.test(text) ||
+      /^\/management\/task-v2\/[^/]+\/mark-package\/[^/]+\/(?:14|17)$/i.test(text)
     );
+  }
+
+  function resolveHelperPageCapabilities(pathname) {
+    const resolvedPathname =
+      pathname === undefined ? globalThis.location?.pathname || "" : pathname;
+    const readOnly = isReadOnlyScanPagePathname(resolvedPathname);
+    const modify = isModifyPagePathname(resolvedPathname);
+    const recordingEnabled = isDetailPagePathname(resolvedPathname);
+    return {
+      readOnly: readOnly || modify,
+      recordingImportEnabled: recordingEnabled,
+      recordingAutomationEnabled: recordingEnabled && !modify,
+      recordingResultFillEnabled: modify,
+    };
   }
 
   function isManagementPagePathname(pathname) {
@@ -1150,7 +1178,12 @@
   function getCurrentHelperPageMode(pathname) {
     const resolvedPathname =
       pathname === undefined ? globalThis.location?.pathname || "" : pathname;
-    return isReadOnlyScanPagePathname(resolvedPathname) ? "scan-read-only" : "mark-write";
+    const capabilities = resolveHelperPageCapabilities(resolvedPathname);
+    return isModifyPagePathname(resolvedPathname)
+      ? "modify-read-only"
+      : capabilities.readOnly
+        ? "scan-read-only"
+        : "mark-write";
   }
 
   function findExactVisiblePostponeControl(root) {
@@ -1297,6 +1330,7 @@
     let confirmationSent = false;
     let lastForwardClickAt = 0;
     let hasForwardClick = false;
+    let capturedAutomationScopeKey = "";
     let state = {
       phase: "idle",
       completedCount: 0,
@@ -1347,6 +1381,10 @@
     async function waitUntil(token, predicate) {
       const startedAt = Number(getNow()) || 0;
       while (isActive(token)) {
+        const scopeOutcome = await verifyAutomationScope(token);
+        if (!scopeOutcome.ok) {
+          return { stopped: true };
+        }
         let value = null;
         try {
           value = await predicate();
@@ -1414,6 +1452,42 @@
       return outcome;
     }
 
+    async function getAutomationScopeKey(token) {
+      if (typeof source.getAutomationScopeKey !== "function") {
+        return { value: "" };
+      }
+      const outcome = await executeWithinTimeout(token, source.getAutomationScopeKey);
+      if (outcome.value !== undefined) {
+        outcome.value = normalizeText(outcome.value);
+        if (!outcome.value) {
+          outcome.error = true;
+        }
+      }
+      return outcome;
+    }
+
+    async function verifyAutomationScope(token) {
+      if (
+        !capturedAutomationScopeKey ||
+        typeof source.getAutomationScopeKey !== "function"
+      ) {
+        return { ok: true };
+      }
+      const outcome = await getAutomationScopeKey(token);
+      if (outcome.stopped) {
+        return { ok: false };
+      }
+      if (outcome.timeout || outcome.error) {
+        finish("failed", "读取当前自动化范围超时或失败，自动流程已停止。");
+        return { ok: false };
+      }
+      if (outcome.value !== capturedAutomationScopeKey) {
+        finish("stopped", "页面类型或检查包范围已切换，自动流程已停止。");
+        return { ok: false };
+      }
+      return { ok: true };
+    }
+
     function getPageNetworkActivity() {
       try {
         const activity =
@@ -1429,6 +1503,7 @@
     }
 
     async function waitForPageNetworkQuiet(token, completedCount, itemCode) {
+      const waitStartedAt = Math.max(0, Number(getNow()) || 0);
       let latestActivity = {
         pendingCount: 0,
         lastActivityAt: 0,
@@ -1445,11 +1520,13 @@
           activity.activitySequence > 0 || activity.lastActivityAt > 0;
         const quietSince = hasForwardClick
           ? Math.max(lastForwardClickAt, activity.lastActivityAt)
-          : activity.lastActivityAt;
-        const remainingQuietMs =
-          hasForwardClick || hasObservedNetworkActivity
-            ? Math.max(0, networkQuietMs - (currentTime - quietSince))
-            : 0;
+          : hasObservedNetworkActivity
+            ? activity.lastActivityAt
+            : waitStartedAt;
+        const remainingQuietMs = Math.max(
+          0,
+          networkQuietMs - (currentTime - quietSince)
+        );
         if (activity.pendingCount <= 0 && remainingQuietMs <= 0) {
           return true;
         }
@@ -1488,7 +1565,23 @@
       const token = runToken;
       let completedCount = 0;
       let round = 0;
+      if (typeof source.getAutomationScopeKey === "function") {
+        const scopeOutcome = await getAutomationScopeKey(token);
+        if (scopeOutcome.stopped) {
+          return;
+        }
+        if (scopeOutcome.timeout || scopeOutcome.error) {
+          finish("failed", "读取当前自动化范围超时或失败，自动流程已停止。", {
+            completedCount: completedCount,
+          });
+          return;
+        }
+        capturedAutomationScopeKey = scopeOutcome.value;
+      }
       while (isActive(token)) {
+        if (!(await verifyAutomationScope(token)).ok) {
+          return;
+        }
         const currentOutcome = await getCurrentItemId(token);
         if (currentOutcome.stopped) {
           return;
@@ -1497,6 +1590,9 @@
           finish("failed", "读取当前 AIDP 条目超时或失败，自动流程已停止。", {
             completedCount: completedCount,
           });
+          return;
+        }
+        if (!(await verifyAutomationScope(token)).ok) {
           return;
         }
         const currentItemId = currentOutcome.value;
@@ -1588,6 +1684,9 @@
           finish("failed", "导入或刷新录音结果超过 20 秒，自动流程已停止。", {
             completedCount: completedCount,
           });
+          return;
+        }
+        if (!(await verifyAutomationScope(token)).ok) {
           return;
         }
         const imported = importOutcome.value;
@@ -1776,6 +1875,7 @@
       pendingPopover = null;
       pendingPopoverActionGroup = null;
       confirmationSent = false;
+      capturedAutomationScopeKey = "";
       publish({
         phase: "importing",
         completedCount: 0,
@@ -4930,14 +5030,18 @@
           return;
         }
         const context = await helperRuntime.dataApi.getCurrentContext();
-        if (!helperRuntime.readOnly) {
+        let recordingSourceItemId = "";
+        if (helperRuntime.recordingImportEnabled === true) {
           const recordingImportContext =
             typeof helperRuntime.dataApi.getRecordingImportContext === "function"
               ? await helperRuntime.dataApi.getRecordingImportContext()
               : null;
+          recordingSourceItemId = normalizeText(
+            recordingImportContext?.sourceItemId || context?.itemId
+          );
           updateRecordingImportContextState(
             helperRuntime,
-            normalizeText(context?.itemId),
+            recordingSourceItemId,
             recordingImportContext
           );
         }
@@ -4962,9 +5066,8 @@
               normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
           });
         });
-        if (!helperRuntime.readOnly) {
-          const sourceItemId = normalizeText(context?.itemId);
-          await syncRecordingResultForContext(sourceItemId);
+        if (helperRuntime.recordingImportEnabled === true) {
+          await syncRecordingResultForContext(recordingSourceItemId);
         }
         syncPlaybackSensitiveDecorations(
           document,
@@ -4974,7 +5077,10 @@
         );
         helperRuntime.batchSelectionKey = normalizeText(context?.selectionKey);
       } catch (_error) {
-        if (helperRuntime && !normalizeText(helperRuntime.recordingContextSignature)) {
+        if (
+          helperRuntime?.recordingImportEnabled === true &&
+          !normalizeText(helperRuntime.recordingContextSignature)
+        ) {
           updateRecordingImportContextState(helperRuntime, "", {
             ok: false,
             reason: "waiting",
@@ -5250,6 +5356,34 @@
     scheduleRuntimeReload(helperRuntime);
   }
 
+  function renderRecordingImportState(runtime) {
+    if (!runtime) {
+      return;
+    }
+    const busy = runtime.recordingImportBusy === true;
+    const hasRecordingTaskCode = Boolean(
+      normalizeText(runtime.config?.recordingImportTaskCode)
+    );
+    runtime.ui?.renderRecordingImportState?.({
+      enabled:
+        runtime.recordingImportEnabled !== false &&
+        hasRecordingTaskCode &&
+        runtime.recordingContextReady === true,
+      busy: busy,
+      reason: busy
+        ? "importing"
+        : !hasRecordingTaskCode
+          ? "missing-task-code"
+          : normalizeText(runtime.recordingContextReason) || "waiting",
+      message: busy
+        ? "正在添加当前数据。"
+        : !hasRecordingTaskCode
+          ? "请先在 Options 基础设置中填写录音平台任务编号。"
+          : normalizeText(runtime.recordingContextMessage) ||
+            "当前完整题目数据尚未就绪，请稍后重试。",
+    });
+  }
+
   function updateRecordingImportContextState(runtime, sourceItemId, context) {
     if (!runtime) {
       return false;
@@ -5274,6 +5408,7 @@
     runtime.recordingContextReady = ready;
     runtime.recordingContextReason = reason;
     runtime.recordingContextMessage = message;
+    renderRecordingImportState(runtime);
     if (normalizeText(runtime.recordingContextSignature) === signature) {
       return false;
     }
@@ -5293,6 +5428,7 @@
     const recording = runtime?.recording;
     const normalizedSourceItemId = normalizeText(sourceItemId);
     if (
+      runtime?.recordingImportEnabled === false ||
       !recording ||
       !normalizedSourceItemId ||
       typeof recording.beginResultEntry !== "function" ||
@@ -5347,13 +5483,18 @@
   async function runRecordingImportAndRefresh(options) {
     const source = options && typeof options === "object" ? options : {};
     const runtime = helperRuntime;
-    if (!runtime?.recording || runtime.recordingImportBusy === true) {
+    if (
+      !runtime?.recording ||
+      runtime.recordingImportEnabled === false ||
+      runtime.recordingImportBusy === true
+    ) {
       return {
         ok: false,
         message: "录音导入正在进行或当前不可用。",
       };
     }
     runtime.recordingImportBusy = true;
+    renderRecordingImportState(runtime);
     try {
       if (typeof runtime.recording.inspectCurrentItem === "function") {
         const inspected = await runtime.recording.inspectCurrentItem();
@@ -5443,6 +5584,7 @@
       };
     } finally {
       runtime.recordingImportBusy = false;
+      renderRecordingImportState(runtime);
       if (helperRuntime === runtime && typeof document !== "undefined") {
         syncPlaybackSensitiveDecorations(document, runtime.config || {});
       }
@@ -5450,7 +5592,7 @@
   }
 
   async function handleRecordingImportAction() {
-    await runRecordingImportAndRefresh({
+    return runRecordingImportAndRefresh({
       refreshExisting: false,
     });
   }
@@ -5524,7 +5666,10 @@
   }
 
   async function handleRecordingRefreshAction() {
-    if (!helperRuntime?.recording) {
+    if (
+      !helperRuntime?.recording ||
+      helperRuntime.recordingImportEnabled === false
+    ) {
       return;
     }
     helperRuntime.ui?.setStatus?.("正在刷新录音平台结果...", "");
@@ -5549,6 +5694,87 @@
         "error"
       );
     }
+  }
+
+  function createReviseBatchImportController(options) {
+    const deps = options && typeof options === "object" ? options : {};
+    let runToken = 0;
+    let running = false;
+    let state = {
+      phase: "idle",
+      total: 0,
+      processed: 0,
+      succeeded: 0,
+      reused: 0,
+      skipped: 0,
+      failed: 0,
+      currentItemId: "",
+      message: "等待开始。",
+    };
+
+    function publish(patch) {
+      state = Object.assign({}, state, patch || {});
+      deps.onStateChange?.(Object.assign({}, state));
+      return Object.assign({}, state);
+    }
+
+    function stop(message) {
+      if (!running) return false;
+      running = false;
+      runToken += 1;
+      publish({ phase: "stopped", currentItemId: "", message: message || "已停止批量添加。" });
+      return true;
+    }
+
+    async function start(items) {
+      if (running) return Object.assign({}, state, { alreadyRunning: true });
+      const queue = (Array.isArray(items) ? items : []).slice(0, 10);
+      const waitBetweenImports =
+        typeof deps.waitFor === "function" ? deps.waitFor : waitFor;
+      const scopeKey = normalizeText(deps.getScopeKey?.());
+      const token = ++runToken;
+      running = true;
+      publish({ phase: "running", total: queue.length, processed: 0, succeeded: 0, reused: 0, skipped: 0, failed: 0, currentItemId: "", message: "正在逐条添加当前页数据。" });
+      for (let index = 0; index < queue.length; index += 1) {
+        const context = queue[index];
+        if (!running || token !== runToken) break;
+        if (normalizeText(deps.getScopeKey?.()) !== scopeKey) {
+          stop("页面或页码已变化，批量添加已停止。");
+          break;
+        }
+        const sourceItemId = normalizeText(context?.sourceItemId);
+        if (!sourceItemId || (!normalizeText(context?.referenceText) && !normalizeText(context?.audioUrl) && !normalizeText(context?.videoUrl))) {
+          publish({ processed: state.processed + 1, skipped: state.skipped + 1, currentItemId: sourceItemId });
+          continue;
+        }
+        publish({ currentItemId: sourceItemId, message: "正在添加 ItemID：" + sourceItemId });
+        let result;
+        try {
+          result = await deps.importItemContext(context);
+        } catch (_error) {
+          result = { ok: false };
+        }
+        const patch = { processed: state.processed + 1 };
+        if (result?.ok && (result.kind === "replayed" || result.kind === "existing")) patch.reused = state.reused + 1;
+        else if (result?.ok) patch.succeeded = state.succeeded + 1;
+        else patch.failed = state.failed + 1;
+        publish(patch);
+        if (!result?.ok) {
+          stop("当前数据添加失败，批量添加已停止。");
+          break;
+        }
+        if (index < queue.length - 1 && running && token === runToken) {
+          await waitBetweenImports(1000);
+        }
+      }
+      if (running && token === runToken) {
+        running = false;
+        publish({ phase: "completed", currentItemId: "", message: "当前页批量添加已完成。" });
+      }
+      return Object.assign({}, state);
+    }
+
+    return { start, stop, getState: function () { return Object.assign({}, state); } };
   }
 
   async function handleTaskListAccountSwitchAction() {
@@ -5592,10 +5818,147 @@
     });
   }
 
+  function getCurrentReviseListScopeKey() {
+    return normalizeText(globalThis.location?.pathname) + normalizeText(globalThis.location?.search);
+  }
+
+  function destroyReviseImportCard(root) {
+    safeQuerySelectorAll(root, "[" + REVISE_IMPORT_CARD_ATTR + "='true']").forEach(function (node) {
+      node.parentNode?.removeChild?.(node);
+    });
+    if (reviseListRuntime?.refreshTimer) {
+      globalThis.clearTimeout?.(reviseListRuntime.refreshTimer);
+    }
+    reviseListRuntime?.controller?.stop?.("已离开返修列表，批量添加已停止。");
+    reviseListRuntime?.dataApi?.destroy?.();
+    reviseListRuntime = null;
+  }
+
+  function resolveReviseImportAvailability(options) {
+    const source = options && typeof options === "object" ? options : {};
+    const context = source.context && typeof source.context === "object"
+      ? source.context
+      : {};
+    if (!normalizeText(source.recordingTaskCode)) {
+      return {
+        enabled: false,
+        message: "请先在 Options 基础设置中填写录音平台任务编号。",
+      };
+    }
+    if (context.ok !== true) {
+      return {
+        enabled: false,
+        message: normalizeText(context.message) || "正在等待当前页返修数据。",
+      };
+    }
+    return { enabled: true, message: "" };
+  }
+
+  function renderReviseImportCard(runtime) {
+    const card = runtime?.card;
+    if (!card) return;
+    const state = runtime.controller.getState();
+    const context = runtime.context || {};
+    const availability = resolveReviseImportAvailability({
+      context: context,
+      recordingTaskCode: runtime.recording?.recordingTaskCode,
+    });
+    runtime.startButton.disabled =
+      state.phase === "running" || availability.enabled !== true || !runtime.recording;
+    runtime.stopButton.disabled = state.phase !== "running";
+    runtime.status.textContent = availability.enabled !== true
+      ? availability.message
+      : [
+          "总数 " + String(state.total || context.items.length),
+          "已处理 " + String(state.processed),
+          "成功 " + String(state.succeeded),
+          "复用 " + String(state.reused),
+          "跳过 " + String(state.skipped),
+          "失败 " + String(state.failed),
+          state.currentItemId ? "当前 " + state.currentItemId : "",
+          normalizeText(state.message),
+        ].filter(Boolean).join(" ｜ ");
+  }
+
+  function refreshReviseImportContext(runtime) {
+    if (!runtime) return null;
+    runtime.context = runtime.dataApi.getReviseListImportContext();
+    renderReviseImportCard(runtime);
+    return runtime.context;
+  }
+
+  function ensureReviseImportCard(root, settings) {
+    if (!root || !isReviseListPagePathname(globalThis.location?.pathname)) {
+      destroyReviseImportCard(root);
+      return;
+    }
+    if (reviseListRuntime?.scopeKey === getCurrentReviseListScopeKey()) {
+      refreshReviseImportContext(reviseListRuntime);
+      return;
+    }
+    destroyReviseImportCard(root);
+    if (!dataApiFactory || !recordingFactory || typeof document === "undefined") return;
+    const dataApi = dataApiFactory.createRuntime();
+    const helperConfig = resolveHelperConfig(settings);
+    const recording = recordingFactory.createRuntime({
+      dataApi,
+      storage: STORAGE,
+      settings: helperConfig.settings,
+      fetch: globalThis.fetch,
+      buildBackendUrl: function (path) {
+        return typeof CONSTANTS.buildBackendUrl === "function"
+          ? CONSTANTS.buildBackendUrl(path, helperConfig.settings)
+          : String(path || "");
+      },
+    });
+    const card = document.createElement("div");
+    card.setAttribute(REVISE_IMPORT_CARD_ATTR, "true");
+    card.style.cssText = "margin:12px 20px;padding:14px 16px;border:1px solid #d9e2f1;border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(31,56,88,.08);font-size:14px;";
+    const title = document.createElement("div");
+    title.textContent = "台州话返修数据导入";
+    title.style.cssText = "font-weight:600;margin-bottom:10px;";
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;";
+    const startButton = document.createElement("button");
+    startButton.textContent = "批量添加当前页数据";
+    const stopButton = document.createElement("button");
+    stopButton.textContent = "停止";
+    const status = document.createElement("div");
+    status.style.cssText = "color:#4e5969;line-height:1.6;overflow-wrap:anywhere;";
+    actions.appendChild(startButton);
+    actions.appendChild(stopButton);
+    card.appendChild(title);
+    card.appendChild(actions);
+    card.appendChild(status);
+    const target = document.querySelector?.("main") || document.body || document.documentElement;
+    target?.insertBefore?.(card, target.firstChild || null) || target?.appendChild?.(card);
+    const runtime = { scopeKey: getCurrentReviseListScopeKey(), dataApi, recording, card, startButton, stopButton, status, context: dataApi.getReviseListImportContext() };
+    runtime.controller = createReviseBatchImportController({
+      getScopeKey: getCurrentReviseListScopeKey,
+      importItemContext: function (context) { return recording.importItemContext(context); },
+      onStateChange: function () { renderReviseImportCard(runtime); },
+    });
+    startButton.addEventListener("click", function () {
+      runtime.context = dataApi.getReviseListImportContext();
+      if (runtime.context.ok) void runtime.controller.start(runtime.context.items);
+      renderReviseImportCard(runtime);
+    });
+    stopButton.addEventListener("click", function () { runtime.controller.stop(); renderReviseImportCard(runtime); });
+    reviseListRuntime = runtime;
+    renderReviseImportCard(runtime);
+    runtime.refreshTimer = globalThis.setTimeout?.(function refresh() {
+      if (reviseListRuntime !== runtime) return;
+      refreshReviseImportContext(runtime);
+      runtime.refreshTimer = globalThis.setTimeout?.(refresh, 500);
+    }, 500);
+  }
+
   function destroyTaskListUi() {
     managementUiActive = false;
+    managementSettings = null;
     if (typeof document !== "undefined") {
       destroyAccountSwitchBar(document);
+      destroyReviseImportCard(document);
     }
     if (!runtimeActive) {
       unbindStorageListener();
@@ -5610,9 +5973,11 @@
     managementUiActive = true;
     bindStorageListener();
     const settings = await loadSettings();
+    managementSettings = settings;
     runtimePolicy = resolveRuntimePolicy(settings);
     if (typeof document !== "undefined") {
       syncManagementAccountSwitchBar(document);
+      ensureReviseImportCard(document, settings);
     }
     return runtimePolicy;
   }
@@ -5639,10 +6004,18 @@
       return;
     }
     const endpoint = resolveSegmentPreviewEndpoint(settings);
-    const readOnly = getCurrentHelperPageMode() === "scan-read-only";
-    const helperConfig = Object.assign({}, resolveHelperConfig(settings), {
-      readOnly: readOnly,
-    });
+    const pageCapabilities = resolveHelperPageCapabilities();
+    const readOnly = pageCapabilities.readOnly === true;
+    const recordingImportEnabled = pageCapabilities.recordingImportEnabled === true;
+    const recordingAutomationEnabled =
+      pageCapabilities.recordingAutomationEnabled === true;
+    const recordingResultFillEnabled =
+      pageCapabilities.recordingResultFillEnabled === true;
+    const helperConfig = Object.assign(
+      {},
+      resolveHelperConfig(settings),
+      pageCapabilities
+    );
     if (typeof document !== "undefined") {
       ensurePlaybackScrollGuardWatchdog(document);
     }
@@ -5687,7 +6060,9 @@
         helperConfig.mergeContiguousSuggestedSegmentsEnabled,
     });
     const recording =
-      !readOnly && recordingFactory && typeof recordingFactory.createRuntime === "function"
+      recordingImportEnabled &&
+      recordingFactory &&
+      typeof recordingFactory.createRuntime === "function"
         ? recordingFactory.createRuntime({
             dataApi: dataApi,
             storage: STORAGE,
@@ -5703,6 +6078,9 @@
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: helperConfig.segmentPreviewAutoApplyEnabled,
       readOnly: readOnly,
+      recordingImportEnabled: recordingImportEnabled,
+      recordingAutomationEnabled: recordingAutomationEnabled,
+      recordingResultFillEnabled: recordingResultFillEnabled,
       onRecommend: function () {
         if (helperConfig.aiRecommendEnabled === false) {
           ui.setStatus("当前已关闭台州话 AI 功能。", "error");
@@ -5738,20 +6116,45 @@
         }
         void handleClearSegmentsAction();
       },
+      onAddRecordingData: function () {
+        if (!recordingImportEnabled) {
+          return false;
+        }
+        return handleRecordingImportAction();
+      },
       onRefreshRecordingResult: function () {
-        if (readOnly) {
+        if (!recordingImportEnabled) {
           return;
         }
         void handleRecordingRefreshAction();
       },
+      onFillRecordingResult: async function (result) {
+        if (
+          !recordingResultFillEnabled ||
+          helperRuntime !== runtime ||
+          typeof dataApi.appendRecordingResultIntoModifyDom !== "function"
+        ) {
+          return;
+        }
+        const outcome = await dataApi.appendRecordingResultIntoModifyDom(result);
+        if (helperRuntime !== runtime) return;
+        if (outcome.ok && outcome.reason === "already-present") {
+          ui.setStatus("当前审核结果已在返修文本末尾，无需重复填入。", "warning");
+        } else {
+          ui.setStatus(
+            normalizeText(outcome.message) || (outcome.ok ? "审核结果已填入。" : "当前审核结果不能安全填入。"),
+            outcome.ok ? "success" : "error"
+          );
+        }
+      },
       onStartRecordingAutomation: function () {
-        if (readOnly) {
+        if (!recordingAutomationEnabled) {
           return;
         }
         void helperRuntime?.recordingAutomation?.start?.();
       },
       onStopRecordingAutomation: function () {
-        if (readOnly) {
+        if (!recordingAutomationEnabled) {
           return;
         }
         helperRuntime?.recordingAutomation?.stop?.();
@@ -5806,6 +6209,10 @@
       dataApi: dataApi,
       ai: ai,
       readOnly: readOnly,
+      recordingImportEnabled: recordingImportEnabled,
+      recordingAutomationEnabled: recordingAutomationEnabled,
+      recordingResultFillEnabled: recordingResultFillEnabled,
+      pageCapabilities: pageCapabilities,
       pageMode: getCurrentHelperPageMode(),
       batchController: batchController,
       segment: segment,
@@ -5834,7 +6241,7 @@
       },
     };
     helperRuntime = runtime;
-    runtime.recordingAutomation = readOnly
+    runtime.recordingAutomation = !recordingAutomationEnabled
       ? {
           getState: function () {
             return { phase: "idle", completedCount: 0, itemCode: "", message: "" };
@@ -5853,12 +6260,22 @@
       getCurrentItemId: async function () {
         if (
           helperRuntime !== runtime ||
-          typeof runtime.dataApi?.getCurrentReceiveItemId !== "function"
+          typeof runtime.dataApi?.getCurrentAutomationItemId !== "function"
         ) {
           return "";
         }
-        const itemId = await runtime.dataApi.getCurrentReceiveItemId();
+        const itemId = await runtime.dataApi.getCurrentAutomationItemId();
         return helperRuntime === runtime ? normalizeText(itemId) : "";
+      },
+      getAutomationScopeKey: async function () {
+        if (
+          helperRuntime !== runtime ||
+          typeof runtime.dataApi?.getAutomationScopeKey !== "function"
+        ) {
+          return "";
+        }
+        const scopeKey = await runtime.dataApi.getAutomationScopeKey();
+        return helperRuntime === runtime ? normalizeText(scopeKey) : "";
       },
       getImportContext: async function () {
         if (
@@ -5922,6 +6339,7 @@
         phaseText: "",
       });
       ui.renderRecordingResult?.(null);
+      renderRecordingImportState(runtime);
       ui.renderRecordingAutomationState?.(runtime.recordingAutomation.getState());
       ui.setStatus(COMMON_READY_MESSAGE, "success");
     });
@@ -6101,6 +6519,7 @@
           void installTaskListUi();
         } else {
           syncManagementAccountSwitchBar(document);
+          ensureReviseImportCard(document, managementSettings || CONSTANTS.DEFAULT_SETTINGS || {});
         }
       } else if (managementUiActive) {
         destroyTaskListUi();
@@ -6147,6 +6566,9 @@
       syncPlatformAiVisibility: syncPlatformAiVisibility,
       isDetailPagePathname: isDetailPagePathname,
       isReadOnlyScanPagePathname: isReadOnlyScanPagePathname,
+      isModifyPagePathname: isModifyPagePathname,
+      isReviseListPagePathname: isReviseListPagePathname,
+      resolveHelperPageCapabilities: resolveHelperPageCapabilities,
       getCurrentHelperPageMode: getCurrentHelperPageMode,
       isTaskListPagePathname: isTaskListPagePathname,
       isManagementPagePathname: isManagementPagePathname,
@@ -6168,6 +6590,7 @@
       ensureClearSegmentsButton: ensureClearSegmentsButton,
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
       syncRecordingImportButton: syncRecordingImportButton,
+      renderRecordingImportState: renderRecordingImportState,
       updateRecordingImportContextState: updateRecordingImportContextState,
       ensureHideAuxiliaryZoneButton: ensureHideAuxiliaryZoneButton,
       ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
@@ -6178,6 +6601,8 @@
       handleRecommendAction: handleRecommendAction,
       handleRowRecommendAction: handleRowRecommendAction,
       createRecordingAutomationController: createRecordingAutomationController,
+      createReviseBatchImportController: createReviseBatchImportController,
+      resolveReviseImportAvailability: resolveReviseImportAvailability,
       runRecordingImportAndRefresh: runRecordingImportAndRefresh,
       handleRecordingImportAction: handleRecordingImportAction,
       handleRecordingRefreshAction: handleRecordingRefreshAction,

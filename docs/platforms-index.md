@@ -20,7 +20,9 @@
 - 台州话资料：`platform-resources/bytedance-aidp/taizhou-helper/README.md`
 
 苏州话、金华话与台州话脚本同平台互斥启用。
-台州话另已接入 Search Item 完整题目人工导入录音平台与完成结果只读回显；不写回 AIDP。
+台州话另已在 `mark-v3` 与两类检查包接入完整题目录音导入、结果只读回显和用户显式启动的原生押后；导入优先使用同题 Search Item，检查包缺失时回退同题 GetWorkItem/Receive。除受控押后外不写回 AIDP，不开放暂存、提交或领取。
+
+台州话返修另支持 `node/14/revise` 当前页最多 10 条串行导入，以及 `modify-v2/4/{itemId}` 单题添加、结果刷新和用户手动换行追加 `COMPLETED` 审核文本。返修严格按 ItemID 对题，不自动押后、暂存、审核或切题。
 
 ## Magic Data
 

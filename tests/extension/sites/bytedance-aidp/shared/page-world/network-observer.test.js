@@ -107,6 +107,14 @@ test("shared AIDP network observer exports generic constants and installs only o
       firstModule.constants.SEARCH_ITEM_TYPE,
       "BYTEDANCE_AIDP_SEARCH_ITEM_SNAPSHOT"
     );
+    assert.equal(
+      firstModule.constants.SEARCH_MODIFY_ITEM_TYPE,
+      "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT"
+    );
+    assert.equal(
+      firstModule.constants.SEARCH_MODIFY_ITEM_REPLAY_REQUEST_TYPE,
+      "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT_REQUEST"
+    );
     assert.equal(windowLike.__ASREdgeBytedanceAidpNetworkObserverInstalled, true);
 
     const secondModule = loadObserverModule(windowLike);
@@ -259,6 +267,249 @@ test("shared AIDP network observer captures and sanitizes Search Item XHR respon
       ],
     });
     assert.doesNotMatch(JSON.stringify(windowLike.messages), /authorization|must-not-send/i);
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer associates SearchModifyItem fetch request scope with sanitized items", async function () {
+  const windowLike = createFakeWindow({
+    fetch: async function () {
+      return {
+        clone() {
+          return {
+            async text() {
+              return JSON.stringify({
+                Total: 562,
+                Items: [
+                  {
+                    ItemID: "modify-item-1",
+                    TaskID: "task-1",
+                    NodeID: 4,
+                    Content: JSON.stringify({
+                      asr_text: "  台州话参考文本  ",
+                      audio: "https://media.example.test/audio?signature=masked",
+                      video: "https://media.example.test/video?signature=masked",
+                      operator: { email: "private@example.test" },
+                    }),
+                    Operator: { Email: "private@example.test" },
+                  },
+                  {
+                    ItemID: "invalid-json",
+                    TaskID: "task-1",
+                    NodeID: 4,
+                    Content: "{not-json",
+                  },
+                  {
+                    ItemID: "empty-content",
+                    TaskID: "task-1",
+                    NodeID: 4,
+                    Content: JSON.stringify({ asr_text: " ", audio: "", video: "" }),
+                  },
+                ],
+                Users: [{ Email: "response-private@example.test" }],
+              });
+            },
+          };
+        },
+      };
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await windowLike.fetch(
+      "https://aidp.bytedance.com/api/dispatch/SearchModifyItem?msToken=must-not-send",
+      {
+        method: "POST",
+        headers: {
+          Cookie: "must-not-send",
+          Authorization: "Bearer must-not-send",
+        },
+        body: JSON.stringify({
+          Filter: { TaskID: "task-1", NodeID: 14, Direction: 0 },
+          PageRequest: { PageNo: 2, PageSize: 10 },
+          Private: { Email: "request-private@example.test" },
+        }),
+      }
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const entry = windowLike.messages.find(function (candidate) {
+      return candidate.message.type === "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT";
+    });
+    assert.equal(Number.isFinite(entry?.message?.payload?.capturedAt), true);
+    assert.deepEqual(entry, {
+      targetOrigin: "https://aidp.bytedance.com",
+      message: {
+        source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+        type: "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT",
+        payload: {
+          taskId: "task-1",
+          filterNodeId: 14,
+          direction: 0,
+          pageNo: 2,
+          pageSize: 10,
+          capturedAt: entry.message.payload.capturedAt,
+          items: [
+            {
+              sourceItemId: "modify-item-1",
+              taskId: "task-1",
+              nodeId: 4,
+              referenceText: "台州话参考文本",
+              audioUrl: "https://media.example.test/audio?signature=masked",
+              videoUrl: "https://media.example.test/video?signature=masked",
+            },
+          ],
+        },
+      },
+    });
+    assert.doesNotMatch(
+      JSON.stringify(entry),
+      /msToken|must-not-send|Authorization|Cookie|Private|Operator|private@example|request-private|response-private/i
+    );
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer associates SearchModifyItem XHR body without exposing private fields", function () {
+  const windowLike = createFakeWindow();
+
+  try {
+    loadObserverModule(windowLike);
+    const xhr = new windowLike.XMLHttpRequest();
+    xhr.open(
+      "POST",
+      "https://aidp.bytedance.com/api/dispatch/SearchModifyItem?a_bogus=must-not-send"
+    );
+    xhr.setRequestHeader("Authorization", "Bearer must-not-send");
+    xhr.send(JSON.stringify({
+      Filter: { TaskID: "task-xhr", NodeID: 14, Direction: 1 },
+      PageRequest: { PageNo: 0, PageSize: 10 },
+      User: { Email: "request-xhr-private@example.test" },
+    }));
+    xhr.responseText = JSON.stringify({
+      Items: [
+        {
+          ItemID: "modify-item-xhr",
+          TaskID: "task-xhr",
+          NodeID: 4,
+          Content: JSON.stringify({
+            asr_text: "",
+            audio: "https://media.example.test/audio-xhr",
+            video: "",
+            Authorization: "must-not-send",
+          }),
+          Advice: "private-advice",
+        },
+      ],
+      PackageBackInfo: { User: { Email: "response-xhr-private@example.test" } },
+    });
+    xhr.emit("load");
+
+    const entry = windowLike.messages.find(function (candidate) {
+      return candidate.message.type === "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT";
+    });
+    assert.equal(Number.isFinite(entry?.message?.payload?.capturedAt), true);
+    assert.deepEqual(entry?.message?.payload, {
+      taskId: "task-xhr",
+      filterNodeId: 14,
+      direction: 1,
+      pageNo: 0,
+      pageSize: 10,
+      capturedAt: entry.message.payload.capturedAt,
+      items: [
+        {
+          sourceItemId: "modify-item-xhr",
+          taskId: "task-xhr",
+          nodeId: 4,
+          referenceText: "",
+          audioUrl: "https://media.example.test/audio-xhr",
+          videoUrl: "",
+        },
+      ],
+    });
+    assert.doesNotMatch(
+      JSON.stringify(entry),
+      /a_bogus|must-not-send|Authorization|Advice|PackageBackInfo|request-xhr-private|response-xhr-private/i
+    );
+  } finally {
+    delete require.cache[modulePath];
+    delete globalThis.window;
+    delete globalThis.location;
+    delete globalThis.ASREdgeBytedanceAidpNetworkObserverPage;
+  }
+});
+
+test("shared AIDP network observer replays only the latest sanitized SearchModifyItem snapshot", async function () {
+  const windowLike = createFakeWindow({
+    fetch: async function () {
+      return {
+        clone() {
+          return {
+            async text() {
+              return JSON.stringify({
+                Items: [{
+                  ItemID: "modify-replay",
+                  TaskID: "task-replay",
+                  NodeID: 4,
+                  Content: JSON.stringify({
+                    asr_text: "重放文本",
+                    audio: "https://media.example.test/replay",
+                    video: "",
+                  }),
+                  Operator: { Email: "private@example.test" },
+                }],
+              });
+            },
+          };
+        },
+      };
+    },
+  });
+
+  try {
+    loadObserverModule(windowLike);
+    await windowLike.fetch(
+      "https://aidp.bytedance.com/api/dispatch/SearchModifyItem?msToken=must-not-send",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          Filter: { TaskID: "task-replay", NodeID: 14, Direction: 0 },
+          PageRequest: { PageNo: 0, PageSize: 10 },
+        }),
+      }
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    windowLike.emitMessage({
+      source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+      type: "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT_REQUEST",
+    });
+    windowLike.emitMessage(
+      {
+        source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
+        type: "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT_REQUEST",
+      },
+      "https://attacker.example.test"
+    );
+
+    const snapshots = windowLike.messages.filter(function (entry) {
+      return entry.message.type === "BYTEDANCE_AIDP_SEARCH_MODIFY_ITEM_SNAPSHOT";
+    });
+    assert.equal(snapshots.length, 2);
+    assert.deepEqual(snapshots[1], snapshots[0]);
+    assert.doesNotMatch(
+      JSON.stringify(snapshots),
+      /msToken|must-not-send|Operator|private@example/i
+    );
   } finally {
     delete require.cache[modulePath];
     delete globalThis.window;
@@ -732,12 +983,16 @@ test("shared AIDP network observer publishes a GetWorkItem response without requ
     const message = windowLike.messages.find(function (entry) {
       return entry.message.type === "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT";
     });
+    const capturedAt = message?.message?.payload?.capturedAt;
+    assert.equal(Number.isFinite(capturedAt), true);
+    assert.ok(capturedAt > 0);
     assert.deepEqual(message, {
       targetOrigin: "https://aidp.bytedance.com",
       message: {
         source: "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER",
         type: "BYTEDANCE_AIDP_WORK_ITEM_SNAPSHOT",
         payload: {
+          capturedAt: capturedAt,
           response: [{
             Item: workItemResponse[0].Item,
             Answer: workItemResponse[0].Answer,
@@ -830,6 +1085,7 @@ test("shared AIDP network observer replays only the sanitized latest GetWorkItem
     });
     assert.equal(snapshots.length, 2);
     assert.deepEqual(snapshots[1], snapshots[0]);
+    assert.equal(Number.isFinite(snapshots[1].message.payload.capturedAt), true);
     assert.doesNotMatch(JSON.stringify(snapshots[1]), /msToken|AuditHistory|private@example/);
   } finally {
     delete require.cache[modulePath];
