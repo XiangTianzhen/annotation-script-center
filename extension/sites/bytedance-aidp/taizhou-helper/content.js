@@ -5763,7 +5763,8 @@
           stop("当前数据添加失败，批量添加已停止。");
           break;
         }
-        if (index < queue.length - 1 && running && token === runToken) {
+        const reused = result.kind === "replayed" || result.kind === "existing";
+        if (!reused && index < queue.length - 1 && running && token === runToken) {
           await waitBetweenImports(1000);
         }
       }

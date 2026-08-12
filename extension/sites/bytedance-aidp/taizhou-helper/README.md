@@ -42,7 +42,7 @@
 ## 返修数据导入与人工回填
 
 - 精确支持列表 `/management/task-v2/{taskId}/node/14/revise?page={page}` 与详情 `/management/task-v2/{taskId}/modify-v2/4/{itemId}`；不把能力扩散到其他返修节点或质检页面。
-- 列表观察 `SearchModifyItem` 请求范围和响应，只在 taskId、节点 14 与当前页一致且快照未过期时，逐条串行导入当前返回的最多 10 条；每条请求成功并保存映射后固定等待 1 秒再发起下一条，任意单条失败立即停止整批。按钮支持停止和成功、复用、跳过、失败统计，切页或离开路由立即停止，不自动翻页。
+- 列表观察 `SearchModifyItem` 请求范围和响应，只在 taskId、节点 14 与当前页一致且快照未过期时，逐条串行导入当前返回的最多 10 条；真正新建成功并保存映射后固定等待 1 秒再发起下一条，后端确认复用时计入“复用”并立即处理下一条，不重复创建也不等待；任意单条失败立即停止整批。按钮支持停止和成功、复用、跳过、失败统计，切页或离开路由立即停止，不自动翻页。
 - 跨页面只保留 taskId、pageNo、pageSize、direction、capturedAt，以及每条的 sourceItemId、referenceText、audioUrl、videoUrl；人员、审核、Token、完整 URL 和请求头均不进入快照、storage 或日志。
 - 详情能力为 `readOnly=true`、录音导入开启、自动押后关闭、审核结果人工填入开启。仅 `COMPLETED`、非空文本、结果 ItemID 与路由 ItemID 一致且页面只有一个可见可写 textarea 时显示可用的“填入审核结果”；点击后换行追加，已存在同样结尾时不重复追加。
 - 返修不会自动暂存、合格、不合格、提交、切题或押后，也不直接调用 AIDP 写接口；文本追加后必须由用户人工检查并使用平台原生操作。

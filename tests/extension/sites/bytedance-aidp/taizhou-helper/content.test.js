@@ -1056,6 +1056,36 @@ test("ByteDance AIDP revise batch controller waits one second after success befo
   );
 });
 
+test("ByteDance AIDP revise batch controller skips the interval after the backend confirms reuse", async function () {
+  const contentModule = loadContentModule();
+  const imported = [];
+  const waits = [];
+  const controller = contentModule.__testOnly.createReviseBatchImportController({
+    getScopeKey() { return "task-1|page=1"; },
+    async importItemContext(context) {
+      imported.push(context.sourceItemId);
+      return context.sourceItemId === "item-1"
+        ? { ok: true, kind: "replayed" }
+        : { ok: true, kind: "created" };
+    },
+    async waitFor(delayMs) {
+      waits.push(delayMs);
+    },
+  });
+
+  const result = await controller.start([
+    { sourceItemId: "item-1", referenceText: "one" },
+    { sourceItemId: "item-2", referenceText: "two" },
+  ]);
+
+  assert.deepEqual(imported, ["item-1", "item-2"]);
+  assert.deepEqual(waits, []);
+  assert.deepEqual(
+    { phase: result.phase, processed: result.processed, succeeded: result.succeeded, reused: result.reused },
+    { phase: "completed", processed: 2, succeeded: 1, reused: 1 }
+  );
+});
+
 test("ByteDance AIDP revise batch controller stops the whole batch immediately after an import failure", async function () {
   const contentModule = loadContentModule();
   const imported = [];

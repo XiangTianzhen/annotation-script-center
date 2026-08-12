@@ -5,7 +5,7 @@
 - 平台：`data-baker-cvpc`
 - 脚本 ID：`dataBakerCvpcLiuzhouAssistant`
 - 目标页：`https://cvpc.data-baker.com/app/editor/asr/`
-- 当前阶段：`1.1.5` 本地验收脚本
+- 当前阶段：`1.1.6` 正式脚本
 
 ## Options 设置契约
 

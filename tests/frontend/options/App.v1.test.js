@@ -22,7 +22,7 @@ vi.mock("vue-router", () => ({
 
 describe("App public shell", () => {
   beforeEach(() => {
-    const extensionVersion = "1.1.5";
+    const extensionVersion = "1.1.6";
     setActivePinia(createPinia());
     globalThis.chrome = {
       runtime: {
@@ -71,6 +71,6 @@ describe("App public shell", () => {
 
   test("shows the current public version", () => {
     const wrapper = mount(App);
-    expect(wrapper.find("#workspace-version").text()).toBe("v1.1.5");
+    expect(wrapper.find("#workspace-version").text()).toBe("v1.1.6");
   });
 });
