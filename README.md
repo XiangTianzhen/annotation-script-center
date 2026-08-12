@@ -184,11 +184,11 @@ node scripts/package-extension-zip.js
 该命令会：
 
 1. 重新构建 Vue Options。
-2. 清空 `dist/` 中的旧产物。
+2. 保留 `dist/` 中的历史版本 ZIP；仅覆盖当前版本的同名 ZIP。
 3. 打包完整 `extension/`。
 4. 统一 ZIP 包内路径为标准 `/` 分隔符。
 5. 校验 ZIP 非空、根目录包含 `manifest.json`，且 manifest 引用的所有脚本均已打入 ZIP。
-6. 只生成 `dist/annotation-script-center-v1.1.6.zip`。
+6. 生成 `dist/annotation-script-center-v1.1.6.zip`，不删除已有历史版本包。
 
 安装 ZIP：
 
@@ -316,7 +316,7 @@ pm2 logs annotation-script-center --lines 100
 | `scripts/` | Options 构建、ZIP 打包和本地工具 |
 | `tests/` | frontend、runtime、extension、backend、release 测试 |
 | `docs/` | 平台索引和外部官方文档入口 |
-| `dist/` | 当前版本 ZIP 产物 |
+| `dist/` | 当前版本与历史版本 ZIP 产物 |
 
 ## 文档入口
 

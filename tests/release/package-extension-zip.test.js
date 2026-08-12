@@ -154,3 +154,25 @@ test("ZIP packager supports isolated source and output directories", function (t
     path.join(outputDir, fixturePackager.buildZipFilename(fixtureManifest.version))
   );
 });
+
+test("ZIP packager preserves historical versioned ZIP files", function (t) {
+  const fixtureRoot = createCleanPackagerFixture(t);
+  const fixturePackagerPath = path.join(fixtureRoot, "scripts", "package-extension-zip.js");
+  const outputDir = path.join(fixtureRoot, "release-output");
+  const historicalZipPath = path.join(
+    outputDir,
+    "annotation-script-center-v0.9.0.zip"
+  );
+  fs.mkdirSync(outputDir, { recursive: true });
+  fs.writeFileSync(historicalZipPath, "historical-release");
+
+  const fixturePackager = require(fixturePackagerPath);
+  const result = fixturePackager.packageExtensionZip({
+    skipBuild: true,
+    outputDir,
+  });
+
+  assert.equal(fs.readFileSync(historicalZipPath, "utf8"), "historical-release");
+  assert.equal(fs.existsSync(result.outputPath), true);
+  assert.notEqual(result.outputPath, historicalZipPath);
+});

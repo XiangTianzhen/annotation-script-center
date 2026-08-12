@@ -44,11 +44,8 @@ function resolveDirectory(value, fallbackDirectory) {
   return rawValue ? path.resolve(rawValue) : fallbackDirectory;
 }
 
-function cleanDistDirectory(distDirectory) {
+function ensureDistDirectory(distDirectory) {
   fs.mkdirSync(distDirectory, { recursive: true });
-  fs.readdirSync(distDirectory).forEach(function (entry) {
-    fs.rmSync(path.join(distDirectory, entry), { recursive: true, force: true });
-  });
 }
 
 function createZip(zipPath, extensionDirectory) {
@@ -145,7 +142,7 @@ function packageExtensionZip(options) {
   const manifestPath = path.join(extensionDirectory, "manifest.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const filename = buildZipFilename(manifest.version);
-  cleanDistDirectory(distDirectory);
+  ensureDistDirectory(distDirectory);
 
   const outputPath = path.join(distDirectory, filename);
   const tool = createZip(outputPath, extensionDirectory);
