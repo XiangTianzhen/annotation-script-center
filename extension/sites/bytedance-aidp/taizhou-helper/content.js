@@ -358,17 +358,25 @@
     );
   }
 
+  function isInternalQualityPackagePathname(pathname) {
+    const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
+    return /^\/management\/task-v2\/[^/]+\/mark-package\/[^/]+\/17$/i.test(text);
+  }
+
   function resolveHelperPageCapabilities(pathname) {
     const resolvedPathname =
       pathname === undefined ? globalThis.location?.pathname || "" : pathname;
     const readOnly = isReadOnlyScanPagePathname(resolvedPathname);
     const modify = isModifyPagePathname(resolvedPathname);
     const recordingEnabled = isDetailPagePathname(resolvedPathname);
+    const internalQualitySubmitAutomationEnabled =
+      isInternalQualityPackagePathname(resolvedPathname);
     return {
       readOnly: readOnly || modify,
       recordingImportEnabled: recordingEnabled,
       recordingAutomationEnabled: recordingEnabled && !modify,
       recordingResultFillEnabled: modify,
+      internalQualitySubmitAutomationEnabled: internalQualitySubmitAutomationEnabled,
     };
   }
 
@@ -1165,6 +1173,77 @@
       node: matches.length === 1 ? matches[0] : null,
       count: matches.length,
     };
+  }
+
+  function isCheckedRadioInput(node) {
+    return Boolean(node?.checked === true || node?.hasAttribute?.("checked"));
+  }
+
+  function getRadioInputValue(node) {
+    return String(node?.value ?? node?.getAttribute?.("value") ?? "");
+  }
+
+  function getRadioInputLabel(node) {
+    const parent = node?.parentElement || node?.parentNode || null;
+    return String(parent?.tagName || "").toUpperCase() === "LABEL" ? getNodeText(parent) : "";
+  }
+
+  function collectVisibleRadioInputs(root) {
+    const inputs = [];
+    getSearchRoots(root).forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        if (
+          String(node?.tagName || "").toUpperCase() === "INPUT" &&
+          normalizeText(node?.getAttribute?.("type") || node?.type).toLowerCase() === "radio" &&
+          isNodeAndAncestorsVisible(node) &&
+          node.disabled !== true &&
+          !node.hasAttribute?.("disabled") &&
+          normalizeText(node?.getAttribute?.("aria-disabled")).toLowerCase() !== "true"
+        ) {
+          inputs.push(node);
+        }
+      });
+    });
+    return inputs;
+  }
+
+  function readInternalQualitySubmitDecision(root) {
+    const radioInputs = collectVisibleRadioInputs(root);
+    const retentionInputs = radioInputs.filter(function (node) {
+      const value = getRadioInputValue(node);
+      return value === "保留" || value === "丢弃";
+    });
+    const retentionValues = new Set(retentionInputs.map(getRadioInputValue));
+    const checkedRetention = retentionInputs.filter(isCheckedRadioInput);
+    if (
+      retentionInputs.length !== 2 ||
+      retentionValues.size !== 2 ||
+      !retentionValues.has("保留") ||
+      !retentionValues.has("丢弃") ||
+      checkedRetention.length !== 1
+    ) {
+      return { ok: false, reason: "retention-ambiguous" };
+    }
+
+    const overallInputs = radioInputs.filter(function (node) {
+      const value = getRadioInputValue(node);
+      const label = getRadioInputLabel(node);
+      return (value === "true" && label === "合格") || (value === "" && label === "不合格");
+    });
+    const checkedOverall = overallInputs.filter(isCheckedRadioInput);
+    if (overallInputs.length !== 2 || checkedOverall.length !== 1) {
+      return { ok: false, reason: "overall-quality-ambiguous" };
+    }
+
+    const retention = getRadioInputValue(checkedRetention[0]);
+    const overallQuality = getRadioInputLabel(checkedOverall[0]);
+    if (retention === "丢弃" || overallQuality === "不合格") {
+      return { ok: true, action: "direct" };
+    }
+    if (retention === "保留" && overallQuality === "合格") {
+      return { ok: true, action: "correct" };
+    }
+    return { ok: false, reason: "unsupported-decision" };
   }
 
   function isReadOnlyScanPage() {
@@ -4886,6 +4965,132 @@
     return matches.length === 1 ? matches[0] : null;
   }
 
+  function collectInternalQualitySegmentRows(root) {
+    const tableRoot = findSegmentLanguageTableRoot(root);
+    if (!tableRoot) {
+      return { ok: false, reason: "missing-segment-table", rows: [] };
+    }
+    const rows = collectDescendantElements(tableRoot).filter(function (node) {
+      return (
+        getClassName(node).split(/\s+/).includes("arco-table-tr") &&
+        Boolean(normalizeText(node.getAttribute?.("data-neeko-table-row-key"))) &&
+        isNodeAndAncestorsVisible(node)
+      );
+    });
+    return rows.length > 0
+      ? { ok: true, rows: rows }
+      : { ok: false, reason: "missing-segment-rows", rows: [] };
+  }
+
+  function collectVisibleSegmentComboboxes(row) {
+    return collectDescendantElements(row).filter(function (node) {
+      return (
+        normalizeText(node.getAttribute?.("role")).toLowerCase() === "combobox" &&
+        getClassName(node).includes("arco-select") &&
+        isNodeAndAncestorsVisible(node) &&
+        normalizeText(node.getAttribute?.("aria-disabled")).toLowerCase() !== "true"
+      );
+    });
+  }
+
+  function collectVisibleInternalQualityInputs(row) {
+    return collectVisibleRadioInputs(row).filter(function (node) {
+      const value = getRadioInputValue(node);
+      const label = getRadioInputLabel(node);
+      return (value === "ok" && label === "合格") || (value === "failed" && label === "不合格");
+    });
+  }
+
+  function getRadioInputLabelNode(node) {
+    const parent = node?.parentElement || node?.parentNode || null;
+    return String(parent?.tagName || "").toUpperCase() === "LABEL" ? parent : null;
+  }
+
+  async function correctInternalQualitySegments(root, options) {
+    const source = options && typeof options === "object" ? options : {};
+    const waitForNetworkQuiet =
+      typeof source.waitForNetworkQuiet === "function"
+        ? source.waitForNetworkQuiet
+        : async function () { return true; };
+    const isActive = typeof source.isActive === "function" ? source.isActive : function () { return true; };
+    const rowResult = collectInternalQualitySegmentRows(root);
+    if (!rowResult.ok) {
+      return { ok: false, reason: rowResult.reason };
+    }
+    let correctedLanguageCount = 0;
+    let correctedQualityCount = 0;
+    for (let index = 0; index < rowResult.rows.length; index += 1) {
+      if (!isActive()) {
+        return { ok: false, reason: "stopped" };
+      }
+      const row = rowResult.rows[index];
+      const comboboxes = collectVisibleSegmentComboboxes(row);
+      if (comboboxes.length !== 1) {
+        return { ok: false, reason: "segment-language-ambiguous" };
+      }
+      const combobox = comboboxes[0];
+      if (getComboboxDisplayText(combobox) !== "目标方言") {
+        if (!(await waitForNetworkQuiet()) || !isActive()) {
+          return { ok: false, reason: "network-or-stopped" };
+        }
+        if (!invokeClick(combobox)) {
+          return { ok: false, reason: "cannot-open-language" };
+        }
+        const option = findDialectOption(root, "目标方言", combobox);
+        if (!option || !invokeClick(option)) {
+          collapseCombobox(combobox);
+          return { ok: false, reason: "missing-target-dialect" };
+        }
+        source.recordAction?.();
+        if (!(await waitForNetworkQuiet()) || !isActive()) {
+          return { ok: false, reason: "network-or-stopped" };
+        }
+        if (getComboboxDisplayText(combobox) !== "目标方言") {
+          return { ok: false, reason: "language-not-confirmed" };
+        }
+        correctedLanguageCount += 1;
+      }
+      const qualityInputs = collectVisibleInternalQualityInputs(row);
+      const okInputs = qualityInputs.filter(function (node) {
+        return getRadioInputValue(node) === "ok";
+      });
+      const failedInputs = qualityInputs.filter(function (node) {
+        return getRadioInputValue(node) === "failed";
+      });
+      const checkedInputs = qualityInputs.filter(isCheckedRadioInput);
+      if (okInputs.length !== 1 || failedInputs.length !== 1 || checkedInputs.length !== 1) {
+        return { ok: false, reason: "segment-quality-ambiguous" };
+      }
+      if (!isCheckedRadioInput(okInputs[0])) {
+        const label = getRadioInputLabelNode(okInputs[0]);
+        if (!label || !(await waitForNetworkQuiet()) || !isActive()) {
+          return { ok: false, reason: "network-or-stopped" };
+        }
+        if (!invokeClick(label)) {
+          return { ok: false, reason: "cannot-set-internal-quality" };
+        }
+        source.recordAction?.();
+        if (!(await waitForNetworkQuiet()) || !isActive()) {
+          return { ok: false, reason: "network-or-stopped" };
+        }
+        const confirmedInputs = collectVisibleInternalQualityInputs(row);
+        const confirmedOk = confirmedInputs.filter(function (node) {
+          return getRadioInputValue(node) === "ok" && isCheckedRadioInput(node);
+        });
+        const confirmedChecked = confirmedInputs.filter(isCheckedRadioInput);
+        if (confirmedInputs.length !== 2 || confirmedOk.length !== 1 || confirmedChecked.length !== 1) {
+          return { ok: false, reason: "internal-quality-not-confirmed" };
+        }
+        correctedQualityCount += 1;
+      }
+    }
+    return {
+      ok: true,
+      correctedLanguageCount: correctedLanguageCount,
+      correctedQualityCount: correctedQualityCount,
+    };
+  }
+
   function collapseCombobox(node) {
     if (!node) {
       return;
@@ -4989,6 +5194,7 @@
       activeUntil: 0,
     };
     helperRuntime?.recordingAutomation?.stop?.("页面已切换，自动流程已停止。");
+    helperRuntime?.internalQualitySubmitAutomation?.stop?.("页面已切换，自动流程已停止。");
     if (helperRuntime?.ui?.destroy) {
       helperRuntime.ui.destroy();
     }
@@ -5696,6 +5902,444 @@
     }
   }
 
+  function findInternalQualitySubmitButton(root) {
+    const matches = [];
+    getSearchRoots(root).forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        if (
+          String(node?.tagName || "").toUpperCase() === "BUTTON" &&
+          getNodeText(node) === "提交" &&
+          getClassName(node).indexOf("submit-button") >= 0 &&
+          isNodeAndAncestorsVisible(node) &&
+          isEnabledNativeButton(node)
+        ) {
+          matches.push(node);
+        }
+      });
+    });
+    return {
+      node: matches.length === 1 ? matches[0] : null,
+      count: matches.length,
+    };
+  }
+
+  function createInternalQualitySubmitAutomationController(options) {
+    const source = options && typeof options === "object" ? options : {};
+    const timeoutMs = Math.max(
+      1,
+      Math.round(Number(source.timeoutMs) || RECORDING_AUTOMATION_TIMEOUT_MS)
+    );
+    const pollIntervalMs = Math.max(
+      0,
+      Math.round(Number(source.pollIntervalMs) || RECORDING_AUTOMATION_POLL_INTERVAL_MS)
+    );
+    const networkQuietMs = Math.max(
+      0,
+      Math.round(
+        Number.isFinite(Number(source.networkQuietMs))
+          ? Number(source.networkQuietMs)
+          : RECORDING_AUTOMATION_NETWORK_QUIET_MS
+      )
+    );
+    const maxRounds = Math.max(0, Math.round(Number(source.maxRounds) || 0));
+    const getNow = typeof source.now === "function" ? source.now : Date.now;
+    const wait = typeof source.wait === "function" ? source.wait : waitFor;
+    const getRoot = function () {
+      return typeof source.root === "function"
+        ? source.root()
+        : source.root || (typeof document !== "undefined" ? document : null);
+    };
+    let runToken = 0;
+    let running = false;
+    let capturedAutomationScopeKey = "";
+    let lastActionAt = 0;
+    let state = {
+      phase: "idle",
+      completedCount: 0,
+      directSubmittedCount: 0,
+      correctedSubmittedCount: 0,
+      itemId: "",
+      pendingRequestCount: 0,
+      message: "待命，等待手动开始。",
+    };
+
+    function publish(patch) {
+      state = Object.assign({}, state, patch || {});
+      try {
+        source.onStateChange?.(Object.assign({}, state));
+      } catch (_error) {
+        // Panel rendering must not weaken the automation stop boundary.
+      }
+      return state;
+    }
+
+    function isActive(token) {
+      return running === true && token === runToken;
+    }
+
+    function finish(phase, message, patch) {
+      running = false;
+      publish(Object.assign({ phase: phase, message: message }, patch || {}));
+    }
+
+    async function executeWithinTimeout(token, operation) {
+      let timer = null;
+      const setTimer = typeof source.setTimeout === "function" ? source.setTimeout : setTimeout;
+      const clearTimer = typeof source.clearTimeout === "function" ? source.clearTimeout : clearTimeout;
+      const timeoutResult = new Promise(function (resolve) {
+        timer = setTimer(function () {
+          resolve({ timeout: true });
+        }, timeoutMs);
+      });
+      try {
+        const outcome = await Promise.race([
+          Promise.resolve()
+            .then(operation)
+            .then(function (value) {
+              return { value: value };
+            })
+            .catch(function () {
+              return { error: true };
+            }),
+          timeoutResult,
+        ]);
+        return isActive(token) ? outcome : { stopped: true };
+      } finally {
+        if (timer !== null) {
+          clearTimer(timer);
+        }
+      }
+    }
+
+    async function getCurrentItemId(token) {
+      if (typeof source.getCurrentItemId !== "function") {
+        return { error: true };
+      }
+      const outcome = await executeWithinTimeout(token, source.getCurrentItemId);
+      if (outcome.value !== undefined) {
+        outcome.value = normalizeText(outcome.value);
+        if (!outcome.value) {
+          outcome.error = true;
+        }
+      }
+      return outcome;
+    }
+
+    async function getAutomationScopeKey(token) {
+      if (typeof source.getAutomationScopeKey !== "function") {
+        return { value: "" };
+      }
+      const outcome = await executeWithinTimeout(token, source.getAutomationScopeKey);
+      if (outcome.value !== undefined) {
+        outcome.value = normalizeText(outcome.value);
+        if (!outcome.value) {
+          outcome.error = true;
+        }
+      }
+      return outcome;
+    }
+
+    async function verifyAutomationScope(token) {
+      if (!capturedAutomationScopeKey || typeof source.getAutomationScopeKey !== "function") {
+        return { ok: true };
+      }
+      const outcome = await getAutomationScopeKey(token);
+      if (outcome.stopped) {
+        return { ok: false };
+      }
+      if (outcome.timeout || outcome.error) {
+        finish("failed", "读取当前自动化范围超时或失败，自动流程已停止。");
+        return { ok: false };
+      }
+      if (outcome.value !== capturedAutomationScopeKey) {
+        finish("stopped", "页面类型或检查包范围已切换，自动流程已停止。");
+        return { ok: false };
+      }
+      return { ok: true };
+    }
+
+    function getPageNetworkActivity() {
+      try {
+        const activity =
+          typeof source.getNetworkActivity === "function" ? source.getNetworkActivity() : null;
+        return {
+          pendingCount: Math.max(0, Math.round(Number(activity?.pendingCount) || 0)),
+          lastActivityAt: Math.max(0, Number(activity?.lastActivityAt) || 0),
+          activitySequence: Math.max(0, Math.round(Number(activity?.activitySequence) || 0)),
+        };
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    async function waitUntil(token, predicate) {
+      const startedAt = Math.max(0, Number(getNow()) || 0);
+      while (isActive(token)) {
+        if (!(await verifyAutomationScope(token)).ok) {
+          return { stopped: true };
+        }
+        try {
+          const value = await predicate();
+          if (value) {
+            return { value: value };
+          }
+        } catch (_error) {
+          return { error: true };
+        }
+        const elapsed = (Math.max(0, Number(getNow()) || 0) - startedAt);
+        if (elapsed >= timeoutMs) {
+          return { timeout: true };
+        }
+        await wait(Math.min(pollIntervalMs, Math.max(0, timeoutMs - elapsed)));
+      }
+      return { stopped: true };
+    }
+
+    async function waitForPageNetworkQuiet(token, completedCount, itemId) {
+      let latestActivity = { pendingCount: 0, lastActivityAt: 0, activitySequence: 0 };
+      const outcome = await waitUntil(token, function () {
+        const activity = getPageNetworkActivity();
+        if (!activity) {
+          throw new Error("network activity unavailable");
+        }
+        latestActivity = activity;
+        const quietSince = Math.max(lastActionAt, activity.lastActivityAt);
+        const quietElapsed = Math.max(0, Number(getNow()) || 0) - quietSince;
+        if (activity.pendingCount <= 0 && quietElapsed >= networkQuietMs) {
+          return true;
+        }
+        publish({
+          phase: "waiting-network",
+          completedCount: completedCount,
+          itemId: itemId,
+          pendingRequestCount: activity.pendingCount,
+          message: activity.pendingCount > 0
+            ? "正在等待网络结算（" + String(activity.pendingCount) + " 个请求）。"
+            : "网络请求已结算，正在等待 " + String(networkQuietMs) + "ms 安全间隔。",
+        });
+        return null;
+      });
+      return Object.assign({}, outcome, { activity: latestActivity });
+    }
+
+    function finishForNetworkWaitFailure(completedCount, itemId, pendingCount) {
+      finish("failed", "页面网络请求在 20 秒内未结算或未连续静默，自动流程已停止。", {
+        completedCount: completedCount,
+        itemId: itemId,
+        pendingRequestCount: Math.max(0, Math.round(Number(pendingCount) || 0)),
+      });
+    }
+
+    async function run() {
+      const token = runToken;
+      let completedCount = 0;
+      let directSubmittedCount = 0;
+      let correctedSubmittedCount = 0;
+      if (typeof source.getAutomationScopeKey === "function") {
+        const scopeOutcome = await getAutomationScopeKey(token);
+        if (scopeOutcome.stopped) return;
+        if (scopeOutcome.timeout || scopeOutcome.error) {
+          finish("failed", "读取当前自动化范围超时或失败，自动流程已停止。");
+          return;
+        }
+        capturedAutomationScopeKey = scopeOutcome.value;
+      }
+      while (isActive(token)) {
+        if (!(await verifyAutomationScope(token)).ok) return;
+        const currentOutcome = await getCurrentItemId(token);
+        if (currentOutcome.stopped) return;
+        if (currentOutcome.timeout || currentOutcome.error) {
+          finish("failed", "读取当前题号超时或失败，自动流程已停止。");
+          return;
+        }
+        const currentItemId = currentOutcome.value;
+        const networkBefore = await waitForPageNetworkQuiet(token, completedCount, currentItemId);
+        if (networkBefore.stopped) return;
+        if (networkBefore.timeout || networkBefore.error) {
+          finishForNetworkWaitFailure(completedCount, currentItemId, networkBefore.activity?.pendingCount);
+          return;
+        }
+        let decision;
+        try {
+          decision = typeof source.readDecision === "function"
+            ? source.readDecision(getRoot())
+            : readInternalQualitySubmitDecision(getRoot());
+        } catch (_error) {
+          decision = null;
+        }
+        if (!decision?.ok || (decision.action !== "direct" && decision.action !== "correct")) {
+          finish("failed", "当前题目状态无法唯一确认，未提交并已停止自动流程。", {
+            completedCount: completedCount,
+            itemId: currentItemId,
+          });
+          return;
+        }
+        if (decision.action === "correct") {
+          if (typeof source.correctCurrentItem !== "function") {
+            finish("failed", "当前分段质检修正流程不可用，未提交并已停止自动流程。", {
+              completedCount: completedCount,
+              itemId: currentItemId,
+            });
+            return;
+          }
+          publish({
+            phase: "correcting",
+            completedCount: completedCount,
+            directSubmittedCount: directSubmittedCount,
+            correctedSubmittedCount: correctedSubmittedCount,
+            itemId: currentItemId,
+            message: "正在逐段确认语言种类和内部质检状态。",
+          });
+          const correctionOutcome = await executeWithinTimeout(token, function () {
+            return source.correctCurrentItem({
+              root: getRoot(),
+              itemId: currentItemId,
+              isActive: function () {
+                return isActive(token);
+              },
+              waitForNetworkQuiet: async function () {
+                const outcome = await waitForPageNetworkQuiet(
+                  token,
+                  completedCount,
+                  currentItemId
+                );
+                return outcome.value === true;
+              },
+              recordAction: function () {
+                lastActionAt = Math.max(0, Number(getNow()) || 0);
+              },
+            });
+          });
+          if (correctionOutcome.stopped) return;
+          if (correctionOutcome.timeout || correctionOutcome.error || !correctionOutcome.value?.ok) {
+            finish(
+              "failed",
+              normalizeText(correctionOutcome.value?.message) ||
+                "当前分段质检状态无法安全修正，未提交并已停止自动流程。",
+              {
+                completedCount: completedCount,
+                itemId: currentItemId,
+              }
+            );
+            return;
+          }
+          const networkAfterCorrection = await waitForPageNetworkQuiet(
+            token,
+            completedCount,
+            currentItemId
+          );
+          if (networkAfterCorrection.stopped) return;
+          if (networkAfterCorrection.timeout || networkAfterCorrection.error) {
+            finishForNetworkWaitFailure(
+              completedCount,
+              currentItemId,
+              networkAfterCorrection.activity?.pendingCount
+            );
+            return;
+          }
+        }
+        const submitLookup = findInternalQualitySubmitButton(getRoot());
+        if (submitLookup.count !== 1) {
+          finish("failed", "未找到唯一可用的右上角“提交”按钮，自动流程已停止。", {
+            completedCount: completedCount,
+            itemId: currentItemId,
+          });
+          return;
+        }
+        publish({
+          phase: "submitting",
+          completedCount: completedCount,
+          directSubmittedCount: directSubmittedCount,
+          correctedSubmittedCount: correctedSubmittedCount,
+          itemId: currentItemId,
+          message: "正在提交当前题目。",
+        });
+        if (!invokeClick(submitLookup.node)) {
+          finish("failed", "无法点击右上角“提交”按钮，自动流程已停止。");
+          return;
+        }
+        lastActionAt = Math.max(0, Number(getNow()) || 0);
+        const networkAfter = await waitForPageNetworkQuiet(token, completedCount, currentItemId);
+        if (networkAfter.stopped) return;
+        if (networkAfter.timeout || networkAfter.error) {
+          finishForNetworkWaitFailure(completedCount, currentItemId, networkAfter.activity?.pendingCount);
+          return;
+        }
+        completedCount += 1;
+        if (decision.action === "direct") {
+          directSubmittedCount += 1;
+        } else {
+          correctedSubmittedCount += 1;
+        }
+        if (maxRounds > 0 && completedCount >= maxRounds) {
+          finish("completed", "测试处理上限已到达。", {
+            completedCount: completedCount,
+            directSubmittedCount: directSubmittedCount,
+            correctedSubmittedCount: correctedSubmittedCount,
+            itemId: currentItemId,
+          });
+          return;
+        }
+        publish({
+          phase: "waiting-next",
+          completedCount: completedCount,
+          directSubmittedCount: directSubmittedCount,
+          correctedSubmittedCount: correctedSubmittedCount,
+          itemId: currentItemId,
+          message: "提交已触发，正在验证是否进入下一题。",
+        });
+        const nextItemOutcome = await waitUntil(token, async function () {
+          const nextOutcome = await getCurrentItemId(token);
+          if (nextOutcome.stopped || nextOutcome.timeout || nextOutcome.error) return null;
+          return nextOutcome.value !== currentItemId ? nextOutcome.value : null;
+        });
+        if (nextItemOutcome.stopped) return;
+        if (nextItemOutcome.timeout || nextItemOutcome.error) {
+          finish("failed", "提交可能已发送，未确认下一题，自动流程已停止。", {
+            completedCount: completedCount,
+            directSubmittedCount: directSubmittedCount,
+            correctedSubmittedCount: correctedSubmittedCount,
+            itemId: currentItemId,
+          });
+          return;
+        }
+      }
+    }
+
+    function start() {
+      if (running) return Promise.resolve(false);
+      running = true;
+      runToken += 1;
+      capturedAutomationScopeKey = "";
+      lastActionAt = 0;
+      publish({
+        phase: "starting",
+        completedCount: 0,
+        directSubmittedCount: 0,
+        correctedSubmittedCount: 0,
+        itemId: "",
+        pendingRequestCount: 0,
+        message: "自动质检提交流程已开始。",
+      });
+      return run().then(function () { return true; });
+    }
+
+    function stop(message) {
+      if (!running) return false;
+      runToken += 1;
+      running = false;
+      publish({ phase: "stopped", message: normalizeText(message) || "已停止自动流程。" });
+      return true;
+    }
+
+    return {
+      start: start,
+      stop: stop,
+      isRunning: function () { return running; },
+      getState: function () { return Object.assign({}, state); },
+    };
+  }
+
   function createReviseBatchImportController(options) {
     const deps = options && typeof options === "object" ? options : {};
     let runToken = 0;
@@ -6010,6 +6654,8 @@
     const recordingImportEnabled = pageCapabilities.recordingImportEnabled === true;
     const recordingAutomationEnabled =
       pageCapabilities.recordingAutomationEnabled === true;
+    const internalQualitySubmitAutomationEnabled =
+      pageCapabilities.internalQualitySubmitAutomationEnabled === true;
     const recordingResultFillEnabled =
       pageCapabilities.recordingResultFillEnabled === true;
     const helperConfig = Object.assign(
@@ -6081,6 +6727,7 @@
       readOnly: readOnly,
       recordingImportEnabled: recordingImportEnabled,
       recordingAutomationEnabled: recordingAutomationEnabled,
+      internalQualitySubmitAutomationEnabled: internalQualitySubmitAutomationEnabled,
       recordingResultFillEnabled: recordingResultFillEnabled,
       onRecommend: function () {
         if (helperConfig.aiRecommendEnabled === false) {
@@ -6160,6 +6807,18 @@
         }
         helperRuntime?.recordingAutomation?.stop?.();
       },
+      onStartInternalQualitySubmitAutomation: function () {
+        if (!internalQualitySubmitAutomationEnabled) {
+          return;
+        }
+        void helperRuntime?.internalQualitySubmitAutomation?.start?.();
+      },
+      onStopInternalQualitySubmitAutomation: function () {
+        if (!internalQualitySubmitAutomationEnabled) {
+          return;
+        }
+        helperRuntime?.internalQualitySubmitAutomation?.stop?.();
+      },
     });
     const shortcuts =
       shortcutFactory && typeof shortcutFactory.createRuntime === "function"
@@ -6212,6 +6871,7 @@
       readOnly: readOnly,
       recordingImportEnabled: recordingImportEnabled,
       recordingAutomationEnabled: recordingAutomationEnabled,
+      internalQualitySubmitAutomationEnabled: internalQualitySubmitAutomationEnabled,
       recordingResultFillEnabled: recordingResultFillEnabled,
       pageCapabilities: pageCapabilities,
       pageMode: getCurrentHelperPageMode(),
@@ -6326,6 +6986,83 @@
         }
       },
       });
+    runtime.internalQualitySubmitAutomation = !internalQualitySubmitAutomationEnabled
+      ? {
+          getState: function () {
+            return {
+              phase: "idle",
+              completedCount: 0,
+              directSubmittedCount: 0,
+              correctedSubmittedCount: 0,
+              itemId: "",
+              message: "",
+            };
+          },
+          start: function () {
+            return false;
+          },
+          stop: function () {
+            return false;
+          },
+        }
+      : createInternalQualitySubmitAutomationController({
+          root: function () {
+            return typeof document !== "undefined" ? document : null;
+          },
+          getCurrentItemId: async function () {
+            if (
+              helperRuntime !== runtime ||
+              typeof runtime.dataApi?.getCurrentAutomationItemId !== "function"
+            ) {
+              return "";
+            }
+            const itemId = await runtime.dataApi.getCurrentAutomationItemId();
+            return helperRuntime === runtime ? normalizeText(itemId) : "";
+          },
+          getAutomationScopeKey: async function () {
+            if (
+              helperRuntime !== runtime ||
+              typeof runtime.dataApi?.getAutomationScopeKey !== "function"
+            ) {
+              return "";
+            }
+            const scopeKey = await runtime.dataApi.getAutomationScopeKey();
+            return helperRuntime === runtime ? normalizeText(scopeKey) : "";
+          },
+          getNetworkActivity: function () {
+            if (
+              helperRuntime !== runtime ||
+              typeof runtime.dataApi?.getPageNetworkActivity !== "function"
+            ) {
+              return {
+                pendingCount: 0,
+                lastActivityAt: 0,
+                activitySequence: 0,
+              };
+            }
+            return runtime.dataApi.getPageNetworkActivity();
+          },
+          readDecision: function (root) {
+            if (helperRuntime !== runtime) {
+              return { ok: false, reason: "runtime-replaced" };
+            }
+            return readInternalQualitySubmitDecision(root);
+          },
+          correctCurrentItem: async function (context) {
+            if (helperRuntime !== runtime) {
+              return { ok: false, reason: "runtime-replaced" };
+            }
+            return correctInternalQualitySegments(context.root, {
+              isActive: context.isActive,
+              waitForNetworkQuiet: context.waitForNetworkQuiet,
+            });
+          },
+          onStateChange: function (state) {
+            if (helperRuntime === runtime) {
+              runtime.ui?.renderInternalQualitySubmitAutomationState?.(state);
+            }
+          },
+        });
     shortcuts?.bind?.();
     runWithProtectedScrollState(document, function () {
       ui.mount();
@@ -6342,6 +7079,9 @@
       ui.renderRecordingResult?.(null);
       renderRecordingImportState(runtime);
       ui.renderRecordingAutomationState?.(runtime.recordingAutomation.getState());
+      ui.renderInternalQualitySubmitAutomationState?.(
+        runtime.internalQualitySubmitAutomation.getState()
+      );
       ui.setStatus(COMMON_READY_MESSAGE, "success");
     });
     syncPlaybackSensitiveDecorations(
@@ -6567,6 +7307,11 @@
       syncPlatformAiVisibility: syncPlatformAiVisibility,
       isDetailPagePathname: isDetailPagePathname,
       isReadOnlyScanPagePathname: isReadOnlyScanPagePathname,
+      isInternalQualityPackagePathname: isInternalQualityPackagePathname,
+      readInternalQualitySubmitDecision: readInternalQualitySubmitDecision,
+      createInternalQualitySubmitAutomationController:
+        createInternalQualitySubmitAutomationController,
+      correctInternalQualitySegments: correctInternalQualitySegments,
       isModifyPagePathname: isModifyPagePathname,
       isReviseListPagePathname: isReviseListPagePathname,
       resolveHelperPageCapabilities: resolveHelperPageCapabilities,

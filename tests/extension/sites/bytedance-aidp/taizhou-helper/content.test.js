@@ -1003,6 +1003,232 @@ test("ByteDance AIDP content recognizes writable mark-v3 and read-only check-pac
   );
 });
 
+test("ByteDance AIDP content enables quality-submit automation only for node 17 mark packages", function () {
+  const contentModule = loadContentModule();
+
+  assert.equal(
+    contentModule.__testOnly.isInternalQualityPackagePathname(
+      "/management/task-v2/7659349631994793763/mark-package/7679802334432808744/17?itemID=7665612673070452506"
+    ),
+    true
+  );
+  assert.equal(
+    contentModule.__testOnly.isInternalQualityPackagePathname(
+      "/management/task-v2/7659349631994793763/mark-package/7679802334432808744/14?itemID=7665612673070452506"
+    ),
+    false
+  );
+  assert.equal(
+    contentModule.__testOnly.isInternalQualityPackagePathname(
+      "/management/task-v2/7659349631994793763/scan-v3/17/7665612673070452506"
+    ),
+    false
+  );
+});
+
+test("ByteDance AIDP content classifies discard or unqualified items for direct quality submission", function () {
+  const contentModule = loadContentModule();
+
+  function buildRoot(retentionValue, overallValue) {
+    const retentionGroup = new FakeElement({
+      className: "arco-radio-group neeko-radio",
+      children: ["保留", "丢弃"].map(function (value) {
+        const input = new FakeElement({
+          tagName: "input",
+          value: value,
+          attributes: { type: "radio" },
+        });
+        input.checked = value === retentionValue;
+        return new FakeElement({ tagName: "label", text: value, children: [input] });
+      }),
+    });
+    const overallGroup = new FakeElement({
+      className: "arco-radio-group arco-radio-group-type-button",
+      children: [
+        ["true", "合格"],
+        ["", "不合格"],
+      ].map(function ([value, label]) {
+        const input = new FakeElement({
+          tagName: "input",
+          value: value,
+          attributes: { type: "radio" },
+        });
+        input.checked = value === overallValue;
+        return new FakeElement({ tagName: "label", text: label, children: [input] });
+      }),
+    });
+    return createFakeDocument([retentionGroup, overallGroup]);
+  }
+
+  assert.deepEqual(
+    contentModule.__testOnly.readInternalQualitySubmitDecision(buildRoot("丢弃", "true")),
+    { ok: true, action: "direct" }
+  );
+  assert.deepEqual(
+    contentModule.__testOnly.readInternalQualitySubmitDecision(buildRoot("保留", "")),
+    { ok: true, action: "direct" }
+  );
+  assert.deepEqual(
+    contentModule.__testOnly.readInternalQualitySubmitDecision(buildRoot("保留", "true")),
+    { ok: true, action: "correct" }
+  );
+});
+
+test("ByteDance AIDP quality-submit automation submits a direct item through the real submit control", async function () {
+  const contentModule = loadContentModule();
+  let submitClicks = 0;
+  const submitButton = new FakeElement({
+    tagName: "button",
+    className: "submit-button-Iw6QzU",
+    text: "提交",
+  });
+  submitButton.addEventListener("click", function () {
+    submitClicks += 1;
+  });
+  const states = [];
+  const controller = contentModule.__testOnly.createInternalQualitySubmitAutomationController({
+    root: createFakeDocument([submitButton]),
+    getCurrentItemId: async function () {
+      return "item-a";
+    },
+    getAutomationScopeKey: async function () {
+      return "mark-package:task-a:package-a:17";
+    },
+    getNetworkActivity: function () {
+      return { pendingCount: 0, lastActivityAt: 0, activitySequence: 0 };
+    },
+    readDecision: function () {
+      return { ok: true, action: "direct" };
+    },
+    wait: async function () {},
+    timeoutMs: 4,
+    pollIntervalMs: 0,
+    networkQuietMs: 0,
+    maxRounds: 1,
+    onStateChange: function (state) {
+      states.push(state);
+    },
+  });
+
+  await controller.start();
+
+  assert.equal(submitClicks, 1);
+  assert.equal(states.at(-1).phase, "completed");
+  assert.equal(states.at(-1).directSubmittedCount, 1);
+  assert.equal(states.at(-1).correctedSubmittedCount, 0);
+});
+
+test("ByteDance AIDP quality-submit automation corrects an eligible item before real submission", async function () {
+  const contentModule = loadContentModule();
+  let submitClicks = 0;
+  let corrections = 0;
+  const submitButton = new FakeElement({
+    tagName: "button",
+    className: "submit-button-Iw6QzU",
+    text: "提交",
+  });
+  submitButton.addEventListener("click", function () {
+    submitClicks += 1;
+  });
+  const controller = contentModule.__testOnly.createInternalQualitySubmitAutomationController({
+    root: createFakeDocument([submitButton]),
+    getCurrentItemId: async function () {
+      return "item-a";
+    },
+    getAutomationScopeKey: async function () {
+      return "mark-package:task-a:package-a:17";
+    },
+    getNetworkActivity: function () {
+      return { pendingCount: 0, lastActivityAt: 0, activitySequence: 0 };
+    },
+    readDecision: function () {
+      return { ok: true, action: "correct" };
+    },
+    correctCurrentItem: async function () {
+      corrections += 1;
+      return { ok: true };
+    },
+    wait: async function () {},
+    timeoutMs: 4,
+    pollIntervalMs: 0,
+    networkQuietMs: 0,
+    maxRounds: 1,
+  });
+
+  await controller.start();
+
+  assert.equal(corrections, 1);
+  assert.equal(submitClicks, 1);
+  assert.equal(controller.getState().correctedSubmittedCount, 1);
+  assert.equal(controller.getState().directSubmittedCount, 0);
+});
+
+test("ByteDance AIDP quality-submit automation stops after one unconfirmed submission", async function () {
+  const contentModule = loadContentModule();
+  let now = 0;
+  let submitClicks = 0;
+  const submitButton = new FakeElement({
+    tagName: "button",
+    className: "submit-button-Iw6QzU",
+    text: "提交",
+  });
+  submitButton.addEventListener("click", function () {
+    submitClicks += 1;
+  });
+  const controller = contentModule.__testOnly.createInternalQualitySubmitAutomationController({
+    root: createFakeDocument([submitButton]),
+    getCurrentItemId: async function () { return "item-a"; },
+    getAutomationScopeKey: async function () { return "mark-package:task-a:package-a:17"; },
+    getNetworkActivity: function () {
+      return { pendingCount: 0, lastActivityAt: 0, activitySequence: 0 };
+    },
+    readDecision: function () { return { ok: true, action: "direct" }; },
+    now: function () { return now; },
+    wait: async function () { now += 5; },
+    timeoutMs: 20,
+    pollIntervalMs: 0,
+    networkQuietMs: 0,
+  });
+
+  await controller.start();
+
+  assert.equal(submitClicks, 1);
+  assert.equal(controller.getState().phase, "failed");
+  assert.match(controller.getState().message, /提交可能已发送，未确认下一题/);
+});
+
+test("ByteDance AIDP quality-submit automation does not submit while page requests remain pending", async function () {
+  const contentModule = loadContentModule();
+  let now = 0;
+  let submitClicks = 0;
+  const submitButton = new FakeElement({
+    tagName: "button",
+    className: "submit-button-Iw6QzU",
+    text: "提交",
+  });
+  submitButton.addEventListener("click", function () { submitClicks += 1; });
+  const controller = contentModule.__testOnly.createInternalQualitySubmitAutomationController({
+    root: createFakeDocument([submitButton]),
+    getCurrentItemId: async function () { return "item-a"; },
+    getAutomationScopeKey: async function () { return "mark-package:task-a:package-a:17"; },
+    getNetworkActivity: function () {
+      return { pendingCount: 1, lastActivityAt: now, activitySequence: 1 };
+    },
+    readDecision: function () { return { ok: true, action: "direct" }; },
+    now: function () { return now; },
+    wait: async function () { now += 5; },
+    timeoutMs: 20,
+    pollIntervalMs: 0,
+    networkQuietMs: 0,
+  });
+
+  await controller.start();
+
+  assert.equal(submitClicks, 0);
+  assert.equal(controller.getState().phase, "failed");
+  assert.match(controller.getState().message, /网络请求/);
+});
+
 test("ByteDance AIDP content recognizes only the node 14 revise list route", function () {
   const contentModule = loadContentModule();
   assert.equal(
@@ -1190,41 +1416,46 @@ test("ByteDance AIDP content splits read-only and recording capabilities", funct
     recordingImportEnabled: true,
     recordingAutomationEnabled: true,
     recordingResultFillEnabled: false,
+    internalQualitySubmitAutomationEnabled: false,
   });
   assert.deepEqual(resolve("/management/task-v2/task/mark-package/package-a/14"), {
     readOnly: true,
     recordingImportEnabled: true,
     recordingAutomationEnabled: true,
     recordingResultFillEnabled: false,
+    internalQualitySubmitAutomationEnabled: false,
   });
   assert.deepEqual(resolve("/management/task-v2/task/mark-v3/1"), {
     readOnly: false,
     recordingImportEnabled: true,
     recordingAutomationEnabled: true,
     recordingResultFillEnabled: false,
+    internalQualitySubmitAutomationEnabled: false,
   });
   assert.deepEqual(resolve("/management/task-v2"), {
     readOnly: false,
     recordingImportEnabled: false,
     recordingAutomationEnabled: false,
     recordingResultFillEnabled: false,
+    internalQualitySubmitAutomationEnabled: false,
   });
   assert.deepEqual(resolve("/management/task-v2/task/modify-v2/4/item"), {
     readOnly: true,
     recordingImportEnabled: true,
     recordingAutomationEnabled: false,
     recordingResultFillEnabled: true,
+    internalQualitySubmitAutomationEnabled: false,
   });
 });
 
 test("ByteDance AIDP content recognizes node 17 check-package routes", function () {
   const contentModule = loadContentModule();
   const routes = [
-    "/management/task-v2/task-17/scan-v3/17/item-17",
-    "/management/task-v2/task-17/mark-package/package-17/17",
+    ["/management/task-v2/task-17/scan-v3/17/item-17", false],
+    ["/management/task-v2/task-17/mark-package/package-17/17", true],
   ];
 
-  routes.forEach(function (route) {
+  routes.forEach(function ([route, internalQualitySubmitAutomationEnabled]) {
     assert.equal(contentModule.__testOnly.isDetailPagePathname(route), true, route);
     assert.equal(contentModule.__testOnly.isReadOnlyScanPagePathname(route), true, route);
     assert.equal(contentModule.__testOnly.getCurrentHelperPageMode(route), "scan-read-only", route);
@@ -1233,6 +1464,7 @@ test("ByteDance AIDP content recognizes node 17 check-package routes", function 
       recordingImportEnabled: true,
       recordingAutomationEnabled: true,
       recordingResultFillEnabled: false,
+      internalQualitySubmitAutomationEnabled: internalQualitySubmitAutomationEnabled,
     });
   });
 });
@@ -1252,6 +1484,7 @@ test("ByteDance AIDP content rejects non-whitelisted check-package nodes", funct
       recordingImportEnabled: false,
       recordingAutomationEnabled: false,
       recordingResultFillEnabled: false,
+      internalQualitySubmitAutomationEnabled: false,
     });
   });
 });
@@ -3465,6 +3698,101 @@ test("ByteDance AIDP content fills only empty language-kind comboboxes with targ
   assert.equal(existingValue.textContent, "普通话");
 });
 
+test("ByteDance AIDP content corrects every internal-quality segment before submission", async function () {
+  const contentModule = loadContentModule();
+  let languageClicks = 0;
+  let qualityClicks = 0;
+  let networkWaits = 0;
+
+  function buildRow(key, language, quality) {
+    const valueNode = new FakeElement({
+      className: "arco-select-view-value",
+      text: language,
+    });
+    const combobox = new FakeElement({
+      className: "arco-select arco-select-single",
+      attributes: {
+        role: "combobox",
+        "aria-controls": "popup-" + key,
+        "aria-expanded": "false",
+      },
+      children: [valueNode],
+    });
+    const okInput = new FakeElement({
+      tagName: "input",
+      value: "ok",
+      attributes: { type: "radio" },
+    });
+    const failedInput = new FakeElement({
+      tagName: "input",
+      value: "failed",
+      attributes: { type: "radio" },
+    });
+    okInput.checked = quality === "ok";
+    failedInput.checked = quality === "failed";
+    const okLabel = new FakeElement({ tagName: "label", text: "合格", children: [okInput] });
+    const failedLabel = new FakeElement({ tagName: "label", text: "不合格", children: [failedInput] });
+    okLabel.addEventListener("click", function () {
+      qualityClicks += 1;
+      okInput.checked = true;
+      failedInput.checked = false;
+    });
+    return {
+      row: new FakeElement({
+        className: "arco-table-tr",
+        attributes: { "data-neeko-table-row-key": key },
+        children: [combobox, okLabel, failedLabel],
+      }),
+      valueNode: valueNode,
+      combobox: combobox,
+    };
+  }
+
+  const first = buildRow("row-1", "普通话", "failed");
+  const second = buildRow("row-2", "目标方言", "ok");
+  const popup = new FakeElement({
+    attributes: { id: "popup-row-1", "aria-hidden": "true" },
+    children: [
+      new FakeElement({
+        className: "arco-select-option",
+        attributes: { role: "option" },
+        text: "目标方言",
+      }),
+    ],
+  });
+  const tableRoot = new FakeElement({
+    className: "segment-table",
+    children: [
+      new FakeElement({ tagName: "span", text: "区间" }),
+      new FakeElement({ tagName: "span", text: "转写文本" }),
+      new FakeElement({ tagName: "span", text: "语言种类" }),
+      first.row,
+      second.row,
+    ],
+  });
+  const root = createFakeDocument([tableRoot, popup]);
+  first.combobox.addEventListener("click", function () {
+    popup.setAttribute("aria-hidden", "false");
+  });
+  popup.children[0].addEventListener("click", function () {
+    languageClicks += 1;
+    first.valueNode.textContent = "目标方言";
+    popup.setAttribute("aria-hidden", "true");
+  });
+
+  const result = await contentModule.__testOnly.correctInternalQualitySegments(root, {
+    waitForNetworkQuiet: async function () {
+      networkWaits += 1;
+      return true;
+    },
+  });
+
+  assert.deepEqual(result, { ok: true, correctedLanguageCount: 1, correctedQualityCount: 1 });
+  assert.equal(languageClicks, 1);
+  assert.equal(qualityClicks, 1);
+  assert.equal(networkWaits, 4);
+});
+
 test("ByteDance AIDP content scopes target dialect lookup to the active combobox popup", async function () {
   const contentModule = loadContentModule();
   const emptyValueOne = new FakeElement({
@@ -4858,6 +5186,7 @@ test('ByteDance AIDP content keeps mark-v3 recording and helper header entries s
     recordingImportEnabled: true,
     recordingAutomationEnabled: true,
     recordingResultFillEnabled: false,
+    internalQualitySubmitAutomationEnabled: false,
   });
   const headerActionGroup = new FakeElement({
     className: 'operation-group-btn-GcvnvK',

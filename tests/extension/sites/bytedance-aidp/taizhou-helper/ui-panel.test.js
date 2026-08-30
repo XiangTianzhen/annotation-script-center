@@ -1371,6 +1371,55 @@ test("AIDP taizhou package panel exposes recording capabilities", function () {
   }
 });
 
+test("AIDP taizhou ui panel renders internal-quality submit automation separately", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    let started = 0;
+    let stopped = 0;
+    const runtime = loadUiPanelModule().createRuntime({
+      readOnly: true,
+      recordingImportEnabled: false,
+      recordingAutomationEnabled: false,
+      internalQualitySubmitAutomationEnabled: true,
+      onStartInternalQualitySubmitAutomation() { started += 1; },
+      onStopInternalQualitySubmitAutomation() { stopped += 1; },
+    });
+    assert.equal(runtime.mount(), true);
+    const root = findMountedPanelRoot(harness.body);
+    runtime.renderInternalQualitySubmitAutomationState({
+      phase: "waiting-network",
+      itemId: "item-17",
+      completedCount: 3,
+      directSubmittedCount: 2,
+      correctedSubmittedCount: 1,
+      message: "正在等待网络结算（1 个请求）。",
+    });
+    const byAttr = (name) => findNode(root, (node) => node.getAttribute(name) === "true");
+    const state = byAttr("data-internal-quality-submit-automation-state");
+    const start = byAttr("data-internal-quality-submit-automation-start");
+    const stop = byAttr("data-internal-quality-submit-automation-stop");
+    assert.ok(state && start && stop);
+    assert.match(state.textContent, /当前题号：item-17/);
+    assert.match(state.textContent, /已处理 3 条/);
+    assert.match(state.textContent, /已直接提交 2 条/);
+    assert.match(state.textContent, /已修正后提交 1 条/);
+    assert.equal(start.disabled, true);
+    assert.equal(stop.disabled, false);
+    start.click();
+    stop.click();
+    assert.equal(started, 1);
+    assert.equal(stopped, 1);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("AIDP taizhou modify panel exposes manual result fill without automation controls", function () {
   const harness = createHarness();
   const oldDocument = globalThis.document;

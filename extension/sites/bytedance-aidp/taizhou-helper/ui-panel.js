@@ -50,6 +50,22 @@
     return labels[phase] || "待命";
   }
 
+  function formatInternalQualitySubmitAutomationPhase(value) {
+    const phase = normalizeText(value);
+    const labels = {
+      idle: "待命",
+      starting: "启动中",
+      correcting: "逐段修正中",
+      submitting: "提交中",
+      "waiting-network": "等待网络结算",
+      "waiting-next": "等待下一题",
+      completed: "已完成",
+      stopped: "已停止",
+      failed: "失败",
+    };
+    return labels[phase] || "待命";
+  }
+
   function pickUsageValue(usage, keys) {
     const source = usage && typeof usage === "object" ? usage : {};
     const keyList = Array.isArray(keys) ? keys : [keys];
@@ -480,6 +496,8 @@
       deps.recordingAutomationEnabled === true ||
       (!readOnly && deps.recordingAutomationEnabled !== false);
     const recordingResultFillEnabled = deps.recordingResultFillEnabled === true;
+    const internalQualitySubmitAutomationEnabled =
+      deps.internalQualitySubmitAutomationEnabled === true;
     const recordingResultEnabled =
       recordingImportEnabled || recordingAutomationEnabled;
     const effectiveRecordingResultEnabled =
@@ -515,6 +533,17 @@
       phase: "idle",
       completedCount: 0,
       itemCode: "",
+      message: "待命，等待手动开始。",
+    };
+    let internalQualitySubmitAutomationStateNode = null;
+    let internalQualitySubmitAutomationStartButtonNode = null;
+    let internalQualitySubmitAutomationStopButtonNode = null;
+    let latestInternalQualitySubmitAutomationState = {
+      phase: "idle",
+      completedCount: 0,
+      directSubmittedCount: 0,
+      correctedSubmittedCount: 0,
+      itemId: "",
       message: "待命，等待手动开始。",
     };
     let toastNode = null;
@@ -1120,6 +1149,55 @@
         renderRecordingAutomationStateView(latestRecordingAutomationState);
       }
 
+      if (internalQualitySubmitAutomationEnabled) {
+        const internalQualitySubmitAutomationSection = document.createElement("div");
+        internalQualitySubmitAutomationSection.className = "section";
+        internalQualitySubmitAutomationSection.setAttribute("data-span", "full");
+        const internalQualitySubmitAutomationHead = document.createElement("div");
+        internalQualitySubmitAutomationHead.className = "section-head";
+        internalQualitySubmitAutomationHead.appendChild(
+          createSectionTitleRow(
+            "全自动质检并提交",
+            "仅限内部质检包 node 17，需手动开始。丢弃或不合格直接点击页面真实“提交”；保留且合格会逐段设为目标方言和内部质检合格，全部确认后才提交。任何歧义、网络超时或题目未切换都会立即停止。"
+          )
+        );
+        const internalQualitySubmitAutomationActions = document.createElement("div");
+        internalQualitySubmitAutomationActions.className = "section-actions";
+        internalQualitySubmitAutomationStartButtonNode = createButton("开始", true, function () {
+          deps.onStartInternalQualitySubmitAutomation?.();
+        });
+        internalQualitySubmitAutomationStartButtonNode.setAttribute(
+          "data-internal-quality-submit-automation-start",
+          "true"
+        );
+        internalQualitySubmitAutomationStopButtonNode = createButton("停止", false, function () {
+          deps.onStopInternalQualitySubmitAutomation?.();
+        });
+        internalQualitySubmitAutomationStopButtonNode.setAttribute(
+          "data-internal-quality-submit-automation-stop",
+          "true"
+        );
+        internalQualitySubmitAutomationActions.appendChild(
+          internalQualitySubmitAutomationStartButtonNode
+        );
+        internalQualitySubmitAutomationActions.appendChild(
+          internalQualitySubmitAutomationStopButtonNode
+        );
+        internalQualitySubmitAutomationHead.appendChild(internalQualitySubmitAutomationActions);
+        internalQualitySubmitAutomationSection.appendChild(internalQualitySubmitAutomationHead);
+        internalQualitySubmitAutomationStateNode = document.createElement("div");
+        internalQualitySubmitAutomationStateNode.className = "info-card";
+        internalQualitySubmitAutomationStateNode.setAttribute(
+          "data-internal-quality-submit-automation-state",
+          "true"
+        );
+        internalQualitySubmitAutomationSection.appendChild(internalQualitySubmitAutomationStateNode);
+        grid.appendChild(internalQualitySubmitAutomationSection);
+        renderInternalQualitySubmitAutomationStateView(
+          latestInternalQualitySubmitAutomationState
+        );
+      }
+
       rootNode.appendChild(grid);
       syncPanelVisibility();
 
@@ -1435,6 +1513,67 @@
         snapshot && typeof snapshot === "object" ? snapshot : {}
       );
       renderRecordingAutomationStateView(latestRecordingAutomationState);
+    }
+
+    function isInternalQualitySubmitAutomationActive(phase) {
+      return ["starting", "correcting", "submitting", "waiting-network", "waiting-next"].includes(
+        normalizeText(phase)
+      );
+    }
+
+    function renderInternalQualitySubmitAutomationStateView(snapshot) {
+      if (!internalQualitySubmitAutomationStateNode) {
+        return;
+      }
+      const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+      const phase = normalizeText(source.phase) || "idle";
+      const completedCount = Math.max(0, Math.round(Number(source.completedCount) || 0));
+      const directSubmittedCount = Math.max(
+        0,
+        Math.round(Number(source.directSubmittedCount) || 0)
+      );
+      const correctedSubmittedCount = Math.max(
+        0,
+        Math.round(Number(source.correctedSubmittedCount) || 0)
+      );
+      const itemId = normalizeText(source.itemId);
+      const message = normalizeText(source.message) || "待命，等待手动开始。";
+      const active = isInternalQualitySubmitAutomationActive(phase);
+      clearNode(internalQualitySubmitAutomationStateNode);
+      [
+        "状态：" + formatInternalQualitySubmitAutomationPhase(phase),
+        itemId ? "当前题号：" + itemId : "",
+        "已处理 " + String(completedCount) + " 条",
+        "已直接提交 " + String(directSubmittedCount) + " 条",
+        "已修正后提交 " + String(correctedSubmittedCount) + " 条",
+        message,
+      ].filter(Boolean).forEach(function (text) {
+        const line = document.createElement("div");
+        line.className = "info-line";
+        line.textContent = text;
+        internalQualitySubmitAutomationStateNode.appendChild(line);
+      });
+      if (internalQualitySubmitAutomationStartButtonNode) {
+        internalQualitySubmitAutomationStartButtonNode.disabled = active;
+      }
+      if (internalQualitySubmitAutomationStopButtonNode) {
+        internalQualitySubmitAutomationStopButtonNode.disabled = !active;
+      }
+    }
+
+    function renderInternalQualitySubmitAutomationState(snapshot) {
+      latestInternalQualitySubmitAutomationState = Object.assign(
+        {
+          phase: "idle",
+          completedCount: 0,
+          directSubmittedCount: 0,
+          correctedSubmittedCount: 0,
+          itemId: "",
+          message: "待命，等待手动开始。",
+        },
+        snapshot && typeof snapshot === "object" ? snapshot : {}
+      );
+      renderInternalQualitySubmitAutomationStateView(latestInternalQualitySubmitAutomationState);
     }
 
     function renderBatchState(snapshot) {
@@ -1799,6 +1938,17 @@
         itemCode: "",
         message: "待命，等待手动开始。",
       };
+      internalQualitySubmitAutomationStateNode = null;
+      internalQualitySubmitAutomationStartButtonNode = null;
+      internalQualitySubmitAutomationStopButtonNode = null;
+      latestInternalQualitySubmitAutomationState = {
+        phase: "idle",
+        completedCount: 0,
+        directSubmittedCount: 0,
+        correctedSubmittedCount: 0,
+        itemId: "",
+        message: "待命，等待手动开始。",
+      };
       batchStateNode = null;
       batchSelectionGridNode = null;
       batchActionRowNode = null;
@@ -1835,6 +1985,7 @@
       renderRecordingResult,
       renderRecordingImportState,
       renderRecordingAutomationState,
+      renderInternalQualitySubmitAutomationState,
       renderBatchSelection,
       renderBatchState,
       renderBatchResultTabs,
@@ -1854,6 +2005,7 @@
     __testOnly: {
       formatRecordingStatus,
       formatRecordingAutomationPhase,
+      formatInternalQualitySubmitAutomationPhase,
     },
   };
 
