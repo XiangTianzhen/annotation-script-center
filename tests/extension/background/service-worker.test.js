@@ -90,18 +90,176 @@ function loadServiceWorkerModule(overrides) {
         return null;
       },
     },
+    debugger: source.debugger || null,
   };
   const loaded = require(serviceWorkerPath);
   loaded.__runtimeListeners = runtimeListeners;
   return loaded;
 }
 
-test("manifest grants cookies and browsingData permissions for direct account switching", function () {
+test("manifest grants cookies, browsingData, and debugger permissions for the approved AIDP actions", function () {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
   assert.ok(Array.isArray(manifest.permissions));
   assert.ok(manifest.permissions.includes("cookies"));
   assert.ok(manifest.permissions.includes("browsingData"));
+  assert.ok(manifest.permissions.includes("debugger"));
+});
+
+test("background dispatches exactly one debugger mouse click for the current node 17 quality-submit item", async function () {
+  const calls = [];
+  const worker = loadServiceWorkerModule({
+    debugger: {
+      attach: async function (target, version) {
+        calls.push({ type: "attach", target: target, version: version });
+      },
+      sendCommand: async function (target, command, params) {
+        calls.push({ type: "command", target: target, command: command, params: params });
+      },
+      detach: async function (target) {
+        calls.push({ type: "detach", target: target });
+      },
+    },
+  });
+
+  const result = await worker.__testOnly.triggerAidpInternalQualityDebuggerClick(
+    {
+      type: worker.__testOnly.AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE,
+      action: "submit",
+      itemId: "item-17",
+      x: 220,
+      y: 65,
+    },
+    {
+      frameId: 0,
+      tab: {
+        id: 42,
+        url: "https://aidp.bytedance.com/management/task-v2/task-a/mark-package/package-a/17?itemID=item-17",
+      },
+    }
+  );
+
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(calls, [
+    { type: "attach", target: { tabId: 42 }, version: "1.3" },
+    {
+      type: "command",
+      target: { tabId: 42 },
+      command: "Input.dispatchMouseEvent",
+      params: {
+        type: "mousePressed",
+        x: 220,
+        y: 65,
+        button: "left",
+        buttons: 1,
+        clickCount: 1,
+      },
+    },
+    {
+      type: "command",
+      target: { tabId: 42 },
+      command: "Input.dispatchMouseEvent",
+      params: {
+        type: "mouseReleased",
+        x: 220,
+        y: 65,
+        button: "left",
+        buttons: 0,
+        clickCount: 1,
+      },
+    },
+    { type: "detach", target: { tabId: 42 } },
+  ]);
+});
+
+test("background reports a safe attach failure instead of treating a rejected debugger session as a click", async function () {
+  const worker = loadServiceWorkerModule({
+    debugger: {
+      attach: async function () {
+        throw new Error("attach rejected");
+      },
+      sendCommand: async function () {
+        throw new Error("must not dispatch input without attaching");
+      },
+      detach: async function () {},
+    },
+  });
+
+  const result = await worker.__testOnly.triggerAidpInternalQualityDebuggerClick(
+    {
+      type: worker.__testOnly.AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE,
+      action: "quality-ok-radio",
+      itemId: "item-17",
+      x: 220,
+      y: 65,
+    },
+    {
+      frameId: 0,
+      tab: {
+        id: 42,
+        url: "https://aidp.bytedance.com/management/task-v2/task-a/mark-package/package-a/17?itemID=item-17",
+      },
+    }
+  );
+
+  assert.deepEqual(result, { ok: false, reason: "debugger-attach-failed" });
+});
+
+test("background refuses debugger quality-submit clicks outside the exact current node 17 page", async function () {
+  const calls = [];
+  const worker = loadServiceWorkerModule({
+    debugger: {
+      attach: async function () {
+        calls.push("attach");
+      },
+      sendCommand: async function () {
+        calls.push("command");
+      },
+      detach: async function () {
+        calls.push("detach");
+      },
+    },
+  });
+  const message = {
+    type: worker.__testOnly.AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE,
+    action: "submit",
+    itemId: "item-17",
+    x: 220,
+    y: 65,
+  };
+
+  for (const sender of [
+    { frameId: 1, tab: { id: 42, url: "https://aidp.bytedance.com/management/task-v2/task-a/mark-package/package-a/17?itemID=item-17" } },
+    { frameId: 0, tab: { id: 42, url: "https://aidp.bytedance.com/management/task-v2/task-a/mark-package/package-a/14?itemID=item-17" } },
+    { frameId: 0, tab: { id: 42, url: "https://aidp.bytedance.com/management/task-v2/task-a/mark-package/package-a/17?itemID=other" } },
+    { frameId: 0, tab: { id: 42, url: "https://example.test/management/task-v2/task-a/mark-package/package-a/17?itemID=item-17" } },
+  ]) {
+    const result = await worker.__testOnly.triggerAidpInternalQualityDebuggerClick(message, sender);
+    assert.equal(result.ok, false);
+  }
+  const wrongTypeResult = await worker.__testOnly.triggerAidpInternalQualityDebuggerClick(
+    Object.assign({}, message, { type: "ASR_EDGE_UNRELATED_MESSAGE" }),
+    {
+      frameId: 0,
+      tab: {
+        id: 42,
+        url: "https://aidp.bytedance.com/management/task-v2/task-a/mark-package/package-a/17?itemID=item-17",
+      },
+    }
+  );
+  assert.equal(wrongTypeResult.ok, false);
+  const wrongActionResult = await worker.__testOnly.triggerAidpInternalQualityDebuggerClick(
+    Object.assign({}, message, { action: "unrelated-control" }),
+    {
+      frameId: 0,
+      tab: {
+        id: 42,
+        url: "https://aidp.bytedance.com/management/task-v2/task-a/mark-package/package-a/17?itemID=item-17",
+      },
+    }
+  );
+  assert.equal(wrongActionResult.ok, false);
+  assert.deepEqual(calls, []);
 });
 
 test("background service worker resets AIDP login state by clearing site storage before cookies", async function () {

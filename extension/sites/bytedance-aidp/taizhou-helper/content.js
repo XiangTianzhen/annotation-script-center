@@ -363,6 +363,20 @@
     return /^\/management\/task-v2\/[^/]+\/mark-package\/[^/]+\/17$/i.test(text);
   }
 
+  function getCurrentInternalQualityPackageItemId(locationLike) {
+    const currentLocation = locationLike || globalThis.location || {};
+    if (!isInternalQualityPackagePathname(currentLocation.pathname || "")) {
+      return "";
+    }
+    try {
+      return normalizeText(
+        new URLSearchParams(String(currentLocation.search || "")).get("itemID")
+      );
+    } catch (_error) {
+      return "";
+    }
+  }
+
   function resolveHelperPageCapabilities(pathname) {
     const resolvedPathname =
       pathname === undefined ? globalThis.location?.pathname || "" : pathname;
@@ -4965,6 +4979,65 @@
     return matches.length === 1 ? matches[0] : null;
   }
 
+  async function triggerInternalQualityControlWithDebugger(node, itemId, action) {
+    const rect = getNodeRect(node);
+    const left = Number(rect?.left);
+    const top = Number(rect?.top);
+    const width = Number(rect?.width);
+    const height = Number(rect?.height);
+    const normalizedItemId = normalizeText(itemId);
+    const normalizedAction = normalizeText(action);
+    if (
+      !normalizedItemId ||
+      (normalizedAction !== "submit" && normalizedAction !== "quality-ok-radio") ||
+      !Number.isFinite(left) ||
+      !Number.isFinite(top) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width <= 0 ||
+      height <= 0 ||
+      left + width / 2 < 0 ||
+      top + height / 2 < 0
+    ) {
+      return { ok: false, message: "无法确认右上角“提交”按钮的可点击位置。" };
+    }
+    try {
+      const response = await sendRuntimeMessage({
+        type: "ASR_EDGE_AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK",
+        action: normalizedAction,
+        itemId: normalizedItemId,
+        x: left + width / 2,
+        y: top + height / 2,
+      });
+      if (response?.ok === true && response?.result?.ok === true) {
+        return { ok: true };
+      }
+      const failureReason = normalizeText(response?.result?.reason);
+      if (failureReason === "debugger-attach-failed") {
+        return { ok: false, message: "受限鼠标输入无法附着到当前标签页，未提交并已停止自动流程。" };
+      }
+      if (failureReason === "debugger-mouse-press-failed") {
+        return { ok: false, message: "受限鼠标按下未被浏览器接受，未提交并已停止自动流程。" };
+      }
+      if (failureReason === "debugger-mouse-release-failed") {
+        return { ok: false, message: "受限鼠标抬起未被浏览器接受，未提交并已停止自动流程。" };
+      }
+      if (failureReason === "debugger-detach-failed") {
+        return { ok: false, message: "受限鼠标输入完成后无法安全断开，未提交并已停止自动流程。" };
+      }
+      if (failureReason === "debugger-click-unavailable") {
+        return { ok: false, message: "扩展未获得受限鼠标输入能力，未提交并已停止自动流程。" };
+      }
+    } catch (_error) {
+      // The controller owns the safe-stop message and must not fall back to DOM click.
+    }
+    return { ok: false, message: "浏览器未接受受限鼠标点击，未提交并已停止自动流程。" };
+  }
+
+  function triggerInternalQualitySubmitWithDebugger(node, itemId) {
+    return triggerInternalQualityControlWithDebugger(node, itemId, "submit");
+  }
+
   function collectInternalQualitySegmentRows(root) {
     const tableRoot = findSegmentLanguageTableRoot(root);
     if (!tableRoot) {
@@ -5058,7 +5131,7 @@
         return getRadioInputValue(node) === "failed";
       });
       const checkedInputs = qualityInputs.filter(isCheckedRadioInput);
-      if (okInputs.length !== 1 || failedInputs.length !== 1 || checkedInputs.length !== 1) {
+      if (okInputs.length !== 1 || failedInputs.length !== 1 || checkedInputs.length > 1) {
         return { ok: false, reason: "segment-quality-ambiguous" };
       }
       if (!isCheckedRadioInput(okInputs[0])) {
@@ -5066,8 +5139,22 @@
         if (!label || !(await waitForNetworkQuiet()) || !isActive()) {
           return { ok: false, reason: "network-or-stopped" };
         }
-        if (!invokeClick(label)) {
-          return { ok: false, reason: "cannot-set-internal-quality" };
+        let clicked = false;
+        let clickMessage = "";
+        try {
+          const clickResult = typeof source.triggerInternalQualityClick === "function"
+            ? await source.triggerInternalQualityClick(label)
+            : invokeClick(label);
+          clicked = clickResult === true || clickResult?.ok === true;
+          clickMessage = normalizeText(clickResult?.message);
+        } catch (_error) {
+          clicked = false;
+        }
+        if (!clicked) {
+          return Object.assign(
+            { ok: false, reason: "cannot-set-internal-quality" },
+            clickMessage ? { message: clickMessage } : {}
+          );
         }
         source.recordAction?.();
         if (!(await waitForNetworkQuiet()) || !isActive()) {
@@ -5952,6 +6039,7 @@
     let runToken = 0;
     let running = false;
     let capturedAutomationScopeKey = "";
+    let networkPendingBaseline = 0;
     let lastActionAt = 0;
     let state = {
       phase: "idle",
@@ -6105,16 +6193,20 @@
         latestActivity = activity;
         const quietSince = Math.max(lastActionAt, activity.lastActivityAt);
         const quietElapsed = Math.max(0, Number(getNow()) || 0) - quietSince;
-        if (activity.pendingCount <= 0 && quietElapsed >= networkQuietMs) {
+        const blockingPendingCount = Math.max(
+          0,
+          activity.pendingCount - networkPendingBaseline
+        );
+        if (blockingPendingCount <= 0 && quietElapsed >= networkQuietMs) {
           return true;
         }
         publish({
           phase: "waiting-network",
           completedCount: completedCount,
           itemId: itemId,
-          pendingRequestCount: activity.pendingCount,
-          message: activity.pendingCount > 0
-            ? "正在等待网络结算（" + String(activity.pendingCount) + " 个请求）。"
+          pendingRequestCount: blockingPendingCount,
+          message: blockingPendingCount > 0
+            ? "正在等待自动化启动后新增网络请求结算（" + String(blockingPendingCount) + " 个请求）。"
             : "网络请求已结算，正在等待 " + String(networkQuietMs) + "ms 安全间隔。",
         });
         return null;
@@ -6254,8 +6346,32 @@
           itemId: currentItemId,
           message: "正在提交当前题目。",
         });
-        if (!invokeClick(submitLookup.node)) {
-          finish("failed", "无法点击右上角“提交”按钮，自动流程已停止。");
+        const submitOutcome = await executeWithinTimeout(token, function () {
+          if (typeof source.triggerSubmit === "function") {
+            return source.triggerSubmit({
+              node: submitLookup.node,
+              itemId: currentItemId,
+            });
+          }
+          return { ok: invokeClick(submitLookup.node) };
+        });
+        if (
+          submitOutcome.stopped ||
+          submitOutcome.timeout ||
+          submitOutcome.error ||
+          !(submitOutcome.value === true || submitOutcome.value?.ok === true)
+        ) {
+          finish(
+            "failed",
+            normalizeText(submitOutcome.value?.message) ||
+              "无法点击右上角“提交”按钮，自动流程已停止。",
+            {
+              completedCount: completedCount,
+              directSubmittedCount: directSubmittedCount,
+              correctedSubmittedCount: correctedSubmittedCount,
+              itemId: currentItemId,
+            }
+          );
           return;
         }
         lastActionAt = Math.max(0, Number(getNow()) || 0);
@@ -6311,6 +6427,8 @@
       running = true;
       runToken += 1;
       capturedAutomationScopeKey = "";
+      const initialNetworkActivity = getPageNetworkActivity();
+      networkPendingBaseline = initialNetworkActivity ? initialNetworkActivity.pendingCount : 0;
       lastActionAt = 0;
       publish({
         phase: "starting",
@@ -7010,14 +7128,9 @@
             return typeof document !== "undefined" ? document : null;
           },
           getCurrentItemId: async function () {
-            if (
-              helperRuntime !== runtime ||
-              typeof runtime.dataApi?.getCurrentAutomationItemId !== "function"
-            ) {
-              return "";
-            }
-            const itemId = await runtime.dataApi.getCurrentAutomationItemId();
-            return helperRuntime === runtime ? normalizeText(itemId) : "";
+            return helperRuntime === runtime
+              ? getCurrentInternalQualityPackageItemId(globalThis.location)
+              : "";
           },
           getAutomationScopeKey: async function () {
             if (
@@ -7055,7 +7168,23 @@
             return correctInternalQualitySegments(context.root, {
               isActive: context.isActive,
               waitForNetworkQuiet: context.waitForNetworkQuiet,
+              triggerInternalQualityClick: async function (node) {
+                if (helperRuntime !== runtime) {
+                  return { ok: false };
+                }
+                return triggerInternalQualityControlWithDebugger(
+                  node,
+                  context.itemId,
+                  "quality-ok-radio"
+                );
+              },
             });
+          },
+          triggerSubmit: async function (context) {
+            if (helperRuntime !== runtime) {
+              return { ok: false, message: "运行时已切换，未提交并已停止自动流程。" };
+            }
+            return triggerInternalQualitySubmitWithDebugger(context.node, context.itemId);
           },
           onStateChange: function (state) {
             if (helperRuntime === runtime) {
@@ -7308,6 +7437,7 @@
       isDetailPagePathname: isDetailPagePathname,
       isReadOnlyScanPagePathname: isReadOnlyScanPagePathname,
       isInternalQualityPackagePathname: isInternalQualityPackagePathname,
+      getCurrentInternalQualityPackageItemId: getCurrentInternalQualityPackageItemId,
       readInternalQualitySubmitDecision: readInternalQualitySubmitDecision,
       createInternalQualitySubmitAutomationController:
         createInternalQualitySubmitAutomationController,
@@ -7324,6 +7454,8 @@
       getFloatingAssistantScore: getFloatingAssistantScore,
       ensureAccountSwitchBar: ensureAccountSwitchBar,
       requestAidpLoginStateReset: requestAidpLoginStateReset,
+      triggerInternalQualityControlWithDebugger: triggerInternalQualityControlWithDebugger,
+      triggerInternalQualitySubmitWithDebugger: triggerInternalQualitySubmitWithDebugger,
       runAccountSwitchFlow: runAccountSwitchFlow,
       resolveHelperConfig: resolveHelperConfig,
       buildHelperRuntimeConfigSignature: buildHelperRuntimeConfigSignature,

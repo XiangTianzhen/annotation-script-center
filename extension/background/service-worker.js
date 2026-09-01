@@ -7,6 +7,8 @@ const storage = globalThis.ASREdgeStorage;
 const LOG_PREFIX = "[ASR Edge][background]";
 const AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE = "ASR_EDGE_RESET_AIDP_LOGIN_STATE";
 const AIDP_COOKIE_CLEAR_MESSAGE_TYPE = "ASR_EDGE_CLEAR_AIDP_COOKIES";
+const AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE =
+  "ASR_EDGE_AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK";
 const AIDP_SITE_STORAGE_CLEAR_ORIGINS = Object.freeze([
   "https://aidp.bytedance.com",
   "https://mpsso.jiyunhudong.com",
@@ -75,6 +77,114 @@ function normalizeAidpCookieScopeUrl(value) {
   } catch (_error) {
     return "";
   }
+}
+
+function getAidpInternalQualityDebuggerClickTarget(message, sender) {
+  if (
+    !message ||
+    typeof message !== "object" ||
+    message.type !== AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE ||
+    sender?.frameId !== 0
+  ) {
+    return null;
+  }
+  const tabId = sender?.tab?.id;
+  const urlText = String(sender?.tab?.url || "").trim();
+  const action = String(message.action || "").trim();
+  const itemId = String(message.itemId || "").trim();
+  const x = Number(message.x);
+  const y = Number(message.y);
+  if (
+    !Number.isInteger(tabId) ||
+    (action !== "submit" && action !== "quality-ok-radio") ||
+    !itemId ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    x < 0 ||
+    y < 0
+  ) {
+    return null;
+  }
+  try {
+    const url = new URL(urlText);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname.toLowerCase() !== "aidp.bytedance.com" ||
+      !/^\/management\/task-v2\/[^/]+\/mark-package\/[^/]+\/17$/i.test(url.pathname) ||
+      url.searchParams.get("itemID") !== itemId
+    ) {
+      return null;
+    }
+    return {
+      tabId: tabId,
+      x: x,
+      y: y,
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function triggerAidpInternalQualityDebuggerClick(message, sender) {
+  const target = getAidpInternalQualityDebuggerClickTarget(message, sender);
+  const debuggerApi = chrome.debugger;
+  if (
+    !target ||
+    !debuggerApi ||
+    typeof debuggerApi.attach !== "function" ||
+    typeof debuggerApi.sendCommand !== "function" ||
+    typeof debuggerApi.detach !== "function"
+  ) {
+    return { ok: false, reason: "debugger-click-unavailable" };
+  }
+  const debuggee = { tabId: target.tabId };
+  let attached = false;
+  let actionError = null;
+  try {
+    try {
+    await debuggerApi.attach(debuggee, "1.3");
+    attached = true;
+    } catch (_error) {
+      actionError = "debugger-attach-failed";
+    }
+    if (!actionError) {
+      try {
+    await debuggerApi.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: target.x,
+      y: target.y,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+      } catch (_error) {
+        actionError = "debugger-mouse-press-failed";
+      }
+    }
+    if (!actionError) {
+      try {
+    await debuggerApi.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x: target.x,
+      y: target.y,
+      button: "left",
+      buttons: 0,
+      clickCount: 1,
+    });
+      } catch (_error) {
+        actionError = "debugger-mouse-release-failed";
+      }
+    }
+  } finally {
+    if (attached) {
+      try {
+        await debuggerApi.detach(debuggee);
+      } catch (_error) {
+        actionError = actionError || "debugger-detach-failed";
+      }
+    }
+  }
+  return actionError ? { ok: false, reason: actionError } : { ok: true };
 }
 
 function clonePartitionKey(partitionKey) {
@@ -348,6 +458,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE) {
+    triggerAidpInternalQualityDebuggerClick(message, sender)
+      .then(function (result) {
+        sendResponse({ ok: result.ok === true, result: result });
+      })
+      .catch(function () {
+        sendResponse({
+          ok: false,
+          result: { ok: false, reason: "debugger-click-failed" },
+        });
+      });
+    return true;
+  }
+
   return undefined;
 });
 
@@ -363,8 +487,12 @@ if (typeof module !== "undefined" && module.exports) {
       clearAidpSiteStorage: clearAidpSiteStorage,
       clearCookiesForUrl: clearCookiesForUrl,
       resetAidpLoginState: resetAidpLoginState,
+      getAidpInternalQualityDebuggerClickTarget: getAidpInternalQualityDebuggerClickTarget,
+      triggerAidpInternalQualityDebuggerClick: triggerAidpInternalQualityDebuggerClick,
       AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE: AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE,
       AIDP_COOKIE_CLEAR_MESSAGE_TYPE: AIDP_COOKIE_CLEAR_MESSAGE_TYPE,
+      AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE:
+        AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE,
       AIDP_SITE_STORAGE_CLEAR_ORIGINS: AIDP_SITE_STORAGE_CLEAR_ORIGINS,
       AIDP_SITE_STORAGE_REMOVE_OPTIONS: AIDP_SITE_STORAGE_REMOVE_OPTIONS,
     },
