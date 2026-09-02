@@ -9,6 +9,17 @@
   const OBSERVER_DISABLE = "ASC_SHUJIAJIA_OBSERVER_DISABLE";
   const SAVE_INTENT = "ASC_SHUJIAJIA_SAVE_INTENT";
   const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+  const AUDIO_SOURCE_HOST = "storage.shujiajia.com";
+  const AUDIO_MIME_BY_EXTENSION = Object.freeze({
+    wav: "audio/wav",
+    mp3: "audio/mpeg",
+    m4a: "audio/mp4",
+    mp4: "audio/mp4",
+    aac: "audio/aac",
+    flac: "audio/flac",
+    ogg: "audio/ogg",
+    webm: "audio/webm",
+  });
 
   function bytesToBase64(bytes) {
     if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
@@ -24,6 +35,37 @@
   }
   function isTempSaveUrl(value) { return pathname(value) === "/web-task-alone-api/task/piece/execute/tempsave"; }
   function isExecuteUrl(value) { return pathname(value) === "/web-task-alone-api/task/piece/execute"; }
+  function normalizeAudioSourceUrl(value) {
+    try {
+      const url = new URL(String(value || ""));
+      return url.protocol === "https:" && url.hostname.toLowerCase() === AUDIO_SOURCE_HOST ? url.href : "";
+    } catch (_error) {
+      return "";
+    }
+  }
+  function getAudioMime(rawMime, rawUrl) {
+    const mime = String(rawMime || "").split(";")[0].trim().toLowerCase();
+    if (mime.startsWith("audio/")) return mime;
+    if (mime && mime !== "application/octet-stream" && mime !== "binary/octet-stream") return "";
+    const extension = pathname(rawUrl).split(".").pop()?.toLowerCase() || "";
+    return AUDIO_MIME_BY_EXTENSION[extension] || "";
+  }
+  function bufferToAudioDataUrl(buffer, mime) {
+    if (!buffer || buffer.byteLength <= 0 || buffer.byteLength > MAX_AUDIO_BYTES || !mime) return "";
+    return "data:" + mime + ";base64," + bytesToBase64(new Uint8Array(buffer));
+  }
+  async function responseToAudioDataUrl(response, rawUrl, preserveBody) {
+    if (!response || response.ok === false) return "";
+    const headers = response.headers;
+    const declaredLength = Number(headers?.get?.("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_AUDIO_BYTES) return "";
+    const mime = getAudioMime(headers?.get?.("content-type"), rawUrl);
+    if (!mime) return "";
+    const body = preserveBody ? response.clone?.() : response;
+    if (typeof body?.arrayBuffer !== "function") return "";
+    try { return bufferToAudioDataUrl(await body.arrayBuffer(), mime); }
+    catch (_error) { return ""; }
+  }
   function isBusinessSuccess(value) {
     return Boolean(value && typeof value === "object" && (
       value.success === true || value.code === 0 || value.code === 200 || String(value.status || "").toLowerCase() === "success"
@@ -54,14 +96,48 @@
     let contextId = "";
     let latestAudioDataUrl = "";
     let saveIntent = null;
+    let fetchAudio = typeof config.fetchAudio === "function" ? config.fetchAudio : null;
+    let audioFetchContextId = "";
+    let audioAbortController = null;
 
     function setContext(nextContextId) {
       const next = String(nextContextId || "");
       if (!next || next === contextId) return;
+      try { audioAbortController?.abort?.(); } catch (_error) {}
       contextId = next;
       latestAudioDataUrl = "";
+      audioFetchContextId = "";
+      audioAbortController = null;
       saveIntent = null;
       emit({ source: SOURCE, type: CONTEXT_READY, payload: { contextId } });
+    }
+    async function captureFileFolder(body, requestContextId) {
+      const expectedContextId = String(requestContextId || "");
+      const sourceUrl = normalizeAudioSourceUrl(body?.data?.detail?.fileFolder);
+      if (!expectedContextId || expectedContextId !== contextId || !sourceUrl || typeof fetchAudio !== "function") return false;
+      if (audioFetchContextId === expectedContextId) return Boolean(latestAudioDataUrl);
+      audioFetchContextId = expectedContextId;
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      audioAbortController = controller;
+      let captured = false;
+      try {
+        const response = await fetchAudio(sourceUrl, {
+          credentials: "omit",
+          referrerPolicy: "no-referrer",
+          ...(controller ? { signal: controller.signal } : {}),
+        });
+        const audioDataUrl = await responseToAudioDataUrl(response, sourceUrl, false);
+        if (!audioDataUrl || expectedContextId !== contextId) return false;
+        latestAudioDataUrl = audioDataUrl;
+        captured = true;
+        emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: expectedContextId, audioDataUrl } });
+        return true;
+      } catch (_error) {
+        return false;
+      } finally {
+        if (audioAbortController === controller) audioAbortController = null;
+        if (!captured && audioFetchContextId === expectedContextId && contextId === expectedContextId) audioFetchContextId = "";
+      }
     }
     function setSaveIntent(intent) {
       if (intent?.cancel === true) {
@@ -80,8 +156,12 @@
       const method = String(meta.method || "GET").toUpperCase();
       if (!enabled && !config.captureWhenDisabled) return;
       if (isExecuteUrl(rawUrl) && method === "GET" && response?.ok === true) {
-        const nextContextId = makeContextId(await parseJson(response));
-        if (nextContextId) setContext(nextContextId);
+        const body = await parseJson(response);
+        const nextContextId = makeContextId(body);
+        if (nextContextId) {
+          setContext(nextContextId);
+          await captureFileFolder(body, nextContextId);
+        }
         return;
       }
       if (isTempSaveUrl(rawUrl)) {
@@ -93,21 +173,22 @@
         }
         return;
       }
-      const contentType = String(response?.headers?.get?.("content-type") || "").split(";")[0].trim().toLowerCase();
       const requestContextId = String(meta.requestContextId || contextId);
-      if (!requestContextId || requestContextId !== contextId || !contentType.startsWith("audio/") || response?.ok === false || typeof response?.clone !== "function") return;
-      try {
-        const buffer = await response.clone().arrayBuffer();
-        if (!buffer || buffer.byteLength <= 0 || buffer.byteLength > MAX_AUDIO_BYTES) return;
-        latestAudioDataUrl = "data:" + contentType + ";base64," + bytesToBase64(new Uint8Array(buffer));
-        emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: requestContextId, audioDataUrl: latestAudioDataUrl } });
-      } catch (_error) {}
+      if (!requestContextId || requestContextId !== contextId) return;
+      const audioDataUrl = await responseToAudioDataUrl(response, rawUrl, true);
+      if (!audioDataUrl || requestContextId !== contextId) return;
+      latestAudioDataUrl = audioDataUrl;
+      audioFetchContextId = requestContextId;
+      emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: requestContextId, audioDataUrl: latestAudioDataUrl } });
     }
-    function handleJsonResponse(rawUrl, status, body, method) {
+    async function handleJsonResponse(rawUrl, status, body, method) {
       if (!enabled || status < 200 || status >= 300) return;
       if (isExecuteUrl(rawUrl) && String(method || "GET").toUpperCase() === "GET") {
         const nextContextId = makeContextId(body);
-        if (nextContextId) setContext(nextContextId);
+        if (nextContextId) {
+          setContext(nextContextId);
+          await captureFileFolder(body, nextContextId);
+        }
       } else if (isTempSaveUrl(rawUrl) && saveIntent?.contextId === contextId && isBusinessSuccess(body)) {
         const intent = saveIntent;
         saveIntent = null;
@@ -119,6 +200,7 @@
       wrapped = true;
       const nativeFetch = target.fetch;
       if (typeof nativeFetch === "function") {
+        if (!fetchAudio) fetchAudio = function (url, options) { return nativeFetch.call(target, url, options); };
         target.fetch = function () {
           const args = Array.from(arguments);
           const rawUrl = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
@@ -148,17 +230,19 @@
             if ((isExecuteUrl(rawUrl) && xhr.__ascShujiajiaMethod === "GET") || isTempSaveUrl(rawUrl)) {
               let body = null;
               try { body = typeof xhr.response === "object" ? xhr.response : JSON.parse(xhr.responseText || "null"); } catch (_error) {}
-              handleJsonResponse(rawUrl, xhr.status, body, xhr.__ascShujiajiaMethod);
+              void handleJsonResponse(rawUrl, xhr.status, body, xhr.__ascShujiajiaMethod);
               return;
             }
-            const mime = String(xhr.getResponseHeader?.("content-type") || "").split(";")[0].trim();
+            const mime = getAudioMime(xhr.getResponseHeader?.("content-type"), rawUrl);
             const requestContextId = String(xhr.__ascShujiajiaContextId || "");
-            if (!requestContextId || requestContextId !== contextId || !mime.toLowerCase().startsWith("audio/")) return;
+            if (!requestContextId || requestContextId !== contextId || !mime) return;
             const value = xhr.response;
             const promise = value instanceof ArrayBuffer ? Promise.resolve(value) : value?.arrayBuffer ? value.arrayBuffer() : Promise.resolve(null);
             void promise.then(function (buffer) {
-              if (!buffer || buffer.byteLength <= 0 || buffer.byteLength > MAX_AUDIO_BYTES) return;
-              latestAudioDataUrl = "data:" + mime + ";base64," + bytesToBase64(new Uint8Array(buffer));
+              const audioDataUrl = bufferToAudioDataUrl(buffer, mime);
+              if (!audioDataUrl) return;
+              latestAudioDataUrl = audioDataUrl;
+              audioFetchContextId = requestContextId;
               if (requestContextId !== contextId) return;
               emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: requestContextId, audioDataUrl: latestAudioDataUrl } });
             }).catch(function () {});
@@ -171,7 +255,14 @@
       enabled = true;
       wrapRequests(windowLike || globalThis.window);
     }
-    function disable() { enabled = false; latestAudioDataUrl = ""; saveIntent = null; }
+    function disable() {
+      enabled = false;
+      try { audioAbortController?.abort?.(); } catch (_error) {}
+      latestAudioDataUrl = "";
+      audioFetchContextId = "";
+      audioAbortController = null;
+      saveIntent = null;
+    }
     function installController(windowLike) {
       const target = windowLike || globalThis.window;
       if (!target || target.__ascShujiajiaObserverControllerInstalled) return;

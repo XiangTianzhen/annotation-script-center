@@ -2,6 +2,8 @@
 
 ## 2026-09-03
 
+- 修复(shujiajia): Peaks.js 整段边界验收放宽为两个波形像素，超出容差时保留已生成段落并标记待暂存；移除可信 Delete 与自动回退，避免进入平台“确认删除段落”界面。
+- 修复(shujiajia): 从当前任务 execute 响应的 `data.detail.fileFolder` 在 MAIN world 获取已确认存储域名的音频，使用无 Cookie、无 Referer 请求并只跨世界传递内存 `audioDataUrl`；保留原音频响应被动捕获兼容路径。
 - 修复(shujiajia): 整音频划一段改为精确路由和视口校验后的可信 `Shift + 拖拽`；iframe 只上报局部坐标，顶层换算后由后台发送连续鼠标事件并立即断开 debugger，不直接调用平台写接口。
 - 修复(shujiajia): 按真实 Peaks.js Canvas 页面改用段落表格与“区域:【开始 结束】”文字核验整段，兼容无逗号边界格式和一个波形像素误差；区分未生成、边界缺失、不完整及回退失败。
 - 优化(shujiajia): 助手入口与可关闭结果抽屉统一挂载 iframe `body` 的右侧悬浮层，不再追加到 `.form-tabs` 或平台布局容器；自身节点被局部重渲染移除时可幂等恢复。

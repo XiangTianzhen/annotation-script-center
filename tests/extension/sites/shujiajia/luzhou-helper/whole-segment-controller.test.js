@@ -54,7 +54,7 @@ test("Peaks.js adapter reads the live Chinese-bracket boundary without a comma",
   assert.deepEqual(controller.createDomAdapter(doc).getSegments(), [{ startMs: 5, endMs: 4210 }]);
 });
 
-test("DOM adapter delegates whole-waveform drawing and rollback to trusted input", async () => {
+test("DOM adapter delegates only whole-waveform drawing to trusted input", async () => {
   const requests = [];
   const waveform = {
     disabled: false,
@@ -73,11 +73,10 @@ test("DOM adapter delegates whole-waveform drawing and rollback to trusted input
   });
 
   await adapter.dragWholeWaveform();
-  await adapter.rollbackWholeSegment();
   assert.deepEqual(requests, [
     { action: "shift-drag", startX: 5, startY: 100, endX: 803, endY: 100 },
-    { action: "delete" },
   ]);
+  assert.equal(adapter.rollbackWholeSegment, undefined);
 });
 
 test("whole-segment controller refuses to change a page that already has a segment", async () => {
@@ -91,16 +90,16 @@ test("whole-segment controller refuses to change a page that already has a segme
   assert.equal(dragged, false);
 });
 
-test("whole-segment controller draws once and verifies one-pixel boundary tolerance", async () => {
+test("whole-segment controller accepts boundary error equal to two waveform pixels", async () => {
   let segments = [];
   let dragCount = 0;
   let activationCount = 0;
   const result = await controller.createWholeSegment({
     getSegments: () => segments,
-    getAudioDurationMs: () => 4215,
-    getWaveformWidth: () => 843,
+    getAudioDurationMs: () => 4000,
+    getWaveformWidth: () => 800,
     activateDrawTool: async () => { activationCount += 1; },
-    dragWholeWaveform: async () => { dragCount += 1; segments = [{ startMs: 3, endMs: 4212 }]; },
+    dragWholeWaveform: async () => { dragCount += 1; segments = [{ startMs: 10, endMs: 3990 }]; },
   });
   assert.equal(result.ok, true);
   assert.equal(activationCount, 1);
@@ -108,24 +107,21 @@ test("whole-segment controller draws once and verifies one-pixel boundary tolera
   assert.equal(result.segmentCount, 1);
 });
 
-test("whole-segment controller reports failed verification without a second drag", async () => {
+test("whole-segment controller preserves an incomplete generated segment without deleting it", async () => {
   let segments = [];
   let dragCount = 0;
-  let rollbackCount = 0;
   const result = await controller.createWholeSegment({
     getSegments: () => segments,
     getAudioDurationMs: () => 4000,
     getWaveformWidth: () => 800,
     dragWholeWaveform: async () => { dragCount += 1; segments = [{ startMs: 100, endMs: 3900 }]; },
-    rollbackWholeSegment: async () => { rollbackCount += 1; segments = []; },
   });
   assert.equal(result.ok, false);
   assert.equal(result.code, "segment-boundary-incomplete");
   assert.equal(result.pageChanged, true);
-  assert.equal(result.pageRestored, true);
+  assert.equal(result.pageRestored, false);
   assert.equal(dragCount, 1);
-  assert.equal(rollbackCount, 1);
-  assert.deepEqual(segments, []);
+  assert.deepEqual(segments, [{ startMs: 100, endMs: 3900 }]);
 });
 
 test("whole-segment controller preserves trusted input failure reason", async () => {
@@ -137,33 +133,4 @@ test("whole-segment controller preserves trusted input failure reason", async ()
   });
   assert.equal(result.code, "debugger-attach-failed");
   assert.equal(result.pageChanged, false);
-});
-
-test("whole-segment controller reports a dirty page when rollback cannot restore it", async () => {
-  let segments = [];
-  const result = await controller.createWholeSegment({
-    getSegments: () => segments,
-    getAudioDurationMs: () => 4000,
-    getWaveformWidth: () => 800,
-    dragWholeWaveform: async () => { segments = [{ startMs: 200, endMs: 3800 }]; },
-    rollbackWholeSegment: async () => {},
-  });
-  assert.equal(result.ok, false);
-  assert.equal(result.code, "rollback-failed");
-  assert.equal(result.pageChanged, true);
-  assert.equal(result.pageRestored, false);
-});
-
-test("whole-segment controller normalizes a rollback exception as an unrestored dirty page", async () => {
-  let segments = [];
-  const result = await controller.createWholeSegment({
-    getSegments: () => segments,
-    getAudioDurationMs: () => 4000,
-    getWaveformWidth: () => 800,
-    dragWholeWaveform: async () => { segments = [{ startMs: 200, endMs: 3800 }]; },
-    rollbackWholeSegment: async () => { throw new Error("delete failed"); },
-  });
-  assert.equal(result.code, "rollback-failed");
-  assert.equal(result.pageChanged, true);
-  assert.equal(result.pageRestored, false);
 });

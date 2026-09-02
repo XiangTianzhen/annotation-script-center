@@ -31,7 +31,7 @@ test("top-frame trusted input bridge accepts only bdIframe and translates drag c
     endY: 140,
   });
   assert.equal(content.buildTopTrustedInputMessage({
-    source: {},
+    source: frameWindow,
     data: { source: content.constants.SOURCE, type: content.constants.TRUSTED_INPUT_REQUEST, payload: { requestId: "req-2", action: "delete" } },
   }, documentLike), null);
 });
@@ -46,7 +46,7 @@ test("whole-segment action supplies the controller with the trusted input bridge
     trustedInput: async () => { trustedCalls += 1; return { ok: true }; },
     segmentController: {
       createDomAdapter(_document, options) { adapterOptions = options; return {}; },
-      async createWholeSegment() { await adapterOptions.trustedInput({ action: "delete" }); return { ok: false, code: "draw-not-triggered", pageChanged: false }; },
+      async createWholeSegment() { await adapterOptions.trustedInput({ action: "shift-drag" }); return { ok: false, code: "draw-not-triggered", pageChanged: false }; },
     },
     panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
@@ -57,12 +57,29 @@ test("whole-segment action supplies the controller with the trusted input bridge
   assert.equal(trustedCalls, 1);
 });
 
-test("whole-segment failure messages distinguish debugger, drawing, boundary, and rollback failures", () => {
+test("whole-segment failure messages preserve generated segments for manual review", () => {
   assert.equal(content.formatWholeSegmentFailure("debugger-attach-failed"), "浏览器可信拖拽不可用，可能正被开发者工具占用");
   assert.equal(content.formatWholeSegmentFailure("draw-not-triggered"), "平台未生成段落，请刷新页面后重试");
   assert.equal(content.formatWholeSegmentFailure("segment-boundary-unavailable"), "已生成段落，但暂时读取不到边界，请人工检查");
-  assert.equal(content.formatWholeSegmentFailure("segment-boundary-incomplete"), "新段落未覆盖完整音频，已尝试回退");
-  assert.equal(content.formatWholeSegmentFailure("rollback-failed"), "自动回退失败，页面可能仍有修改；请人工检查并暂存或刷新");
+  assert.equal(content.formatWholeSegmentFailure("segment-boundary-incomplete"), "新段落未覆盖完整音频，已保留段落，请人工检查");
+});
+
+test("runtime keeps a generated but incomplete segment dirty without reporting rollback", async () => {
+  const messages = [];
+  const runtime = content.createRuntime({
+    window: { addEventListener() {} }, document: {}, settings: { enabled: true, shortcuts: {} },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { return { ok: false, code: "segment-boundary-incomplete", pageChanged: true, pageRestored: false }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage(value) { messages.push(value); } },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  const result = await runtime.actions.createWholeSegment();
+  assert.equal(result.code, "segment-boundary-incomplete");
+  assert.equal(runtime.getState().dirty, true);
+  assert.equal(messages.at(-1), "新段落未覆盖完整音频，已保留段落，请人工检查");
 });
 
 test("runtime keeps helper writes dirty until the matching native temporary save is observed", async () => {

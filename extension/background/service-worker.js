@@ -192,14 +192,13 @@ function getShujiajiaTrustedInputTarget(message, sender) {
   if (!message || message.type !== SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE || sender?.frameId !== 0) return null;
   const tab = sender?.tab || {};
   const action = String(message.action || "");
-  if (!Number.isInteger(tab.id) || (action !== "shift-drag" && action !== "delete")) return null;
+  if (!Number.isInteger(tab.id) || action !== "shift-drag") return null;
   try {
     const url = new URL(String(tab.url || ""));
     if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "www.shujiajia.com" || url.pathname !== "/workbench/piece/mark.html") return null;
   } catch (_error) {
     return null;
   }
-  if (action === "delete") return { tabId: tab.id, action };
   const width = Number(tab.width);
   const height = Number(tab.height);
   const values = [message.startX, message.startY, message.endX, message.endY].map(Number);
@@ -225,14 +224,6 @@ async function triggerShujiajiaTrustedInput(message, sender) {
       attached = true;
     } catch (_error) {
       actionError = "debugger-attach-failed";
-    }
-    if (!actionError && target.action === "delete") {
-      try {
-        await debuggerApi.sendCommand(debuggee, "Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 });
-        await debuggerApi.sendCommand(debuggee, "Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 });
-      } catch (_error) {
-        actionError = "debugger-delete-failed";
-      }
     }
     if (!actionError && target.action === "shift-drag") {
       const base = { button: "left", clickCount: 1, modifiers: 8 };

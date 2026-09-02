@@ -258,7 +258,7 @@ test("background rejects Shujiajia trusted input outside the top mark page or vi
   }), null);
 });
 
-test("background sends trusted Delete key events for Shujiajia rollback", async function () {
+test("background rejects trusted Delete requests for Shujiajia", async function () {
   const commands = [];
   const worker = loadServiceWorkerModule({
     debugger: {
@@ -274,11 +274,8 @@ test("background sends trusted Delete key events for Shujiajia rollback", async 
     frameId: 0,
     tab: { id: 9, url: "https://www.shujiajia.com/workbench/piece/mark.html", width: 1000, height: 700 },
   });
-  assert.deepEqual(result, { ok: true });
-  assert.deepEqual(commands, [
-    { command: "Input.dispatchKeyEvent", params: { type: "rawKeyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 } },
-    { command: "Input.dispatchKeyEvent", params: { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 } },
-  ]);
+  assert.deepEqual(result, { ok: false, reason: "trusted-input-unavailable" });
+  assert.deepEqual(commands, []);
 });
 
 test("background refuses debugger quality-submit clicks outside the exact current node 17 page", async function () {

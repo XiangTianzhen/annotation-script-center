@@ -26,7 +26,6 @@
       event?.source !== frame.contentWindow
     ) return null;
     const action = String(payload.action || "");
-    if (action === "delete") return { type: BACKGROUND_TRUSTED_INPUT, action };
     if (action !== "shift-drag") return null;
     const rect = frame.getBoundingClientRect?.();
     const values = [payload.startX, payload.startY, payload.endX, payload.endY].map(Number);
@@ -51,9 +50,8 @@
       "debugger-drag-failed": "可信拖拽执行失败，请刷新页面后重试",
       "draw-not-triggered": "平台未生成段落，请刷新页面后重试",
       "segment-boundary-unavailable": "已生成段落，但暂时读取不到边界，请人工检查",
-      "segment-boundary-incomplete": "新段落未覆盖完整音频，已尝试回退",
-      "segment-count-verification-failed": "平台生成了多个段落，已尝试回退",
-      "rollback-failed": "自动回退失败，页面可能仍有修改；请人工检查并暂存或刷新",
+      "segment-boundary-incomplete": "新段落未覆盖完整音频，已保留段落，请人工检查",
+      "segment-count-verification-failed": "平台生成了多个段落，已保留段落，请人工检查",
       "waveform-unavailable": "未找到可用波形或音频时长，请刷新页面后重试",
     };
     return messages[String(code || "")] || "整段划分未通过验证，请人工处理";
@@ -216,9 +214,9 @@
         if (result.ok) {
           setDirty(true);
           message("已划为一整段，待暂存");
-        } else if (result.pageChanged && result.pageRestored !== true) {
+        } else if (result.pageChanged) {
           setDirty(true);
-          message("自动回退失败，页面可能仍有修改；请人工检查并暂存或刷新");
+          message(formatWholeSegmentFailure(result.code));
         } else {
           if (!previousDirty) setDirty(false);
           message(result.code === "segments-exist" ? "已有段落，未执行任何修改" : formatWholeSegmentFailure(result.code));

@@ -18,6 +18,6 @@
 
 ## 音频与安全边界
 
-MAIN world 观察器只接收当前页面会话中响应类型为 `audio/*` 的字节，并在内存中转为 `audioDataUrl`。它不持久化、不记录、也不向后端发送原始资源 URL、签名参数、Cookie 或 Token。
+MAIN world 观察器从当前 `GET /web-task-alone-api/task/piece/execute` 响应的 `data.detail.fileFolder` 读取已确认的完整音频地址，并兼容被动接收当前会话中的音频响应字节。只接受 `https://storage.shujiajia.com/`，请求使用 `credentials: "omit"` 和 `referrerPolicy: "no-referrer"`，结果在内存中转为 `audioDataUrl`。
 
-音频真实 pathname 仍未固化为稳定契约。若刷新并播放后仍未捕获音频，运行时只提示人工重试，不根据 `dataName`、`dataPath` 或展示字段猜测地址。
+原始资源 URL、签名参数、Cookie、Token 和 `audioDataUrl` 均不持久化、不记录；跨题请求会中止或丢弃。若该字段缺失、来源不合法、超过 10MB 或资源请求失败，运行时保持未捕获状态，不根据其他展示字段猜测地址。

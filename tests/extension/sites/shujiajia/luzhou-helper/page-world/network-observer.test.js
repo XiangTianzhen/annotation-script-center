@@ -98,3 +98,136 @@ test("observer never derives current item context from POST execute responses", 
   }, { method: "POST" });
   assert.deepEqual(messages, []);
 });
+
+test("observer fetches the confirmed execute fileFolder in page world and emits only audio bytes", async () => {
+  const messages = [];
+  const calls = [];
+  const sourceUrl = "https://storage.shujiajia.com/store/redacted.wav?redacted=1";
+  const instance = observer.createObserver({
+    emit: (message) => messages.push(message),
+    fetchAudio: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: true,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/octet-stream" : "" },
+        arrayBuffer: async () => Uint8Array.from([1, 2, 3]).buffer,
+      };
+    },
+  });
+  instance.enable({});
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item", detail: { fileFolder: sourceUrl } } }) }),
+  }, { method: "GET" });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, sourceUrl);
+  assert.equal(calls[0].options.credentials, "omit");
+  assert.equal(calls[0].options.referrerPolicy, "no-referrer");
+  assert.deepEqual(messages.map((message) => message.type), [observer.constants.CONTEXT_READY, observer.constants.AUDIO_READY]);
+  assert.equal(messages[1].payload.audioDataUrl, "data:audio/wav;base64,AQID");
+  assert.equal(JSON.stringify(messages).includes("storage.shujiajia.com"), false);
+  assert.equal(JSON.stringify(messages).includes("redacted=1"), false);
+});
+
+test("observer rejects fileFolder values outside the confirmed HTTPS storage host", async () => {
+  const sourceUrls = [
+    "http://storage.shujiajia.com/store/redacted.wav",
+    "https://example.invalid/store/redacted.wav",
+    "/store/redacted.wav",
+  ];
+  for (let index = 0; index < sourceUrls.length; index += 1) {
+    const sourceUrl = sourceUrls[index];
+    let fetchCount = 0;
+    const messages = [];
+    const instance = observer.createObserver({
+      emit: (message) => messages.push(message),
+      fetchAudio: async () => { fetchCount += 1; throw new Error("must not fetch"); },
+    });
+    instance.enable({});
+    await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+      ok: true,
+      clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item-" + index, detail: { fileFolder: sourceUrl } } }) }),
+    }, { method: "GET" });
+    assert.equal(fetchCount, 0);
+    assert.deepEqual(messages.map((message) => message.type), [observer.constants.CONTEXT_READY]);
+  }
+});
+
+test("observer discards a direct audio fetch that finishes after the item changes", async () => {
+  const messages = [];
+  let finishOldFetch;
+  const instance = observer.createObserver({
+    emit: (message) => messages.push(message),
+    fetchAudio: () => new Promise((resolve) => { finishOldFetch = resolve; }),
+  });
+  instance.enable({});
+  const pending = instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "old", detail: { fileFolder: "https://storage.shujiajia.com/store/old.wav" } } }) }),
+  }, { method: "GET" });
+  await Promise.resolve();
+  await Promise.resolve();
+  instance.setContext("task:new");
+  finishOldFetch({
+    ok: true,
+    headers: { get: () => "audio/wav" },
+    arrayBuffer: async () => Uint8Array.from([1]).buffer,
+  });
+  await pending;
+  assert.equal(messages.filter((message) => message.type === observer.constants.AUDIO_READY).length, 0);
+});
+
+test("observer requests fileFolder only once for the same current context", async () => {
+  let fetchCount = 0;
+  const instance = observer.createObserver({
+    emit() {},
+    fetchAudio: async () => {
+      fetchCount += 1;
+      return { ok: true, headers: { get: () => "audio/wav" }, arrayBuffer: async () => Uint8Array.from([1]).buffer };
+    },
+  });
+  instance.enable({});
+  const response = () => ({
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item", detail: { fileFolder: "https://storage.shujiajia.com/store/item.wav" } } }) }),
+  });
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute", response(), { method: "GET" });
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute", response(), { method: "GET" });
+  assert.equal(fetchCount, 1);
+});
+
+test("observer rejects failed, non-audio, and oversized direct audio responses", async () => {
+  const fixtures = [
+    { ok: false, headers: { get: () => "audio/wav" }, arrayBuffer: async () => Uint8Array.from([1]).buffer },
+    { ok: true, headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/html" : "" }, arrayBuffer: async () => Uint8Array.from([1]).buffer },
+    { ok: true, headers: { get: (name) => name.toLowerCase() === "content-length" ? String(10 * 1024 * 1024 + 1) : "audio/wav" }, arrayBuffer: async () => { throw new Error("oversized response body must not be read"); } },
+  ];
+  for (let index = 0; index < fixtures.length; index += 1) {
+    const messages = [];
+    const instance = observer.createObserver({
+      emit: (message) => messages.push(message),
+      fetchAudio: async () => fixtures[index],
+    });
+    instance.enable({});
+    await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+      ok: true,
+      clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: String(index), detail: { fileFolder: "https://storage.shujiajia.com/store/redacted.wav" } } }) }),
+    }, { method: "GET" });
+    assert.equal(messages.some((message) => message.type === observer.constants.AUDIO_READY), false);
+  }
+});
+
+test("observer ignores an execute response without fileFolder", async () => {
+  let fetchCount = 0;
+  const instance = observer.createObserver({
+    emit() {},
+    fetchAudio: async () => { fetchCount += 1; return null; },
+  });
+  instance.enable({});
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item", detail: {} } }) }),
+  }, { method: "GET" });
+  assert.equal(fetchCount, 0);
+});

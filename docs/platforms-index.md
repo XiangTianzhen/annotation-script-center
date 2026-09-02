@@ -39,7 +39,7 @@
 - 稳定页面结构：`platform-resources/shujiajia/page-structure/`
 - 泸州话脚本边界：`platform-resources/shujiajia/luzhou-helper/README.md`
 - 泸州话运行时：`extension/sites/shujiajia/luzhou-helper/`
-  - 当前状态：已接入 Peaks.js 零分段可信整段划分、两阶段识别、人工填入、右下悬浮面板及两项 AI 快捷键；有效性、保存和提交使用平台原生操作，不自动暂存或提交。
+  - 当前状态：已接入 Peaks.js 零分段可信整段划分、execute 音频获取、两阶段识别、人工填入、右下悬浮面板及两项 AI 快捷键；整段按两像素验收且不自动删除，有效性、保存和提交使用平台原生操作，不自动暂存或提交。
 
 ## 统一后端
 
