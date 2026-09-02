@@ -83,6 +83,20 @@
     return result;
   }
 
+  function normalizeShujiajiaShortcutMap(value) {
+    const source = object(value);
+    const allowed = new Set((constants.SHUJIAJIA_LUZHOU_SHORTCUT_ACTIONS || []).map(function (item) {
+      return item.key;
+    }));
+    const result = {};
+    Object.entries(source).forEach(function ([key, shortcut]) {
+      if (allowed.has(key) && (shortcut === null || (shortcut && typeof shortcut === "object"))) {
+        result[key] = clone(shortcut);
+      }
+    });
+    return result;
+  }
+
   function normalizeMeta(rawMeta) {
     const source = object(rawMeta);
     const baseUrls = constants.getBackendBaseUrlsFromSettings({ meta: { backendBaseUrls: source.backendBaseUrls } });
@@ -372,7 +386,7 @@
     const fallback = defaults.scripts.luzhouHelper;
     const next = { ...clone(fallback) };
     Object.keys(fallback).forEach((key) => {
-      if (key === "shortcuts") next[key] = normalizeShortcutMap(scriptSource[key], fallback.shortcuts, false);
+      if (key === "shortcuts") next[key] = normalizeShujiajiaShortcutMap(scriptSource[key]);
       else if (typeof fallback[key] === "boolean") next[key] = bool(scriptSource[key], fallback[key]);
       else if (key === "aiRecommendRequestTimeoutMs") next[key] = numberInRange(scriptSource[key], fallback[key], 1000, 60000);
       else if (typeof scriptSource[key] === "string") next[key] = text(scriptSource[key], fallback[key]);

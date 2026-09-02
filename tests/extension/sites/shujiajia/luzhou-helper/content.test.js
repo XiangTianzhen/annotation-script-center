@@ -6,6 +6,65 @@ const { resolveRepo } = require("#repo-paths");
 
 const content = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "content.js"));
 
+test("top-frame trusted input bridge accepts only bdIframe and translates drag coordinates", () => {
+  const frameWindow = {};
+  const iframe = {
+    contentWindow: frameWindow,
+    getBoundingClientRect: () => ({ left: 50, top: 120, width: 900, height: 600 }),
+  };
+  const documentLike = { querySelector: (selector) => selector === "#bdIframe" ? iframe : null };
+  const message = content.buildTopTrustedInputMessage({
+    source: frameWindow,
+    data: {
+      source: content.constants.SOURCE,
+      type: content.constants.TRUSTED_INPUT_REQUEST,
+      payload: { requestId: "req-1", action: "shift-drag", startX: 2, startY: 20, endX: 898, endY: 20 },
+    },
+  }, documentLike);
+
+  assert.deepEqual(message, {
+    type: content.constants.BACKGROUND_TRUSTED_INPUT,
+    action: "shift-drag",
+    startX: 52,
+    startY: 140,
+    endX: 948,
+    endY: 140,
+  });
+  assert.equal(content.buildTopTrustedInputMessage({
+    source: {},
+    data: { source: content.constants.SOURCE, type: content.constants.TRUSTED_INPUT_REQUEST, payload: { requestId: "req-2", action: "delete" } },
+  }, documentLike), null);
+});
+
+test("whole-segment action supplies the controller with the trusted input bridge", async () => {
+  let adapterOptions = null;
+  let trustedCalls = 0;
+  const runtime = content.createRuntime({
+    window: { addEventListener() {}, top: {} },
+    document: {},
+    settings: { enabled: true, shortcuts: {} },
+    trustedInput: async () => { trustedCalls += 1; return { ok: true }; },
+    segmentController: {
+      createDomAdapter(_document, options) { adapterOptions = options; return {}; },
+      async createWholeSegment() { await adapterOptions.trustedInput({ action: "delete" }); return { ok: false, code: "draw-not-triggered", pageChanged: false }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  await runtime.actions.createWholeSegment();
+  assert.equal(typeof adapterOptions.trustedInput, "function");
+  assert.equal(trustedCalls, 1);
+});
+
+test("whole-segment failure messages distinguish debugger, drawing, boundary, and rollback failures", () => {
+  assert.equal(content.formatWholeSegmentFailure("debugger-attach-failed"), "浏览器可信拖拽不可用，可能正被开发者工具占用");
+  assert.equal(content.formatWholeSegmentFailure("draw-not-triggered"), "平台未生成段落，请刷新页面后重试");
+  assert.equal(content.formatWholeSegmentFailure("segment-boundary-unavailable"), "已生成段落，但暂时读取不到边界，请人工检查");
+  assert.equal(content.formatWholeSegmentFailure("segment-boundary-incomplete"), "新段落未覆盖完整音频，已尝试回退");
+  assert.equal(content.formatWholeSegmentFailure("rollback-failed"), "自动回退失败，页面可能仍有修改；请人工检查并暂存或刷新");
+});
+
 test("runtime keeps helper writes dirty until the matching native temporary save is observed", async () => {
   const messages = [];
   const listeners = {};

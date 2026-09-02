@@ -41,7 +41,7 @@ test("Shujiajia defaults register a disabled Luzhou helper with sparse empty sho
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.shujiajia.scripts.luzhouHelper;
-    assert.equal(settings.meta.schemaVersion, 37);
+    assert.equal(settings.meta.schemaVersion, 38);
     assert.equal(harness.constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, "shujiajiaLuzhouHelper");
     assert.equal(settings.platforms.shujiajia.enabled, true);
     assert.equal(script.enabled, false);
@@ -54,7 +54,7 @@ test("Shujiajia defaults register a disabled Luzhou helper with sparse empty sho
   }
 });
 
-test("Shujiajia storage preserves explicit settings and sparse shortcut choices", async () => {
+test("Shujiajia storage keeps only the two AI shortcuts during schema 38 migration", async () => {
   const harness = load({
     meta: { schemaVersion: 37 },
     platforms: { shujiajia: { scripts: { luzhouHelper: {
@@ -62,7 +62,15 @@ test("Shujiajia storage preserves explicit settings and sparse shortcut choices"
       aiRecommendListenModel: "qwen3.5-omni-plus",
       aiRecommendRefineModel: "qwen3.5-flash",
       aiRecommendRequestTimeoutMs: 90000,
-      shortcuts: { togglePlayPause: { key: "p", ctrl: true }, recognizeWhole: null },
+      shortcuts: {
+        togglePlayPause: { key: "p", ctrl: true },
+        createWholeSegment: { key: "d", shift: true },
+        recognizeWhole: { key: "r", ctrl: true },
+        fillRecognition: { key: "f", alt: true },
+        markEffective: { key: "1" },
+        temporarySave: { key: "s", ctrl: true },
+        submitNext: { key: "Enter", ctrl: true },
+      },
     } } } },
   });
   try {
@@ -71,8 +79,10 @@ test("Shujiajia storage preserves explicit settings and sparse shortcut choices"
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-plus");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
-    assert.deepEqual(script.shortcuts.togglePlayPause, { key: "p", ctrl: true });
-    assert.equal(script.shortcuts.recognizeWhole, null);
+    assert.deepEqual(script.shortcuts, {
+      recognizeWhole: { key: "r", ctrl: true },
+      fillRecognition: { key: "f", alt: true },
+    });
   } finally {
     harness.cleanup();
   }

@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 37;
+  const SCHEMA_VERSION = 38;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -106,14 +106,8 @@
   const BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
   const BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
   const SHUJIAJIA_LUZHOU_SHORTCUT_ACTIONS = [
-    { key: "togglePlayPause", label: "播放/暂停" },
-    { key: "createWholeSegment", label: "整音频划一段" },
     { key: "recognizeWhole", label: "识别整段" },
     { key: "fillRecognition", label: "填入识别结果" },
-    { key: "markEffective", label: "当前段有效" },
-    { key: "markIneffective", label: "当前段无效" },
-    { key: "temporarySave", label: "暂存" },
-    { key: "submitNext", label: "提交进入下一条" },
   ];
 
   function trimBaseUrl(value) { return String(value || "").trim().replace(/\/+$/, ""); }

@@ -20,8 +20,11 @@
     const segment = segments[0] || {};
     const startMs = Number(segment.startMs);
     const endMs = Number(segment.endMs);
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs > pixelMs || endMs < durationMs - pixelMs) {
-      return result(false, "whole-segment-required", { segmentCount: 1 });
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      return result(false, "segment-boundary-unavailable", { segmentCount: 1 });
+    }
+    if (startMs > pixelMs || endMs < durationMs - pixelMs) {
+      return result(false, "segment-boundary-incomplete", { segmentCount: 1, segment });
     }
     return result(true, "whole-segment-ready", { segmentCount: 1, segment });
   }
@@ -34,7 +37,8 @@
       }
       try {
         await api.rollbackWholeSegment();
-        if (typeof api.waitForRender === "function") await api.waitForRender();
+        if (typeof api.waitForSegmentCount === "function") await api.waitForSegmentCount(0);
+        else if (typeof api.waitForRender === "function") await api.waitForRender();
         else await wait(100);
       } catch (_error) {
         return result(false, "rollback-failed", { failureCode, segmentCount, pageChanged: true, pageRestored: false });
@@ -54,36 +58,33 @@
     try {
       if (typeof api.activateDrawTool === "function") await api.activateDrawTool();
       await api.dragWholeWaveform();
-    } catch (_error) {
+    } catch (error) {
       const partial = Array.from(api.getSegments?.() || []);
-      return partial.length ? rollback("draw-failed", partial.length) : result(false, "draw-failed", { pageChanged: false, pageRestored: true });
+      const reason = String(error?.message || "");
+      const failureCode = ["trusted-input-unavailable", "trusted-input-timeout", "debugger-attach-failed", "debugger-drag-failed"].includes(reason)
+        ? reason
+        : "draw-failed";
+      return partial.length ? rollback(failureCode, partial.length) : result(false, failureCode, { pageChanged: false, pageRestored: true });
     }
-    if (typeof api.waitForRender === "function") await api.waitForRender();
+    if (typeof api.waitForSegmentCount === "function") await api.waitForSegmentCount(1);
+    else if (typeof api.waitForRender === "function") await api.waitForRender();
     else await wait(180);
     const after = Array.from(api.getSegments?.() || []);
     if (after.length !== 1) {
       return after.length
         ? rollback("segment-count-verification-failed", after.length)
-        : result(false, "segment-count-verification-failed", { segmentCount: 0, pageChanged: false, pageRestored: true });
+        : result(false, "draw-not-triggered", { segmentCount: 0, pageChanged: false, pageRestored: true });
     }
     const verified = verifyWholeSegment(api);
     if (!verified.ok) {
-      return rollback("boundary-verification-failed", 1);
+      return rollback(verified.code, 1);
     }
     return result(true, "whole-segment-created", { segmentCount: 1, segment: verified.segment, pageChanged: true, pageRestored: false });
   }
 
-  function dispatchPointer(target, type, x, y) {
-    const mouseType = { pointerdown: "mousedown", pointermove: "mousemove", pointerup: "mouseup" }[type] || type;
-    const EventClass = globalThis.MouseEvent;
-    target.dispatchEvent(new EventClass(mouseType, {
-      bubbles: true, cancelable: true, clientX: x, clientY: y,
-      button: 0, buttons: type === "pointerup" ? 0 : 1,
-    }));
-  }
-
-  function createDomAdapter(documentLike) {
+  function createDomAdapter(documentLike, options) {
     const doc = documentLike || globalThis.document;
+    const trustedInput = options?.trustedInput;
     function visible(node) { return Boolean(node && !node.disabled && node.getClientRects?.().length); }
     function getRows() {
       return Array.from(doc.querySelectorAll("tbody tr")).filter((row) => row.querySelector("textarea[placeholder*='转写'], input[placeholder*='转写']"));
@@ -94,6 +95,18 @@
         if (Number.isFinite(value)) return value;
       }
       return NaN;
+    }
+    function getPageText() {
+      return Array.from(doc.querySelectorAll("body *"))
+        .map((node) => String(node.textContent || "").replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+    }
+    function getSelectedBoundary() {
+      for (const text of getPageText()) {
+        const match = text.match(/段落\s*[:：]\s*\d+.*?区域\s*[:：]\s*[\[【［]\s*(\d+(?:\.\d+)?)(?:\s*[,，]\s*|\s+)(\d+(?:\.\d+)?)\s*[\]】］]/i);
+        if (match) return { startMs: Number(match[1]) * 1000, endMs: Number(match[2]) * 1000 };
+      }
+      return null;
     }
     function getWaveform() {
       const exact = doc.querySelector(".audio-peaks .waveform");
@@ -107,56 +120,44 @@
     }
     return {
       getSegments() {
-        const waveform = getWaveform();
-        const regions = Array.from(doc.querySelectorAll("region[data-id], .wavesurfer-region, [data-id^='wavesurfer_']"))
-          .filter(visible);
-        if (waveform && regions.length) {
-          return regions.map((region) => {
-            const rect = region.getBoundingClientRect();
-            const width = waveform.rect.width || 1;
-            const durationMs = this.getAudioDurationMs();
-            return {
-              startMs: Math.max(0, ((rect.left - waveform.rect.left) / width) * durationMs),
-              endMs: Math.min(durationMs, ((rect.right - waveform.rect.left) / width) * durationMs),
-            };
-          });
-        }
-        return getRows().map((row) => ({
+        const rows = getRows();
+        const segments = rows.map((row) => ({
           startMs: numberAttr(row, ["startMs", "start", "timeStart", "hdTimeStart", "data-start-ms"]),
           endMs: numberAttr(row, ["endMs", "end", "timeEnd", "hdTimeEnd", "data-end-ms"]),
         }));
+        const selected = getSelectedBoundary();
+        if (segments.length === 1 && selected) segments[0] = selected;
+        return segments;
       },
       getAudioDurationMs() {
         const media = doc.querySelector("audio,video");
         if (Number.isFinite(media?.duration)) return media.duration * 1000;
-        const text = Array.from(doc.querySelectorAll("body *")).map((node) => node.childElementCount ? "" : node.textContent).find((value) => /\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?S/i.test(value || ""));
+        const text = getPageText().find((value) => /\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?S/i.test(value || ""));
         const match = String(text || "").match(/\/\s*(\d+(?:\.\d+)?)S/i);
         return match ? Number(match[1]) * 1000 : 0;
       },
       getWaveformWidth() { return getWaveform()?.rect.width || 0; },
-      async activateDrawTool() {
-        const tool = doc.querySelector(".center-tools .a-svg-icon-extent")?.closest?.(".tool-btn");
-        if (!visible(tool)) throw new Error("draw-tool-unavailable");
-        if (!tool.classList.contains("active")) tool.click();
-      },
       async dragWholeWaveform() {
+        if (typeof trustedInput !== "function") throw new Error("trusted-input-unavailable");
         const waveform = getWaveform();
         if (!waveform) throw new Error("waveform-unavailable");
         const rect = waveform.rect;
         const y = rect.top + rect.height / 2;
-        const target = doc.elementFromPoint?.(rect.left + 1, y) || waveform.node;
-        dispatchPointer(target, "pointerdown", rect.left + 1, y);
-        dispatchPointer(target, "pointermove", rect.right - 1, y);
-        dispatchPointer(target, "pointerup", rect.right - 1, y);
+        const response = await trustedInput({ action: "shift-drag", startX: rect.left + 1, startY: y, endX: rect.right - 1, endY: y });
+        if (response?.ok !== true) throw new Error(String(response?.reason || "trusted-drag-failed"));
       },
       async rollbackWholeSegment() {
-        const target = doc.activeElement || doc.body;
-        const EventClass = globalThis.KeyboardEvent;
-        if (!target || typeof EventClass !== "function") return;
-        ["keydown", "keyup"].forEach((type) => target.dispatchEvent(new EventClass(type, {
-          key: "Delete", code: "Delete", bubbles: true, cancelable: true,
-        })));
-        await wait(80);
+        if (typeof trustedInput !== "function") throw new Error("trusted-input-unavailable");
+        const response = await trustedInput({ action: "delete" });
+        if (response?.ok !== true) throw new Error(String(response?.reason || "trusted-delete-failed"));
+      },
+      async waitForSegmentCount(expected) {
+        const deadline = Date.now() + 2000;
+        while (Date.now() < deadline) {
+          if (getRows().length === expected && (expected !== 1 || getSelectedBoundary())) return true;
+          await wait(50);
+        }
+        return false;
       },
     };
   }

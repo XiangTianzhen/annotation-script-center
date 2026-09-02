@@ -10,6 +10,54 @@
   const OBSERVER_ENABLE = "ASC_SHUJIAJIA_OBSERVER_ENABLE";
   const OBSERVER_DISABLE = "ASC_SHUJIAJIA_OBSERVER_DISABLE";
   const SAVE_INTENT = "ASC_SHUJIAJIA_SAVE_INTENT";
+  const TRUSTED_INPUT_REQUEST = "ASC_SHUJIAJIA_TRUSTED_INPUT_REQUEST";
+  const TRUSTED_INPUT_RESPONSE = "ASC_SHUJIAJIA_TRUSTED_INPUT_RESPONSE";
+  const BACKGROUND_TRUSTED_INPUT = "ASR_EDGE_SHUJIAJIA_TRUSTED_INPUT";
+
+  function buildTopTrustedInputMessage(event, documentLike) {
+    const data = event?.data;
+    const payload = data?.payload;
+    const frame = documentLike?.querySelector?.("#bdIframe");
+    if (
+      data?.source !== SOURCE ||
+      data?.type !== TRUSTED_INPUT_REQUEST ||
+      !payload?.requestId ||
+      !frame ||
+      event?.source !== frame.contentWindow
+    ) return null;
+    const action = String(payload.action || "");
+    if (action === "delete") return { type: BACKGROUND_TRUSTED_INPUT, action };
+    if (action !== "shift-drag") return null;
+    const rect = frame.getBoundingClientRect?.();
+    const values = [payload.startX, payload.startY, payload.endX, payload.endY].map(Number);
+    if (!rect || values.some((value) => !Number.isFinite(value))) return null;
+    const [startX, startY, endX, endY] = values;
+    if (startX < 0 || startY < 0 || endX <= startX || endY < 0 || endX > rect.width || startY > rect.height || endY > rect.height) return null;
+    return {
+      type: BACKGROUND_TRUSTED_INPUT,
+      action,
+      startX: rect.left + startX,
+      startY: rect.top + startY,
+      endX: rect.left + endX,
+      endY: rect.top + endY,
+    };
+  }
+
+  function formatWholeSegmentFailure(code) {
+    const messages = {
+      "trusted-input-unavailable": "浏览器可信拖拽不可用，请重新加载扩展后重试",
+      "trusted-input-timeout": "浏览器可信拖拽等待超时，请刷新页面后重试",
+      "debugger-attach-failed": "浏览器可信拖拽不可用，可能正被开发者工具占用",
+      "debugger-drag-failed": "可信拖拽执行失败，请刷新页面后重试",
+      "draw-not-triggered": "平台未生成段落，请刷新页面后重试",
+      "segment-boundary-unavailable": "已生成段落，但暂时读取不到边界，请人工检查",
+      "segment-boundary-incomplete": "新段落未覆盖完整音频，已尝试回退",
+      "segment-count-verification-failed": "平台生成了多个段落，已尝试回退",
+      "rollback-failed": "自动回退失败，页面可能仍有修改；请人工检查并暂存或刷新",
+      "waveform-unavailable": "未找到可用波形或音频时长，请刷新页面后重试",
+    };
+    return messages[String(code || "")] || "整段划分未通过验证，请人工处理";
+  }
 
   function createRuntime(options) {
     const config = options || {};
@@ -20,10 +68,12 @@
     const aiClient = config.aiClient || globalThis.__ASREdgeShujiajiaAiRecommendation || {};
     const panel = config.panel || globalThis.__ASREdgeShujiajiaUiPanel?.createPanel?.({ document: documentLike }) || {};
     const shortcuts = config.shortcuts || globalThis.__ASREdgeShujiajiaShortcuts || {};
+    const runtimeApi = config.runtimeApi || globalThis.chrome?.runtime;
     const state = { audioDataUrl: "", audioContextId: "", contextId: "", dirty: false, dirtyToken: "", result: null, resultContextId: "", settings: config.settings || null };
     let shortcutRuntime = null;
     let mountTimer = null;
     let storageChangeListener = null;
+    const pendingTrustedInputs = new Map();
 
     function message(text) { panel.setMessage?.(text); }
     function origin() { return windowLike?.location?.origin || "*"; }
@@ -35,6 +85,28 @@
         try { frame.contentWindow?.postMessage?.(data, origin()); } catch (_error) {}
       });
     }
+    function sendRuntimeMessage(message) {
+      if (typeof runtimeApi?.sendMessage !== "function") return Promise.resolve({ ok: false, reason: "trusted-input-unavailable" });
+      try { return Promise.resolve(runtimeApi.sendMessage(message)); }
+      catch (_error) { return Promise.resolve({ ok: false, reason: "trusted-input-unavailable" }); }
+    }
+    function normalizeTrustedInputResponse(response) {
+      const value = response?.result && typeof response.result === "object" ? response.result : response;
+      return value?.ok === true ? { ok: true } : { ok: false, reason: String(value?.reason || "trusted-input-failed") };
+    }
+    function requestTrustedInput(payload) {
+      if (windowLike?.top === windowLike) return sendRuntimeMessage({ type: BACKGROUND_TRUSTED_INPUT, ...payload }).then(normalizeTrustedInputResponse);
+      const requestId = globalThis.crypto?.randomUUID?.() || String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+      return new Promise((resolve) => {
+        const timer = (windowLike?.setTimeout || globalThis.setTimeout)(() => {
+          pendingTrustedInputs.delete(requestId);
+          resolve({ ok: false, reason: "trusted-input-timeout" });
+        }, 5000);
+        pendingTrustedInputs.set(requestId, { resolve, timer });
+        postTop({ source: SOURCE, type: TRUSTED_INPUT_REQUEST, payload: { ...payload, requestId } });
+      });
+    }
+    const trustedInput = config.trustedInput || requestTrustedInput;
     function newDirtyToken() {
       return globalThis.crypto?.randomUUID?.() || String(Date.now()) + "-" + Math.random().toString(36).slice(2);
     }
@@ -113,6 +185,20 @@
         if (state.audioDataUrl && (!data.payload?.contextId || data.payload.contextId === state.contextId)) {
           event.source.postMessage({ source: SOURCE, type: AUDIO_READY, payload: { contextId: state.contextId, audioDataUrl: state.audioDataUrl } }, origin());
         }
+      } else if (data.type === TRUSTED_INPUT_REQUEST && windowLike?.top === windowLike && event.source?.postMessage) {
+        const request = buildTopTrustedInputMessage(event, documentLike);
+        if (!request) return;
+        const requestId = String(data.payload.requestId);
+        void sendRuntimeMessage(request).then(normalizeTrustedInputResponse).then((response) => {
+          event.source.postMessage({ source: SOURCE, type: TRUSTED_INPUT_RESPONSE, payload: { requestId, ...response } }, origin());
+        });
+      } else if (data.type === TRUSTED_INPUT_RESPONSE && data.payload?.requestId) {
+        const requestId = String(data.payload.requestId);
+        const pending = pendingTrustedInputs.get(requestId);
+        if (!pending) return;
+        pendingTrustedInputs.delete(requestId);
+        (windowLike?.clearTimeout || globalThis.clearTimeout)(pending.timer);
+        pending.resolve(normalizeTrustedInputResponse(data.payload));
       }
     }
 
@@ -125,7 +211,7 @@
         if (!await refreshSettings(false)) return { ok: false, code: "script-disabled" };
         message("正在划分整段…");
         const previousDirty = state.dirty;
-        const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike);
+        const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
         const result = await segmentController.createWholeSegment?.(adapter || {}) || { ok: false, code: "controller-unavailable", pageChanged: false };
         if (result.ok) {
           setDirty(true);
@@ -135,7 +221,7 @@
           message("自动回退失败，页面可能仍有修改；请人工检查并暂存或刷新");
         } else {
           if (!previousDirty) setDirty(false);
-          message(result.code === "segments-exist" ? "已有段落，未执行任何修改" : "整段划分未通过验证，请人工处理");
+          message(result.code === "segments-exist" ? "已有段落，未执行任何修改" : formatWholeSegmentFailure(result.code));
         }
         return result;
       },
@@ -146,7 +232,7 @@
           message("尚未捕获当前条目音频，请刷新页面并播放一次音频后重试");
           return { ok: false, code: "audio-not-captured" };
         }
-        const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike);
+        const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
         const segmentState = segmentController.verifyWholeSegment?.(adapter || {}) || { ok: false, code: "whole-segment-required" };
         if (!segmentState.ok) {
           message("请先将零段落音频完整划为一个段落");
@@ -259,6 +345,11 @@
       shortcutRuntime?.stop?.();
       if (storageChangeListener) globalThis.chrome?.storage?.onChanged?.removeListener?.(storageChangeListener);
       storageChangeListener = null;
+      pendingTrustedInputs.forEach((pending) => {
+        (windowLike?.clearTimeout || globalThis.clearTimeout)(pending.timer);
+        pending.resolve({ ok: false, reason: "trusted-input-cancelled" });
+      });
+      pendingTrustedInputs.clear();
       panel.remove?.();
       postLocal({ source: SOURCE, type: OBSERVER_DISABLE, payload: {} });
       windowLike?.removeEventListener?.("message", onMessage);
@@ -268,7 +359,7 @@
     return { actions, getState, setRecognitionResult, start, stop };
   }
 
-  const api = { createRuntime, constants: { SOURCE, AUDIO_READY, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT } };
+  const api = { buildTopTrustedInputMessage, createRuntime, formatWholeSegmentFailure, constants: { SOURCE, AUDIO_READY, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT, TRUSTED_INPUT_REQUEST, TRUSTED_INPUT_RESPONSE, BACKGROUND_TRUSTED_INPUT } };
   globalThis.__ASREdgeShujiajiaContent = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 

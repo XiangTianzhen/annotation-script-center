@@ -9,6 +9,7 @@ const AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE = "ASR_EDGE_RESET_AIDP_LOGIN_STATE";
 const AIDP_COOKIE_CLEAR_MESSAGE_TYPE = "ASR_EDGE_CLEAR_AIDP_COOKIES";
 const AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE =
   "ASR_EDGE_AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK";
+const SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE = "ASR_EDGE_SHUJIAJIA_TRUSTED_INPUT";
 const AIDP_SITE_STORAGE_CLEAR_ORIGINS = Object.freeze([
   "https://aidp.bytedance.com",
   "https://mpsso.jiyunhudong.com",
@@ -182,6 +183,88 @@ async function triggerAidpInternalQualityDebuggerClick(message, sender) {
       } catch (_error) {
         actionError = actionError || "debugger-detach-failed";
       }
+    }
+  }
+  return actionError ? { ok: false, reason: actionError } : { ok: true };
+}
+
+function getShujiajiaTrustedInputTarget(message, sender) {
+  if (!message || message.type !== SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE || sender?.frameId !== 0) return null;
+  const tab = sender?.tab || {};
+  const action = String(message.action || "");
+  if (!Number.isInteger(tab.id) || (action !== "shift-drag" && action !== "delete")) return null;
+  try {
+    const url = new URL(String(tab.url || ""));
+    if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "www.shujiajia.com" || url.pathname !== "/workbench/piece/mark.html") return null;
+  } catch (_error) {
+    return null;
+  }
+  if (action === "delete") return { tabId: tab.id, action };
+  const width = Number(tab.width);
+  const height = Number(tab.height);
+  const values = [message.startX, message.startY, message.endX, message.endY].map(Number);
+  if (!(width > 0) || !(height > 0) || values.some((value) => !Number.isFinite(value))) return null;
+  const [startX, startY, endX, endY] = values;
+  if (startX < 0 || startY < 0 || endX <= startX || endY < 0 || startX > width || endX > width || startY > height || endY > height) return null;
+  return { tabId: tab.id, action, startX, startY, endX, endY };
+}
+
+async function triggerShujiajiaTrustedInput(message, sender) {
+  const target = getShujiajiaTrustedInputTarget(message, sender);
+  const debuggerApi = chrome.debugger;
+  if (!target || !debuggerApi?.attach || !debuggerApi?.sendCommand || !debuggerApi?.detach) {
+    return { ok: false, reason: "trusted-input-unavailable" };
+  }
+  const debuggee = { tabId: target.tabId };
+  let attached = false;
+  let pressed = false;
+  let actionError = "";
+  try {
+    try {
+      await debuggerApi.attach(debuggee, "1.3");
+      attached = true;
+    } catch (_error) {
+      actionError = "debugger-attach-failed";
+    }
+    if (!actionError && target.action === "delete") {
+      try {
+        await debuggerApi.sendCommand(debuggee, "Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 });
+        await debuggerApi.sendCommand(debuggee, "Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 });
+      } catch (_error) {
+        actionError = "debugger-delete-failed";
+      }
+    }
+    if (!actionError && target.action === "shift-drag") {
+      const base = { button: "left", clickCount: 1, modifiers: 8 };
+      try {
+        await debuggerApi.sendCommand(debuggee, "Input.dispatchMouseEvent", { ...base, type: "mouseMoved", x: target.startX, y: target.startY, buttons: 0 });
+        await debuggerApi.sendCommand(debuggee, "Input.dispatchMouseEvent", { ...base, type: "mousePressed", x: target.startX, y: target.startY, buttons: 1 });
+        pressed = true;
+        const steps = 12;
+        for (let index = 1; index <= steps; index += 1) {
+          const ratio = index / steps;
+          await debuggerApi.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+            ...base,
+            type: "mouseMoved",
+            x: target.startX + (target.endX - target.startX) * ratio,
+            y: target.startY + (target.endY - target.startY) * ratio,
+            buttons: 1,
+          });
+        }
+        await debuggerApi.sendCommand(debuggee, "Input.dispatchMouseEvent", { ...base, type: "mouseReleased", x: target.endX, y: target.endY, buttons: 0 });
+        pressed = false;
+      } catch (_error) {
+        actionError = "debugger-drag-failed";
+      }
+    }
+  } finally {
+    if (attached && pressed) {
+      try {
+        await debuggerApi.sendCommand(debuggee, "Input.dispatchMouseEvent", { type: "mouseReleased", x: target.endX, y: target.endY, button: "left", buttons: 0, clickCount: 1, modifiers: 8 });
+      } catch (_error) {}
+    }
+    if (attached) {
+      try { await debuggerApi.detach(debuggee); } catch (_error) { actionError = actionError || "debugger-detach-failed"; }
     }
   }
   return actionError ? { ok: false, reason: actionError } : { ok: true };
@@ -472,6 +555,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE) {
+    triggerShujiajiaTrustedInput(message, sender)
+      .then(function (result) { sendResponse({ ok: result.ok === true, result: result }); })
+      .catch(function () { sendResponse({ ok: false, result: { ok: false, reason: "trusted-input-failed" } }); });
+    return true;
+  }
+
   return undefined;
 });
 
@@ -489,10 +579,13 @@ if (typeof module !== "undefined" && module.exports) {
       resetAidpLoginState: resetAidpLoginState,
       getAidpInternalQualityDebuggerClickTarget: getAidpInternalQualityDebuggerClickTarget,
       triggerAidpInternalQualityDebuggerClick: triggerAidpInternalQualityDebuggerClick,
+      getShujiajiaTrustedInputTarget: getShujiajiaTrustedInputTarget,
+      triggerShujiajiaTrustedInput: triggerShujiajiaTrustedInput,
       AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE: AIDP_LOGIN_STATE_RESET_MESSAGE_TYPE,
       AIDP_COOKIE_CLEAR_MESSAGE_TYPE: AIDP_COOKIE_CLEAR_MESSAGE_TYPE,
       AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE:
         AIDP_INTERNAL_QUALITY_DEBUGGER_CLICK_MESSAGE_TYPE,
+      SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE: SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE,
       AIDP_SITE_STORAGE_CLEAR_ORIGINS: AIDP_SITE_STORAGE_CLEAR_ORIGINS,
       AIDP_SITE_STORAGE_REMOVE_OPTIONS: AIDP_SITE_STORAGE_REMOVE_OPTIONS,
     },

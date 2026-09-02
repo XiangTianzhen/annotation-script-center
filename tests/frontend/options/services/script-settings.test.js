@@ -308,7 +308,10 @@ describe("script-settings helpers", () => {
     expect(getScriptShortcutActions("bytedanceAidpJinhuaHelper")).toHaveLength(7);
     expect(getScriptShortcutActions("bytedanceAidpTaizhouHelper")).toHaveLength(7);
     expect(getScriptShortcutActions("magicDataHangzhouAssistant")).toHaveLength(22);
-    expect(getScriptShortcutActions("shujiajiaLuzhouHelper")).toHaveLength(8);
+    expect(getScriptShortcutActions("shujiajiaLuzhouHelper")).toEqual([
+      { key: "recognizeWhole", label: "识别整段" },
+      { key: "fillRecognition", label: "填入识别结果" },
+    ]);
   });
 
   test("describes Shujiajia as manual two-stage recognition without lexicon controls", () => {

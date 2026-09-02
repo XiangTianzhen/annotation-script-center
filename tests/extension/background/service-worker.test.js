@@ -205,6 +205,82 @@ test("background reports a safe attach failure instead of treating a rejected de
   assert.deepEqual(result, { ok: false, reason: "debugger-attach-failed" });
 });
 
+test("background dispatches a guarded Shift drag with continuous trusted mouse movement", async function () {
+  const calls = [];
+  const worker = loadServiceWorkerModule({
+    debugger: {
+      attach: async function () { calls.push({ type: "attach" }); },
+      sendCommand: async function (_target, command, params) { calls.push({ type: "command", command, params }); },
+      detach: async function () { calls.push({ type: "detach" }); },
+    },
+  });
+  const result = await worker.__testOnly.triggerShujiajiaTrustedInput({
+    type: worker.__testOnly.SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE,
+    action: "shift-drag",
+    startX: 101,
+    startY: 210,
+    endX: 899,
+    endY: 210,
+  }, {
+    frameId: 0,
+    tab: { id: 9, url: "https://www.shujiajia.com/workbench/piece/mark.html?taskId=redacted", width: 1000, height: 700 },
+  });
+
+  assert.deepEqual(result, { ok: true });
+  const commands = calls.filter((item) => item.type === "command");
+  assert.equal(commands[0].params.type, "mouseMoved");
+  assert.equal(commands[1].params.type, "mousePressed");
+  assert.equal(commands.at(-1).params.type, "mouseReleased");
+  assert.ok(commands.slice(2, -1).length >= 8);
+  assert.ok(commands.every((item) => item.command === "Input.dispatchMouseEvent"));
+  assert.ok(commands.every((item) => item.params.modifiers === 8));
+  assert.equal(calls.at(-1).type, "detach");
+});
+
+test("background rejects Shujiajia trusted input outside the top mark page or viewport", async function () {
+  const worker = loadServiceWorkerModule({ debugger: {} });
+  const base = {
+    type: worker.__testOnly.SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE,
+    action: "shift-drag",
+    startX: 10, startY: 20, endX: 800, endY: 20,
+  };
+  assert.equal(worker.__testOnly.getShujiajiaTrustedInputTarget(base, {
+    frameId: 1,
+    tab: { id: 9, url: "https://www.shujiajia.com/workbench/piece/mark.html", width: 900, height: 700 },
+  }), null);
+  assert.equal(worker.__testOnly.getShujiajiaTrustedInputTarget(base, {
+    frameId: 0,
+    tab: { id: 9, url: "https://example.com/workbench/piece/mark.html", width: 900, height: 700 },
+  }), null);
+  assert.equal(worker.__testOnly.getShujiajiaTrustedInputTarget({ ...base, endX: 901 }, {
+    frameId: 0,
+    tab: { id: 9, url: "https://www.shujiajia.com/workbench/piece/mark.html", width: 900, height: 700 },
+  }), null);
+});
+
+test("background sends trusted Delete key events for Shujiajia rollback", async function () {
+  const commands = [];
+  const worker = loadServiceWorkerModule({
+    debugger: {
+      attach: async function () {},
+      sendCommand: async function (_target, command, params) { commands.push({ command, params }); },
+      detach: async function () {},
+    },
+  });
+  const result = await worker.__testOnly.triggerShujiajiaTrustedInput({
+    type: worker.__testOnly.SHUJIAJIA_TRUSTED_INPUT_MESSAGE_TYPE,
+    action: "delete",
+  }, {
+    frameId: 0,
+    tab: { id: 9, url: "https://www.shujiajia.com/workbench/piece/mark.html", width: 1000, height: 700 },
+  });
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(commands, [
+    { command: "Input.dispatchKeyEvent", params: { type: "rawKeyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 } },
+    { command: "Input.dispatchKeyEvent", params: { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 } },
+  ]);
+});
+
 test("background refuses debugger quality-submit clicks outside the exact current node 17 page", async function () {
   const calls = [];
   const worker = loadServiceWorkerModule({
