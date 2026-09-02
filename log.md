@@ -2,6 +2,8 @@
 
 ## 2026-09-03
 
+- 修复(shujiajia): MAIN world 在异步设置加载期间暂存最近一次 execute 最小音频快照，脚本确认启用后立即消费，避免初始化响应先返回导致“尚未捕获当前条目音频”；禁用或切题清除，且不主动重放 execute 请求。
+- 优化(shujiajia): 助手控制区移动到 `.tabs-container` 的有效性区域下方，识别结果移动到 `.transfer` 的原生转写区下方；识别完成自动展开、切题收起，并在 Vue 局部重渲染后恢复自有节点。
 - 修复(shujiajia): Peaks.js 整段边界验收放宽为两个波形像素，超出容差时保留已生成段落并标记待暂存；移除可信 Delete 与自动回退，避免进入平台“确认删除段落”界面。
 - 修复(shujiajia): 从当前任务 execute 响应的 `data.detail.fileFolder` 在 MAIN world 获取已确认存储域名的音频，使用无 Cookie、无 Referer 请求并只跨世界传递内存 `audioDataUrl`；保留原音频响应被动捕获兼容路径。
 - 修复(shujiajia): 整音频划一段改为精确路由和视口校验后的可信 `Shift + 拖拽`；iframe 只上报局部坐标，顶层换算后由后台发送连续鼠标事件并立即断开 debugger，不直接调用平台写接口。

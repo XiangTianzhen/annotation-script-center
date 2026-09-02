@@ -14,6 +14,18 @@
   const TRUSTED_INPUT_RESPONSE = "ASC_SHUJIAJIA_TRUSTED_INPUT_RESPONSE";
   const BACKGROUND_TRUSTED_INPUT = "ASR_EDGE_SHUJIAJIA_TRUSTED_INPUT";
 
+  function settleObserverBeforeBoot(settings, windowLike) {
+    const script = settings?.platforms?.shujiajia?.scripts?.luzhouHelper;
+    const enabled = settings?.platforms?.shujiajia?.enabled === true && script?.enabled === true;
+    if (!enabled) {
+      windowLike?.postMessage?.(
+        { source: SOURCE, type: OBSERVER_DISABLE, payload: {} },
+        windowLike?.location?.origin || "*"
+      );
+    }
+    return enabled;
+  }
+
   function buildTopTrustedInputMessage(event, documentLike) {
     const data = event?.data;
     const payload = data?.payload;
@@ -357,7 +369,7 @@
     return { actions, getState, setRecognitionResult, start, stop };
   }
 
-  const api = { buildTopTrustedInputMessage, createRuntime, formatWholeSegmentFailure, constants: { SOURCE, AUDIO_READY, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT, TRUSTED_INPUT_REQUEST, TRUSTED_INPUT_RESPONSE, BACKGROUND_TRUSTED_INPUT } };
+  const api = { buildTopTrustedInputMessage, createRuntime, formatWholeSegmentFailure, settleObserverBeforeBoot, constants: { SOURCE, AUDIO_READY, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT, TRUSTED_INPUT_REQUEST, TRUSTED_INPUT_RESPONSE, BACKGROUND_TRUSTED_INPUT } };
   globalThis.__ASREdgeShujiajiaContent = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 
@@ -366,7 +378,7 @@
       let settings = null;
       try { settings = await globalThis.ASREdgeStorage?.getSettings?.(); } catch (_error) { settings = null; }
       const script = settings?.platforms?.shujiajia?.scripts?.luzhouHelper;
-      if (settings?.platforms?.shujiajia?.enabled !== true || script?.enabled !== true) return;
+      if (!settleObserverBeforeBoot(settings, window)) return;
       const runtime = createRuntime({ settings: script });
       await runtime.start();
       globalThis.__ASREdgeShujiajiaLuzhouRuntime = runtime;

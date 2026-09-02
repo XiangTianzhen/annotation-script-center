@@ -6,6 +6,24 @@ const { resolveRepo } = require("#repo-paths");
 
 const content = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "content.js"));
 
+test("disabled boot clears the dormant page-world execute snapshot", () => {
+  const messages = [];
+  const windowLike = {
+    location: { origin: "https://www.shujiajia.com" },
+    postMessage(message, origin) { messages.push({ message, origin }); },
+  };
+
+  const enabled = content.settleObserverBeforeBoot({
+    platforms: { shujiajia: { enabled: false, scripts: { luzhouHelper: { enabled: true } } } },
+  }, windowLike);
+
+  assert.equal(enabled, false);
+  assert.deepEqual(messages, [{
+    message: { source: content.constants.SOURCE, type: content.constants.OBSERVER_DISABLE, payload: {} },
+    origin: "https://www.shujiajia.com",
+  }]);
+});
+
 test("top-frame trusted input bridge accepts only bdIframe and translates drag coordinates", () => {
   const frameWindow = {};
   const iframe = {

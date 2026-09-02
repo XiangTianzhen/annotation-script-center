@@ -99,6 +99,9 @@
     let fetchAudio = typeof config.fetchAudio === "function" ? config.fetchAudio : null;
     let audioFetchContextId = "";
     let audioAbortController = null;
+    let pendingExecuteSnapshot = null;
+    let executeSequence = 0;
+    let lifecycleGeneration = 0;
 
     function setContext(nextContextId) {
       const next = String(nextContextId || "");
@@ -111,9 +114,8 @@
       saveIntent = null;
       emit({ source: SOURCE, type: CONTEXT_READY, payload: { contextId } });
     }
-    async function captureFileFolder(body, requestContextId) {
+    async function captureAudioSource(sourceUrl, requestContextId) {
       const expectedContextId = String(requestContextId || "");
-      const sourceUrl = normalizeAudioSourceUrl(body?.data?.detail?.fileFolder);
       if (!expectedContextId || expectedContextId !== contextId || !sourceUrl || typeof fetchAudio !== "function") return false;
       if (audioFetchContextId === expectedContextId) return Boolean(latestAudioDataUrl);
       audioFetchContextId = expectedContextId;
@@ -139,6 +141,31 @@
         if (!captured && audioFetchContextId === expectedContextId && contextId === expectedContextId) audioFetchContextId = "";
       }
     }
+    function extractExecuteSnapshot(body, sequence) {
+      const nextContextId = makeContextId(body);
+      if (!nextContextId) return null;
+      return {
+        sequence: Number(sequence) || 0,
+        contextId: nextContextId,
+        sourceUrl: normalizeAudioSourceUrl(body?.data?.detail?.fileFolder),
+      };
+    }
+    async function consumeExecuteSnapshot(snapshot) {
+      if (!snapshot?.contextId) return false;
+      setContext(snapshot.contextId);
+      if (!snapshot.sourceUrl) return true;
+      return captureAudioSource(snapshot.sourceUrl, snapshot.contextId);
+    }
+    async function handleExecuteBody(body, sequence) {
+      const snapshot = extractExecuteSnapshot(body, sequence);
+      if (!snapshot) return false;
+      if (!enabled) {
+        if (!pendingExecuteSnapshot || snapshot.sequence >= pendingExecuteSnapshot.sequence) pendingExecuteSnapshot = snapshot;
+        return true;
+      }
+      pendingExecuteSnapshot = null;
+      return consumeExecuteSnapshot(snapshot);
+    }
     function setSaveIntent(intent) {
       if (intent?.cancel === true) {
         if (saveIntent?.contextId === String(intent.contextId || "") && saveIntent?.dirtyToken === String(intent.dirtyToken || "")) saveIntent = null;
@@ -154,16 +181,15 @@
     async function captureResponse(rawUrl, response, requestMeta) {
       const meta = requestMeta || {};
       const method = String(meta.method || "GET").toUpperCase();
-      if (!enabled && !config.captureWhenDisabled) return;
       if (isExecuteUrl(rawUrl) && method === "GET" && response?.ok === true) {
+        const sequence = ++executeSequence;
+        const generation = lifecycleGeneration;
         const body = await parseJson(response);
-        const nextContextId = makeContextId(body);
-        if (nextContextId) {
-          setContext(nextContextId);
-          await captureFileFolder(body, nextContextId);
-        }
+        if (generation !== lifecycleGeneration) return;
+        await handleExecuteBody(body, sequence);
         return;
       }
+      if (!enabled && !config.captureWhenDisabled) return;
       if (isTempSaveUrl(rawUrl)) {
         const intent = saveIntent;
         const body = response?.ok === true ? await parseJson(response) : null;
@@ -182,14 +208,11 @@
       emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: requestContextId, audioDataUrl: latestAudioDataUrl } });
     }
     async function handleJsonResponse(rawUrl, status, body, method) {
-      if (!enabled || status < 200 || status >= 300) return;
+      if (status < 200 || status >= 300) return;
       if (isExecuteUrl(rawUrl) && String(method || "GET").toUpperCase() === "GET") {
-        const nextContextId = makeContextId(body);
-        if (nextContextId) {
-          setContext(nextContextId);
-          await captureFileFolder(body, nextContextId);
-        }
+        await handleExecuteBody(body, ++executeSequence);
       } else if (isTempSaveUrl(rawUrl) && saveIntent?.contextId === contextId && isBusinessSuccess(body)) {
+        if (!enabled) return;
         const intent = saveIntent;
         saveIntent = null;
         emit({ source: SOURCE, type: TEMP_SAVE_SUCCEEDED, payload: { ok: true, contextId, dirtyToken: intent.dirtyToken } });
@@ -225,7 +248,6 @@
           const xhr = this;
           xhr.__ascShujiajiaContextId = contextId;
           xhr.addEventListener?.("load", function () {
-            if (!enabled) return;
             const rawUrl = xhr.__ascShujiajiaUrl;
             if ((isExecuteUrl(rawUrl) && xhr.__ascShujiajiaMethod === "GET") || isTempSaveUrl(rawUrl)) {
               let body = null;
@@ -233,6 +255,7 @@
               void handleJsonResponse(rawUrl, xhr.status, body, xhr.__ascShujiajiaMethod);
               return;
             }
+            if (!enabled) return;
             const mime = getAudioMime(xhr.getResponseHeader?.("content-type"), rawUrl);
             const requestContextId = String(xhr.__ascShujiajiaContextId || "");
             if (!requestContextId || requestContextId !== contextId || !mime) return;
@@ -251,16 +274,21 @@
         };
       }
     }
-    function enable(windowLike) {
+    async function enable(windowLike) {
       enabled = true;
       wrapRequests(windowLike || globalThis.window);
+      const snapshot = pendingExecuteSnapshot;
+      pendingExecuteSnapshot = null;
+      if (snapshot) await consumeExecuteSnapshot(snapshot);
     }
     function disable() {
       enabled = false;
+      lifecycleGeneration += 1;
       try { audioAbortController?.abort?.(); } catch (_error) {}
       latestAudioDataUrl = "";
       audioFetchContextId = "";
       audioAbortController = null;
+      pendingExecuteSnapshot = null;
       saveIntent = null;
     }
     function installController(windowLike) {
@@ -272,7 +300,7 @@
         if (event.origin && event.origin !== target.location?.origin) return;
         const data = event.data;
         if (!data || data.source !== SOURCE) return;
-        if (data.type === OBSERVER_ENABLE) enable(target);
+        if (data.type === OBSERVER_ENABLE) void enable(target);
         else if (data.type === OBSERVER_DISABLE) disable();
         else if (data.type === CONTEXT_READY) setContext(data.payload?.contextId);
         else if (data.type === SAVE_INTENT) setSaveIntent(data.payload);

@@ -46,6 +46,80 @@ test("observer installs a dormant request wrapper before explicit enable", () =>
   assert.equal(windowLike.fetch, wrappedFetch);
 });
 
+test("observer consumes the latest execute snapshot after delayed enable", async () => {
+  const messages = [];
+  const calls = [];
+  const sourceUrl = "https://storage.shujiajia.com/store/delayed.wav?redacted=1";
+  const instance = observer.createObserver({
+    emit: (message) => messages.push(message),
+    fetchAudio: async (url) => {
+      calls.push(url);
+      return {
+        ok: true,
+        headers: { get: () => "audio/wav" },
+        arrayBuffer: async () => Uint8Array.from([1, 2, 3]).buffer,
+      };
+    },
+  });
+
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "delayed", detail: { fileFolder: sourceUrl } } }) }),
+  }, { method: "GET" });
+
+  assert.deepEqual(messages, []);
+  assert.deepEqual(calls, []);
+  await instance.enable({});
+
+  assert.deepEqual(calls, [sourceUrl]);
+  assert.deepEqual(messages.map((message) => message.type), [observer.constants.CONTEXT_READY, observer.constants.AUDIO_READY]);
+  assert.equal(JSON.stringify(messages).includes("storage.shujiajia.com"), false);
+  assert.equal(JSON.stringify(messages).includes("redacted=1"), false);
+});
+
+test("observer clears a dormant execute snapshot when disabled", async () => {
+  let fetchCount = 0;
+  const instance = observer.createObserver({
+    emit() {},
+    fetchAudio: async () => {
+      fetchCount += 1;
+      return { ok: true, headers: { get: () => "audio/wav" }, arrayBuffer: async () => Uint8Array.from([1]).buffer };
+    },
+  });
+
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "discarded", detail: { fileFolder: "https://storage.shujiajia.com/store/discarded.wav" } } }) }),
+  }, { method: "GET" });
+  instance.disable();
+  await instance.enable({});
+
+  assert.equal(fetchCount, 0);
+});
+
+test("observer does not restore an in-flight dormant snapshot after disable", async () => {
+  let resolveJson;
+  let fetchCount = 0;
+  const instance = observer.createObserver({
+    emit() {},
+    fetchAudio: async () => {
+      fetchCount += 1;
+      return { ok: true, headers: { get: () => "audio/wav" }, arrayBuffer: async () => Uint8Array.from([1]).buffer };
+    },
+  });
+  const pendingCapture = instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    ok: true,
+    clone: () => ({ json: () => new Promise((resolve) => { resolveJson = resolve; }) }),
+  }, { method: "GET" });
+  await Promise.resolve();
+  instance.disable();
+  resolveJson({ data: { taskId: "task", dataId: "stale", detail: { fileFolder: "https://storage.shujiajia.com/store/stale.wav" } } });
+  await pendingCapture;
+  await instance.enable({});
+
+  assert.equal(fetchCount, 0);
+});
+
 test("observer derives a new item context from the execute response and clears stale audio", async () => {
   const messages = [];
   const instance = observer.createObserver({ emit: (message) => messages.push(message) });

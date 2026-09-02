@@ -31,10 +31,11 @@
     button.className = "asc-sjj-btn";
     return button;
   }
-  function findPropertyAnchor(documentLike) {
-    return Array.from(documentLike.querySelectorAll("body *")).find((node) =>
-      node.childElementCount === 0 && String(node.textContent || "").replace(/\s+/g, "").trim() === "段落属性"
-    ) || null;
+  function findMountHosts(documentLike) {
+    return {
+      controls: documentLike.querySelector(".form-tabs .tabs-container") || documentLike.querySelector(".tabs-container"),
+      results: documentLike.querySelector(".operate-container .transfer") || documentLike.querySelector(".transfer"),
+    };
   }
   function createPanel(options) {
     const config = options || {};
@@ -52,7 +53,9 @@
     function observeMount() {
       if (observer || typeof MutationObserverClass !== "function" || !doc.body) return;
       observer = new MutationObserverClass(() => {
-        if (!removed && (!root?.isConnected || !drawer?.isConnected)) ensureMounted();
+        if (removed) return;
+        const hosts = findMountHosts(doc);
+        if (!root?.isConnected || !drawer?.isConnected || root.parentElement !== hosts.controls || drawer.parentElement !== hosts.results) ensureMounted();
       });
       observer.observe(doc.body, { childList: true, subtree: true });
     }
@@ -61,17 +64,17 @@
       const style = doc.createElement("style");
       style.dataset.ascShujiajiaLuzhouStyle = "";
       style.textContent = [
-        "[data-asc-shujiajia-luzhou-helper]{position:fixed;right:12px;bottom:12px;z-index:2147483001;width:min(210px,calc(100vw - 24px));box-sizing:border-box;padding:10px;border:1px solid #606266;border-radius:8px;background:#303133;color:#f2f3f5;box-shadow:0 8px 28px rgba(0,0,0,.42);font:14px/1.45 'Microsoft YaHei',sans-serif}",
+        "[data-asc-shujiajia-luzhou-helper]{width:100%;box-sizing:border-box;margin-top:8px;padding:10px;border:1px solid #606266;border-radius:6px;background:#303133;color:#f2f3f5;font:14px/1.45 'Microsoft YaHei',sans-serif}",
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-title{font-weight:600;margin-bottom:8px}",
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-btn,[data-asc-shujiajia-luzhou-drawer] .asc-sjj-btn{display:block;width:100%;margin:6px 0;padding:7px 9px;border:1px solid #606266;border-radius:4px;background:#3a3b3d;color:#f2f3f5;cursor:pointer}",
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-btn:first-of-type,[data-asc-shujiajia-luzhou-drawer] .asc-sjj-primary{border-color:#409eff;background:#409eff;color:#fff}",
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-status{margin-top:8px;color:#909399;white-space:normal}",
-        "[data-asc-shujiajia-luzhou-drawer]{position:fixed;top:12px;right:234px;bottom:12px;z-index:2147483000;width:min(520px,calc(100vw - 258px));box-sizing:border-box;overflow:auto;padding:12px;border:1px solid #606266;border-radius:8px;background:#303133;color:#f2f3f5;box-shadow:0 8px 28px rgba(0,0,0,.42);font:14px/1.5 'Microsoft YaHei',sans-serif}",
+        "[data-asc-shujiajia-luzhou-drawer]{width:100%;box-sizing:border-box;margin-top:10px;padding:12px;border:1px solid #606266;border-radius:6px;background:#303133;color:#f2f3f5;font:14px/1.5 'Microsoft YaHei',sans-serif}",
         "[data-asc-shujiajia-luzhou-drawer][hidden]{display:none!important}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result{min-height:72px;padding:9px;background:#252629;border-radius:4px;white-space:pre-wrap;word-break:break-word}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-meta{margin:8px 0;color:#909399}",
-        "@media(max-width:700px){[data-asc-shujiajia-luzhou-drawer]{right:12px;bottom:230px;width:calc(100vw - 24px)}[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{grid-template-columns:1fr}}",
+        "@media(max-width:700px){[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{grid-template-columns:1fr}}",
       ].join("");
       (doc.head || doc.documentElement).appendChild(style);
     }
@@ -81,13 +84,13 @@
     }
     function ensureMounted() {
       if (removed) return false;
-      if (root?.isConnected && drawer?.isConnected) { observeMount(); return true; }
-      const anchor = findPropertyAnchor(doc);
-      if (!anchor) return false;
+      const hosts = findMountHosts(doc);
+      if (!hosts.controls || !hosts.results) return false;
+      if (root?.isConnected && drawer?.isConnected && root.parentElement === hosts.controls && drawer.parentElement === hosts.results) { observeMount(); return true; }
       installStyle();
       if (root && drawer) {
-        if (!root.isConnected) doc.body.appendChild(root);
-        if (!drawer.isConnected) doc.body.appendChild(drawer);
+        if (root.parentElement !== hosts.controls) hosts.controls.appendChild(root);
+        if (drawer.parentElement !== hosts.results) hosts.results.appendChild(drawer);
         observeMount();
         return true;
       }
@@ -106,7 +109,7 @@
       statusNode.className = "asc-sjj-status";
       statusNode.textContent = "等待操作";
       root.appendChild(statusNode);
-      doc.body.appendChild(root);
+      hosts.controls.appendChild(root);
 
       drawer = doc.querySelector(`[${DRAWER_ATTR}]`) || doc.createElement("section");
       drawer.setAttribute(DRAWER_ATTR, "");
@@ -119,7 +122,7 @@
       listenNode = drawer.querySelector("[data-role='listen']");
       refineNode = drawer.querySelector("[data-role='refine']");
       metaNode = drawer.querySelector("[data-role='meta']");
-      doc.body.appendChild(drawer);
+      hosts.results.appendChild(drawer);
       observeMount();
       return Boolean(root.isConnected && drawer.isConnected);
     }
@@ -127,6 +130,13 @@
     function setMessage(message) { if (ensureMounted()) statusNode.textContent = String(message || ""); }
     function setResult(result) {
       if (!ensureMounted()) return;
+      if (!result || typeof result !== "object") {
+        listenNode.textContent = "";
+        refineNode.textContent = "";
+        metaNode.textContent = "尚未识别";
+        drawer.hidden = true;
+        return;
+      }
       const view = buildResultView(result);
       listenNode.textContent = view.listenText || "（空）";
       refineNode.textContent = view.refinedText || "（空）";

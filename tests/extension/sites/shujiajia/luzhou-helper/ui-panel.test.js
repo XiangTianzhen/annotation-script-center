@@ -24,27 +24,57 @@ test("panel action inventory excludes temporary-save and submit buttons", () => 
   assert.deepEqual(panel.PANEL_ACTIONS, ["createWholeSegment", "recognizeWhole", "toggleDrawer", "fillRecognition"]);
 });
 
-test("panel mounts both floating surfaces under body without changing native form-tabs", () => {
-  const dom = new JSDOM("<body><div class='form-tabs'><button><span>段落属性</span></button><div class='border-line'></div></div></body>");
+function createPlatformDom(options = {}) {
+  return new JSDOM("<body><div class='form-tabs'><button><span>段落属性</span></button><div class='tabs-container'><div class='role'></div><div class='el-reset'>是否有效</div></div></div><div class='operate-container'><div class='transfer'><div class='target-error'>段落信息</div><div class='divide-line'></div><div class='transfer-container'><div class='special-box'>Category1</div></div></div></div></body>", options);
+}
+
+test("panel mounts controls below validity and results below the native transfer editor", () => {
+  const dom = createPlatformDom();
   const document = dom.window.document;
-  const nativeChildren = document.querySelector(".form-tabs").children.length;
+  const tabs = document.querySelector(".tabs-container");
+  const transfer = document.querySelector(".transfer");
+  const nativeTabsChildren = tabs.children.length;
+  const nativeTransferChildren = transfer.children.length;
   const runtime = panel.createPanel({ document });
 
   assert.equal(runtime.ensureMounted(), true);
-  assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-helper]").parentElement, document.body);
-  assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-drawer]").parentElement, document.body);
-  assert.equal(document.querySelector(".form-tabs").children.length, nativeChildren);
+  assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-helper]").parentElement, tabs);
+  assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-drawer]").parentElement, transfer);
+  assert.equal(tabs.lastElementChild.hasAttribute("data-asc-shujiajia-luzhou-helper"), true);
+  assert.equal(transfer.lastElementChild.hasAttribute("data-asc-shujiajia-luzhou-drawer"), true);
+  assert.equal(tabs.children.length, nativeTabsChildren + 1);
+  assert.equal(transfer.children.length, nativeTransferChildren + 1);
 });
 
-test("panel restores its body-level surfaces after a platform subtree rerender", async () => {
-  const dom = new JSDOM("<body><div class='form-tabs'><span>段落属性</span></div></body>", { pretendToBeVisual: true });
+test("panel restores both native-area mounts after platform subtree rerender", async () => {
+  const dom = createPlatformDom({ pretendToBeVisual: true });
   const document = dom.window.document;
   const runtime = panel.createPanel({ document, MutationObserver: dom.window.MutationObserver });
   assert.equal(runtime.ensureMounted(), true);
 
-  document.querySelector("[data-asc-shujiajia-luzhou-helper]").remove();
+  document.querySelector(".tabs-container").outerHTML = "<div class='tabs-container'><div class='role'></div><div class='el-reset'>是否有效</div></div>";
+  document.querySelector(".transfer").outerHTML = "<div class='transfer'><div class='target-error'></div><div class='divide-line'></div><div class='transfer-container'></div></div>";
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
 
-  assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-helper]")?.parentElement, document.body);
+  assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-helper]")?.parentElement, document.querySelector(".tabs-container"));
+  assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-drawer]")?.parentElement, document.querySelector(".transfer"));
   runtime.remove();
+});
+
+test("recognition result opens inline and remains user-collapsible", () => {
+  const dom = createPlatformDom();
+  const document = dom.window.document;
+  const runtime = panel.createPanel({ document });
+  runtime.ensureMounted();
+
+  const result = document.querySelector("[data-asc-shujiajia-luzhou-drawer]");
+  assert.equal(result.hidden, true);
+  runtime.setResult({ listenText: "原始", refinedText: "整理" });
+  assert.equal(result.hidden, false);
+  runtime.toggleDrawer();
+  assert.equal(result.hidden, true);
+  runtime.toggleDrawer();
+  assert.equal(result.hidden, false);
+  runtime.setResult(null);
+  assert.equal(result.hidden, true);
 });
