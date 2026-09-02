@@ -1,6 +1,6 @@
 # 平台资料与统一后端
 
-`platform-resources/` 保存三个当前平台的稳定参考资料、五脚本专属后端，以及所有脚本共用的统一后端能力。
+`platform-resources/` 保存三个已接入平台与数加加资料框架的稳定参考资料、五脚本专属后端，以及所有已接入脚本共用的统一后端能力。
 
 ## 当前平台与脚本
 
@@ -11,6 +11,7 @@
 | `bytedance-aidp/` | 金华话（单次 Omni 可编辑转写 Prompt） | `extension/sites/bytedance-aidp/jinhua-helper/` | `/api/bytedance-aidp/jinhua-helper/*` |
 | `bytedance-aidp/` | 台州话 | `extension/sites/bytedance-aidp/taizhou-helper/` | AI、完整题目录音导入、检查包原生押后、返修当前页批量导入与审核结果人工回填；`/api/bytedance-aidp/taizhou-helper/*` |
 | `magic-data/` | 杭州话 | `extension/sites/magic-data/hangzhou-helper/` | `/api/magic-data/hangzhou-helper/*` |
+| `shujiajia/` | 泸州话（仅资料框架） | 尚未接入 | 尚未注册 |
 
 平台与脚本入口索引见 [docs/platforms-index.md](../docs/platforms-index.md)。
 
@@ -34,7 +35,7 @@
 - AI 框架：`backend/ai-framework/`
 - 管理员会话、仪表盘、下载中心与 AI 日志：`backend/admin-*`、`backend/ai-call-log-download/`
 
-`registry.js` 只注册五个脚本和当前管理员能力。脚本路由继续由各脚本 `backend/index.js` 导出 `registerRoutes(router, options)`，统一入口负责组合，不把脚本业务复制到公共后端。
+`registry.js` 只注册五个已接入脚本和当前管理员能力；数加加泸州话尚未注册。已接入脚本路由继续由各脚本 `backend/index.js` 导出 `registerRoutes(router, options)`，统一入口负责组合，不把脚本业务复制到公共后端。
 
 ## 请求数据流
 

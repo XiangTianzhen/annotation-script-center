@@ -1,6 +1,6 @@
 # 平台与脚本索引
 
-当前只维护三个平台、五个正式脚本。
+当前维护三个已接入平台、五个正式脚本，并初始化一个尚未接入运行时的平台资料框架。
 
 ## DataBaker CVPC
 
@@ -32,8 +32,16 @@
 - 稳定页面结构：`platform-resources/magic-data/page-structure/`
 - 杭州话资料与后端：`platform-resources/magic-data/hangzhou-helper/README.md`
 
+## 数加加
+
+- 平台资料：`platform-resources/shujiajia/README.md`
+- 稳定 Network：`platform-resources/shujiajia/network/`
+- 稳定页面结构：`platform-resources/shujiajia/page-structure/`
+- 泸州话脚本边界：`platform-resources/shujiajia/luzhou-helper/README.md`
+- 当前状态：资料框架已初始化，扩展运行时、Options、Manifest 和统一后端路由尚未接入。
+
 ## 统一后端
 
 - 入口：`platform-resources/backend/server.js`
 - 契约：`platform-resources/backend/README.md`
-- 后端只注册柳州、苏州、金华、台州、杭州五脚本路由，以及管理员会话、下载中心和 AI 日志接口。
+- 后端只注册柳州、苏州、金华、台州、杭州五脚本路由，以及管理员会话、下载中心和 AI 日志接口；数加加泸州话尚未注册。
