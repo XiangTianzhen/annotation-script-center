@@ -6,6 +6,10 @@ const { resolveRepo } = require("#repo-paths");
 
 const content = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "content.js"));
 
+function flushAsyncWork() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 test("audio status messages stay sanitized and guide recognition failures", async () => {
   const listeners = {};
   const messages = [];
@@ -245,4 +249,267 @@ test("runtime discards an AI result when the page switches item during recogniti
   const result = await pending;
   assert.equal(result.code, "stale-recognition-result");
   assert.equal(runtime.getState().result, null);
+});
+
+test("editor runtime skips the initial context and auto-draws each later context only once", async () => {
+  const listeners = {};
+  let drawCalls = 0;
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: {
+      enabled: true,
+      autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoRecognizeAfterWholeSegmentEnabled: false,
+      shortcuts: {},
+    },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { drawCalls += 1; return { ok: true, code: "whole-segment-created", pageChanged: true }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(drawCalls, 0);
+
+  const next = { data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" };
+  listeners.message(next);
+  listeners.message(next);
+  await flushAsyncWork();
+  assert.equal(drawCalls, 1);
+
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(drawCalls, 2);
+  listeners.message(next);
+  await flushAsyncWork();
+  assert.equal(drawCalls, 2);
+});
+
+test("top frame never runs new-item auto-draw", async () => {
+  const listeners = {};
+  let drawCalls = 0;
+  const windowLike = { addEventListener(type, fn) { listeners[type] = fn; } };
+  windowLike.top = windowLike;
+  const runtime = content.createRuntime({
+    window: windowLike,
+    document: {},
+    settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { drawCalls += 1; return { ok: true }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(drawCalls, 0);
+});
+
+test("successful auto-draw waits for matching audio before recognizing", async () => {
+  const listeners = {};
+  let recognitionCalls = 0;
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: {
+      enabled: true,
+      aiRecommendEnabled: true,
+      autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoRecognizeAfterWholeSegmentEnabled: true,
+      shortcuts: {},
+    },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
+      verifyWholeSegment() { return { ok: true }; },
+    },
+    aiClient: { async recognize() { recognitionCalls += 1; return { refinedText: "当前题结果" }; } },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(recognitionCalls, 0);
+
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:second", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(recognitionCalls, 1);
+  assert.equal(runtime.getState().result.refinedText, "当前题结果");
+});
+
+test("successful helper-button draw also starts enabled automatic recognition", async () => {
+  const listeners = {};
+  let recognitionCalls = 0;
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: {
+      enabled: true,
+      aiRecommendEnabled: true,
+      autoRecognizeAfterWholeSegmentEnabled: true,
+      shortcuts: {},
+    },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
+      verifyWholeSegment() { return { ok: true }; },
+    },
+    aiClient: { async recognize() { recognitionCalls += 1; return { refinedText: "按钮结果" }; } },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+  await runtime.actions.createWholeSegment();
+  await flushAsyncWork();
+  assert.equal(recognitionCalls, 1);
+});
+
+test("audio failure cancels queued recognition for the current context", async () => {
+  const listeners = {};
+  let recognitionCalls = 0;
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: {
+      enabled: true,
+      aiRecommendEnabled: true,
+      autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoRecognizeAfterWholeSegmentEnabled: true,
+      shortcuts: {},
+    },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
+      verifyWholeSegment() { return { ok: true }; },
+    },
+    aiClient: { async recognize() { recognitionCalls += 1; return {}; } },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(runtime.getState().pendingAutoRecognitionContextId, "task:second");
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_STATUS, payload: { contextId: "task:second", code: "download-failed" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:second", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(recognitionCalls, 0);
+});
+
+test("disabling automatic recognition cancels its queued call before audio arrives", async (t) => {
+  const listeners = {};
+  let storageListener = null;
+  let recognitionCalls = 0;
+  let settingsRoot = {
+    platforms: { shujiajia: { enabled: true, scripts: { luzhouHelper: {
+      enabled: true,
+      aiRecommendEnabled: true,
+      autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoRecognizeAfterWholeSegmentEnabled: true,
+      shortcuts: {},
+    } } } },
+  };
+  globalThis.ASREdgeStorage = { async getSettings() { return settingsRoot; } };
+  globalThis.chrome = { storage: { onChanged: {
+    addListener(fn) { storageListener = fn; },
+    removeListener() {},
+  } } };
+  t.after(() => {
+    delete globalThis.ASREdgeStorage;
+    delete globalThis.chrome;
+  });
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: settingsRoot.platforms.shujiajia.scripts.luzhouHelper,
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
+      verifyWholeSegment() { return { ok: true }; },
+    },
+    aiClient: { async recognize() { recognitionCalls += 1; return {}; } },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(runtime.getState().pendingAutoRecognitionContextId, "task:second");
+
+  settingsRoot = { platforms: { shujiajia: { enabled: true, scripts: { luzhouHelper: {
+    enabled: true,
+    aiRecommendEnabled: true,
+    autoCreateWholeSegmentOnNewItemEnabled: true,
+    autoRecognizeAfterWholeSegmentEnabled: false,
+    shortcuts: {},
+  } } } } };
+  await storageListener({}, "local");
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:second", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+  await flushAsyncWork();
+  assert.equal(recognitionCalls, 0);
+});
+
+test("disabling new-item auto-draw while waiting for the waveform prevents trusted drawing", async (t) => {
+  const listeners = {};
+  let storageListener = null;
+  let releaseWaveform;
+  let drawCalls = 0;
+  let settingsRoot = {
+    platforms: { shujiajia: { enabled: true, scripts: { luzhouHelper: {
+      enabled: true,
+      autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoRecognizeAfterWholeSegmentEnabled: false,
+      shortcuts: {},
+    } } } },
+  };
+  globalThis.ASREdgeStorage = { async getSettings() { return settingsRoot; } };
+  globalThis.chrome = { storage: { onChanged: {
+    addListener(fn) { storageListener = fn; },
+    removeListener() {},
+  } } };
+  t.after(() => {
+    delete globalThis.ASREdgeStorage;
+    delete globalThis.chrome;
+  });
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: settingsRoot.platforms.shujiajia.scripts.luzhouHelper,
+    segmentController: {
+      createDomAdapter() { return {}; },
+      waitForWaveformReady() { return new Promise((resolve) => { releaseWaveform = resolve; }); },
+      async createWholeSegment() { drawCalls += 1; return { ok: true }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
+  await flushAsyncWork();
+
+  settingsRoot = { platforms: { shujiajia: { enabled: true, scripts: { luzhouHelper: {
+    enabled: true,
+    autoCreateWholeSegmentOnNewItemEnabled: false,
+    autoRecognizeAfterWholeSegmentEnabled: false,
+    shortcuts: {},
+  } } } } };
+  await storageListener({}, "local");
+  releaseWaveform(true);
+  await flushAsyncWork();
+  assert.equal(drawCalls, 0);
 });

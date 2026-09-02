@@ -725,8 +725,26 @@ function shujiajiaSections() {
     {
       key: "basic",
       title: "基础设置",
-      help: "整段划分、识别、填入、暂存和提交均由用户显式触发。",
+      help: "可选择在后续新条目自动划整段，并在助手画段成功后自动识别。",
       groups: [{
+        key: "automation",
+        title: "自动化设置",
+        layout: "two",
+        fields: [
+          {
+            kind: "boolean",
+            path: "autoCreateWholeSegmentOnNewItemEnabled",
+            label: "进入新条目后自动划整段",
+            help: "首次加载当前条目不执行；之后切换到零段落条目时，每条最多自动尝试一次。",
+          },
+          {
+            kind: "boolean",
+            path: "autoRecognizeAfterWholeSegmentEnabled",
+            label: "助手画段成功后自动识别",
+            help: "助手按钮或切题自动画段成功后识别；不会自动填入、暂存或提交。",
+          },
+        ],
+      }, {
         key: "safety",
         title: "当前边界",
         layout: "single",
@@ -736,7 +754,7 @@ function shujiajiaSections() {
           label: "安全边界",
           lines: [
             "已有任意段落时不会执行整音频划一段。",
-            "识别结果只在确认后填入，不自动设置有效性、不自动暂存、不自动提交。",
+            "自动识别只展示结果；转写仍由按钮或快捷键填入，不自动设置有效性、不自动暂存、不自动提交。",
           ],
         }],
       }],

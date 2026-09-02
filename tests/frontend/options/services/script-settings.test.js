@@ -314,12 +314,14 @@ describe("script-settings helpers", () => {
     ]);
   });
 
-  test("describes Shujiajia as manual two-stage recognition without lexicon controls", () => {
+  test("describes Shujiajia new-item automations without adding automatic fill", () => {
     const fields = getScriptFieldGroups("shujiajiaLuzhouHelper").flatMap((section) =>
       (section.groups || []).flatMap((group) => group.fields || [])
     );
     expect(fields.find((field) => field.path === "aiRecommendListenModel")?.options.length).toBe(2);
     expect(fields.find((field) => field.path === "aiRecommendRefineModel")?.options.length).toBe(2);
+    expect(fields.find((field) => field.path === "autoCreateWholeSegmentOnNewItemEnabled")?.label).toBe("进入新条目后自动划整段");
+    expect(fields.find((field) => field.path === "autoRecognizeAfterWholeSegmentEnabled")?.label).toBe("助手画段成功后自动识别");
     expect(fields.some((field) => /Lexicon/.test(field.path || ""))).toBe(false);
     expect(fields.find((field) => field.path === "aiRecommendAutoFillEnabled")).toBeUndefined();
   });

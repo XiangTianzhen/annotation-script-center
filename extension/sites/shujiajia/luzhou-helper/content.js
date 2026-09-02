@@ -91,14 +91,21 @@
     const panel = config.panel || globalThis.__ASREdgeShujiajiaUiPanel?.createPanel?.({ document: documentLike }) || {};
     const shortcuts = config.shortcuts || globalThis.__ASREdgeShujiajiaShortcuts || {};
     const runtimeApi = config.runtimeApi || globalThis.chrome?.runtime;
-    const state = { audioDataUrl: "", audioContextId: "", audioStatusCode: "", contextId: "", dirty: false, dirtyToken: "", result: null, resultContextId: "", settings: config.settings || null };
+    const state = {
+      audioDataUrl: "", audioContextId: "", audioStatusCode: "", contextId: "",
+      dirty: false, dirtyToken: "", result: null, resultContextId: "", settings: config.settings || null,
+      hasSeenContext: false, pendingAutoRecognitionContextId: "",
+      autoRecognitionStartedContextId: "",
+    };
     let shortcutRuntime = null;
     let mountTimer = null;
     let storageChangeListener = null;
     const pendingTrustedInputs = new Map();
+    const attemptedAutoDrawContexts = new Set();
 
     function message(text) { panel.setMessage?.(text); }
     function origin() { return windowLike?.location?.origin || "*"; }
+    function isEditorRuntime() { return Boolean(windowLike?.top && windowLike.top !== windowLike); }
     function postLocal(data) { windowLike?.postMessage?.(data, origin()); }
     function postTop(data) { (windowLike?.top || windowLike)?.postMessage?.(data, origin()); }
     function relayToFrames(data) {
@@ -145,6 +152,10 @@
       postTop(data);
       if (windowLike?.top === windowLike) relayToFrames(data);
     }
+    function cancelPendingAutomation() {
+      state.pendingAutoRecognitionContextId = "";
+      state.autoRecognitionStartedContextId = "";
+    }
     async function refreshSettings(requireAi) {
       let root = null;
       if (typeof globalThis.ASREdgeStorage?.getSettings === "function") {
@@ -168,6 +179,62 @@
       }
       return state.settings;
     }
+    async function runPendingAutoRecognition(contextId) {
+      const expectedContextId = String(contextId || "");
+      if (
+        !expectedContextId ||
+        state.contextId !== expectedContextId ||
+        state.pendingAutoRecognitionContextId !== expectedContextId ||
+        state.autoRecognitionStartedContextId === expectedContextId ||
+        state.settings?.autoRecognizeAfterWholeSegmentEnabled !== true ||
+        state.audioContextId !== expectedContextId ||
+        !state.audioDataUrl
+      ) return false;
+      state.pendingAutoRecognitionContextId = "";
+      state.autoRecognitionStartedContextId = expectedContextId;
+      await actions.recognizeWhole();
+      return true;
+    }
+    function queueAutoRecognition(contextId) {
+      const expectedContextId = String(contextId || "");
+      if (
+        !expectedContextId ||
+        state.contextId !== expectedContextId ||
+        state.settings?.autoRecognizeAfterWholeSegmentEnabled !== true ||
+        state.autoRecognitionStartedContextId === expectedContextId
+      ) return false;
+      state.pendingAutoRecognitionContextId = expectedContextId;
+      if (state.audioContextId === expectedContextId && state.audioDataUrl) {
+        void runPendingAutoRecognition(expectedContextId);
+      } else {
+        message("已划为一整段，等待当前音频后自动识别");
+      }
+      return true;
+    }
+    async function autoDrawNewContext(contextId) {
+      const expectedContextId = String(contextId || "");
+      if (!isEditorRuntime() || !expectedContextId || state.contextId !== expectedContextId) return false;
+      if (attemptedAutoDrawContexts.has(expectedContextId)) return false;
+      const currentSettings = await refreshSettings(false);
+      if (
+        !currentSettings ||
+        currentSettings.autoCreateWholeSegmentOnNewItemEnabled !== true ||
+        state.contextId !== expectedContextId
+      ) return false;
+      attemptedAutoDrawContexts.add(expectedContextId);
+      const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
+      const ready = typeof segmentController.waitForWaveformReady === "function"
+        ? await segmentController.waitForWaveformReady(adapter || {})
+        : true;
+      if (state.contextId !== expectedContextId) return false;
+      if (state.settings?.enabled !== true || state.settings?.autoCreateWholeSegmentOnNewItemEnabled !== true) return false;
+      if (!ready) {
+        message(formatWholeSegmentFailure("waveform-unavailable"));
+        return false;
+      }
+      await actions.createWholeSegment();
+      return true;
+    }
     function onMessage(event) {
       if (event?.origin && event.origin !== origin()) return;
       const data = event?.data;
@@ -175,6 +242,7 @@
       if (data.type === CONTEXT_READY && data.payload?.contextId) {
         const next = String(data.payload.contextId);
         const changed = state.contextId !== next;
+        const hadSeenContext = state.hasSeenContext;
         if (changed) state.audioStatusCode = "";
         if (state.contextId && state.contextId !== next) {
           state.audioDataUrl = "";
@@ -183,12 +251,15 @@
           state.resultContextId = "";
           state.dirty = false;
           state.dirtyToken = "";
+          cancelPendingAutomation();
           panel.setResult?.(null);
         }
         state.contextId = next;
+        state.hasSeenContext = true;
         if (changed) postLocal({ source: SOURCE, type: CONTEXT_READY, payload: { contextId: next } });
         if (changed && windowLike?.top && windowLike.top !== windowLike) postTop({ source: SOURCE, type: REQUEST_AUDIO, payload: { contextId: next } });
         if (changed && windowLike?.top === windowLike) relayToFrames(data);
+        if (changed && hadSeenContext) void autoDrawNewContext(next);
       } else if (data.type === AUDIO_READY && /^data:audio\//i.test(String(data.payload?.audioDataUrl || ""))) {
         if (!state.contextId || String(data.payload?.contextId || "") !== state.contextId) return;
         state.audioDataUrl = String(data.payload.audioDataUrl);
@@ -196,12 +267,14 @@
         state.audioStatusCode = "";
         message("已捕获当前音频，可开始识别");
         if (windowLike?.top === windowLike) relayToFrames(data);
+        void runPendingAutoRecognition(state.contextId);
       } else if (data.type === AUDIO_STATUS) {
         const statusContextId = String(data.payload?.contextId || "");
         if (statusContextId && state.contextId && statusContextId !== state.contextId) return;
         const code = String(data.payload?.code || "");
         if (!Object.prototype.hasOwnProperty.call({ "identity-unavailable": 1, "source-invalid": 1, "download-failed": 1, "unsupported-audio": 1, "audio-too-large": 1 }, code)) return;
         state.audioStatusCode = code;
+        if (!statusContextId || statusContextId === state.contextId) state.pendingAutoRecognitionContextId = "";
         message(formatAudioStatus(code));
         if (windowLike?.top === windowLike) relayToFrames({ source: SOURCE, type: AUDIO_STATUS, payload: { contextId: statusContextId, code } });
       } else if (data.type === DIRTY_CHANGED) {
@@ -243,13 +316,18 @@
       },
       async createWholeSegment() {
         if (!await refreshSettings(false)) return { ok: false, code: "script-disabled" };
+        const actionContextId = state.contextId;
         message("正在划分整段…");
         const previousDirty = state.dirty;
         const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
         const result = await segmentController.createWholeSegment?.(adapter || {}) || { ok: false, code: "controller-unavailable", pageChanged: false };
+        if (actionContextId && state.contextId !== actionContextId) {
+          return { ok: false, code: "stale-whole-segment-result", pageChanged: Boolean(result.pageChanged) };
+        }
         if (result.ok) {
           setDirty(true);
           message("已划为一整段，待暂存");
+          queueAutoRecognition(actionContextId);
         } else if (result.pageChanged) {
           setDirty(true);
           message(formatWholeSegmentFailure(result.code));
@@ -362,8 +440,11 @@
           const next = root?.platforms?.shujiajia?.scripts?.luzhouHelper;
           if (root?.platforms?.shujiajia?.enabled === true && next?.enabled === true) {
             state.settings = next;
+            if (next.autoRecognizeAfterWholeSegmentEnabled !== true) state.pendingAutoRecognitionContextId = "";
             postLocal({ source: SOURCE, type: OBSERVER_ENABLE, payload: {} });
           } else {
+            state.settings = { ...(next || {}), enabled: false };
+            cancelPendingAutomation();
             postLocal({ source: SOURCE, type: OBSERVER_DISABLE, payload: {} });
           }
         };
@@ -383,6 +464,7 @@
         pending.resolve({ ok: false, reason: "trusted-input-cancelled" });
       });
       pendingTrustedInputs.clear();
+      attemptedAutoDrawContexts.clear();
       panel.remove?.();
       postLocal({ source: SOURCE, type: OBSERVER_DISABLE, payload: {} });
       windowLike?.removeEventListener?.("message", onMessage);

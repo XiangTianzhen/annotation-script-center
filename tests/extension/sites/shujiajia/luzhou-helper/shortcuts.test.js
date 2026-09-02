@@ -31,3 +31,16 @@ test("shortcut runtime invokes only the matching configured action", async () =>
   assert.equal(prevented, true);
   assert.deepEqual(calls, ["recognizeWhole"]);
 });
+
+test("configured fill-recognition shortcut invokes the existing fill action", async () => {
+  const calls = [];
+  const handled = await shortcuts.handleKeydown({
+    key: "f", altKey: true, target: { tagName: "DIV" }, preventDefault() {},
+  }, {
+    fillRecognition: { key: "f", alt: true },
+  }, {
+    fillRecognition: () => calls.push("fillRecognition"),
+  });
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ["fillRecognition"]);
+});

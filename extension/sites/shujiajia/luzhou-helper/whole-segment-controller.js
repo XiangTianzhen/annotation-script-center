@@ -9,6 +9,21 @@
     return Object.assign({ ok, code }, extra || {});
   }
 
+  async function waitForWaveformReady(adapter, options) {
+    const api = adapter || {};
+    const config = options || {};
+    const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 10000;
+    const intervalMs = Number(config.intervalMs) > 0 ? Number(config.intervalMs) : 50;
+    const sleep = typeof config.sleep === "function" ? config.sleep : wait;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() <= deadline) {
+      if (Array.from(api.getSegments?.() || []).length > 0) return true;
+      if (Number(api.getAudioDurationMs?.() || 0) > 0 && Number(api.getWaveformWidth?.() || 0) > 1) return true;
+      await sleep(intervalMs);
+    }
+    return false;
+  }
+
   function verifyWholeSegment(adapter) {
     const api = adapter || {};
     const segments = Array.from(api.getSegments?.() || []);
@@ -150,7 +165,7 @@
     };
   }
 
-  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment };
+  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment, waitForWaveformReady };
   globalThis.__ASREdgeShujiajiaWholeSegmentController = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

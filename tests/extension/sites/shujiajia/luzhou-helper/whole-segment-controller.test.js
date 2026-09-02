@@ -6,6 +6,21 @@ const { resolveRepo } = require("#repo-paths");
 
 const controller = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "whole-segment-controller.js"));
 
+test("automatic drawing waits until the editor waveform is ready", async () => {
+  let readinessChecks = 0;
+  const ready = await controller.waitForWaveformReady({
+    getSegments: () => [],
+    getAudioDurationMs: () => readinessChecks >= 2 ? 4215 : 0,
+    getWaveformWidth: () => readinessChecks >= 2 ? 843 : 0,
+  }, {
+    timeoutMs: 1000,
+    intervalMs: 1,
+    sleep: async () => { readinessChecks += 1; },
+  });
+  assert.equal(ready, true);
+  assert.equal(readinessChecks, 2);
+});
+
 test("Peaks.js adapter reads the selected segment boundary text instead of Wavesurfer regions", () => {
   const rows = [{
     querySelector(selector) {

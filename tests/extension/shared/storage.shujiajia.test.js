@@ -36,32 +36,36 @@ function load(initialSettings) {
   };
 }
 
-test("Shujiajia defaults register a disabled Luzhou helper with sparse empty shortcuts", async () => {
+test("Shujiajia schema 39 defaults keep both new-item automations disabled", async () => {
   const harness = load({ meta: { schemaVersion: 36 } });
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.shujiajia.scripts.luzhouHelper;
-    assert.equal(settings.meta.schemaVersion, 38);
+    assert.equal(settings.meta.schemaVersion, 39);
     assert.equal(harness.constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, "shujiajiaLuzhouHelper");
     assert.equal(settings.platforms.shujiajia.enabled, true);
     assert.equal(script.enabled, false);
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, false);
+    assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, false);
     assert.deepEqual(script.shortcuts, {});
   } finally {
     harness.cleanup();
   }
 });
 
-test("Shujiajia storage keeps only the two AI shortcuts during schema 38 migration", async () => {
+test("Shujiajia schema 39 migration preserves automation choices and the two AI shortcuts", async () => {
   const harness = load({
-    meta: { schemaVersion: 37 },
+    meta: { schemaVersion: 38 },
     platforms: { shujiajia: { scripts: { luzhouHelper: {
       enabled: true,
       aiRecommendListenModel: "qwen3.5-omni-plus",
       aiRecommendRefineModel: "qwen3.5-flash",
       aiRecommendRequestTimeoutMs: 90000,
+      autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoRecognizeAfterWholeSegmentEnabled: true,
       shortcuts: {
         togglePlayPause: { key: "p", ctrl: true },
         createWholeSegment: { key: "d", shift: true },
@@ -79,6 +83,8 @@ test("Shujiajia storage keeps only the two AI shortcuts during schema 38 migrati
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-plus");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, true);
+    assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, true);
     assert.deepEqual(script.shortcuts, {
       recognizeWhole: { key: "r", ctrl: true },
       fillRecognition: { key: "f", alt: true },
