@@ -28,6 +28,7 @@ const {
   aiCallLogger: bytedanceAidpTaizhouLogger,
 } = require("../../bytedance-aidp/taizhou-helper/backend/ai-call-log");
 const { aiCallLogger: magicDataHangzhouLogger } = require("../../magic-data/hangzhou-helper/backend/ai-call-log");
+const { aiCallLogger: shujiajiaLuzhouLogger } = require("../../shujiajia/luzhou-helper/backend/ai-call-log");
 
 const OPTIONS_PATH = "/api/admin/ai-call-log/options";
 const REQUEST_PATH = "/api/admin/ai-call-log/request";
@@ -147,6 +148,14 @@ function createDatasetRegistry(config) {
       defaultFileName: "magic-data-hangzhou-helper-ai-calls.csv",
       getLogger: function () {
         return magicDataHangzhouLogger;
+      },
+    },
+    {
+      id: "shujiajia-luzhou-helper-ai",
+      label: "数加加泸州话助手 AI 调用记录",
+      defaultFileName: "shujiajia-luzhou-helper-ai-calls.csv",
+      getLogger: function () {
+        return shujiajiaLuzhouLogger;
       },
     },
   ];

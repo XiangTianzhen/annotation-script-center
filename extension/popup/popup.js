@@ -14,9 +14,12 @@
     constants.BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID || "bytedanceAidpTaizhouHelper";
   const hangzhouScriptId =
     constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID || "magicDataHangzhouAssistant";
+  const shujiajiaScriptId =
+    constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID || "shujiajiaLuzhouHelper";
   const cvpcHost = constants.DATA_BAKER_CVPC_PLATFORM?.host || "cvpc.databaker.com";
   const aidpHost = constants.BYTEDANCE_AIDP_PLATFORM?.host || "aidp.bytedance.com";
   const magicHost = constants.PLATFORM_LIBRARY?.magicData?.host || "work.magicdatatech.com";
+  const shujiajiaHost = constants.PLATFORM_LIBRARY?.shujiajia?.host || "www.shujiajia.com";
 
   let currentDetectedScriptId = null;
   let lastRenderedSettings = null;
@@ -56,6 +59,9 @@
     if (scriptId === hangzhouScriptId) {
       return settings?.platforms?.magicData?.scripts?.hangzhouHelper || {};
     }
+    if (scriptId === shujiajiaScriptId) {
+      return settings?.platforms?.shujiajia?.scripts?.luzhouHelper || {};
+    }
     return {};
   }
 
@@ -65,6 +71,7 @@
       return settings?.platforms?.bytedanceAidp || {};
     }
     if (scriptId === hangzhouScriptId) return settings?.platforms?.magicData || {};
+    if (scriptId === shujiajiaScriptId) return settings?.platforms?.shujiajia || {};
     return {};
   }
 
@@ -133,9 +140,19 @@
           : "运行状态：未启用",
       };
     }
+    if (url.hostname === shujiajiaHost) {
+      return {
+        scriptId: shujiajiaScriptId,
+        description: !isScriptEnabled(settings, shujiajiaScriptId)
+          ? "运行状态：未启用"
+          : url.pathname === "/workbench/piece/mark.html"
+            ? "运行状态：已支持"
+            : "请进入数加加分段标注页后使用泸州话脚本。",
+      };
+    }
     return {
       title: "当前页面未命中脚本",
-      description: "支持 DataBaker CVPC、ByteDance AIDP 与 Magic Data。",
+      description: "支持 DataBaker CVPC、ByteDance AIDP、Magic Data 与数加加。",
     };
   }
 

@@ -11,7 +11,7 @@
 | `popup/` | 当前平台/脚本识别、启停和详情页跳转 |
 | `options/` | Vue Options 构建产物与共享控件运行时 |
 | `shared/` | 常量、storage、AI 元数据、费用展示与通用请求工具 |
-| `sites/` | 三个平台五个脚本的页面运行时 |
+| `sites/` | 四个平台六个脚本的页面运行时 |
 | `assets/` | 扩展图标与 Options 品牌资源 |
 
 ## 当前注入范围
@@ -37,6 +37,13 @@
 - MAIN world：只读 Network observer
 - ISOLATED world：页面识别、数据采集、AI 客户端、面板、快捷键和入口编排
 
+### 数加加
+
+- 站点：`https://www.shujiajia.com/*`
+- 脚本：`sites/shujiajia/luzhou-helper/`
+- MAIN world：仅在内存中观察音频响应字节与平台暂存成功信号
+- ISOLATED world：零分段整段划分、两阶段 AI、B 布局面板、八项快捷键和原生写入编排
+
 manifest 中的脚本顺序就是依赖顺序。共享常量和 storage 必须先于脚本入口加载，MAIN world observer 必须在页面请求发生前注入。
 
 ## Options 与 popup
@@ -45,20 +52,21 @@ manifest 中的脚本顺序就是依赖顺序。共享常量和 storage 必须�
 - 样式入口：`frontend/options-app/src/styles/index.scss`
 - 构建命令：`node scripts/build-options-app.js`
 - 构建输出：`extension/options/`
-- popup 只识别三个当前平台，并可切换脚本启用状态或打开详情页。
+- popup 识别四个当前平台，并可切换脚本启用状态或打开详情页。
 - Options 只维护 `Server` 与 `Local` 两套后端根地址。
 - 默认 Server：`https://annotation-script-center.xiangtianzhen.store`
 - 默认 Local：`http://127.0.0.1:3333`
 - 系统管理的“后端设置”仅在 Server 模式显示“吴 / 王”密钥选择器；点击名称只选择槽位，点击“保存当前密钥”才切换后端私有槽位，不会显示、保存或传输 DashScope 密钥。
-- storage schema：`35`
+- storage schema：`37`
 
-脚本详情页统一采用“基础设置与快捷键在左、AI 设置在右”的布局，并通过五个 defaults 接口加载后端默认值。后端不可用时使用本地回退，不阻断编辑与保存。
+脚本详情页统一采用“基础设置与快捷键在左、AI 设置在右”的布局，并通过六个 defaults 接口加载后端默认值。后端不可用时使用本地回退，不阻断编辑与保存。
 
 ## 设置与运行边界
 
 - AIDP 苏州话、金华话和台州话三套脚本同平台互斥。
 - 快捷键默认全部为空，只保存用户明确录制的键位。
-- 首次安装或重置设置时五个脚本全部关闭，不默认选择 ByteDance AIDP 的任一脚本；已有安装明确保存的启停状态不被覆盖。
+- 首次安装或重置设置时六个脚本全部关闭，不默认选择 ByteDance AIDP 的任一脚本；已有安装明确保存的启停状态不被覆盖。
+- 数加加泸州话只在当前零段落时允许整音频划为一段；识别结果须人工点击填入，填入后标记待暂存。扩展不自动设置有效性、不自动暂存、不自动提交，且待暂存状态会阻止扩展提交快捷键。
 - 非法或越界数字会阻止整次保存，不产生部分写入。
 - Options 保存不会操作业务页数据。
 - AI 建议默认人工确认；具体写回方式以各脚本 README 为准。
@@ -86,11 +94,11 @@ node scripts/build-options-app.js
 
 ## 真实浏览器验收
 
-1. 脚本中心只显示柳州、苏州、金华、台州、杭州五项。
-2. popup 能正确识别 CVPC、AIDP、Magic Data 页面。
+1. 脚本中心显示柳州、苏州、金华、台州、杭州、泸州六项。
+2. popup 能正确识别 CVPC、AIDP、Magic Data、数加加页面。
 3. AIDP 切换苏州/金华/台州时保持三方互斥，刷新业务页后只挂载当前启用脚本。
-4. 五个脚本详情页能加载 defaults，断开后端时显示本地回退。
-5. 五个真实业务页面各完成一次核心辅助操作。
+4. 六个脚本详情页能加载 defaults，断开后端时显示本地回退。
+5. 六个真实业务页面各完成一次核心辅助操作；数加加验收不得点击提交按钮。
 6. 不发生未授权的自动保存、自动提交或自动切题。
 7. 浏览器控制台没有新增持续错误。
 

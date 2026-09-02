@@ -12,6 +12,7 @@ const JINHUA_ID = "bytedanceAidpJinhuaHelper";
 const TAIZHOU_ID = "bytedanceAidpTaizhouHelper";
 const CVPC_ID = "dataBakerCvpcLiuzhouAssistant";
 const HANGZHOU_ID = "magicDataHangzhouAssistant";
+const SHUJIAJIA_ID = "shujiajiaLuzhouHelper";
 
 function aidpPayload() {
   const params = {
@@ -330,7 +331,7 @@ describe("script defaults and draft adapters", () => {
     expect(state.config.aiRecommendRefineStopSequences).toBe("DONE");
   });
 
-  test("keeps the five existing defaults routes fixed", () => {
+  test("keeps every current defaults route fixed", () => {
     expect(SCRIPT_DEFAULT_ENDPOINTS).toEqual({
       dataBakerCvpcLiuzhouAssistant:
         "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
@@ -342,7 +343,22 @@ describe("script defaults and draft adapters", () => {
         "/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
       magicDataHangzhouAssistant:
         "/api/magic-data/hangzhou-helper/ai/defaults",
+      shujiajiaLuzhouHelper:
+        "/api/shujiajia/luzhou-helper/ai/recommend/defaults",
     });
+  });
+
+  test("loads Shujiajia no-lexicon two-stage defaults", async () => {
+    const state = await loadScriptDefaults(
+      SHUJIAJIA_ID,
+      {},
+      vi.fn(async () => ({ ok: true, json: async () => aidpPayload() }))
+    );
+    expect(state.status).toBe("loaded");
+    expect(state.endpoint).toContain("/api/shujiajia/luzhou-helper/ai/recommend/defaults");
+    expect(state.config.aiRecommendListenModel).toBe("qwen3.5-omni-flash");
+    expect(state.config.aiRecommendRefineModel).toBe("qwen3.5-plus");
+    expect(state.config.aiRecommendListenIncludeLexiconReference).toBeUndefined();
   });
 
   test("maps Hangzhou model options, prompts and generation defaults", async () => {

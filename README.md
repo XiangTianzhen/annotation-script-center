@@ -1,10 +1,10 @@
 # 标注脚本中心
 
-用于维护 Chrome / Edge 标注辅助扩展、统一 Node.js 后端，以及三个平台的稳定页面与 Network 参考资料。
+用于维护 Chrome / Edge 标注辅助扩展、统一 Node.js 后端，以及四个平台的稳定页面与 Network 参考资料。
 
-当前正式版本为 `1.1.8`；本仓库维护三个平台的五个脚本。AI 结果默认用于人工辅助；唯一任务流转例外是台州话 `mark-v3` 与两类检查包中由用户显式启动的原生“押后”，不会自动领取、自动审核或点击“提交”。
+当前正式版本为 `1.1.8`；本仓库维护四个平台的六个脚本。AI 结果默认用于人工辅助；唯一任务流转例外是台州话 `mark-v3` 与两类检查包中由用户显式启动的原生“押后”，不会自动领取、自动审核或点击“提交”。
 
-首次安装或重置设置时，五个脚本全部默认关闭，必须由使用者在脚本中心显式启用；已有安装中明确保存的启停状态继续保留。
+首次安装或重置设置时，六个脚本全部默认关闭，必须由使用者在脚本中心显式启用；已有安装中明确保存的启停状态继续保留。
 
 ## 项目定位
 
@@ -27,6 +27,7 @@
 | ByteDance AIDP | 金华话脚本 | `bytedanceAidpJinhuaHelper` | 单次 Omni 可编辑转写 Prompt、分段建议、行内/批量识别 |
 | ByteDance AIDP | 台州话脚本 | `bytedanceAidpTaizhouHelper` | 原始听音直填诊断、完整题目录音导入、返修当前页批量导入与审核结果人工回填、显式启动的自动押后 |
 | Magic Data | 杭州话脚本 | `magicDataHangzhouAssistant` | AI 质检、单双模型方案、词表参考、结果填入与快捷键 |
+| 数加加 | 泸州话脚本 | `shujiajiaLuzhouHelper` | 零分段音频整段划分、两阶段 AI 识别、人工确认填入与快捷键 |
 
 ByteDance AIDP 的苏州话、金华话与台州话三套脚本互斥启用；关闭当前脚本时不会自动启用另一个脚本。
 
@@ -308,7 +309,7 @@ pm2 logs annotation-script-center --lines 100
 
 | 目录 | 职责 |
 |---|---|
-| `extension/` | Manifest V3 扩展成品、popup、Options 与五脚本运行时 |
+| `extension/` | Manifest V3 扩展成品、popup、Options 与六脚本运行时 |
 | `frontend/options-app/` | Vue Options 源码与 SCSS |
 | `platform-resources/` | 平台资料、页面结构、Network 参考与脚本后端 |
 | `platform-resources/backend/` | 统一后端、管理员能力、公共 AI 与路由注册 |

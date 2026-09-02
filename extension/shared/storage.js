@@ -86,7 +86,7 @@
   function normalizeMeta(rawMeta) {
     const source = object(rawMeta);
     const baseUrls = constants.getBackendBaseUrlsFromSettings({ meta: { backendBaseUrls: source.backendBaseUrls } });
-    const allowedOrder = ["dataBakerCvpc", "bytedanceAidp", "magicData"];
+    const allowedOrder = ["dataBakerCvpc", "bytedanceAidp", "magicData", "shujiajia"];
     const seen = new Set();
     const publicCenterPlatformOrder = (Array.isArray(source.publicCenterPlatformOrder) ? source.publicCenterPlatformOrder : [])
       .filter((id) => allowedOrder.includes(id) && !seen.has(id) && seen.add(id));
@@ -365,19 +365,46 @@
     return { enabled: bool(source.enabled, defaults.enabled), activeScriptId, scripts: { hangzhouHelper: next } };
   }
 
+  function normalizeShujiajia(raw) {
+    const defaults = constants.DEFAULT_SETTINGS.platforms.shujiajia;
+    const source = object(raw);
+    const scriptSource = object(source.scripts?.luzhouHelper);
+    const fallback = defaults.scripts.luzhouHelper;
+    const next = { ...clone(fallback) };
+    Object.keys(fallback).forEach((key) => {
+      if (key === "shortcuts") next[key] = normalizeShortcutMap(scriptSource[key], fallback.shortcuts, false);
+      else if (typeof fallback[key] === "boolean") next[key] = bool(scriptSource[key], fallback[key]);
+      else if (key === "aiRecommendRequestTimeoutMs") next[key] = numberInRange(scriptSource[key], fallback[key], 1000, 60000);
+      else if (typeof scriptSource[key] === "string") next[key] = text(scriptSource[key], fallback[key]);
+    });
+    next.aiRecommendListenModel = option(scriptSource.aiRecommendListenModel, ["qwen3.5-omni-flash", "qwen3.5-omni-plus"], fallback.aiRecommendListenModel);
+    next.aiRecommendRefineModel = option(scriptSource.aiRecommendRefineModel, ["qwen3.5-plus", "qwen3.5-flash"], fallback.aiRecommendRefineModel);
+    next.aiRecommendAutoFillEnabled = false;
+    return {
+      enabled: bool(source.enabled, defaults.enabled),
+      activeScriptId: next.enabled ? constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID : "",
+      scripts: { luzhouHelper: next },
+    };
+  }
+
   function normalizeSettings(input) {
     const source = object(input);
     const legacySchema = Number(source.meta?.schemaVersion || 0);
     const meta = normalizeMeta(source.meta);
     const magicData = normalizeMagic(source.platforms?.magicData, legacySchema);
+    const shujiajia = normalizeShujiajia(source.platforms?.shujiajia);
     return {
       platforms: {
         dataBakerCvpc: normalizeCvpc(source.platforms?.dataBakerCvpc, meta, legacySchema),
         bytedanceAidp: normalizeAidp(source.platforms?.bytedanceAidp, meta, legacySchema),
         magicData,
+        shujiajia,
       },
       meta,
-      scriptCenter: { projects: { [constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID]: clone(magicData.scripts.hangzhouHelper) } },
+      scriptCenter: { projects: {
+        [constants.MAGIC_DATA_HANGZHOU_SCRIPT_ID]: clone(magicData.scripts.hangzhouHelper),
+        [constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID]: clone(shujiajia.scripts.luzhouHelper),
+      } },
     };
   }
 
@@ -450,6 +477,10 @@
       settings.platforms.magicData.enabled = true;
       settings.platforms.magicData.activeScriptId = next ? scriptId : "";
       Object.assign(settings.platforms.magicData.scripts.hangzhouHelper, { enabled: next, aiReviewEnabled: next });
+    } else if (scriptId === constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID) {
+      settings.platforms.shujiajia.enabled = true;
+      settings.platforms.shujiajia.activeScriptId = next ? scriptId : "";
+      Object.assign(settings.platforms.shujiajia.scripts.luzhouHelper, { enabled: next, aiRecommendEnabled: next });
     } else return settings;
     return saveSettings(settings);
   }

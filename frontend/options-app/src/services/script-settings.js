@@ -7,6 +7,7 @@ const SCRIPT_BRANCHES = {
   bytedanceAidpJinhuaHelper: ["platforms", "bytedanceAidp", "scripts", "jinhuaHelper"],
   bytedanceAidpTaizhouHelper: ["platforms", "bytedanceAidp", "scripts", "taizhouHelper"],
   magicDataHangzhouAssistant: ["platforms", "magicData", "scripts", "hangzhouHelper"],
+  shujiajiaLuzhouHelper: ["platforms", "shujiajia", "scripts", "luzhouHelper"],
 };
 
 const SCRIPT_IDS = {
@@ -15,6 +16,7 @@ const SCRIPT_IDS = {
   jinhua: "bytedanceAidpJinhuaHelper",
   taizhou: "bytedanceAidpTaizhouHelper",
   hangzhou: "magicDataHangzhouAssistant",
+  shujiajia: "shujiajiaLuzhouHelper",
 };
 
 const FIELD_KIND_PRIORITY = {
@@ -177,6 +179,9 @@ export function getScriptShortcutActions(scriptId) {
     );
   }
   if (scriptId === SCRIPT_IDS.hangzhou) return clone(MAGIC_SHORTCUT_ACTIONS);
+  if (scriptId === SCRIPT_IDS.shujiajia) {
+    return clone(constants.SHUJIAJIA_LUZHOU_SHORTCUT_ACTIONS || []);
+  }
   return [];
 }
 
@@ -715,6 +720,72 @@ function hangzhouSections() {
   ];
 }
 
+function shujiajiaSections() {
+  return [
+    {
+      key: "basic",
+      title: "基础设置",
+      help: "整段划分、识别、填入、暂存和提交均由用户显式触发。",
+      groups: [{
+        key: "safety",
+        title: "当前边界",
+        layout: "single",
+        fields: [{
+          kind: "notice",
+          path: "shujiajiaSafetyNotice",
+          label: "安全边界",
+          lines: [
+            "已有任意段落时不会执行整音频划一段。",
+            "识别结果只在确认后填入，不自动设置有效性、不自动暂存、不自动提交。",
+          ],
+        }],
+      }],
+    },
+    {
+      key: "ai",
+      title: "AI 设置",
+      help: "配置泸州话原始听写与文本整理两阶段参数；当前不使用词表。",
+      groups: [
+        {
+          key: "ai-base",
+          title: "基础设置",
+          layout: "two",
+          fields: [
+            { kind: "boolean", path: "aiRecommendEnabled", label: "启用 AI 识别" },
+            { kind: "number", path: "aiRecommendRequestTimeoutMs", label: "请求超时时间（毫秒）", min: 1000, max: 60000, step: 1000 },
+          ],
+        },
+        {
+          key: "listen",
+          title: "原始听写",
+          layout: "two",
+          fields: stageFields({
+            prefix: "aiRecommendListen",
+            modelLabel: "听音模型",
+            promptLabel: "泸州话听写 Prompt",
+            optionsKey: "listenModels",
+            modelOptions: LISTEN_MODEL_OPTIONS,
+            modelHelp: "仅根据整段音频生成保守的泸州话听写。",
+          }),
+        },
+        {
+          key: "refine",
+          title: "泸州话整理",
+          layout: "two",
+          fields: stageFields({
+            prefix: "aiRecommendRefine",
+            modelLabel: "整理模型",
+            promptLabel: "泸州话整理 Prompt",
+            optionsKey: "refineModels",
+            modelOptions: REFINE_MODEL_OPTIONS,
+            modelHelp: "保留泸州话表达，只修正明显误识别和格式。",
+          }),
+        },
+      ],
+    },
+  ];
+}
+
 function fieldHelp(field, sectionTitle) {
   if (field.help) return field.help;
   if (field.kind === "notice") return "";
@@ -765,6 +836,9 @@ export function getScriptFieldGroups(scriptId, defaultsState = {}) {
   }
   if (normalizedScriptId === SCRIPT_IDS.hangzhou) {
     return normalizeSections(hangzhouSections(), defaultsState);
+  }
+  if (normalizedScriptId === SCRIPT_IDS.shujiajia) {
+    return normalizeSections(shujiajiaSections(), defaultsState);
   }
   return [];
 }

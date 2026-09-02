@@ -117,6 +117,7 @@ function loadPopup(documentLike, chromeLike, storageLike) {
     BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID: "bytedanceAidpJinhuaHelper",
     BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID: "bytedanceAidpTaizhouHelper",
     MAGIC_DATA_HANGZHOU_SCRIPT_ID: "magicDataHangzhouAssistant",
+    SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID: "shujiajiaLuzhouHelper",
     DATA_BAKER_CVPC_PLATFORM: {
       host: "cvpc.databaker.com",
     },
@@ -137,6 +138,9 @@ function loadPopup(documentLike, chromeLike, storageLike) {
       dataBakerCvpcLiuzhouAssistant: {
         label: "柳州话脚本",
       },
+      shujiajiaLuzhouHelper: {
+        label: "泸州话脚本",
+      },
     },
     PLATFORM_LIBRARY: {
       bytedanceAidp: {
@@ -147,6 +151,9 @@ function loadPopup(documentLike, chromeLike, storageLike) {
       },
       dataBakerCvpc: {
         label: "DataBaker CVPC",
+      },
+      shujiajia: {
+        label: "数加加",
       },
     },
     isScriptVisible() {
@@ -537,4 +544,22 @@ test("popup shows the detected Hangzhou script when Magic Data activeScriptId sw
     "chrome-extension://test/options/options.html#/script/magicDataHangzhouAssistant",
   ]);
 });
+test("popup detects the Shujiajia piece-mark page", async function () {
+  const documentLike = createDocument();
+  const chromeLike = createChrome("https://www.shujiajia.com/workbench/piece/mark.html?taskId=redacted&executeClass=TAG_PIECE");
+  const storageLike = {
+    async getSettings() {
+      return { platforms: { shujiajia: { enabled: true, scripts: { luzhouHelper: { enabled: true, aiRecommendEnabled: true } } } } };
+    },
+    async setScriptEnabled() { throw new Error("not-needed"); },
+  };
+  loadPopup(documentLike, chromeLike, storageLike);
+  await documentLike.dispatchDOMContentLoaded();
+  await flushTasks();
+  assert.equal(documentLike.getElementById("detected-title").textContent, "泸州话脚本");
+  assert.equal(documentLike.getElementById("detected-status-pill").textContent, "已启用");
+  documentLike.getElementById("open-script-settings").click();
+  assert.deepEqual(chromeLike.createdUrls, ["chrome-extension://test/options/options.html#/script/shujiajiaLuzhouHelper"]);
+});
+
 // End of popup contract tests.

@@ -17,6 +17,7 @@
 /platform-resources/alibaba-labelx/asr-judgement/backend/logs/
 /platform-resources/alibaba-labelx/asr-transcription/backend/logs/
 /platform-resources/abaka-ai/task21/backend/logs/
+/platform-resources/shujiajia/luzhou-helper/backend/logs/
 /platform-resources/magic-data/**/raw_outputs/
 /platform-resources/magic-data/**/detail_results/
 /platform-resources/magic-data/**/hakka_single_vs_two_stage/

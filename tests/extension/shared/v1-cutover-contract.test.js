@@ -11,13 +11,14 @@ const constantsPath = resolveRepo("extension", "shared", "constants.js");
 const storagePath = resolveRepo("extension", "shared", "storage.js");
 const manifestPath = path.join(extensionRoot, "manifest.json");
 
-const RETAINED_PLATFORM_IDS = ["bytedanceAidp", "dataBakerCvpc", "magicData"];
+const RETAINED_PLATFORM_IDS = ["bytedanceAidp", "dataBakerCvpc", "magicData", "shujiajia"];
 const RETAINED_SCRIPT_IDS = [
   "bytedanceAidpJinhuaHelper",
   "bytedanceAidpSuzhouHelper",
   "bytedanceAidpTaizhouHelper",
   "dataBakerCvpcLiuzhouAssistant",
   "magicDataHangzhouAssistant",
+  "shujiajiaLuzhouHelper",
 ];
 
 function loadConstants() {
@@ -63,7 +64,7 @@ function loadStorage(initialSettings) {
   };
 }
 
-test("1.0.0 catalog contains the five promoted scripts", function () {
+test("catalog contains the six promoted scripts", function () {
   const constants = loadConstants();
   const platformIds = Object.values(constants.PLATFORM_LIBRARY)
     .map((item) => item.id)
@@ -74,7 +75,7 @@ test("1.0.0 catalog contains the five promoted scripts", function () {
   assert.deepEqual(platformIds, RETAINED_PLATFORM_IDS);
   assert.deepEqual(scriptIds, RETAINED_SCRIPT_IDS);
   assert.equal(scripts.every((item) => !("visibility" in item)), true);
-  assert.equal(constants.SCHEMA_VERSION, 36);
+  assert.equal(constants.SCHEMA_VERSION, 37);
 });
 
 test("1.0.0 constants expose only server and local backend modes", function () {
@@ -175,7 +176,7 @@ test("1.0.0 settings normalization preserves retained settings and drops unknown
   try {
     const settings = await harness.storage.getSettings();
     assert.deepEqual(Object.keys(settings.platforms).sort(), RETAINED_PLATFORM_IDS);
-    assert.equal(settings.meta.schemaVersion, 36);
+    assert.equal(settings.meta.schemaVersion, 37);
     assert.equal(settings.meta.backendEndpointMode, "server");
     assert.deepEqual(settings.meta.backendBaseUrls, {
       server: "https://server.example.test",

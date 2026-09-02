@@ -18,6 +18,7 @@ function createPlatformResourcesServer(options) {
         "bytedance-aidp/jinhua-helper",
         "bytedance-aidp/taizhou-helper",
         "magic-data/hangzhou-helper",
+        "shujiajia/luzhou-helper",
         "admin/session",
         "admin/ai-key-slots",
         "admin/dashboard",

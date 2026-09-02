@@ -1,6 +1,6 @@
 # 统一后端
 
-统一后端入口为 `platform-resources/backend/server.js`，默认只监听 `127.0.0.1:3333`。它负责组合五脚本 API、管理员能力、公共 AI、日志和 ZIP 下载中心。
+统一后端入口为 `platform-resources/backend/server.js`，默认只监听 `127.0.0.1:3333`。它负责组合六脚本 API、管理员能力、公共 AI、日志和 ZIP 下载中心。
 
 ## 主要文件
 
@@ -8,7 +8,7 @@
 |---|---|
 | `server.js` | 加载 env、创建应用并监听端口 |
 | `app.js` | HTTP 应用、Router 和公共中间处理 |
-| `registry.js` | 注册五脚本与管理员路由 |
+| `registry.js` | 注册六脚本与管理员路由 |
 | `config.js` | host、port 和后端配置归一化 |
 | `env-loader.js` | 按固定顺序加载 ignored env 文件 |
 | `ai/` | provider、模型目录、调度、队列、价格与响应工具 |
@@ -79,7 +79,7 @@ http://127.0.0.1:3333
 
 AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashscope-key-2.env` 中的独立 `DASHSCOPE_API_KEY`，当前槽位由 `config/secrets/dashscope-active-key.json` 决定。仅当两个槽位均未配置时才临时回退旧 `DASHSCOPE_API_KEY`；任一槽位存在后，后续请求只使用当前槽位，401 不会自动切换另一账户。管理员接口只返回槽位状态及来源，不返回密钥、路径或指纹。环境加载顺序和迁移规则见 [config/README.md](../../config/README.md)。
 
-## 五脚本路由
+## 六脚本路由
 
 | 脚本 | Health / Defaults | 主要能力 |
 |---|---|---|
@@ -88,6 +88,7 @@ AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashsco
 | 金华话 | `/api/bytedance-aidp/jinhua-helper/ai/recommend/health`、`.../defaults` | 单次 Qwen Omni 可编辑转写 Prompt、JSON `listenText`、分段建议 |
 | 台州话 | `/api/bytedance-aidp/taizhou-helper/ai/recommend/health`、`.../defaults` | 原始听音直填、分段建议 |
 | 杭州话 | `/api/magic-data/hangzhou-helper/ai/review-current/health`、`/api/magic-data/hangzhou-helper/ai/defaults` | 当前条 AI 质检 |
+| 泸州话 | `/api/shujiajia/luzhou-helper/ai/recommend/health`、`.../defaults` | 整音频两阶段听写与泸州话整理 |
 
 完整请求体、响应字段和写回边界由各脚本 README 维护，统一后端不复制脚本业务 schema。
 
@@ -109,9 +110,9 @@ AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashsco
 - `/api/admin/ai-key-slots`：读取服务器双 DashScope 密钥槽位的安全摘要；`POST /api/admin/ai-key-slots/active` 仅接受 `key-1` 或 `key-2`，并在有效管理员会话内持久化切换。Options 固定映射为“吴”对应 `key-1`、“王”对应 `key-2`，先选择、再保存；接口未部署时页面只提示部署状态，不暴露路由细节。
 - `/api/admin/dashboard/*`：后端运行概况与脱敏运行日志。
 - `/api/admin/download-center/*`：读取公开 `/downloads/` 目录索引，只返回版本化 ZIP。
-- `/api/admin/ai-call-log/*`：五脚本 AI 日志选项、申请下载和签名文件下载。
+- `/api/admin/ai-call-log/*`：六脚本 AI 日志选项、申请下载和签名文件下载。
 
-`GET /api/admin/ai-call-log/options` 固定返回柳州、苏州、金华、台州、杭州五项。
+`GET /api/admin/ai-call-log/options` 固定返回柳州、苏州、金华、台州、杭州、泸州六项。
 
 下载中心通过 `ASC_DOWNLOAD_BASE_URL` 指定目录；服务器必须为对应 `/downloads/` 开启目录索引，并提供 `annotation-script-center-v<version>.zip`。
 

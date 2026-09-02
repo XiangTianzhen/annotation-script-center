@@ -14,7 +14,7 @@
 ## 页面入口 / 触发动作
 
 - 页面：`/workbench/piece/mark.html?taskId={taskId}&executeClass=TAG_PIECE`
-- 触发：平台编辑器内容变化后的原生自动暂存，或页面自身保存流程。
+- 触发：页面自身暂存流程；平台可能存在的内部自动暂存不作为扩展成功依据。
 
 ## 请求摘要
 
@@ -51,7 +51,8 @@ annotation JSON 的核心分段结构为 `markResult.paragraphs[]`：
 
 ## 前端接入建议
 
-- 通过 DOM 和平台事件修改分段或文本，让平台原生逻辑生成并自动暂存 annotation JSON。
+- 通过 DOM 和平台事件修改分段或文本；用户触发暂存快捷键时只点击原生暂存按钮，由平台生成 annotation JSON。
+- 扩展在点击前只登记当前 `taskId + dataId` 与本地待暂存版本；只有同一意图对应的 HTTP 与业务响应都成功，才解除提交快捷键保护。
 - 写入前重新核对路由、`dataId`、`paragraphID` 和时间边界；任一不一致即停止。
 - 不直接调用对象存储或暂存接口，不读取或缓存平台临时权限。
 

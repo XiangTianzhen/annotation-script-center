@@ -1,6 +1,6 @@
 # 公共 AI 模块
 
-`platform-resources/backend/ai/` 为柳州、苏州、金华、台州、杭州五脚本后端提供模型目录、请求调度、provider、队列、usage、价格估算、缓存和响应处理能力。
+`platform-resources/backend/ai/` 为柳州、苏州、金华、台州、杭州、泸州六脚本后端提供模型目录、请求调度、provider、队列、usage、价格估算、缓存和响应处理能力。
 
 脚本专属 Prompt、请求校验、响应 schema、路由和业务日志仍放在各脚本 `backend/` 中，公共层不理解具体方言字段。
 
@@ -66,6 +66,7 @@ provider 只负责传输、超时和基础响应解析，不写入脚本字段�
 - `platform-resources/bytedance-aidp/jinhua-helper/backend/`
 - `platform-resources/bytedance-aidp/taizhou-helper/backend/`
 - `platform-resources/magic-data/hangzhou-helper/backend/`
+- `platform-resources/shujiajia/luzhou-helper/backend/`
 
 ## 测试
 

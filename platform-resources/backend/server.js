@@ -31,6 +31,8 @@ server.listen(config.port, config.host, function () {
     "/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
     "/api/magic-data/hangzhou-helper/ai/review-current/health",
     "/api/magic-data/hangzhou-helper/ai/defaults",
+    "/api/shujiajia/luzhou-helper/ai/recommend/health",
+    "/api/shujiajia/luzhou-helper/ai/recommend/defaults",
     "/api/admin/session/unlock",
     "/api/admin/ai-key-slots",
     "/api/admin/ai-key-slots/active",

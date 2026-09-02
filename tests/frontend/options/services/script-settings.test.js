@@ -20,10 +20,11 @@ const RETAINED = [
   "bytedanceAidpJinhuaHelper",
   "bytedanceAidpTaizhouHelper",
   "magicDataHangzhouAssistant",
+  "shujiajiaLuzhouHelper",
 ];
 
 describe("script-settings helpers", () => {
-  test("maps only the five 1.0 scripts into detail schemas", () => {
+  test("maps every current script into detail schemas", () => {
     globalThis.ASREdgeConstants = sharedConstants;
     RETAINED.forEach((scriptId) => {
       expect(getScriptJsonPathLabel(scriptId)).toBeTruthy();
@@ -307,6 +308,17 @@ describe("script-settings helpers", () => {
     expect(getScriptShortcutActions("bytedanceAidpJinhuaHelper")).toHaveLength(7);
     expect(getScriptShortcutActions("bytedanceAidpTaizhouHelper")).toHaveLength(7);
     expect(getScriptShortcutActions("magicDataHangzhouAssistant")).toHaveLength(22);
+    expect(getScriptShortcutActions("shujiajiaLuzhouHelper")).toHaveLength(8);
+  });
+
+  test("describes Shujiajia as manual two-stage recognition without lexicon controls", () => {
+    const fields = getScriptFieldGroups("shujiajiaLuzhouHelper").flatMap((section) =>
+      (section.groups || []).flatMap((group) => group.fields || [])
+    );
+    expect(fields.find((field) => field.path === "aiRecommendListenModel")?.options.length).toBe(2);
+    expect(fields.find((field) => field.path === "aiRecommendRefineModel")?.options.length).toBe(2);
+    expect(fields.some((field) => /Lexicon/.test(field.path || ""))).toBe(false);
+    expect(fields.find((field) => field.path === "aiRecommendAutoFillEnabled")).toBeUndefined();
   });
 
   test("describes dynamic hangzhou model fields and fixed thinking switches", () => {

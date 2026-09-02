@@ -147,7 +147,7 @@ test("ai call log request accepts admin bearer token without password", async fu
   assert.ok(body.data.downloadUrl);
 });
 
-test("ai call log options expose exactly the five 1.0 scripts", function () {
+test("ai call log options expose all six registered scripts", function () {
   const datasets = listAiCallLogDatasets({});
   const target = datasets.find(function (item) {
     return item.id === "data-baker-cvpc-liuzhou-helper-ai";
@@ -161,6 +161,7 @@ test("ai call log options expose exactly the five 1.0 scripts", function () {
     "bytedance-aidp-jinhua-helper-ai",
     "bytedance-aidp-taizhou-helper-ai",
     "magic-data-hangzhou-helper-ai",
+    "shujiajia-luzhou-helper-ai",
   ]);
   assert.equal(datasets.some((item) => "visibility" in item), false);
 });

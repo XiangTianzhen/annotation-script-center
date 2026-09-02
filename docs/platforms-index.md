@@ -1,6 +1,6 @@
 # 平台与脚本索引
 
-当前维护三个已接入平台、五个正式脚本，并初始化一个尚未接入运行时的平台资料框架。
+当前维护四个已接入平台、六个正式脚本。
 
 ## DataBaker CVPC
 
@@ -38,10 +38,11 @@
 - 稳定 Network：`platform-resources/shujiajia/network/`
 - 稳定页面结构：`platform-resources/shujiajia/page-structure/`
 - 泸州话脚本边界：`platform-resources/shujiajia/luzhou-helper/README.md`
-- 当前状态：资料框架已初始化，扩展运行时、Options、Manifest 和统一后端路由尚未接入。
+- 泸州话运行时：`extension/sites/shujiajia/luzhou-helper/`
+- 当前状态：已接入零分段整音频划一段、两阶段识别、人工填入、有效性/暂存/提交快捷键；不自动有效性、暂存或提交。
 
 ## 统一后端
 
 - 入口：`platform-resources/backend/server.js`
 - 契约：`platform-resources/backend/README.md`
-- 后端只注册柳州、苏州、金华、台州、杭州五脚本路由，以及管理员会话、下载中心和 AI 日志接口；数加加泸州话尚未注册。
+- 后端注册柳州、苏州、金华、台州、杭州、泸州六脚本路由，以及管理员会话、下载中心和 AI 日志接口。

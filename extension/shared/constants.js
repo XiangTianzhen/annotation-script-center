@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 36;
+  const SCHEMA_VERSION = 37;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -18,12 +18,14 @@
   const BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID = "bytedanceAidpJinhuaHelper";
   const BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID = "bytedanceAidpTaizhouHelper";
   const MAGIC_DATA_HANGZHOU_SCRIPT_ID = "magicDataHangzhouAssistant";
+  const SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID = "shujiajiaLuzhouHelper";
 
   const DATA_BAKER_CVPC_AI_RECOMMEND_PATH = "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
   const DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH = "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
   const BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH = "/api/bytedance-aidp/suzhou-helper/ai/recommend";
   const BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH = "/api/bytedance-aidp/jinhua-helper/ai/recommend";
   const BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH = "/api/bytedance-aidp/taizhou-helper/ai/recommend";
+  const SHUJIAJIA_LUZHOU_AI_RECOMMEND_PATH = "/api/shujiajia/luzhou-helper/ai/recommend";
 
   const DATA_BAKER_CVPC_PLATFORM = {
     id: "dataBakerCvpc", label: "DataBaker CVPC", host: "cvpc.data-baker.com",
@@ -43,11 +45,18 @@
     matches: ["https://work.magicdatatech.com/*"], runtimeBridge: "magic-data-hangzhou-assistant",
     description: "Magic Data 杭州话 AI 质检辅助平台。",
   };
+  const SHUJIAJIA_PLATFORM = {
+    id: "shujiajia", label: "数加加", host: "www.shujiajia.com",
+    displayHost: "www.shujiajia.com/workbench/piece/mark.html", entryUrl: "https://www.shujiajia.com/",
+    matches: ["https://www.shujiajia.com/*"], runtimeBridge: "shujiajia-luzhou-helper",
+    description: "数加加泸州话整段标注辅助平台。",
+  };
 
   const PLATFORM_LIBRARY = {
     dataBakerCvpc: DATA_BAKER_CVPC_PLATFORM,
     bytedanceAidp: BYTEDANCE_AIDP_PLATFORM,
     magicData: MAGIC_DATA_PLATFORM,
+    shujiajia: SHUJIAJIA_PLATFORM,
   };
   const SCRIPT_LIBRARY = {
     [DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID]: {
@@ -80,6 +89,12 @@
       note: "不自动保存、不自动提交。", detailView: "magic-data-hangzhou-assistant",
       host: MAGIC_DATA_PLATFORM.host, matchUrl: "https://work.magicdatatech.com/#/asrmark",
     },
+    [SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID]: {
+      id: SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, platformId: "shujiajia", label: "泸州话脚本",
+      shortLabel: "泸州话脚本", description: "数加加整音频单段划分、泸州话 AI 识别与人工填入助手。",
+      note: "不自动设置有效性、不自动暂存、不自动提交。", detailView: "shujiajia-luzhou-helper",
+      host: SHUJIAJIA_PLATFORM.host, matchUrl: "https://www.shujiajia.com/workbench/piece/mark.html",
+    },
   };
 
   const BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS = [
@@ -90,6 +105,16 @@
   ];
   const BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
   const BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
+  const SHUJIAJIA_LUZHOU_SHORTCUT_ACTIONS = [
+    { key: "togglePlayPause", label: "播放/暂停" },
+    { key: "createWholeSegment", label: "整音频划一段" },
+    { key: "recognizeWhole", label: "识别整段" },
+    { key: "fillRecognition", label: "填入识别结果" },
+    { key: "markEffective", label: "当前段有效" },
+    { key: "markIneffective", label: "当前段无效" },
+    { key: "temporarySave", label: "暂存" },
+    { key: "submitNext", label: "提交进入下一条" },
+  ];
 
   function trimBaseUrl(value) { return String(value || "").trim().replace(/\/+$/, ""); }
   function normalizeBackendEndpointMode(value, fallback) {
@@ -174,6 +199,19 @@
     aiReviewSingleMaxCompletionTokens: "", aiReviewSinglePresencePenalty: "", aiReviewSingleFrequencyPenalty: "",
     aiReviewSingleSeed: "", aiReviewSingleStopSequences: "", shortcuts: {},
   };
+  const shujiajiaDefaults = {
+    id: SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, enabled: false, aiRecommendEnabled: true,
+    aiRecommendAutoFillEnabled: false, aiRecommendRequestTimeoutMs: 60000,
+    aiRecommendListenModel: "qwen3.5-omni-flash", aiRecommendListenPrompt: "",
+    aiRecommendRefineModel: "qwen3.5-plus", aiRecommendRefinePrompt: "",
+    aiRecommendListenTemperature: "", aiRecommendListenTopP: "", aiRecommendListenMaxTokens: "",
+    aiRecommendListenMaxCompletionTokens: "", aiRecommendListenPresencePenalty: "",
+    aiRecommendListenFrequencyPenalty: "", aiRecommendListenSeed: "", aiRecommendListenStopSequences: "",
+    aiRecommendRefineTemperature: "", aiRecommendRefineTopP: "", aiRecommendRefineMaxTokens: "",
+    aiRecommendRefineMaxCompletionTokens: "", aiRecommendRefinePresencePenalty: "",
+    aiRecommendRefineFrequencyPenalty: "", aiRecommendRefineSeed: "", aiRecommendRefineStopSequences: "",
+    contractMode: "dom-guarded", shortcuts: Object.fromEntries(SHUJIAJIA_LUZHOU_SHORTCUT_ACTIONS.map((item) => [item.key, null])),
+  };
   const DEFAULT_SETTINGS = {
     platforms: {
       dataBakerCvpc: { enabled: true, scripts: { liuzhouAssistant: {
@@ -201,6 +239,7 @@
         taizhouHelper: { ...taizhouAidp(BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, false), aiRecommendEndpoint: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH },
       } },
       magicData: { enabled: true, activeScriptId: "", scripts: { hangzhouHelper: { ...magicDefaults } } },
+      shujiajia: { enabled: true, activeScriptId: "", scripts: { luzhouHelper: { ...shujiajiaDefaults } } },
     },
     meta: { schemaVersion: SCHEMA_VERSION, backendEndpointMode: "server", backendBaseUrls: { ...DEFAULT_BACKEND_BASE_URLS },
       aiUsageOperatorName: "", aiCallLogDownloadOperatorName: "", publicCenterPlatformOrder: [],
@@ -274,6 +313,16 @@
           (!activeScriptId || activeScriptId === scriptId)
       );
     }
+    if (scriptId === SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID) {
+      const fallbackPlatform = DEFAULT_SETTINGS.platforms.shujiajia;
+      const platform = source.platforms?.shujiajia || {};
+      const fallbackScript = fallbackPlatform.scripts.luzhouHelper;
+      const script = platform.scripts?.luzhouHelper || {};
+      return Boolean(
+        booleanOrDefault(platform.enabled, fallbackPlatform.enabled) &&
+          booleanOrDefault(script.enabled, fallbackScript.enabled)
+      );
+    }
     return false;
   }
   function buildPlatformEntryDescriptor(platform) {
@@ -286,17 +335,21 @@
     BACKEND_ENDPOINT_MODE_SERVER, BACKEND_ENDPOINT_MODE_LOCAL, DEFAULT_BACKEND_BASE_URLS,
     DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID, BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
     BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID, BYTEDANCE_AIDP_TAIZHOU_HELPER_SCRIPT_ID, MAGIC_DATA_HANGZHOU_SCRIPT_ID,
+    SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID,
     DATA_BAKER_CVPC_AI_RECOMMEND_PATH, DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH,
     BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH, BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH, BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH,
-    DATA_BAKER_CVPC_PLATFORM, BYTEDANCE_AIDP_PLATFORM, MAGIC_DATA_PLATFORM,
+    SHUJIAJIA_LUZHOU_AI_RECOMMEND_PATH,
+    DATA_BAKER_CVPC_PLATFORM, BYTEDANCE_AIDP_PLATFORM, MAGIC_DATA_PLATFORM, SHUJIAJIA_PLATFORM,
     PLATFORM_LIBRARY, SCRIPT_LIBRARY, BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS,
-    BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS, BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS, DEFAULT_SETTINGS,
+    BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS, BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS,
+    SHUJIAJIA_LUZHOU_SHORTCUT_ACTIONS, DEFAULT_SETTINGS,
     normalizeBackendEndpointMode, getBackendBaseUrlsFromSettings, getBackendEndpointModeFromSettings,
     getBackendBaseUrlByMode, buildBackendUrl, isPlatformVisible, isScriptVisible,
     isScriptRuntimeAccessible, buildPlatformEntryDescriptor,
     BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH,
     BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH,
     BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_SERVER_ENDPOINT: DEFAULT_BACKEND_BASE_URLS.server + BYTEDANCE_AIDP_TAIZHOU_AI_RECOMMEND_PATH,
+    SHUJIAJIA_LUZHOU_AI_RECOMMEND_SERVER_ENDPOINT: DEFAULT_BACKEND_BASE_URLS.server + SHUJIAJIA_LUZHOU_AI_RECOMMEND_PATH,
   };
   globalThis.ASREdgeConstants = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

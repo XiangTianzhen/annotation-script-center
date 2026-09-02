@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "标注脚本中心",
-  "description": "柳州话、苏州话、金华话、台州话与杭州话标注辅助脚本中心。",
+  "description": "柳州话、苏州话、金华话、台州话、杭州话与泸州话标注辅助脚本中心。",
   "version": "1.1.8",
   "permissions": [
     "storage",
@@ -142,6 +142,37 @@
         "sites/bytedance-aidp/taizhou-helper/content.js"
       ],
       "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://www.shujiajia.com/*"
+      ],
+      "js": [
+        "sites/shujiajia/luzhou-helper/page-world/network-observer.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.shujiajia.com/*"
+      ],
+      "js": [
+        "shared/constants.js",
+        "shared/storage.js",
+        "shared/ai-usage-meta.js",
+        "shared/ai-cost-display.js",
+        "sites/shujiajia/luzhou-helper/data-api.js",
+        "sites/shujiajia/luzhou-helper/ai-recommendation.js",
+        "sites/shujiajia/luzhou-helper/whole-segment-controller.js",
+        "sites/shujiajia/luzhou-helper/ui-panel.js",
+        "sites/shujiajia/luzhou-helper/shortcuts.js",
+        "sites/shujiajia/luzhou-helper/content.js"
+      ],
+      "all_frames": true,
       "run_at": "document_start",
       "world": "ISOLATED"
     }

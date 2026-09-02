@@ -70,11 +70,12 @@ test("CVPC storage defaults expose promoted liuzhou helper settings", async func
       server: "https://annotation-script-center.xiangtianzhen.store",
       local: "http://127.0.0.1:3333",
     });
-    assert.equal(settings.meta.schemaVersion, 36);
+    assert.equal(settings.meta.schemaVersion, 37);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
       "magicData",
+      "shujiajia",
     ]);
     assert.deepEqual(Object.keys(settings.platforms.dataBakerCvpc.scripts), [
       "liuzhouAssistant",

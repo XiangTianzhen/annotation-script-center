@@ -7,6 +7,7 @@ const SCRIPT_IDS = {
   jinhua: "bytedanceAidpJinhuaHelper",
   taizhou: "bytedanceAidpTaizhouHelper",
   hangzhou: "magicDataHangzhouAssistant",
+  shujiajia: "shujiajiaLuzhouHelper",
 };
 
 const DEFAULT_ENDPOINTS = {
@@ -15,6 +16,7 @@ const DEFAULT_ENDPOINTS = {
   [SCRIPT_IDS.jinhua]: "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
   [SCRIPT_IDS.taizhou]: "/api/bytedance-aidp/taizhou-helper/ai/recommend/defaults",
   [SCRIPT_IDS.hangzhou]: "/api/magic-data/hangzhou-helper/ai/defaults",
+  [SCRIPT_IDS.shujiajia]: "/api/shujiajia/luzhou-helper/ai/recommend/defaults",
 };
 
 const DEFAULT_BRANCHES = {
@@ -23,6 +25,7 @@ const DEFAULT_BRANCHES = {
   [SCRIPT_IDS.jinhua]: "platforms.bytedanceAidp.scripts.jinhuaHelper",
   [SCRIPT_IDS.taizhou]: "platforms.bytedanceAidp.scripts.taizhouHelper",
   [SCRIPT_IDS.hangzhou]: "platforms.magicData.scripts.hangzhouHelper",
+  [SCRIPT_IDS.shujiajia]: "platforms.shujiajia.scripts.luzhouHelper",
 };
 
 const STAGE_PARAM_DEFINITIONS = [
@@ -157,6 +160,21 @@ const STATIC_LOCAL_DEFAULTS = {
         "qwen3-omni-flash-2025-12-01",
         "qwen3-omni-flash-2025-09-15",
       ],
+    },
+  },
+  [SCRIPT_IDS.shujiajia]: {
+    config: {
+      aiRecommendEnabled: true,
+      aiRecommendAutoFillEnabled: false,
+      aiRecommendRequestTimeoutMs: 60000,
+      aiRecommendListenModel: "qwen3.5-omni-flash",
+      aiRecommendListenPrompt: "",
+      aiRecommendRefineModel: "qwen3.5-plus",
+      aiRecommendRefinePrompt: "",
+    },
+    options: {
+      listenModels: ["qwen3.5-omni-flash", "qwen3.5-omni-plus"],
+      refineModels: ["qwen3.5-plus", "qwen3.5-flash"],
     },
   },
 };
@@ -459,6 +477,9 @@ export function hydrateScriptDraft(scriptId, storedConfig, defaults = {}) {
     draft.aiReviewModelMode = normalizeMagicModelMode(draft.aiReviewModelMode);
     draft.aiReviewEnableThinking = false;
     draft.enableThinking = false;
+  } else if (normalizedScriptId === SCRIPT_IDS.shujiajia) {
+    draft.aiRecommendRequestTimeoutMs = Math.min(60000, Math.max(1000, Number(draft.aiRecommendRequestTimeoutMs) || 60000));
+    draft.aiRecommendAutoFillEnabled = false;
   }
   return draft;
 }
@@ -609,6 +630,15 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
       { path: "aiReviewListenLexiconPrompt", kind: "text" },
       { path: "aiReviewCompareLexiconPrompt", kind: "text" },
       { path: "aiReviewSingleLexiconPrompt", kind: "text" },
+    ]);
+  } else if (normalizedScriptId === SCRIPT_IDS.shujiajia) {
+    result.aiRecommendRequestTimeoutMs = Math.round(
+      requiredNumber(result.aiRecommendRequestTimeoutMs, "请求超时时间（毫秒）", 1000, 60000)
+    );
+    result.aiRecommendAutoFillEnabled = false;
+    clearDefaultOverrides(result, defaults, [
+      ...buildStageOverrideDefinitions("aiRecommendListen"),
+      ...buildStageOverrideDefinitions("aiRecommendRefine"),
     ]);
   }
   return result;
