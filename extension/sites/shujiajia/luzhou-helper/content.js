@@ -3,6 +3,7 @@
 
   const SOURCE = "asc-shujiajia-luzhou";
   const AUDIO_READY = "ASC_SHUJIAJIA_AUDIO_READY";
+  const AUDIO_STATUS = "ASC_SHUJIAJIA_AUDIO_STATUS";
   const CONTEXT_READY = "ASC_SHUJIAJIA_CONTEXT_READY";
   const TEMP_SAVE_SUCCEEDED = "ASC_SHUJIAJIA_TEMP_SAVE_SUCCEEDED";
   const REQUEST_AUDIO = "ASC_SHUJIAJIA_REQUEST_AUDIO";
@@ -69,6 +70,17 @@
     return messages[String(code || "")] || "整段划分未通过验证，请人工处理";
   }
 
+  function formatAudioStatus(code) {
+    const messages = {
+      "identity-unavailable": "未取得当前条目身份，请刷新页面后重试",
+      "source-invalid": "当前条目音频地址无效，请刷新页面后重试",
+      "download-failed": "当前条目音频下载失败，请刷新页面后重试",
+      "unsupported-audio": "当前条目音频格式不受支持",
+      "audio-too-large": "当前条目音频超过 10MB，无法识别",
+    };
+    return messages[String(code || "")] || "尚未捕获当前条目音频，请刷新页面后重试";
+  }
+
   function createRuntime(options) {
     const config = options || {};
     const windowLike = config.window || globalThis.window;
@@ -79,7 +91,7 @@
     const panel = config.panel || globalThis.__ASREdgeShujiajiaUiPanel?.createPanel?.({ document: documentLike }) || {};
     const shortcuts = config.shortcuts || globalThis.__ASREdgeShujiajiaShortcuts || {};
     const runtimeApi = config.runtimeApi || globalThis.chrome?.runtime;
-    const state = { audioDataUrl: "", audioContextId: "", contextId: "", dirty: false, dirtyToken: "", result: null, resultContextId: "", settings: config.settings || null };
+    const state = { audioDataUrl: "", audioContextId: "", audioStatusCode: "", contextId: "", dirty: false, dirtyToken: "", result: null, resultContextId: "", settings: config.settings || null };
     let shortcutRuntime = null;
     let mountTimer = null;
     let storageChangeListener = null;
@@ -163,6 +175,7 @@
       if (data.type === CONTEXT_READY && data.payload?.contextId) {
         const next = String(data.payload.contextId);
         const changed = state.contextId !== next;
+        if (changed) state.audioStatusCode = "";
         if (state.contextId && state.contextId !== next) {
           state.audioDataUrl = "";
           state.audioContextId = "";
@@ -180,8 +193,17 @@
         if (!state.contextId || String(data.payload?.contextId || "") !== state.contextId) return;
         state.audioDataUrl = String(data.payload.audioDataUrl);
         state.audioContextId = state.contextId;
+        state.audioStatusCode = "";
         message("已捕获当前音频，可开始识别");
         if (windowLike?.top === windowLike) relayToFrames(data);
+      } else if (data.type === AUDIO_STATUS) {
+        const statusContextId = String(data.payload?.contextId || "");
+        if (statusContextId && state.contextId && statusContextId !== state.contextId) return;
+        const code = String(data.payload?.code || "");
+        if (!Object.prototype.hasOwnProperty.call({ "identity-unavailable": 1, "source-invalid": 1, "download-failed": 1, "unsupported-audio": 1, "audio-too-large": 1 }, code)) return;
+        state.audioStatusCode = code;
+        message(formatAudioStatus(code));
+        if (windowLike?.top === windowLike) relayToFrames({ source: SOURCE, type: AUDIO_STATUS, payload: { contextId: statusContextId, code } });
       } else if (data.type === DIRTY_CHANGED) {
         applyDirty(data.payload);
         if (windowLike?.top === windowLike && event.source !== windowLike) relayToFrames(data);
@@ -194,6 +216,8 @@
         if (state.contextId) event.source.postMessage({ source: SOURCE, type: CONTEXT_READY, payload: { contextId: state.contextId } }, origin());
         if (state.audioDataUrl && (!data.payload?.contextId || data.payload.contextId === state.contextId)) {
           event.source.postMessage({ source: SOURCE, type: AUDIO_READY, payload: { contextId: state.contextId, audioDataUrl: state.audioDataUrl } }, origin());
+        } else if (state.audioStatusCode && (!data.payload?.contextId || data.payload.contextId === state.contextId)) {
+          event.source.postMessage({ source: SOURCE, type: AUDIO_STATUS, payload: { contextId: state.contextId, code: state.audioStatusCode } }, origin());
         }
       } else if (data.type === TRUSTED_INPUT_REQUEST && windowLike?.top === windowLike && event.source?.postMessage) {
         const request = buildTopTrustedInputMessage(event, documentLike);
@@ -239,7 +263,7 @@
         const currentSettings = await refreshSettings(true);
         if (!currentSettings) return { ok: false, code: "ai-disabled" };
         if (!state.contextId || state.audioContextId !== state.contextId || !state.audioDataUrl) {
-          message("尚未捕获当前条目音频，请刷新页面并播放一次音频后重试");
+          message(formatAudioStatus(state.audioStatusCode));
           return { ok: false, code: "audio-not-captured" };
         }
         const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
@@ -310,7 +334,6 @@
         if (!result.ok && result.code === "temporary-save-required") message("请先暂存扩展产生的修改");
         return result;
       },
-      toggleDrawer() { panel.toggleDrawer?.(); return { ok: true }; },
     };
 
     async function start() {
@@ -369,7 +392,7 @@
     return { actions, getState, setRecognitionResult, start, stop };
   }
 
-  const api = { buildTopTrustedInputMessage, createRuntime, formatWholeSegmentFailure, settleObserverBeforeBoot, constants: { SOURCE, AUDIO_READY, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT, TRUSTED_INPUT_REQUEST, TRUSTED_INPUT_RESPONSE, BACKGROUND_TRUSTED_INPUT } };
+  const api = { buildTopTrustedInputMessage, createRuntime, formatAudioStatus, formatWholeSegmentFailure, settleObserverBeforeBoot, constants: { SOURCE, AUDIO_READY, AUDIO_STATUS, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT, TRUSTED_INPUT_REQUEST, TRUSTED_INPUT_RESPONSE, BACKGROUND_TRUSTED_INPUT } };
   globalThis.__ASREdgeShujiajiaContent = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 

@@ -3,7 +3,8 @@
 
   const ROOT_ATTR = "data-asc-shujiajia-luzhou-helper";
   const DRAWER_ATTR = "data-asc-shujiajia-luzhou-drawer";
-  const PANEL_ACTIONS = ["createWholeSegment", "recognizeWhole", "toggleDrawer", "fillRecognition"];
+  const RESULT_HOST_ATTR = "data-asc-shujiajia-luzhou-result-host";
+  const PANEL_ACTIONS = ["createWholeSegment", "recognizeWhole", "fillRecognition"];
 
   function number(value) {
     const parsed = Number(value);
@@ -32,9 +33,25 @@
     return button;
   }
   function findMountHosts(documentLike) {
+    const formTabs = documentLike.querySelector(".form-tabs");
+    const primaryControls = documentLike.querySelector(".form-tabs .tabs-container") || documentLike.querySelector(".tabs-container");
+    const operateContainer = documentLike.querySelector(".operate-container");
+    const primaryResults = documentLike.querySelector(".operate-container .transfer") || documentLike.querySelector(".transfer");
+    let resultHost = primaryResults;
+    if (!resultHost && operateContainer) {
+      resultHost = operateContainer.querySelector(`[${RESULT_HOST_ATTR}]`);
+      if (!resultHost) {
+        resultHost = documentLike.createElement("div");
+        resultHost.setAttribute(RESULT_HOST_ATTR, "");
+        const paragraph = operateContainer.querySelector(".paragraph");
+        operateContainer.insertBefore(resultHost, paragraph || operateContainer.firstChild);
+      }
+    }
     return {
-      controls: documentLike.querySelector(".form-tabs .tabs-container") || documentLike.querySelector(".tabs-container"),
-      results: documentLike.querySelector(".operate-container .transfer") || documentLike.querySelector(".transfer"),
+      controls: primaryControls || formTabs,
+      primaryControls,
+      results: resultHost,
+      primaryResults,
     };
   }
   function createPanel(options) {
@@ -69,8 +86,8 @@
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-btn,[data-asc-shujiajia-luzhou-drawer] .asc-sjj-btn{display:block;width:100%;margin:6px 0;padding:7px 9px;border:1px solid #606266;border-radius:4px;background:#3a3b3d;color:#f2f3f5;cursor:pointer}",
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-btn:first-of-type,[data-asc-shujiajia-luzhou-drawer] .asc-sjj-primary{border-color:#409eff;background:#409eff;color:#fff}",
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-status{margin-top:8px;color:#909399;white-space:normal}",
+        "[data-asc-shujiajia-luzhou-result-host]{flex:0 0 40%;width:40%;height:100%;box-sizing:border-box;overflow:auto;margin-right:4px}",
         "[data-asc-shujiajia-luzhou-drawer]{width:100%;box-sizing:border-box;margin-top:10px;padding:12px;border:1px solid #606266;border-radius:6px;background:#303133;color:#f2f3f5;font:14px/1.5 'Microsoft YaHei',sans-serif}",
-        "[data-asc-shujiajia-luzhou-drawer][hidden]{display:none!important}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result{min-height:72px;padding:9px;background:#252629;border-radius:4px;white-space:pre-wrap;word-break:break-word}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-meta{margin:8px 0;color:#909399}",
@@ -82,6 +99,15 @@
       button.addEventListener("click", () => { void actions[button.dataset.ascAction]?.(); });
       return button;
     }
+    function mountControls(hosts) {
+      if (hosts.primaryControls) {
+        hosts.controls.appendChild(root);
+        return;
+      }
+      const divider = hosts.controls?.querySelector?.(".border-line");
+      if (divider?.parentElement === hosts.controls) divider.insertAdjacentElement("afterend", root);
+      else hosts.controls?.appendChild(root);
+    }
     function ensureMounted() {
       if (removed) return false;
       const hosts = findMountHosts(doc);
@@ -89,8 +115,9 @@
       if (root?.isConnected && drawer?.isConnected && root.parentElement === hosts.controls && drawer.parentElement === hosts.results) { observeMount(); return true; }
       installStyle();
       if (root && drawer) {
-        if (root.parentElement !== hosts.controls) hosts.controls.appendChild(root);
+        if (root.parentElement !== hosts.controls) mountControls(hosts);
         if (drawer.parentElement !== hosts.results) hosts.results.appendChild(drawer);
+        if (hosts.primaryResults) doc.querySelector(`[${RESULT_HOST_ATTR}]`)?.remove();
         observeMount();
         return true;
       }
@@ -102,23 +129,21 @@
       title.textContent = "泸州话助手";
       root.append(title,
         wire(createButton(doc, "整音频划一段", "createWholeSegment")),
-        wire(createButton(doc, "识别整段", "recognizeWhole")),
-        wire(createButton(doc, "展开识别结果", "toggleDrawer"))
+        wire(createButton(doc, "识别整段", "recognizeWhole"))
       );
       statusNode = doc.createElement("div");
       statusNode.className = "asc-sjj-status";
       statusNode.textContent = "等待操作";
       root.appendChild(statusNode);
-      hosts.controls.appendChild(root);
+      mountControls(hosts);
 
       drawer = doc.querySelector(`[${DRAWER_ATTR}]`) || doc.createElement("section");
       drawer.setAttribute(DRAWER_ATTR, "");
-      drawer.hidden = true;
+      drawer.hidden = false;
       drawer.innerHTML = "<div class='asc-sjj-title'>AI 识别结果</div><div class='asc-sjj-result-grid'><div><b>原始听写</b><div class='asc-sjj-result' data-role='listen'></div></div><div><b>泸州话整理</b><div class='asc-sjj-result' data-role='refine'></div></div></div><div class='asc-sjj-meta' data-role='meta'>尚未识别</div>";
-      const close = wire(createButton(doc, "关闭结果", "toggleDrawer"));
       const fill = wire(createButton(doc, "填入转写", "fillRecognition"));
       fill.classList.add("asc-sjj-primary");
-      drawer.append(close, fill);
+      drawer.append(fill);
       listenNode = drawer.querySelector("[data-role='listen']");
       refineNode = drawer.querySelector("[data-role='refine']");
       metaNode = drawer.querySelector("[data-role='meta']");
@@ -134,25 +159,24 @@
         listenNode.textContent = "";
         refineNode.textContent = "";
         metaNode.textContent = "尚未识别";
-        drawer.hidden = true;
+        drawer.hidden = false;
         return;
       }
       const view = buildResultView(result);
       listenNode.textContent = view.listenText || "（空）";
       refineNode.textContent = view.refinedText || "（空）";
       metaNode.textContent = view.usageText + " · " + view.costText;
-      drawer.hidden = false;
     }
-    function toggleDrawer() { if (ensureMounted()) drawer.hidden = !drawer.hidden; }
     function remove() {
       removed = true;
       observer?.disconnect?.();
       observer = null;
       root?.remove();
       drawer?.remove();
+      doc.querySelector(`[${RESULT_HOST_ATTR}]`)?.remove();
       root = drawer = null;
     }
-    return { ensureMounted, remove, setActions, setMessage, setResult, toggleDrawer };
+    return { ensureMounted, remove, setActions, setMessage, setResult };
   }
   const api = { PANEL_ACTIONS, buildResultView, createPanel };
   globalThis.__ASREdgeShujiajiaUiPanel = api;

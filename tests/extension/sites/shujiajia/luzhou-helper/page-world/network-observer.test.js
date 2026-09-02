@@ -6,6 +6,77 @@ const { resolveRepo } = require("#repo-paths");
 
 const observer = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "page-world", "network-observer.js"));
 
+test("execute request URL supplies taskId when response body only has detail dataId", async () => {
+  const messages = [];
+  const calls = [];
+  const sourceUrl = "https://storage.shujiajia.com/store/audio.wav?v=1";
+  const instance = observer.createObserver({
+    emit: (message) => messages.push(message),
+    fetchAudio: async (url) => {
+      calls.push(url);
+      return { ok: true, headers: { get: () => "audio/wav" }, arrayBuffer: async () => Uint8Array.from([1]).buffer };
+    },
+  });
+  instance.enable({});
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task-safe&executeClass=TAG_PIECE", {
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "item-safe", fileFolder: sourceUrl } } }) }),
+  }, { method: "GET" });
+
+  assert.deepEqual(calls, [sourceUrl]);
+  assert.deepEqual(messages.map((message) => message.type), [observer.constants.CONTEXT_READY, observer.constants.AUDIO_READY]);
+  assert.equal(messages[0].payload.contextId, "task-safe:item-safe");
+  assert.equal(JSON.stringify(messages).includes("?v=1"), false);
+});
+
+test("execute identity and audio failures emit only safe status codes", async () => {
+  const cases = [
+    { url: "/web-task-alone-api/task/piece/execute", detail: { dataId: "item", fileFolder: "https://storage.shujiajia.com/store/audio.wav" }, code: "identity-unavailable" },
+    { url: "/web-task-alone-api/task/piece/execute?taskId=task", detail: { fileFolder: "https://storage.shujiajia.com/store/audio.wav" }, code: "identity-unavailable" },
+    { url: "/web-task-alone-api/task/piece/execute?taskId=task", detail: { dataId: "item", fileFolder: "https://example.invalid/private.wav?v=1" }, code: "source-invalid" },
+  ];
+  for (const fixture of cases) {
+    const messages = [];
+    const instance = observer.createObserver({ emit: (message) => messages.push(message), fetchAudio: async () => { throw new Error("must not fetch"); } });
+    instance.enable({});
+    await instance.captureResponse(fixture.url, {
+      ok: true,
+      clone: () => ({ json: async () => ({ data: { detail: fixture.detail } }) }),
+    }, { method: "GET" });
+    const status = messages.find((message) => message.type === observer.constants.AUDIO_STATUS);
+    assert.equal(status?.payload.code, fixture.code);
+    assert.deepEqual(Object.keys(status.payload).sort(), ["code", "contextId"]);
+    assert.equal(JSON.stringify(status).includes("private.wav"), false);
+    assert.equal(JSON.stringify(status).includes("?v=1"), false);
+  }
+});
+
+test("direct audio download failures expose distinct safe status codes", async () => {
+  const fixtures = [
+    { response: { ok: false, headers: { get: () => "audio/wav" } }, code: "download-failed" },
+    { response: { ok: true, headers: { get: () => "text/html" }, arrayBuffer: async () => Uint8Array.from([1]).buffer }, code: "unsupported-audio" },
+    { response: { ok: true, headers: { get: (name) => name.toLowerCase() === "content-length" ? String(10 * 1024 * 1024 + 1) : "audio/wav" }, arrayBuffer: async () => { throw new Error("must not read"); } }, code: "audio-too-large" },
+    { error: new Error("internal-error-detail"), code: "download-failed" },
+  ];
+  for (let index = 0; index < fixtures.length; index += 1) {
+    const messages = [];
+    const fixture = fixtures[index];
+    const instance = observer.createObserver({
+      emit: (message) => messages.push(message),
+      fetchAudio: async () => { if (fixture.error) throw fixture.error; return fixture.response; },
+    });
+    instance.enable({});
+    await instance.captureResponse(`/web-task-alone-api/task/piece/execute?taskId=task-${index}`, {
+      ok: true,
+      clone: () => ({ json: async () => ({ data: { detail: { dataId: `item-${index}`, fileFolder: "https://storage.shujiajia.com/store/audio.wav?v=1" } } }) }),
+    }, { method: "GET" });
+    const status = messages.find((message) => message.type === observer.constants.AUDIO_STATUS);
+    assert.equal(status?.payload.code, fixture.code);
+    assert.equal(JSON.stringify(status).includes("?v=1"), false);
+    assert.equal(JSON.stringify(status).includes("internal-error-detail"), false);
+  }
+});
+
 test("observer emits audio bytes without exposing the source URL", async () => {
   const messages = [];
   const instance = observer.createObserver({ emit: (message) => messages.push(message) });
@@ -62,9 +133,9 @@ test("observer consumes the latest execute snapshot after delayed enable", async
     },
   });
 
-  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
     ok: true,
-    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "delayed", detail: { fileFolder: sourceUrl } } }) }),
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "delayed", fileFolder: sourceUrl } } }) }),
   }, { method: "GET" });
 
   assert.deepEqual(messages, []);
@@ -87,9 +158,9 @@ test("observer clears a dormant execute snapshot when disabled", async () => {
     },
   });
 
-  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
     ok: true,
-    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "discarded", detail: { fileFolder: "https://storage.shujiajia.com/store/discarded.wav" } } }) }),
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "discarded", fileFolder: "https://storage.shujiajia.com/store/discarded.wav" } } }) }),
   }, { method: "GET" });
   instance.disable();
   await instance.enable({});
@@ -107,13 +178,13 @@ test("observer does not restore an in-flight dormant snapshot after disable", as
       return { ok: true, headers: { get: () => "audio/wav" }, arrayBuffer: async () => Uint8Array.from([1]).buffer };
     },
   });
-  const pendingCapture = instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+  const pendingCapture = instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
     ok: true,
     clone: () => ({ json: () => new Promise((resolve) => { resolveJson = resolve; }) }),
   }, { method: "GET" });
   await Promise.resolve();
   instance.disable();
-  resolveJson({ data: { taskId: "task", dataId: "stale", detail: { fileFolder: "https://storage.shujiajia.com/store/stale.wav" } } });
+  resolveJson({ data: { detail: { dataId: "stale", fileFolder: "https://storage.shujiajia.com/store/stale.wav" } } });
   await pendingCapture;
   await instance.enable({});
 
@@ -124,11 +195,14 @@ test("observer derives a new item context from the execute response and clears s
   const messages = [];
   const instance = observer.createObserver({ emit: (message) => messages.push(message) });
   instance.enable({});
-  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
     ok: true,
-    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item" } }) }),
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "item" } } }) }),
   });
-  assert.deepEqual(messages, [{ source: observer.constants.SOURCE, type: observer.constants.CONTEXT_READY, payload: { contextId: "task:item" } }]);
+  assert.deepEqual(messages, [
+    { source: observer.constants.SOURCE, type: observer.constants.CONTEXT_READY, payload: { contextId: "task:item" } },
+    { source: observer.constants.SOURCE, type: observer.constants.AUDIO_STATUS, payload: { contextId: "task:item", code: "source-invalid" } },
+  ]);
   assert.equal(instance.getLatestAudioDataUrl(), "");
 });
 
@@ -189,9 +263,9 @@ test("observer fetches the confirmed execute fileFolder in page world and emits 
     },
   });
   instance.enable({});
-  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
     ok: true,
-    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item", detail: { fileFolder: sourceUrl } } }) }),
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "item", fileFolder: sourceUrl } } }) }),
   }, { method: "GET" });
 
   assert.equal(calls.length, 1);
@@ -219,12 +293,13 @@ test("observer rejects fileFolder values outside the confirmed HTTPS storage hos
       fetchAudio: async () => { fetchCount += 1; throw new Error("must not fetch"); },
     });
     instance.enable({});
-    await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
       ok: true,
-      clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item-" + index, detail: { fileFolder: sourceUrl } } }) }),
+      clone: () => ({ json: async () => ({ data: { detail: { dataId: "item-" + index, fileFolder: sourceUrl } } }) }),
     }, { method: "GET" });
     assert.equal(fetchCount, 0);
-    assert.deepEqual(messages.map((message) => message.type), [observer.constants.CONTEXT_READY]);
+    assert.deepEqual(messages.map((message) => message.type), [observer.constants.CONTEXT_READY, observer.constants.AUDIO_STATUS]);
+    assert.equal(messages.at(-1).payload.code, "source-invalid");
   }
 });
 
@@ -236,9 +311,9 @@ test("observer discards a direct audio fetch that finishes after the item change
     fetchAudio: () => new Promise((resolve) => { finishOldFetch = resolve; }),
   });
   instance.enable({});
-  const pending = instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+  const pending = instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
     ok: true,
-    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "old", detail: { fileFolder: "https://storage.shujiajia.com/store/old.wav" } } }) }),
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "old", fileFolder: "https://storage.shujiajia.com/store/old.wav" } } }) }),
   }, { method: "GET" });
   await Promise.resolve();
   await Promise.resolve();
@@ -250,6 +325,27 @@ test("observer discards a direct audio fetch that finishes after the item change
   });
   await pending;
   assert.equal(messages.filter((message) => message.type === observer.constants.AUDIO_READY).length, 0);
+});
+
+test("observer discards a direct audio failure that arrives after disable", async () => {
+  const messages = [];
+  let rejectFetch;
+  const instance = observer.createObserver({
+    emit: (message) => messages.push(message),
+    fetchAudio: () => new Promise((_resolve, reject) => { rejectFetch = reject; }),
+  });
+  instance.enable({});
+  const pending = instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
+    ok: true,
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "item", fileFolder: "https://storage.shujiajia.com/store/audio.wav" } } }) }),
+  }, { method: "GET" });
+  await Promise.resolve();
+  await Promise.resolve();
+  instance.disable();
+  rejectFetch(new Error("late failure"));
+  await pending;
+
+  assert.equal(messages.some((message) => message.type === observer.constants.AUDIO_STATUS), false);
 });
 
 test("observer requests fileFolder only once for the same current context", async () => {
@@ -264,10 +360,10 @@ test("observer requests fileFolder only once for the same current context", asyn
   instance.enable({});
   const response = () => ({
     ok: true,
-    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item", detail: { fileFolder: "https://storage.shujiajia.com/store/item.wav" } } }) }),
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "item", fileFolder: "https://storage.shujiajia.com/store/item.wav" } } }) }),
   });
-  await instance.captureResponse("/web-task-alone-api/task/piece/execute", response(), { method: "GET" });
-  await instance.captureResponse("/web-task-alone-api/task/piece/execute", response(), { method: "GET" });
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", response(), { method: "GET" });
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", response(), { method: "GET" });
   assert.equal(fetchCount, 1);
 });
 
@@ -284,9 +380,9 @@ test("observer rejects failed, non-audio, and oversized direct audio responses",
       fetchAudio: async () => fixtures[index],
     });
     instance.enable({});
-    await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+    await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
       ok: true,
-      clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: String(index), detail: { fileFolder: "https://storage.shujiajia.com/store/redacted.wav" } } }) }),
+      clone: () => ({ json: async () => ({ data: { detail: { dataId: String(index), fileFolder: "https://storage.shujiajia.com/store/redacted.wav" } } }) }),
     }, { method: "GET" });
     assert.equal(messages.some((message) => message.type === observer.constants.AUDIO_READY), false);
   }
@@ -299,9 +395,9 @@ test("observer ignores an execute response without fileFolder", async () => {
     fetchAudio: async () => { fetchCount += 1; return null; },
   });
   instance.enable({});
-  await instance.captureResponse("/web-task-alone-api/task/piece/execute", {
+  await instance.captureResponse("/web-task-alone-api/task/piece/execute?taskId=task", {
     ok: true,
-    clone: () => ({ json: async () => ({ data: { taskId: "task", dataId: "item", detail: {} } }) }),
+    clone: () => ({ json: async () => ({ data: { detail: { dataId: "item" } } }) }),
   }, { method: "GET" });
   assert.equal(fetchCount, 0);
 });

@@ -3,6 +3,7 @@
 
   const SOURCE = "asc-shujiajia-luzhou";
   const AUDIO_READY = "ASC_SHUJIAJIA_AUDIO_READY";
+  const AUDIO_STATUS = "ASC_SHUJIAJIA_AUDIO_STATUS";
   const CONTEXT_READY = "ASC_SHUJIAJIA_CONTEXT_READY";
   const TEMP_SAVE_SUCCEEDED = "ASC_SHUJIAJIA_TEMP_SAVE_SUCCEEDED";
   const OBSERVER_ENABLE = "ASC_SHUJIAJIA_OBSERVER_ENABLE";
@@ -54,35 +55,40 @@
     if (!buffer || buffer.byteLength <= 0 || buffer.byteLength > MAX_AUDIO_BYTES || !mime) return "";
     return "data:" + mime + ";base64," + bytesToBase64(new Uint8Array(buffer));
   }
-  async function responseToAudioDataUrl(response, rawUrl, preserveBody) {
-    if (!response || response.ok === false) return "";
+  async function inspectAudioResponse(response, rawUrl, preserveBody) {
+    if (!response || response.ok === false) return { ok: false, code: "download-failed" };
     const headers = response.headers;
     const declaredLength = Number(headers?.get?.("content-length"));
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_AUDIO_BYTES) return "";
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_AUDIO_BYTES) return { ok: false, code: "audio-too-large" };
     const mime = getAudioMime(headers?.get?.("content-type"), rawUrl);
-    if (!mime) return "";
+    if (!mime) return { ok: false, code: "unsupported-audio" };
     const body = preserveBody ? response.clone?.() : response;
-    if (typeof body?.arrayBuffer !== "function") return "";
-    try { return bufferToAudioDataUrl(await body.arrayBuffer(), mime); }
-    catch (_error) { return ""; }
+    if (typeof body?.arrayBuffer !== "function") return { ok: false, code: "download-failed" };
+    try {
+      const buffer = await body.arrayBuffer();
+      if (buffer?.byteLength > MAX_AUDIO_BYTES) return { ok: false, code: "audio-too-large" };
+      const dataUrl = bufferToAudioDataUrl(buffer, mime);
+      return dataUrl ? { ok: true, dataUrl } : { ok: false, code: "unsupported-audio" };
+    } catch (_error) {
+      return { ok: false, code: "download-failed" };
+    }
+  }
+  async function responseToAudioDataUrl(response, rawUrl, preserveBody) {
+    const result = await inspectAudioResponse(response, rawUrl, preserveBody);
+    return result.ok ? result.dataUrl : "";
   }
   function isBusinessSuccess(value) {
     return Boolean(value && typeof value === "object" && (
       value.success === true || value.code === 0 || value.code === 200 || String(value.status || "").toLowerCase() === "success"
     ));
   }
-  function findIdentity(value, depth) {
-    if (!value || typeof value !== "object" || depth > 6) return null;
-    if (value.taskId != null && value.dataId != null) return { taskId: String(value.taskId), dataId: String(value.dataId) };
-    for (const item of Object.values(value)) {
-      const found = findIdentity(item, depth + 1);
-      if (found) return found;
+  function getExecuteTaskId(rawUrl) {
+    try {
+      const url = new URL(String(rawUrl || ""), "https://www.shujiajia.com/");
+      return isExecuteUrl(url.href) ? String(url.searchParams.get("taskId") || "").trim() : "";
+    } catch (_error) {
+      return "";
     }
-    return null;
-  }
-  function makeContextId(value) {
-    const identity = findIdentity(value, 0);
-    return identity ? identity.taskId + ":" + identity.dataId : "";
   }
 
   function createObserver(options) {
@@ -114,11 +120,16 @@
       saveIntent = null;
       emit({ source: SOURCE, type: CONTEXT_READY, payload: { contextId } });
     }
+    function emitAudioStatus(code, statusContextId) {
+      emit({ source: SOURCE, type: AUDIO_STATUS, payload: { contextId: String(statusContextId || ""), code: String(code || "download-failed") } });
+    }
     async function captureAudioSource(sourceUrl, requestContextId) {
       const expectedContextId = String(requestContextId || "");
-      if (!expectedContextId || expectedContextId !== contextId || !sourceUrl || typeof fetchAudio !== "function") return false;
+      if (!expectedContextId || expectedContextId !== contextId || !sourceUrl) return false;
+      if (typeof fetchAudio !== "function") { emitAudioStatus("download-failed", expectedContextId); return false; }
       if (audioFetchContextId === expectedContextId) return Boolean(latestAudioDataUrl);
       audioFetchContextId = expectedContextId;
+      const requestGeneration = lifecycleGeneration;
       const controller = typeof AbortController === "function" ? new AbortController() : null;
       audioAbortController = controller;
       let captured = false;
@@ -128,22 +139,26 @@
           referrerPolicy: "no-referrer",
           ...(controller ? { signal: controller.signal } : {}),
         });
-        const audioDataUrl = await responseToAudioDataUrl(response, sourceUrl, false);
-        if (!audioDataUrl || expectedContextId !== contextId) return false;
-        latestAudioDataUrl = audioDataUrl;
+        const result = await inspectAudioResponse(response, sourceUrl, false);
+        if (!enabled || requestGeneration !== lifecycleGeneration || expectedContextId !== contextId) return false;
+        if (!result.ok) { emitAudioStatus(result.code, expectedContextId); return false; }
+        latestAudioDataUrl = result.dataUrl;
         captured = true;
-        emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: expectedContextId, audioDataUrl } });
+        emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: expectedContextId, audioDataUrl: result.dataUrl } });
         return true;
       } catch (_error) {
+        if (enabled && requestGeneration === lifecycleGeneration && expectedContextId === contextId) emitAudioStatus("download-failed", expectedContextId);
         return false;
       } finally {
         if (audioAbortController === controller) audioAbortController = null;
         if (!captured && audioFetchContextId === expectedContextId && contextId === expectedContextId) audioFetchContextId = "";
       }
     }
-    function extractExecuteSnapshot(body, sequence) {
-      const nextContextId = makeContextId(body);
-      if (!nextContextId) return null;
+    function extractExecuteSnapshot(rawUrl, body, sequence) {
+      const taskId = getExecuteTaskId(rawUrl);
+      const dataId = String(body?.data?.detail?.dataId || "").trim();
+      if (!taskId || !dataId) return { sequence: Number(sequence) || 0, errorCode: "identity-unavailable", contextId: "", sourceUrl: "" };
+      const nextContextId = taskId + ":" + dataId;
       return {
         sequence: Number(sequence) || 0,
         contextId: nextContextId,
@@ -151,13 +166,14 @@
       };
     }
     async function consumeExecuteSnapshot(snapshot) {
+      if (snapshot?.errorCode) { emitAudioStatus(snapshot.errorCode, snapshot.contextId); return false; }
       if (!snapshot?.contextId) return false;
       setContext(snapshot.contextId);
-      if (!snapshot.sourceUrl) return true;
+      if (!snapshot.sourceUrl) { emitAudioStatus("source-invalid", snapshot.contextId); return false; }
       return captureAudioSource(snapshot.sourceUrl, snapshot.contextId);
     }
-    async function handleExecuteBody(body, sequence) {
-      const snapshot = extractExecuteSnapshot(body, sequence);
+    async function handleExecuteBody(rawUrl, body, sequence) {
+      const snapshot = extractExecuteSnapshot(rawUrl, body, sequence);
       if (!snapshot) return false;
       if (!enabled) {
         if (!pendingExecuteSnapshot || snapshot.sequence >= pendingExecuteSnapshot.sequence) pendingExecuteSnapshot = snapshot;
@@ -186,7 +202,7 @@
         const generation = lifecycleGeneration;
         const body = await parseJson(response);
         if (generation !== lifecycleGeneration) return;
-        await handleExecuteBody(body, sequence);
+        await handleExecuteBody(rawUrl, body, sequence);
         return;
       }
       if (!enabled && !config.captureWhenDisabled) return;
@@ -210,7 +226,7 @@
     async function handleJsonResponse(rawUrl, status, body, method) {
       if (status < 200 || status >= 300) return;
       if (isExecuteUrl(rawUrl) && String(method || "GET").toUpperCase() === "GET") {
-        await handleExecuteBody(body, ++executeSequence);
+        await handleExecuteBody(rawUrl, body, ++executeSequence);
       } else if (isTempSaveUrl(rawUrl) && saveIntent?.contextId === contextId && isBusinessSuccess(body)) {
         if (!enabled) return;
         const intent = saveIntent;
@@ -310,7 +326,7 @@
     return { captureResponse, disable, enable, getLatestAudioDataUrl: () => latestAudioDataUrl, install, installController, setContext, setSaveIntent };
   }
 
-  const api = { createObserver, constants: { SOURCE, AUDIO_READY, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT } };
+  const api = { createObserver, constants: { SOURCE, AUDIO_READY, AUDIO_STATUS, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT } };
   globalThis.__ASREdgeShujiajiaNetworkObserver = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window !== "undefined") createObserver({}).installController(window);

@@ -4,11 +4,11 @@
 
 ## 文件职责
 
-- `page-world/network-observer.js`：从页面初始化开始观察当前条目；脚本启用前只在 MAIN world 内存保留最近 execute 的最小上下文和音频来源，启用后立即获取音频，并兼容被动捕获音频响应；音频只转为内存 `audioDataUrl`。
+- `page-world/network-observer.js`：从 execute 请求查询参数读取 `taskId`，从响应 `data.detail` 读取 `dataId` 与音频来源；脚本启用前只在 MAIN world 内存保留最近一次最小快照，启用后立即获取音频，并兼容被动捕获音频响应。
 - `whole-segment-controller.js`：零段落守卫、Peaks.js 波形与段落读取、可信 `Shift + 拖拽`、单段与两像素边界验证。
 - `data-api.js`：原生转写输入事件与页面控件适配；平台已有快捷操作不由扩展代理。
 - `ai-recommendation.js`：调用泸州话两阶段推荐接口并附带 AI 使用人。
-- `ui-panel.js`：将控制区追加到 iframe 左栏 `.tabs-container`，将可折叠结果区追加到 `.transfer` 的原生编辑区后；不移动原生节点，不包含提交按钮。
+- `ui-panel.js`：控制区优先追加到 `.tabs-container`，结果区优先追加到 `.transfer`；零段状态缺少这些节点时使用扩展专属回退挂载点，平台节点生成后自动迁回，不移动原生节点。
 - `shortcuts.js`：识别整段、填入识别结果两项空默认快捷键运行时，编辑框内不响应。
 - `content.js`：按 `taskId + dataId` 跨 frame 对题，编排音频、待暂存版本和幂等挂载。
 
@@ -21,7 +21,9 @@
 - 有效性、播放、保存和提交使用平台原生控件或平台快捷键；扩展不拦截平台原生按钮。
 - 暂存成功必须同时匹配当前条目、最近一次待暂存版本和业务成功响应；切题会清空旧音频与旧识别结果。
 - 脚本或 AI 识别在 Options 中关闭后，后续快捷键动作会即时拒绝，页面观察器停止采集。
-- execute 若早于脚本设置加载完成，观察器只暂存最近一次的 `taskId + dataId + fileFolder` 最小快照；确认启用后立即消费，禁用或切题时清除，不主动重放 execute 请求。
+- 结果区始终显示；未识别时显示占位状态，不提供展开或关闭动作，只保留人工“填入转写”。
+- execute 若早于脚本设置加载完成，观察器只暂存最近一次的请求 `taskId` 与响应 `dataId + fileFolder` 最小快照；确认启用后立即消费，禁用或切题时清除，不主动重放 execute 请求。
 - 只接受 execute 响应中 `https://storage.shujiajia.com/` 的完整 HTTPS 音频地址；页面世界请求不附带数加加 Cookie，原始地址只存在于 MAIN world 临时内存，不跨世界、不持久化、不记录；签名参数、Token、`audioDataUrl` 和真实任务数据同样不进入日志或资料。
+- 音频失败只跨世界发送 `contextId` 与安全错误码，区分条目身份缺失、来源不合法、下载失败、格式不支持和超过 10MB，不包含文件名、查询参数或底层异常文本。
 
 页面与请求依据见[数加加平台资料](../../../../platform-resources/shujiajia/README.md)。

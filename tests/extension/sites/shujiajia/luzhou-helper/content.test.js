@@ -6,6 +6,32 @@ const { resolveRepo } = require("#repo-paths");
 
 const content = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "content.js"));
 
+test("audio status messages stay sanitized and guide recognition failures", async () => {
+  const listeners = {};
+  const messages = [];
+  const runtime = content.createRuntime({
+    window: { addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: { enabled: true, aiRecommendEnabled: true, shortcuts: {} },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage(value) { messages.push(value); }, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_STATUS, payload: { contextId: "", code: "identity-unavailable", ignored: "https://storage.invalid/private.wav?v=1" } }, origin: "" });
+  const relayed = [];
+  listeners.message({
+    source: { postMessage(message) { relayed.push(message); } },
+    data: { source: content.constants.SOURCE, type: content.constants.REQUEST_AUDIO, payload: {} },
+    origin: "",
+  });
+  const result = await runtime.actions.recognizeWhole();
+  assert.equal(result.code, "audio-not-captured");
+  assert.equal(messages.at(-1), "未取得当前条目身份，请刷新页面后重试");
+  assert.equal(messages.join(" ").includes("storage.invalid"), false);
+  assert.equal(messages.join(" ").includes("?v=1"), false);
+  assert.deepEqual(relayed, [{ source: content.constants.SOURCE, type: content.constants.AUDIO_STATUS, payload: { contextId: "", code: "identity-unavailable" } }]);
+});
+
 test("disabled boot clears the dormant page-world execute snapshot", () => {
   const messages = [];
   const windowLike = {
