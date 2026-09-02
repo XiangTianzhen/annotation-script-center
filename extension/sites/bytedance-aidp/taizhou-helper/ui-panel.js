@@ -59,6 +59,7 @@
       submitting: "提交中",
       "waiting-network": "等待网络结算",
       "waiting-next": "等待下一题",
+      retrying: "等待自动重试",
       completed: "已完成",
       stopped: "已停止",
       failed: "失败",
@@ -1516,7 +1517,7 @@
     }
 
     function isInternalQualitySubmitAutomationActive(phase) {
-      return ["starting", "correcting", "submitting", "waiting-network", "waiting-next"].includes(
+      return ["starting", "correcting", "submitting", "waiting-network", "waiting-next", "retrying"].includes(
         normalizeText(phase)
       );
     }
@@ -1536,6 +1537,7 @@
         0,
         Math.round(Number(source.correctedSubmittedCount) || 0)
       );
+      const retryCount = Math.max(0, Math.round(Number(source.retryCount) || 0));
       const itemId = normalizeText(source.itemId);
       const message = normalizeText(source.message) || "待命，等待手动开始。";
       const active = isInternalQualitySubmitAutomationActive(phase);
@@ -1546,6 +1548,7 @@
         "已处理 " + String(completedCount) + " 条",
         "已直接提交 " + String(directSubmittedCount) + " 条",
         "已修正后提交 " + String(correctedSubmittedCount) + " 条",
+        retryCount > 0 ? "已自动重试 " + String(retryCount) + " 次" : "",
         message,
       ].filter(Boolean).forEach(function (text) {
         const line = document.createElement("div");
@@ -1568,6 +1571,7 @@
           completedCount: 0,
           directSubmittedCount: 0,
           correctedSubmittedCount: 0,
+          retryCount: 0,
           itemId: "",
           message: "待命，等待手动开始。",
         },

@@ -32,6 +32,8 @@
   const RECORDING_AUTOMATION_TIMEOUT_MS = 20000;
   const RECORDING_AUTOMATION_POLL_INTERVAL_MS = 200;
   const RECORDING_AUTOMATION_NETWORK_QUIET_MS = 1000;
+  const INTERNAL_QUALITY_CONFIRMATION_TIMEOUT_MS = 3000;
+  const INTERNAL_QUALITY_RETRY_DELAY_MS = 5000;
   const RECORDING_AUTOMATION_POSTPONABLE_STATUSES = new Set(["AVAILABLE", "SUBMITTED"]);
   const COMMON_READY_MESSAGE =
     "台州话脚本已就绪，可使用当前页面中的辅助功能。";
@@ -5055,6 +5057,44 @@
       : { ok: false, reason: "missing-segment-rows", rows: [] };
   }
 
+  function findCurrentInternalQualitySegmentRow(root, rowKey) {
+    const normalizedRowKey = normalizeText(rowKey);
+    if (!normalizedRowKey) {
+      return { ok: false, reason: "segment-row-not-available", row: null };
+    }
+    const tableRoot = findSegmentLanguageTableRoot(root);
+    if (!tableRoot) {
+      return { ok: false, reason: "segment-row-not-available", row: null };
+    }
+    const matches = collectDescendantElements(tableRoot).filter(function (node) {
+      return (
+        getClassName(node).split(/\s+/).includes("arco-table-tr") &&
+        normalizeText(node.getAttribute?.("data-neeko-table-row-key")) === normalizedRowKey &&
+        isNodeAndAncestorsVisible(node)
+      );
+    });
+    return matches.length === 1
+      ? { ok: true, row: matches[0] }
+      : { ok: false, reason: "segment-row-not-available", row: null };
+  }
+
+  function createInternalQualitySegmentFailure(segmentNumber, reason) {
+    const number = Math.max(1, Math.round(Number(segmentNumber) || 0));
+    const messages = {
+      "segment-row-not-available": "第" + String(number) + "段内部质检变更后无法重新定位，未提交并已停止自动流程。",
+      "segment-language-ambiguous": "第" + String(number) + "段语言种类控件无法唯一确认，未提交并已停止自动流程。",
+      "cannot-open-language": "第" + String(number) + "段语言种类无法打开，未提交并已停止自动流程。",
+      "missing-target-dialect": "第" + String(number) + "段未找到唯一“目标方言”选项，未提交并已停止自动流程。",
+      "language-not-confirmed": "第" + String(number) + "段语言种类变更后未确认，未提交并已停止自动流程。",
+      "segment-quality-ambiguous": "第" + String(number) + "段内部质检控件无法唯一确认，未提交并已停止自动流程。",
+      "internal-quality-not-confirmed": "第" + String(number) + "段内部质检变更后未确认，未提交并已停止自动流程。",
+    };
+    return Object.assign(
+      { ok: false, reason: reason },
+      messages[reason] ? { message: messages[reason] } : {}
+    );
+  }
+
   function collectVisibleSegmentComboboxes(row) {
     return collectDescendantElements(row).filter(function (node) {
       return (
@@ -5085,21 +5125,36 @@
       typeof source.waitForNetworkQuiet === "function"
         ? source.waitForNetworkQuiet
         : async function () { return true; };
+    const waitForQualityConfirmation =
+      typeof source.waitForQualityConfirmation === "function"
+        ? source.waitForQualityConfirmation
+        : async function (readConfirmation) { return readConfirmation(); };
     const isActive = typeof source.isActive === "function" ? source.isActive : function () { return true; };
     const rowResult = collectInternalQualitySegmentRows(root);
     if (!rowResult.ok) {
       return { ok: false, reason: rowResult.reason };
     }
+    const segments = rowResult.rows.map(function (row, index) {
+      return {
+        number: index + 1,
+        rowKey: normalizeText(row.getAttribute?.("data-neeko-table-row-key")),
+      };
+    });
     let correctedLanguageCount = 0;
     let correctedQualityCount = 0;
-    for (let index = 0; index < rowResult.rows.length; index += 1) {
+    for (let index = 0; index < segments.length; index += 1) {
       if (!isActive()) {
         return { ok: false, reason: "stopped" };
       }
-      const row = rowResult.rows[index];
+      const segment = segments[index];
+      let rowLookup = findCurrentInternalQualitySegmentRow(root, segment.rowKey);
+      if (!rowLookup.ok) {
+        return createInternalQualitySegmentFailure(segment.number, rowLookup.reason);
+      }
+      let row = rowLookup.row;
       const comboboxes = collectVisibleSegmentComboboxes(row);
       if (comboboxes.length !== 1) {
-        return { ok: false, reason: "segment-language-ambiguous" };
+        return createInternalQualitySegmentFailure(segment.number, "segment-language-ambiguous");
       }
       const combobox = comboboxes[0];
       if (getComboboxDisplayText(combobox) !== "目标方言") {
@@ -5107,22 +5162,36 @@
           return { ok: false, reason: "network-or-stopped" };
         }
         if (!invokeClick(combobox)) {
-          return { ok: false, reason: "cannot-open-language" };
+          return createInternalQualitySegmentFailure(segment.number, "cannot-open-language");
         }
         const option = findDialectOption(root, "目标方言", combobox);
         if (!option || !invokeClick(option)) {
           collapseCombobox(combobox);
-          return { ok: false, reason: "missing-target-dialect" };
+          return createInternalQualitySegmentFailure(segment.number, "missing-target-dialect");
         }
         source.recordAction?.();
         if (!(await waitForNetworkQuiet()) || !isActive()) {
           return { ok: false, reason: "network-or-stopped" };
         }
-        if (getComboboxDisplayText(combobox) !== "目标方言") {
-          return { ok: false, reason: "language-not-confirmed" };
+        rowLookup = findCurrentInternalQualitySegmentRow(root, segment.rowKey);
+        if (!rowLookup.ok) {
+          return createInternalQualitySegmentFailure(segment.number, rowLookup.reason);
+        }
+        row = rowLookup.row;
+        const confirmedComboboxes = collectVisibleSegmentComboboxes(row);
+        if (
+          confirmedComboboxes.length !== 1 ||
+          getComboboxDisplayText(confirmedComboboxes[0]) !== "目标方言"
+        ) {
+          return createInternalQualitySegmentFailure(segment.number, "language-not-confirmed");
         }
         correctedLanguageCount += 1;
       }
+      rowLookup = findCurrentInternalQualitySegmentRow(root, segment.rowKey);
+      if (!rowLookup.ok) {
+        return createInternalQualitySegmentFailure(segment.number, rowLookup.reason);
+      }
+      row = rowLookup.row;
       const qualityInputs = collectVisibleInternalQualityInputs(row);
       const okInputs = qualityInputs.filter(function (node) {
         return getRadioInputValue(node) === "ok";
@@ -5132,7 +5201,7 @@
       });
       const checkedInputs = qualityInputs.filter(isCheckedRadioInput);
       if (okInputs.length !== 1 || failedInputs.length !== 1 || checkedInputs.length > 1) {
-        return { ok: false, reason: "segment-quality-ambiguous" };
+        return createInternalQualitySegmentFailure(segment.number, "segment-quality-ambiguous");
       }
       if (!isCheckedRadioInput(okInputs[0])) {
         const label = getRadioInputLabelNode(okInputs[0]);
@@ -5160,13 +5229,49 @@
         if (!(await waitForNetworkQuiet()) || !isActive()) {
           return { ok: false, reason: "network-or-stopped" };
         }
-        const confirmedInputs = collectVisibleInternalQualityInputs(row);
-        const confirmedOk = confirmedInputs.filter(function (node) {
-          return getRadioInputValue(node) === "ok" && isCheckedRadioInput(node);
-        });
-        const confirmedChecked = confirmedInputs.filter(isCheckedRadioInput);
-        if (confirmedInputs.length !== 2 || confirmedOk.length !== 1 || confirmedChecked.length !== 1) {
-          return { ok: false, reason: "internal-quality-not-confirmed" };
+        let confirmation;
+        try {
+          confirmation = await waitForQualityConfirmation(function () {
+            rowLookup = findCurrentInternalQualitySegmentRow(root, segment.rowKey);
+            if (!rowLookup.ok) {
+              return {
+                ok: false,
+                pending: false,
+                result: createInternalQualitySegmentFailure(segment.number, rowLookup.reason),
+              };
+            }
+            const confirmedInputs = collectVisibleInternalQualityInputs(rowLookup.row);
+            const confirmedOk = confirmedInputs.filter(function (node) {
+              return getRadioInputValue(node) === "ok" && isCheckedRadioInput(node);
+            });
+            const confirmedChecked = confirmedInputs.filter(isCheckedRadioInput);
+            if (
+              confirmedInputs.length !== 2 ||
+              confirmedOk.length > 1 ||
+              confirmedChecked.length > 1
+            ) {
+              return {
+                ok: false,
+                pending: false,
+                result: createInternalQualitySegmentFailure(segment.number, "segment-quality-ambiguous"),
+              };
+            }
+            if (confirmedOk.length === 1 && confirmedChecked.length === 1) {
+              return { ok: true };
+            }
+            return {
+              ok: false,
+              pending: true,
+              segmentNumber: segment.number,
+              result: createInternalQualitySegmentFailure(segment.number, "internal-quality-not-confirmed"),
+            };
+          });
+        } catch (_error) {
+          confirmation = null;
+        }
+        if (!confirmation?.ok) {
+          return confirmation?.result ||
+            createInternalQualitySegmentFailure(segment.number, "internal-quality-not-confirmed");
         }
         correctedQualityCount += 1;
       }
@@ -6031,6 +6136,8 @@
     const maxRounds = Math.max(0, Math.round(Number(source.maxRounds) || 0));
     const getNow = typeof source.now === "function" ? source.now : Date.now;
     const wait = typeof source.wait === "function" ? source.wait : waitFor;
+    const setTimer = typeof source.setTimeout === "function" ? source.setTimeout : setTimeout;
+    const clearTimer = typeof source.clearTimeout === "function" ? source.clearTimeout : clearTimeout;
     const getRoot = function () {
       return typeof source.root === "function"
         ? source.root()
@@ -6041,6 +6148,9 @@
     let capturedAutomationScopeKey = "";
     let networkPendingBaseline = 0;
     let lastActionAt = 0;
+    let retryTimer = null;
+    let retryToken = 0;
+    let retryCount = 0;
     let state = {
       phase: "idle",
       completedCount: 0,
@@ -6048,6 +6158,7 @@
       correctedSubmittedCount: 0,
       itemId: "",
       pendingRequestCount: 0,
+      retryCount: 0,
       message: "待命，等待手动开始。",
     };
 
@@ -6072,8 +6183,6 @@
 
     async function executeWithinTimeout(token, operation) {
       let timer = null;
-      const setTimer = typeof source.setTimeout === "function" ? source.setTimeout : setTimeout;
-      const clearTimer = typeof source.clearTimeout === "function" ? source.clearTimeout : clearTimeout;
       const timeoutResult = new Promise(function (resolve) {
         timer = setTimer(function () {
           resolve({ timeout: true });
@@ -6214,12 +6323,120 @@
       return Object.assign({}, outcome, { activity: latestActivity });
     }
 
-    function finishForNetworkWaitFailure(completedCount, itemId, pendingCount) {
-      finish("failed", "页面网络请求在 20 秒内未结算或未连续静默，自动流程已停止。", {
+    async function waitForInternalQualityConfirmation(token, readConfirmation, completedCount, itemId) {
+      const startedAt = Math.max(0, Number(getNow()) || 0);
+      let latest = null;
+      while (isActive(token)) {
+        if (!(await verifyAutomationScope(token)).ok) {
+          return { ok: false, result: null };
+        }
+        try {
+          latest = readConfirmation();
+        } catch (_error) {
+          return { ok: false, result: null };
+        }
+        if (latest?.ok === true || latest?.pending !== true) {
+          return latest;
+        }
+        const elapsed = Math.max(0, Number(getNow()) || 0) - startedAt;
+        if (elapsed >= INTERNAL_QUALITY_CONFIRMATION_TIMEOUT_MS) {
+          const number = Math.max(1, Math.round(Number(latest.segmentNumber) || 0));
+          return Object.assign({}, latest, {
+            result: Object.assign({}, latest.result, {
+              message:
+                "第" + String(number) + "段内部质检点击后 " +
+                String(INTERNAL_QUALITY_CONFIRMATION_TIMEOUT_MS) +
+                "ms 未确认，未提交并已停止自动流程。",
+            }),
+          });
+        }
+        publish({
+          phase: "waiting-quality-confirmation",
+          completedCount: completedCount,
+          itemId: itemId,
+          message:
+            "正在等待第" + String(Math.max(1, Math.round(Number(latest.segmentNumber) || 0))) +
+            "段内部质检状态确认。",
+        });
+        await wait(
+          Math.min(
+            Math.max(1, pollIntervalMs),
+            Math.max(0, INTERNAL_QUALITY_CONFIRMATION_TIMEOUT_MS - elapsed)
+          )
+        );
+      }
+      return { ok: false, result: null };
+    }
+
+    function finishWithSafeRetry(message, patch) {
+      const details = Object.assign({}, patch || {});
+      finish("failed", message, details);
+      const expectedScopeKey = capturedAutomationScopeKey;
+      if (!expectedScopeKey || typeof source.getAutomationScopeKey !== "function") {
+        return false;
+      }
+      retryCount += 1;
+      retryToken += 1;
+      const scheduledRetryToken = retryToken;
+      publish(Object.assign({}, details, {
+        phase: "retrying",
+        retryCount: retryCount,
+        message:
+          normalizeText(message) +
+          " 将在 " + String(INTERNAL_QUALITY_RETRY_DELAY_MS / 1000) +
+          " 秒后自动重新开始；可点击“停止”取消。",
+      }));
+      retryTimer = setTimer(async function () {
+        retryTimer = null;
+        if (scheduledRetryToken !== retryToken) {
+          return false;
+        }
+        let currentScopeKey = "";
+        try {
+          currentScopeKey = normalizeText(await source.getAutomationScopeKey());
+        } catch (_error) {
+          currentScopeKey = "";
+        }
+        if (scheduledRetryToken !== retryToken) {
+          return false;
+        }
+        if (!currentScopeKey || currentScopeKey !== expectedScopeKey) {
+          publish(Object.assign({}, details, {
+            phase: "stopped",
+            retryCount: retryCount,
+            message: "页面类型或检查包范围已切换，已取消自动重试。",
+          }));
+          return false;
+        }
+        return start(true);
+      }, INTERNAL_QUALITY_RETRY_DELAY_MS);
+      return true;
+    }
+
+    function isSafePreSubmitCorrectionFailure(result) {
+      const reason = normalizeText(result?.reason);
+      return [
+        "internal-quality-not-confirmed",
+        "language-not-confirmed",
+        "cannot-open-language",
+        "missing-target-dialect",
+        "cannot-set-internal-quality",
+        "network-or-stopped",
+      ].includes(reason);
+    }
+
+    function finishForNetworkWaitFailure(completedCount, itemId, pendingCount, allowRetry) {
+      const message = "页面网络请求在 20 秒内未结算或未连续静默，自动流程已停止。";
+      const details = {
         completedCount: completedCount,
         itemId: itemId,
         pendingRequestCount: Math.max(0, Math.round(Number(pendingCount) || 0)),
-      });
+      };
+      if (allowRetry === true) {
+        finishWithSafeRetry(message, details);
+        return;
+      }
+      finish("failed", message, details);
     }
 
     async function run() {
@@ -6248,7 +6465,12 @@
         const networkBefore = await waitForPageNetworkQuiet(token, completedCount, currentItemId);
         if (networkBefore.stopped) return;
         if (networkBefore.timeout || networkBefore.error) {
-          finishForNetworkWaitFailure(completedCount, currentItemId, networkBefore.activity?.pendingCount);
+          finishForNetworkWaitFailure(
+            completedCount,
+            currentItemId,
+            networkBefore.activity?.pendingCount,
+            true
+          );
           return;
         }
         let decision;
@@ -6297,6 +6519,14 @@
                 );
                 return outcome.value === true;
               },
+              waitForQualityConfirmation: function (readConfirmation) {
+                return waitForInternalQualityConfirmation(
+                  token,
+                  readConfirmation,
+                  completedCount,
+                  currentItemId
+                );
+              },
               recordAction: function () {
                 lastActionAt = Math.max(0, Number(getNow()) || 0);
               },
@@ -6304,15 +6534,22 @@
           });
           if (correctionOutcome.stopped) return;
           if (correctionOutcome.timeout || correctionOutcome.error || !correctionOutcome.value?.ok) {
-            finish(
-              "failed",
+            const correctionMessage =
               normalizeText(correctionOutcome.value?.message) ||
-                "当前分段质检状态无法安全修正，未提交并已停止自动流程。",
-              {
-                completedCount: completedCount,
-                itemId: currentItemId,
-              }
-            );
+              "当前分段质检状态无法安全修正，未提交并已停止自动流程。";
+            const correctionDetails = {
+              completedCount: completedCount,
+              itemId: currentItemId,
+            };
+            if (
+              correctionOutcome.timeout ||
+              correctionOutcome.error ||
+              isSafePreSubmitCorrectionFailure(correctionOutcome.value)
+            ) {
+              finishWithSafeRetry(correctionMessage, correctionDetails);
+            } else {
+              finish("failed", correctionMessage, correctionDetails);
+            }
             return;
           }
           const networkAfterCorrection = await waitForPageNetworkQuiet(
@@ -6325,17 +6562,24 @@
             finishForNetworkWaitFailure(
               completedCount,
               currentItemId,
-              networkAfterCorrection.activity?.pendingCount
+              networkAfterCorrection.activity?.pendingCount,
+              true
             );
             return;
           }
         }
         const submitLookup = findInternalQualitySubmitButton(getRoot());
         if (submitLookup.count !== 1) {
-          finish("failed", "未找到唯一可用的右上角“提交”按钮，自动流程已停止。", {
+          const submitLookupMessage = "未找到唯一可用的右上角“提交”按钮，自动流程已停止。";
+          const submitLookupDetails = {
             completedCount: completedCount,
             itemId: currentItemId,
-          });
+          };
+          if (submitLookup.count === 0) {
+            finishWithSafeRetry(submitLookupMessage, submitLookupDetails);
+          } else {
+            finish("failed", submitLookupMessage, submitLookupDetails);
+          }
           return;
         }
         publish({
@@ -6378,7 +6622,12 @@
         const networkAfter = await waitForPageNetworkQuiet(token, completedCount, currentItemId);
         if (networkAfter.stopped) return;
         if (networkAfter.timeout || networkAfter.error) {
-          finishForNetworkWaitFailure(completedCount, currentItemId, networkAfter.activity?.pendingCount);
+          finishForNetworkWaitFailure(
+            completedCount,
+            currentItemId,
+            networkAfter.activity?.pendingCount,
+            false
+          );
           return;
         }
         completedCount += 1;
@@ -6422,8 +6671,12 @@
       }
     }
 
-    function start() {
-      if (running) return Promise.resolve(false);
+    function start(isRetry) {
+      if (running || retryTimer !== null) return Promise.resolve(false);
+      if (isRetry !== true) {
+        retryToken += 1;
+        retryCount = 0;
+      }
       running = true;
       runToken += 1;
       capturedAutomationScopeKey = "";
@@ -6437,23 +6690,33 @@
         correctedSubmittedCount: 0,
         itemId: "",
         pendingRequestCount: 0,
+        retryCount: retryCount,
         message: "自动质检提交流程已开始。",
       });
       return run().then(function () { return true; });
     }
 
     function stop(message) {
-      if (!running) return false;
+      if (!running && retryTimer === null) return false;
       runToken += 1;
+      retryToken += 1;
+      if (retryTimer !== null) {
+        clearTimer(retryTimer);
+        retryTimer = null;
+      }
       running = false;
-      publish({ phase: "stopped", message: normalizeText(message) || "已停止自动流程。" });
+      publish({
+        phase: "stopped",
+        retryCount: retryCount,
+        message: normalizeText(message) || "已停止自动流程。",
+      });
       return true;
     }
 
     return {
       start: start,
       stop: stop,
-      isRunning: function () { return running; },
+      isRunning: function () { return running || retryTimer !== null; },
       getState: function () { return Object.assign({}, state); },
     };
   }
@@ -7168,6 +7431,8 @@
             return correctInternalQualitySegments(context.root, {
               isActive: context.isActive,
               waitForNetworkQuiet: context.waitForNetworkQuiet,
+              waitForQualityConfirmation: context.waitForQualityConfirmation,
+              recordAction: context.recordAction,
               triggerInternalQualityClick: async function (node) {
                 if (helperRuntime !== runtime) {
                   return { ok: false };

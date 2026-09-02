@@ -1392,12 +1392,13 @@ test("AIDP taizhou ui panel renders internal-quality submit automation separatel
     assert.equal(runtime.mount(), true);
     const root = findMountedPanelRoot(harness.body);
     runtime.renderInternalQualitySubmitAutomationState({
-      phase: "waiting-network",
+      phase: "retrying",
       itemId: "item-17",
       completedCount: 3,
       directSubmittedCount: 2,
       correctedSubmittedCount: 1,
-      message: "正在等待网络结算（1 个请求）。",
+      retryCount: 1,
+      message: "网络请求尚未结算，将在 5 秒后自动重新开始。",
     });
     const byAttr = (name) => findNode(root, (node) => node.getAttribute(name) === "true");
     const state = byAttr("data-internal-quality-submit-automation-state");
@@ -1408,6 +1409,8 @@ test("AIDP taizhou ui panel renders internal-quality submit automation separatel
     assert.match(state.textContent, /已处理 3 条/);
     assert.match(state.textContent, /已直接提交 2 条/);
     assert.match(state.textContent, /已修正后提交 1 条/);
+    assert.match(state.textContent, /状态：等待自动重试/);
+    assert.match(state.textContent, /已自动重试 1 次/);
     assert.equal(start.disabled, true);
     assert.equal(stop.disabled, false);
     start.click();
