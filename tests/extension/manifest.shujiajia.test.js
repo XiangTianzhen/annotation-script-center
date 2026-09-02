@@ -7,7 +7,7 @@ const { resolveRepo } = require("#repo-paths");
 
 test("manifest injects Shujiajia observer and isolated helper in the required order", () => {
   const manifest = JSON.parse(fs.readFileSync(resolveRepo("extension", "manifest.json"), "utf8"));
-  assert.equal(manifest.version, "1.1.8");
+  assert.equal(manifest.version, "1.2.0");
   const entries = manifest.content_scripts.filter((entry) => entry.matches?.includes("https://www.shujiajia.com/*"));
   const main = entries.find((entry) => entry.world === "MAIN");
   const isolated = entries.find((entry) => entry.world === "ISOLATED");
