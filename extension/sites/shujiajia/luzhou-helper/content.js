@@ -100,6 +100,8 @@
     let shortcutRuntime = null;
     let mountTimer = null;
     let storageChangeListener = null;
+    let recognitionSerial = 0;
+    let activeRecognition = null;
     const pendingTrustedInputs = new Map();
     const attemptedAutoDrawContexts = new Set();
 
@@ -174,7 +176,7 @@
         return null;
       }
       if (requireAi && state.settings?.aiRecommendEnabled !== true) {
-        message("请先在 Options 中启用整段识别");
+        message("请先在 Options 中启用泸州方言识别");
         return null;
       }
       return state.settings;
@@ -344,41 +346,76 @@
           message(formatAudioStatus(state.audioStatusCode));
           return { ok: false, code: "audio-not-captured" };
         }
-        const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
-        const segmentState = segmentController.verifyWholeSegment?.(adapter || {}) || { ok: false, code: "whole-segment-required" };
-        if (!segmentState.ok) {
-          message("请先将零段落音频完整划为一个段落");
-          return { ok: false, code: "whole-segment-required" };
-        }
-        message("正在识别整段…");
         const recognitionContextId = state.contextId;
+        if (activeRecognition?.contextId === recognitionContextId) {
+          message("当前条目正在识别，请稍候");
+          return { ok: false, code: "recognition-in-progress" };
+        }
+        const recognitionToken = ++recognitionSerial;
+        activeRecognition = { contextId: recognitionContextId, token: recognitionToken };
+        message("正在识别当前音频…");
         try {
           const result = await aiClient.recognize({ audioDataUrl: state.audioDataUrl, requestId: globalThis.crypto?.randomUUID?.() || String(Date.now()), settings: currentSettings });
-          if (state.contextId !== recognitionContextId) {
+          if (state.contextId !== recognitionContextId || activeRecognition?.token !== recognitionToken) {
             message("识别期间已切换条目，旧结果已丢弃");
             return { ok: false, code: "stale-recognition-result" };
           }
           state.result = result;
           state.resultContextId = recognitionContextId;
           panel.setResult?.(result);
+          const latestSettings = await refreshSettings(false);
+          if (latestSettings?.aiRecommendAutoFillEnabled === true) {
+            const fillResult = await actions.fillRecognition({ requireAutoFillEnabled: true, automatic: true });
+            return { ok: true, result, fillResult };
+          }
           message("识别完成，请确认后填入");
           return { ok: true, result };
         } catch (error) {
           message(String(error?.message || "识别失败"));
           return { ok: false, code: error?.code || "recognition-failed", requestId: error?.requestId || "" };
+        } finally {
+          if (activeRecognition?.token === recognitionToken) activeRecognition = null;
         }
       },
-      async fillRecognition() {
-        if (!await refreshSettings(false)) return { ok: false, code: "script-disabled" };
-        const text = String(state.result?.refinedText || "");
+      async fillRecognition(options) {
+        const latestSettings = await refreshSettings(false);
+        if (!latestSettings) return { ok: false, code: "script-disabled" };
+        if (options?.requireAutoFillEnabled === true && latestSettings.aiRecommendAutoFillEnabled !== true) {
+          message("识别完成，请确认后填入");
+          return { ok: false, code: "auto-fill-disabled" };
+        }
+        const text = String(state.result?.dialectText || state.result?.refinedText || "");
         if (!text) { message("没有可填入的识别结果"); return { ok: false, code: "empty-result" }; }
         if (state.contextId && state.resultContextId !== state.contextId) {
           message("识别结果不属于当前条目，请重新识别");
           return { ok: false, code: "stale-recognition-result" };
         }
-        const result = dataApi.fillTranscript?.({ input: dataApi.findTranscriptInput?.(documentLike), text, state }) || { ok: false };
+        const automatic = options?.automatic === true;
+        const input = automatic
+          ? dataApi.findSingleTranscriptInput?.(documentLike)
+          : dataApi.findSelectedTranscriptInput?.(documentLike);
+        if (!input) {
+          const code = automatic ? "auto-fill-single-segment-required" : "selected-transcript-required";
+          message(automatic ? "当前段数不是 1，未自动填入" : "请先选择唯一段落后再填入");
+          return { ok: false, code };
+        }
+        const result = dataApi.fillTranscript?.({ input, text, state }) || { ok: false };
         if (result.ok) setDirty(true);
-        message(result.ok ? "已填入转写，待暂存" : "未找到唯一可编辑转写框");
+        message(result.ok ? "已填入转写，待暂存" : "当前段落转写框不可编辑");
+        return result;
+      },
+      async insertOverlapStart() {
+        if (!await refreshSettings(false)) return { ok: false, code: "script-disabled" };
+        const result = dataApi.clickOverlapSymbol?.("[OVERLAP/]", documentLike) || { ok: false, code: "symbol-control-not-found" };
+        if (result.ok) setDirty(true);
+        message(result.ok ? "已插入 [OVERLAP/]，待暂存" : "未找到唯一可用的 [OVERLAP/] 原生选项");
+        return result;
+      },
+      async insertOverlapEnd() {
+        if (!await refreshSettings(false)) return { ok: false, code: "script-disabled" };
+        const result = dataApi.clickOverlapSymbol?.("[/OVERLAP]", documentLike) || { ok: false, code: "symbol-control-not-found" };
+        if (result.ok) setDirty(true);
+        message(result.ok ? "已插入 [/OVERLAP]，待暂存" : "未找到唯一可用的 [/OVERLAP] 原生选项");
         return result;
       },
       async markEffective() {

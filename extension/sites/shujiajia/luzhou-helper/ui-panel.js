@@ -12,13 +12,13 @@
   }
   function buildResultView(result) {
     const source = result && typeof result === "object" ? result : {};
-    const listenTokens = number(source.usage?.listen?.totalTokens);
-    const refineTokens = number(source.usage?.refine?.totalTokens);
+    const inputTokens = number(source.usage?.listen?.promptTokens);
+    const outputTokens = number(source.usage?.listen?.completionTokens);
+    const totalTokens = number(source.usage?.listen?.totalTokens || inputTokens + outputTokens);
     const cost = source.cost?.totalEstimatedCostCny;
     return {
-      listenText: String(source.listenText || ""),
-      refinedText: String(source.refinedText || ""),
-      usageText: `听音 ${listenTokens} / 整理 ${refineTokens} / 总计 ${listenTokens + refineTokens} Token`,
+      dialectText: String(source.dialectText || source.refinedText || ""),
+      usageText: `输入 ${inputTokens} / 输出 ${outputTokens} / 总计 ${totalTokens} Token`,
       costText: cost === null || cost === undefined || !Number.isFinite(Number(cost))
         ? "预估人民币 没有数据源"
         : `预估人民币 ${Number(cost).toFixed(6).replace(/0+$/, "").replace(/\.$/, "")} 元`,
@@ -61,8 +61,7 @@
     let root = null;
     let drawer = null;
     let statusNode = null;
-    let listenNode = null;
-    let refineNode = null;
+    let dialectNode = null;
     let metaNode = null;
     let observer = null;
     let removed = false;
@@ -88,7 +87,7 @@
         "[data-asc-shujiajia-luzhou-helper] .asc-sjj-status{margin-top:8px;color:#909399;white-space:normal}",
         "[data-asc-shujiajia-luzhou-result-host]{flex:0 0 40%;width:40%;height:100%;box-sizing:border-box;overflow:auto;margin-right:4px}",
         "[data-asc-shujiajia-luzhou-drawer]{width:100%;box-sizing:border-box;margin-top:10px;padding:12px;border:1px solid #606266;border-radius:6px;background:#303133;color:#f2f3f5;font:14px/1.5 'Microsoft YaHei',sans-serif}",
-        "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
+        "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{display:grid;grid-template-columns:1fr;gap:10px}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result{min-height:72px;padding:9px;background:#252629;border-radius:4px;white-space:pre-wrap;word-break:break-word}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-meta{margin:8px 0;color:#909399}",
         "@media(max-width:700px){[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{grid-template-columns:1fr}}",
@@ -140,12 +139,11 @@
       drawer = doc.querySelector(`[${DRAWER_ATTR}]`) || doc.createElement("section");
       drawer.setAttribute(DRAWER_ATTR, "");
       drawer.hidden = false;
-      drawer.innerHTML = "<div class='asc-sjj-title'>AI 识别结果</div><div class='asc-sjj-result-grid'><div><b>原始听写</b><div class='asc-sjj-result' data-role='listen'></div></div><div><b>泸州话整理</b><div class='asc-sjj-result' data-role='refine'></div></div></div><div class='asc-sjj-meta' data-role='meta'>尚未识别</div>";
+      drawer.innerHTML = "<div class='asc-sjj-title'>AI 识别结果</div><div class='asc-sjj-result-grid'><div><b>泸州方言文本</b><div class='asc-sjj-result' data-role='dialect'></div></div></div><div class='asc-sjj-meta' data-role='meta'>尚未识别</div>";
       const fill = wire(createButton(doc, "填入转写", "fillRecognition"));
       fill.classList.add("asc-sjj-primary");
       drawer.append(fill);
-      listenNode = drawer.querySelector("[data-role='listen']");
-      refineNode = drawer.querySelector("[data-role='refine']");
+      dialectNode = drawer.querySelector("[data-role='dialect']");
       metaNode = drawer.querySelector("[data-role='meta']");
       hosts.results.appendChild(drawer);
       observeMount();
@@ -156,15 +154,13 @@
     function setResult(result) {
       if (!ensureMounted()) return;
       if (!result || typeof result !== "object") {
-        listenNode.textContent = "";
-        refineNode.textContent = "";
+        dialectNode.textContent = "";
         metaNode.textContent = "尚未识别";
         drawer.hidden = false;
         return;
       }
       const view = buildResultView(result);
-      listenNode.textContent = view.listenText || "（空）";
-      refineNode.textContent = view.refinedText || "（空）";
+      dialectNode.textContent = view.dialectText || "（空）";
       metaNode.textContent = view.usageText + " · " + view.costText;
     }
     function remove() {

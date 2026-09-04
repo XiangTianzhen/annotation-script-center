@@ -7,8 +7,7 @@ const { SCRIPT_ID } = require("./ai-service");
 
 const stageSupport = createStageLogSupport({
   stages: [
-    { key: "listen", label: "听音", modelKeys: ["listenModel"] },
-    { key: "refine", label: "泸州话整理", modelKeys: ["refineModel"] },
+    { key: "listen", label: "泸州方言识别", modelKeys: ["listenModel"] },
   ],
 });
 

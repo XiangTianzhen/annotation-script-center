@@ -39,7 +39,7 @@
 - 稳定页面结构：`platform-resources/shujiajia/page-structure/`
 - 泸州话脚本边界：`platform-resources/shujiajia/luzhou-helper/README.md`
 - 泸州话运行时：`extension/sites/shujiajia/luzhou-helper/`
-  - 当前状态：已接入 Peaks.js 零分段可信整段划分、按 execute 请求 `taskId` 与响应 `detail.dataId` 对题的音频获取、两阶段识别、人工填入、零段/有段兼容的常驻结果面板及两项 AI 快捷键；可选在首次条目后的切题中自动划整段、在助手画段成功后自动识别，两个开关默认关闭。整段按两像素验收且不自动删除，AI 结果不自动填入，有效性、保存和提交使用平台原生操作。
+  - 当前状态：已接入 Peaks.js 零分段可信整段划分、按 execute 请求 `taskId` 与响应 `detail.dataId` 对题的音频获取、单阶段 Omni 泸州方言识别，以及零段/单段/多段兼容的常驻结果面板。任意段数均可识别；仅单个可编辑段落自动填入，人工填入严格写入唯一选中行。整段画段、识别、填入和两个 OVERLAP 原生符号操作共五项快捷键默认均为空；可选自动画段与画段后识别开关默认关闭。有效性、保存和提交继续使用平台原生操作。
 
 ## 统一后端
 

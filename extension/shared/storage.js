@@ -379,7 +379,7 @@
     return { enabled: bool(source.enabled, defaults.enabled), activeScriptId, scripts: { hangzhouHelper: next } };
   }
 
-  function normalizeShujiajia(raw) {
+  function normalizeShujiajia(raw, legacySchema) {
     const defaults = constants.DEFAULT_SETTINGS.platforms.shujiajia;
     const source = object(raw);
     const scriptSource = object(source.scripts?.luzhouHelper);
@@ -393,7 +393,9 @@
     });
     next.aiRecommendListenModel = option(scriptSource.aiRecommendListenModel, ["qwen3.5-omni-flash", "qwen3.5-omni-plus"], fallback.aiRecommendListenModel);
     next.aiRecommendRefineModel = option(scriptSource.aiRecommendRefineModel, ["qwen3.5-plus", "qwen3.5-flash"], fallback.aiRecommendRefineModel);
-    next.aiRecommendAutoFillEnabled = false;
+    next.aiRecommendAutoFillEnabled = legacySchema < 40
+      ? true
+      : bool(scriptSource.aiRecommendAutoFillEnabled, fallback.aiRecommendAutoFillEnabled);
     return {
       enabled: bool(source.enabled, defaults.enabled),
       activeScriptId: next.enabled ? constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID : "",
@@ -406,7 +408,7 @@
     const legacySchema = Number(source.meta?.schemaVersion || 0);
     const meta = normalizeMeta(source.meta);
     const magicData = normalizeMagic(source.platforms?.magicData, legacySchema);
-    const shujiajia = normalizeShujiajia(source.platforms?.shujiajia);
+    const shujiajia = normalizeShujiajia(source.platforms?.shujiajia, legacySchema);
     return {
       platforms: {
         dataBakerCvpc: normalizeCvpc(source.platforms?.dataBakerCvpc, meta, legacySchema),

@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 39;
+  const SCHEMA_VERSION = 40;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -106,8 +106,11 @@
   const BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
   const BYTEDANCE_AIDP_TAIZHOU_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map((item) => ({ ...item }));
   const SHUJIAJIA_LUZHOU_SHORTCUT_ACTIONS = [
+    { key: "createWholeSegment", label: "整音频划一段" },
     { key: "recognizeWhole", label: "识别整段" },
     { key: "fillRecognition", label: "填入识别结果" },
+    { key: "insertOverlapStart", label: "重叠说话前 [OVERLAP/]" },
+    { key: "insertOverlapEnd", label: "重叠说话后 [/OVERLAP]" },
   ];
 
   function trimBaseUrl(value) { return String(value || "").trim().replace(/\/+$/, ""); }
@@ -195,7 +198,7 @@
   };
   const shujiajiaDefaults = {
     id: SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, enabled: false, aiRecommendEnabled: true,
-    aiRecommendAutoFillEnabled: false, aiRecommendRequestTimeoutMs: 60000,
+    aiRecommendAutoFillEnabled: true, aiRecommendRequestTimeoutMs: 60000,
     autoCreateWholeSegmentOnNewItemEnabled: false, autoRecognizeAfterWholeSegmentEnabled: false,
     aiRecommendListenModel: "qwen3.5-omni-flash", aiRecommendListenPrompt: "",
     aiRecommendRefineModel: "qwen3.5-plus", aiRecommendRefinePrompt: "",

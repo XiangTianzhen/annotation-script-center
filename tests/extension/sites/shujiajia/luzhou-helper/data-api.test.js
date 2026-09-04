@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { resolveRepo } = require("#repo-paths");
+const { JSDOM } = require(resolveRepo("frontend", "options-app", "node_modules", "jsdom"));
 
 const api = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "data-api.js"));
 
@@ -54,4 +55,55 @@ test("validity only queries the iframe document and cannot click the outer whole
   const result = api.markValidity(true, innerDocument);
   assert.equal(result.ok, true);
   assert.deepEqual(effective.events, ["click"]);
+});
+
+function makeTranscriptDom(rowClasses = ["", "current-row", ""]) {
+  const rows = rowClasses.map((className, index) => `<tr class="el-table__row ${className}"><td><input class="transfer-input" placeholder="请输入转写内容" data-index="${index + 1}"></td></tr>`).join("");
+  const dom = new JSDOM(`<table class="el-table__body"><tbody>${rows}</tbody></table>`);
+  dom.window.document.querySelectorAll("tr,input").forEach((node) => { node.getClientRects = () => [1]; });
+  return dom.window.document;
+}
+
+test("manual transcript lookup returns only the input in the unique selected row", () => {
+  const document = makeTranscriptDom();
+  assert.equal(api.findSelectedTranscriptInput(document)?.dataset.index, "2");
+  assert.equal(api.findSingleTranscriptInput(document), null);
+});
+
+test("manual transcript lookup fails closed without one selected row", () => {
+  assert.equal(api.findSelectedTranscriptInput(makeTranscriptDom(["", "", ""])), null);
+  assert.equal(api.findSelectedTranscriptInput(makeTranscriptDom(["current-row", "current-row", ""])), null);
+});
+
+test("automatic transcript lookup returns the only editable paragraph input", () => {
+  const document = makeTranscriptDom(["current-row"]);
+  assert.equal(api.findSingleTranscriptInput(document)?.dataset.index, "1");
+  assert.equal(api.getTranscriptInputCount(document), 1);
+});
+
+test("transcript lookup rejects placeholder fallbacks and non-input transfer nodes", () => {
+  const dom = new JSDOM(`
+    <table><tbody>
+      <tr class="el-table__row current-row">
+        <td><input placeholder="请输入转写内容"></td>
+        <td><div class="transfer-input">不是输入框</div></td>
+      </tr>
+    </tbody></table>
+  `);
+  dom.window.document.querySelectorAll("tr,input,div").forEach((node) => { node.getClientRects = () => [1]; });
+  assert.equal(api.findSelectedTranscriptInput(dom.window.document), null);
+  assert.equal(api.findSingleTranscriptInput(dom.window.document), null);
+  assert.equal(api.getTranscriptInputCount(dom.window.document), 0);
+});
+
+test("native overlap symbol click requires the unique visible item in Category1", () => {
+  const dom = new JSDOM("<div class='special-container with-group-head'><div class='symbol-group'><div class='symbol-group-head'><span class='symbol-group-title'>Category1（多选）</span></div><div class='special-list'><div class='symbol-item'><span class='key'>[OVERLAP/]</span></div><div class='symbol-item'><span class='key'>[/OVERLAP]</span></div></div></div></div>");
+  const document = dom.window.document;
+  document.querySelectorAll(".symbol-item").forEach((node) => { node.getClientRects = () => [1]; });
+  let clicked = "";
+  document.querySelectorAll(".symbol-item").forEach((node) => node.addEventListener("click", () => { clicked = node.textContent.trim(); }));
+
+  assert.deepEqual(api.clickOverlapSymbol("[OVERLAP/]", document), { ok: true, code: "clicked" });
+  assert.equal(clicked, "[OVERLAP/]");
+  assert.equal(api.clickOverlapSymbol("[UNKNOWN]", document).code, "symbol-control-not-found");
 });

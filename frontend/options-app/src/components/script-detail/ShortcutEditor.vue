@@ -37,6 +37,18 @@ function stopRecording(status = "") {
   statusText.value = status;
 }
 
+function sameShortcut(left, right) {
+  const first = normalizeShortcut(left);
+  const second = normalizeShortcut(right);
+  if (!first || !second) return false;
+  return first.ctrl === second.ctrl
+    && first.alt === second.alt
+    && first.shift === second.shift
+    && first.meta === second.meta
+    && String(first.key || "").toLowerCase() === String(second.key || "").toLowerCase()
+    && first.button === second.button;
+}
+
 function applyShortcut(actionKey, shortcut) {
   if (!recordingKey.value || recordingKey.value !== actionKey || shortcut === false) {
     return;
@@ -45,9 +57,17 @@ function applyShortcut(actionKey, shortcut) {
     stopRecording("已取消快捷键录制。");
     return;
   }
+  const normalized = normalizeShortcut(shortcut);
+  const conflict = props.actions.find((action) =>
+    action.key !== actionKey && sameShortcut(model.value?.[action.key], normalized)
+  );
+  if (conflict) {
+    stopRecording(`该快捷键已用于「${conflict.label || conflict.key}」，请使用其他组合。`);
+    return;
+  }
   model.value = {
     ...(model.value || {}),
-    [actionKey]: normalizeShortcut(shortcut),
+    [actionKey]: normalized,
   };
   stopRecording("快捷键已录制，保存设置后生效。");
 }

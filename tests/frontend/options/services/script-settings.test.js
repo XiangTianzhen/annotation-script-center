@@ -309,21 +309,25 @@ describe("script-settings helpers", () => {
     expect(getScriptShortcutActions("bytedanceAidpTaizhouHelper")).toHaveLength(7);
     expect(getScriptShortcutActions("magicDataHangzhouAssistant")).toHaveLength(22);
     expect(getScriptShortcutActions("shujiajiaLuzhouHelper")).toEqual([
+      { key: "createWholeSegment", label: "整音频划一段" },
       { key: "recognizeWhole", label: "识别整段" },
       { key: "fillRecognition", label: "填入识别结果" },
+      { key: "insertOverlapStart", label: "重叠说话前 [OVERLAP/]" },
+      { key: "insertOverlapEnd", label: "重叠说话后 [/OVERLAP]" },
     ]);
   });
 
-  test("describes Shujiajia new-item automations without adding automatic fill", () => {
+  test("describes Shujiajia new-item automations and recognition auto-fill", () => {
     const fields = getScriptFieldGroups("shujiajiaLuzhouHelper").flatMap((section) =>
       (section.groups || []).flatMap((group) => group.fields || [])
     );
     expect(fields.find((field) => field.path === "aiRecommendListenModel")?.options.length).toBe(2);
-    expect(fields.find((field) => field.path === "aiRecommendRefineModel")?.options.length).toBe(2);
+    expect(fields.find((field) => field.path === "aiRecommendRefineModel")).toBeUndefined();
+    expect(fields.find((field) => field.path === "aiRecommendListenPrompt")?.label).toBe("泸州方言识别 Prompt");
     expect(fields.find((field) => field.path === "autoCreateWholeSegmentOnNewItemEnabled")?.label).toBe("进入新条目后自动划整段");
     expect(fields.find((field) => field.path === "autoRecognizeAfterWholeSegmentEnabled")?.label).toBe("助手画段成功后自动识别");
     expect(fields.some((field) => /Lexicon/.test(field.path || ""))).toBe(false);
-    expect(fields.find((field) => field.path === "aiRecommendAutoFillEnabled")).toBeUndefined();
+    expect(fields.find((field) => field.path === "aiRecommendAutoFillEnabled")?.label).toBe("识别完成后自动填入");
   });
 
   test("describes dynamic hangzhou model fields and fixed thinking switches", () => {

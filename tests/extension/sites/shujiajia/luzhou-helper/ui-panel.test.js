@@ -7,16 +7,14 @@ const { resolveRepo } = require("#repo-paths");
 const panel = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "ui-panel.js"));
 const { JSDOM } = require(resolveRepo("frontend", "options-app", "node_modules", "jsdom"));
 
-test("result view exposes both stage text token totals and CNY estimate", () => {
+test("result view exposes one dialect text with single-stage tokens and CNY estimate", () => {
   const view = panel.buildResultView({
-    listenText: "原始听写",
-    refinedText: "泸州话整理",
-    usage: { listen: { totalTokens: 12 }, refine: { totalTokens: 9 } },
+    dialectText: "泸州方言文本",
+    usage: { listen: { promptTokens: 10, completionTokens: 2, totalTokens: 12 } },
     cost: { totalEstimatedCostCny: 0.001234 },
   });
-  assert.equal(view.listenText, "原始听写");
-  assert.equal(view.refinedText, "泸州话整理");
-  assert.equal(view.usageText, "听音 12 / 整理 9 / 总计 21 Token");
+  assert.equal(view.dialectText, "泸州方言文本");
+  assert.equal(view.usageText, "输入 10 / 输出 2 / 总计 12 Token");
   assert.equal(view.costText, "预估人民币 0.001234 元");
 });
 
@@ -72,7 +70,10 @@ test("recognition result stays visible without expand or close controls", () => 
   assert.equal(document.body.textContent.includes("展开识别结果"), false);
   assert.equal(document.body.textContent.includes("关闭结果"), false);
   assert.equal(typeof runtime.toggleDrawer, "undefined");
-  runtime.setResult({ listenText: "原始", refinedText: "整理" });
+  runtime.setResult({ dialectText: "泸州方言文本" });
+  assert.equal(result.querySelector("[data-role='dialect']").textContent, "泸州方言文本");
+  assert.equal(result.textContent.includes("原始听写"), false);
+  assert.equal(result.textContent.includes("泸州话整理"), false);
   assert.equal(result.hidden, false);
   runtime.setResult(null);
   assert.equal(result.hidden, false);

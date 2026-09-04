@@ -741,7 +741,13 @@ function shujiajiaSections() {
             kind: "boolean",
             path: "autoRecognizeAfterWholeSegmentEnabled",
             label: "助手画段成功后自动识别",
-            help: "助手按钮或切题自动画段成功后识别；不会自动填入、暂存或提交。",
+            help: "助手按钮或切题自动画段成功后识别。",
+          },
+          {
+            kind: "boolean",
+            path: "aiRecommendAutoFillEnabled",
+            label: "识别完成后自动填入",
+            help: "按钮、快捷键或画段后自动识别成功时，将结果填入当前条目；不会自动暂存或提交。",
           },
         ],
       }, {
@@ -754,7 +760,7 @@ function shujiajiaSections() {
           label: "安全边界",
           lines: [
             "已有任意段落时不会执行整音频划一段。",
-            "自动识别只展示结果；转写仍由按钮或快捷键填入，不自动设置有效性、不自动暂存、不自动提交。",
+            "自动填入只触发平台输入事件并标记待暂存；不自动设置有效性、不自动暂存、不自动提交。",
           ],
         }],
       }],
@@ -762,7 +768,7 @@ function shujiajiaSections() {
     {
       key: "ai",
       title: "AI 设置",
-      help: "配置泸州话原始听写与文本整理两阶段参数；当前不使用词表。",
+      help: "配置单次 Omni 泸州方言识别参数；当前不使用词表。",
       groups: [
         {
           key: "ai-base",
@@ -775,28 +781,15 @@ function shujiajiaSections() {
         },
         {
           key: "listen",
-          title: "原始听写",
+          title: "泸州方言识别",
           layout: "two",
           fields: stageFields({
             prefix: "aiRecommendListen",
-            modelLabel: "听音模型",
-            promptLabel: "泸州话听写 Prompt",
+            modelLabel: "泸州方言识别模型",
+            promptLabel: "泸州方言识别 Prompt",
             optionsKey: "listenModels",
             modelOptions: LISTEN_MODEL_OPTIONS,
-            modelHelp: "仅根据整段音频生成保守的泸州话听写。",
-          }),
-        },
-        {
-          key: "refine",
-          title: "泸州话整理",
-          layout: "two",
-          fields: stageFields({
-            prefix: "aiRecommendRefine",
-            modelLabel: "整理模型",
-            promptLabel: "泸州话整理 Prompt",
-            optionsKey: "refineModels",
-            modelOptions: REFINE_MODEL_OPTIONS,
-            modelHelp: "保留泸州话表达，只修正明显误识别和格式。",
+            modelHelp: "直接根据当前完整音频输出可填入的泸州方言文本。",
           }),
         },
       ],

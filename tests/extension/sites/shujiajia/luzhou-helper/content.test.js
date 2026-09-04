@@ -139,7 +139,7 @@ test("runtime keeps helper writes dirty until the matching native temporary save
     document: {},
     settings: { enabled: true, aiRecommendEnabled: true, shortcuts: {} },
     dataApi: {
-      findTranscriptInput: () => ({}),
+      findSelectedTranscriptInput: () => ({}),
       fillTranscript({ state }) { state.dirty = true; return { ok: true }; },
       submitFromPage(state) { messages.push(state.dirty ? "blocked" : "submitted"); return { ok: !state.dirty }; },
     },
@@ -147,7 +147,7 @@ test("runtime keeps helper writes dirty until the matching native temporary save
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
-  runtime.setRecognitionResult({ refinedText: "结果" });
+  runtime.setRecognitionResult({ dialectText: "结果" });
   await runtime.actions.fillRecognition();
   await runtime.actions.submitNext();
   assert.equal(runtime.getState().dirty, true);
@@ -193,17 +193,16 @@ test("recognition requires captured audio bytes and never guesses an audio URL",
   assert.equal(called, false);
 });
 
-test("recognition refuses captured audio until one full-boundary segment exists", async () => {
+test("recognition uses captured audio without requiring any paragraph layout", async () => {
   let called = false;
   const listeners = {};
   const runtime = content.createRuntime({
     window: { addEventListener(type, fn) { listeners[type] = fn; } },
     document: {}, settings: { enabled: true, aiRecommendEnabled: true, shortcuts: {} },
-    segmentAdapter: { getSegments: () => [], getAudioDurationMs: () => 4215, getWaveformWidth: () => 843 },
     segmentController: {
-      verifyWholeSegment: () => ({ ok: false, code: "whole-segment-required", segmentCount: 0 }),
+      verifyWholeSegment: () => { throw new Error("recognition must not inspect paragraphs"); },
     },
-    aiClient: { async recognize() { called = true; } },
+    aiClient: { async recognize() { called = true; return { dialectText: "直接识别" }; } },
     panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
@@ -211,8 +210,9 @@ test("recognition refuses captured audio until one full-boundary segment exists"
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
   const result = await runtime.actions.recognizeWhole();
-  assert.equal(result.code, "whole-segment-required");
-  assert.equal(called, false);
+  assert.equal(result.ok, true);
+  assert.equal(called, true);
+  assert.equal(runtime.getState().result.dialectText, "直接识别");
 });
 
 test("runtime rejects audio captured for a previous item", async () => {
@@ -249,6 +249,159 @@ test("runtime discards an AI result when the page switches item during recogniti
   const result = await pending;
   assert.equal(result.code, "stale-recognition-result");
   assert.equal(runtime.getState().result, null);
+});
+
+test("recognition success auto-fills the matching current item when enabled", async () => {
+  const listeners = {};
+  const fills = [];
+  const runtime = content.createRuntime({
+    window: { addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: { enabled: true, aiRecommendEnabled: true, aiRecommendAutoFillEnabled: true, shortcuts: {} },
+    segmentController: { verifyWholeSegment: () => { throw new Error("recognition must not inspect paragraphs"); } },
+    aiClient: { async recognize() { return { dialectText: "识别结果" }; } },
+    dataApi: {
+      findSingleTranscriptInput: () => ({ id: "current-input" }),
+      fillTranscript({ input, text }) { fills.push({ input, text }); return { ok: true }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+
+  const result = await runtime.actions.recognizeWhole();
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(fills, [{ input: { id: "current-input" }, text: "识别结果" }]);
+  assert.equal(runtime.getState().dirty, true);
+});
+
+test("automatic fill failure preserves the recognition result without marking the page dirty", async () => {
+  const listeners = {};
+  const runtime = content.createRuntime({
+    window: { addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: { enabled: true, aiRecommendEnabled: true, aiRecommendAutoFillEnabled: true, shortcuts: {} },
+    segmentController: { verifyWholeSegment: () => { throw new Error("recognition must not inspect paragraphs"); } },
+    aiClient: { async recognize() { return { dialectText: "保留结果" }; } },
+    dataApi: {
+      findSingleTranscriptInput: () => null,
+      fillTranscript: () => ({ ok: false, code: "input-unavailable" }),
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+
+  const result = await runtime.actions.recognizeWhole();
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.fillResult, { ok: false, code: "auto-fill-single-segment-required" });
+  assert.equal(runtime.getState().result.dialectText, "保留结果");
+  assert.equal(runtime.getState().dirty, false);
+});
+
+test("recognition success keeps the result without filling when auto-fill is disabled", async () => {
+  const listeners = {};
+  let fillCalls = 0;
+  const runtime = content.createRuntime({
+    window: { addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: { enabled: true, aiRecommendEnabled: true, aiRecommendAutoFillEnabled: false, shortcuts: {} },
+    segmentController: { verifyWholeSegment: () => ({ ok: true }) },
+    aiClient: { async recognize() { return { dialectText: "仅展示结果" }; } },
+    dataApi: { fillTranscript() { fillCalls += 1; return { ok: true }; } },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+
+  const result = await runtime.actions.recognizeWhole();
+
+  assert.equal(result.ok, true);
+  assert.equal(fillCalls, 0);
+  assert.equal(runtime.getState().result.dialectText, "仅展示结果");
+  assert.equal(runtime.getState().dirty, false);
+});
+
+test("automatic fill rechecks the switch immediately before writing", async () => {
+  const listeners = {};
+  let settingsReads = 0;
+  let fillCalls = 0;
+  const enabledSettings = { enabled: true, aiRecommendEnabled: true, aiRecommendAutoFillEnabled: true, shortcuts: {} };
+  const disabledAutoFillSettings = { ...enabledSettings, aiRecommendAutoFillEnabled: false };
+  globalThis.ASREdgeStorage = {
+    async getSettings() {
+      settingsReads += 1;
+      const script = settingsReads >= 3 ? disabledAutoFillSettings : enabledSettings;
+      return { platforms: { shujiajia: { enabled: true, scripts: { luzhouHelper: script } } } };
+    },
+  };
+  try {
+    const runtime = content.createRuntime({
+      window: { addEventListener(type, fn) { listeners[type] = fn; } },
+      document: {}, settings: enabledSettings,
+      segmentController: { verifyWholeSegment: () => ({ ok: true }) },
+      aiClient: { async recognize() { return { dialectText: "不应自动填入" }; } },
+      dataApi: {
+        findSingleTranscriptInput: () => ({}),
+        fillTranscript() { fillCalls += 1; return { ok: true }; },
+      },
+      panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+      shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+    });
+    await runtime.start();
+    listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+    listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+
+    const result = await runtime.actions.recognizeWhole();
+
+    assert.equal(result.ok, true);
+    assert.equal(fillCalls, 0);
+    assert.equal(runtime.getState().result.dialectText, "不应自动填入");
+  } finally {
+    delete globalThis.ASREdgeStorage;
+  }
+});
+
+test("duplicate recognition triggers for the same item start only one AI request", async () => {
+  const listeners = {};
+  let recognitionCalls = 0;
+  let resolveRecognition;
+  const runtime = content.createRuntime({
+    window: { addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: { enabled: true, aiRecommendEnabled: true, aiRecommendAutoFillEnabled: false, shortcuts: {} },
+    segmentController: { verifyWholeSegment: () => ({ ok: true }) },
+    aiClient: {
+      recognize() {
+        recognitionCalls += 1;
+        if (recognitionCalls === 1) return new Promise((resolve) => { resolveRecognition = resolve; });
+        return Promise.resolve({ refinedText: "重复结果" });
+      },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+
+  const first = runtime.actions.recognizeWhole();
+  await Promise.resolve();
+  const duplicate = await runtime.actions.recognizeWhole();
+
+  assert.equal(recognitionCalls, 1);
+  assert.deepEqual(duplicate, { ok: false, code: "recognition-in-progress" });
+  resolveRecognition({ refinedText: "唯一结果" });
+  assert.equal((await first).ok, true);
+  assert.equal(runtime.getState().result.refinedText, "唯一结果");
 });
 
 test("editor runtime skips the initial context and auto-draws each later context only once", async () => {
@@ -512,4 +665,24 @@ test("disabling new-item auto-draw while waiting for the waveform prevents trust
   releaseWaveform(true);
   await flushAsyncWork();
   assert.equal(drawCalls, 0);
+});
+
+test("overlap actions click the native symbols and mark the current item dirty", async () => {
+  const symbols = [];
+  const runtime = content.createRuntime({
+    window: { addEventListener() {} },
+    document: {},
+    settings: { enabled: true, shortcuts: {} },
+    dataApi: {
+      clickOverlapSymbol(symbol) { symbols.push(symbol); return { ok: true, code: "clicked" }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {}, setResult() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+
+  assert.equal((await runtime.actions.insertOverlapStart()).ok, true);
+  assert.equal((await runtime.actions.insertOverlapEnd()).ok, true);
+  assert.deepEqual(symbols, ["[OVERLAP/]", "[/OVERLAP]"]);
+  assert.equal(runtime.getState().dirty, true);
 });

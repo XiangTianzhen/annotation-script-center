@@ -23,7 +23,6 @@
       timeoutMs: Math.min(60000, Math.max(1000, Number(settings.aiRecommendRequestTimeoutMs) || 60000)),
       aiStages: {
         listen: { model: settings.aiRecommendListenModel || "qwen3.5-omni-flash", prompt: settings.aiRecommendListenPrompt || "", params: stageParams(settings, "Listen") },
-        refine: { model: settings.aiRecommendRefineModel || "qwen3.5-plus", prompt: settings.aiRecommendRefinePrompt || "", params: stageParams(settings, "Refine") },
       },
     };
     return typeof aiUsageMeta.appendAiUsageRequestMeta === "function"

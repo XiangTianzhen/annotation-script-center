@@ -19,7 +19,7 @@ test("Shujiajia backend registers health defaults and recommend routes", () => {
   ]);
 });
 
-test("Shujiajia defaults route returns the public two-stage contract", () => {
+test("Shujiajia defaults route returns the public single-stage contract", () => {
   let body = null;
   const response = {
     writeHead() {},
@@ -33,5 +33,6 @@ test("Shujiajia defaults route returns the public two-stage contract", () => {
   require(resolveRepo("platform-resources", "shujiajia", "luzhou-helper", "backend")).registerRoutes(router, {});
   routes.find((route) => route.path.endsWith("/defaults")).handler({ response });
   assert.equal(body.scriptId, "shujiajiaLuzhouHelper");
-  assert.equal(body.contract.writeMode, "manual-fill");
+  assert.deepEqual(body.contract.stages, ["listen"]);
+  assert.equal(body.contract.writeMode, "optional-auto-fill");
 });

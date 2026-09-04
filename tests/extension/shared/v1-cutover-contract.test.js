@@ -75,7 +75,7 @@ test("catalog contains the six promoted scripts", function () {
   assert.deepEqual(platformIds, RETAINED_PLATFORM_IDS);
   assert.deepEqual(scriptIds, RETAINED_SCRIPT_IDS);
   assert.equal(scripts.every((item) => !("visibility" in item)), true);
-  assert.equal(constants.SCHEMA_VERSION, 39);
+  assert.equal(constants.SCHEMA_VERSION, 40);
 });
 
 test("1.0.0 constants expose only server and local backend modes", function () {
@@ -176,7 +176,7 @@ test("1.0.0 settings normalization preserves retained settings and drops unknown
   try {
     const settings = await harness.storage.getSettings();
     assert.deepEqual(Object.keys(settings.platforms).sort(), RETAINED_PLATFORM_IDS);
-    assert.equal(settings.meta.schemaVersion, 39);
+    assert.equal(settings.meta.schemaVersion, 40);
     assert.equal(settings.meta.backendEndpointMode, "server");
     assert.deepEqual(settings.meta.backendBaseUrls, {
       server: "https://server.example.test",

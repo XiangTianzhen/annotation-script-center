@@ -6,7 +6,7 @@ const { resolveRepo } = require("#repo-paths");
 
 const client = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "ai-recommendation.js"));
 
-test("AI client serializes only temporary audio data and two-stage settings", () => {
+test("AI client serializes only temporary audio data and the dialect stage", () => {
   const payload = client.buildRequestPayload({
     audioDataUrl: "data:audio/wav;base64,AAAA",
     requestId: "safe",
@@ -22,7 +22,8 @@ test("AI client serializes only temporary audio data and two-stage settings", ()
   assert.equal(payload.audioUrl, undefined);
   assert.equal(payload.aiUsageOperatorName, "测试人员");
   assert.equal(payload.aiStages.listen.model, "qwen3.5-omni-plus");
-  assert.equal(payload.aiStages.refine.prompt, "整理");
+  assert.equal(payload.aiStages.listen.prompt, "听写");
+  assert.equal(payload.aiStages.refine, undefined);
   assert.equal(JSON.stringify(payload).includes("cookie"), false);
 });
 

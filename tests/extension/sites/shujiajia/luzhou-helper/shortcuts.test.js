@@ -44,3 +44,49 @@ test("configured fill-recognition shortcut invokes the existing fill action", as
   assert.equal(handled, true);
   assert.deepEqual(calls, ["fillRecognition"]);
 });
+
+test("configured whole-segment shortcut invokes the guarded draw action", async () => {
+  const calls = [];
+  const handled = await shortcuts.handleKeydown({
+    key: "d", shiftKey: true, target: { tagName: "DIV" }, preventDefault() {},
+  }, {
+    createWholeSegment: { key: "d", shift: true },
+  }, {
+    createWholeSegment: () => calls.push("createWholeSegment"),
+  });
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ["createWholeSegment"]);
+});
+
+test("overlap shortcuts remain active in the focused transcript input", async () => {
+  const calls = [];
+  const target = {
+    tagName: "INPUT",
+    classList: { contains(name) { return name === "transfer-input"; } },
+    getAttribute(name) { return name === "placeholder" ? "请输入转写内容" : ""; },
+  };
+  const handled = await shortcuts.handleKeydown({
+    key: "[", altKey: true, target, preventDefault() {},
+  }, {
+    insertOverlapStart: { key: "[", alt: true },
+  }, {
+    insertOverlapStart: () => calls.push("insertOverlapStart"),
+  });
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ["insertOverlapStart"]);
+});
+
+test("duplicate shortcut assignments fail closed instead of invoking the first action", async () => {
+  const calls = [];
+  const handled = await shortcuts.handleKeydown({
+    key: "k", ctrlKey: true, target: { tagName: "DIV" }, preventDefault() {},
+  }, {
+    recognizeWhole: { key: "k", ctrl: true },
+    insertOverlapStart: { key: "k", ctrl: true },
+  }, {
+    recognizeWhole: () => calls.push("recognizeWhole"),
+    insertOverlapStart: () => calls.push("insertOverlapStart"),
+  });
+  assert.equal(handled, false);
+  assert.deepEqual(calls, []);
+});

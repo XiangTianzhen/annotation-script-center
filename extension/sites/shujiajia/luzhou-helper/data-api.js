@@ -52,6 +52,39 @@
     const inputs = queryAll("textarea[placeholder*='转写'], input[placeholder*='转写']", rootDocument, false).filter(visible);
     return inputs.length === 1 ? inputs[0] : null;
   }
+  function editableTranscriptInputs(rootDocument) {
+    return queryAll(".el-table__row input.transfer-input, .el-table__row textarea.transfer-input", rootDocument, false)
+      .filter((input) => visible(input) && input.disabled !== true && input.readOnly !== true);
+  }
+  function findSelectedTranscriptInput(rootDocument) {
+    const rows = queryAll(".el-table__row.current-row", rootDocument, false);
+    if (rows.length !== 1) return null;
+    const inputs = Array.from(rows[0].querySelectorAll?.("input.transfer-input, textarea.transfer-input") || [])
+      .filter((input) => visible(input) && input.disabled !== true && input.readOnly !== true);
+    return inputs.length === 1 ? inputs[0] : null;
+  }
+  function findSingleTranscriptInput(rootDocument) {
+    const inputs = editableTranscriptInputs(rootDocument);
+    return inputs.length === 1 ? inputs[0] : null;
+  }
+  function getTranscriptInputCount(rootDocument) {
+    return editableTranscriptInputs(rootDocument).length;
+  }
+  function clickOverlapSymbol(symbol, rootDocument) {
+    const groups = queryAll(".special-container.with-group-head .symbol-group", rootDocument, false).filter((group) => {
+      const title = group.querySelector?.(".symbol-group-title");
+      return normalizedText(title?.getAttribute?.("title") || title?.textContent) === "Category1（多选）";
+    });
+    if (groups.length !== 1) return { ok: false, code: groups.length ? "ambiguous-symbol-group" : "symbol-group-not-found" };
+    const items = Array.from(groups[0].querySelectorAll?.(".symbol-item") || []).filter((item) => {
+      const key = item.querySelector?.(".key");
+      const disabled = item.disabled === true || item.getAttribute?.("aria-disabled") === "true" || item.classList?.contains?.("is-disabled");
+      return !disabled && visible(item) && normalizedText(key?.getAttribute?.("title") || key?.textContent) === normalizedText(symbol);
+    });
+    if (items.length !== 1) return { ok: false, code: items.length ? "ambiguous-symbol-control" : "symbol-control-not-found" };
+    items[0].click();
+    return { ok: true, code: "clicked" };
+  }
   function markValidity(effective, rootDocument) {
     const targetText = effective ? "有效" : "无效";
     const controls = queryAll("label,button,[role='radio']", rootDocument, false).filter((node) => normalizedText(node.textContent) === targetText);
@@ -76,7 +109,11 @@
     controls[0].click();
     return { ok: true, code: "clicked" };
   }
-  const api = { clickUniqueVisibleControl, fillTranscript, findTranscriptInput, markValidity, normalizedText, queryAll, submitFromPage, submitNext, temporarySave, togglePlayPause };
+  const api = {
+    clickOverlapSymbol, clickUniqueVisibleControl, fillTranscript, findSelectedTranscriptInput,
+    findSingleTranscriptInput, findTranscriptInput, getTranscriptInputCount, markValidity,
+    normalizedText, queryAll, submitFromPage, submitNext, temporarySave, togglePlayPause,
+  };
   globalThis.__ASREdgeShujiajiaDataApi = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -165,7 +165,7 @@ const STATIC_LOCAL_DEFAULTS = {
   [SCRIPT_IDS.shujiajia]: {
     config: {
       aiRecommendEnabled: true,
-      aiRecommendAutoFillEnabled: false,
+      aiRecommendAutoFillEnabled: true,
       aiRecommendRequestTimeoutMs: 60000,
       aiRecommendListenModel: "qwen3.5-omni-flash",
       aiRecommendListenPrompt: "",
@@ -174,7 +174,6 @@ const STATIC_LOCAL_DEFAULTS = {
     },
     options: {
       listenModels: ["qwen3.5-omni-flash", "qwen3.5-omni-plus"],
-      refineModels: ["qwen3.5-plus", "qwen3.5-flash"],
     },
   },
 };
@@ -287,6 +286,28 @@ function mapTwoStagePayload(scriptId, payload, local) {
   };
 }
 
+function mapShujiajiaPayload(payload, local) {
+  const defaults = payload?.defaults || {};
+  const listen = defaults?.stages?.listen || {};
+  const params = getStageParams(listen);
+  const config = {
+    ...local.config,
+    aiRecommendRequestTimeoutMs: Number(defaults.timeoutMs) || local.config.aiRecommendRequestTimeoutMs,
+    aiRecommendListenModel: text(listen.model) || local.config.aiRecommendListenModel,
+    aiRecommendListenPrompt: text(listen.prompt),
+  };
+  STAGE_PARAM_DEFINITIONS.forEach((definition) => {
+    config[`aiRecommendListen${definition.suffix}`] = toTextValue(params[definition.apiKey]);
+  });
+  config.aiRecommendListenStopSequences = normalizeStopValue(params.stop);
+  return {
+    config,
+    options: mergeOptions({}, {
+      listenModels: payload?.supportedModels?.listen || listen.modelOptions || local.options.listenModels,
+    }),
+  };
+}
+
 function mapOmniPayload(payload, local) {
   const defaults = payload?.defaults || {};
   const omni = defaults?.omni || {};
@@ -379,6 +400,8 @@ export async function loadScriptDefaults(scriptId, settings, fetchImpl = globalT
     }
     const mapped = normalizedScriptId === SCRIPT_IDS.hangzhou
       ? mapMagicPayload(payload, local)
+      : normalizedScriptId === SCRIPT_IDS.shujiajia
+        ? mapShujiajiaPayload(payload, local)
       : normalizedScriptId === SCRIPT_IDS.jinhua || normalizedScriptId === SCRIPT_IDS.taizhou
         ? mapOmniPayload(payload, local)
         : mapTwoStagePayload(normalizedScriptId, payload, local);
@@ -479,7 +502,6 @@ export function hydrateScriptDraft(scriptId, storedConfig, defaults = {}) {
     draft.enableThinking = false;
   } else if (normalizedScriptId === SCRIPT_IDS.shujiajia) {
     draft.aiRecommendRequestTimeoutMs = Math.min(60000, Math.max(1000, Number(draft.aiRecommendRequestTimeoutMs) || 60000));
-    draft.aiRecommendAutoFillEnabled = false;
   }
   return draft;
 }
@@ -635,10 +657,8 @@ export function serializeScriptDraft(scriptId, draftConfig, defaults = {}) {
     result.aiRecommendRequestTimeoutMs = Math.round(
       requiredNumber(result.aiRecommendRequestTimeoutMs, "请求超时时间（毫秒）", 1000, 60000)
     );
-    result.aiRecommendAutoFillEnabled = false;
     clearDefaultOverrides(result, defaults, [
       ...buildStageOverrideDefinitions("aiRecommendListen"),
-      ...buildStageOverrideDefinitions("aiRecommendRefine"),
     ]);
   }
   return result;

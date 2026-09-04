@@ -11,7 +11,7 @@
 | `bytedance-aidp/` | 金华话（单次 Omni 可编辑转写 Prompt） | `extension/sites/bytedance-aidp/jinhua-helper/` | `/api/bytedance-aidp/jinhua-helper/*` |
 | `bytedance-aidp/` | 台州话 | `extension/sites/bytedance-aidp/taizhou-helper/` | AI、完整题目录音导入、检查包原生押后、返修当前页批量导入与审核结果人工回填；`/api/bytedance-aidp/taizhou-helper/*` |
 | `magic-data/` | 杭州话 | `extension/sites/magic-data/hangzhou-helper/` | `/api/magic-data/hangzhou-helper/*` |
-| `shujiajia/` | 泸州话整段识别 | `extension/sites/shujiajia/luzhou-helper/` | `/api/shujiajia/luzhou-helper/*` |
+| `shujiajia/` | 泸州话单阶段识别 | `extension/sites/shujiajia/luzhou-helper/` | `/api/shujiajia/luzhou-helper/*` |
 
 平台与脚本入口索引见 [docs/platforms-index.md](../docs/platforms-index.md)。
 

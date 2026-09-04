@@ -348,17 +348,60 @@ describe("script defaults and draft adapters", () => {
     });
   });
 
-  test("loads Shujiajia no-lexicon two-stage defaults", async () => {
+  test("loads Shujiajia no-lexicon single-stage defaults without exposing refine options", async () => {
     const state = await loadScriptDefaults(
       SHUJIAJIA_ID,
       {},
-      vi.fn(async () => ({ ok: true, json: async () => aidpPayload() }))
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          defaults: { timeoutMs: 60000, stages: { listen: { model: "qwen3.5-omni-flash", prompt: "直接输出泸州方言文本", params: {} } } },
+          supportedModels: { listen: ["qwen3.5-omni-flash", "qwen3.5-omni-plus"] },
+        }),
+      }))
     );
     expect(state.status).toBe("loaded");
     expect(state.endpoint).toContain("/api/shujiajia/luzhou-helper/ai/recommend/defaults");
     expect(state.config.aiRecommendListenModel).toBe("qwen3.5-omni-flash");
-    expect(state.config.aiRecommendRefineModel).toBe("qwen3.5-plus");
+    expect(state.config.aiRecommendListenPrompt).toBe("直接输出泸州方言文本");
+    expect(state.options.refineModels).toBeUndefined();
     expect(state.config.aiRecommendListenIncludeLexiconReference).toBeUndefined();
+  });
+
+  test("preserves a disabled Shujiajia auto-fill choice through Options hydration and serialization", () => {
+    const draft = hydrateScriptDraft(SHUJIAJIA_ID, {
+      aiRecommendAutoFillEnabled: false,
+    }, {});
+
+    expect(draft.aiRecommendAutoFillEnabled).toBe(false);
+    expect(serializeScriptDraft(SHUJIAJIA_ID, draft, {}).aiRecommendAutoFillEnabled).toBe(false);
+  });
+
+  test("keeps legacy Shujiajia refine settings untouched while serializing the listen-only form", () => {
+    const draft = hydrateScriptDraft(
+      SHUJIAJIA_ID,
+      {
+        aiRecommendRefinePrompt: "旧整理 Prompt",
+        aiRecommendRefineTemperature: "0.2",
+      },
+      {
+        config: {
+          aiRecommendRequestTimeoutMs: 60000,
+          aiRecommendRefinePrompt: "旧整理 Prompt",
+          aiRecommendRefineTemperature: "0.2",
+        },
+      }
+    );
+
+    const persisted = serializeScriptDraft(SHUJIAJIA_ID, draft, {
+      config: {
+        aiRecommendRefinePrompt: "旧整理 Prompt",
+        aiRecommendRefineTemperature: "0.2",
+      },
+    });
+    expect(persisted.aiRecommendRefinePrompt).toBe("旧整理 Prompt");
+    expect(persisted.aiRecommendRefineTemperature).toBe("0.2");
   });
 
   test("maps Hangzhou model options, prompts and generation defaults", async () => {

@@ -36,12 +36,12 @@ function load(initialSettings) {
   };
 }
 
-test("Shujiajia schema 39 defaults keep both new-item automations disabled", async () => {
+test("Shujiajia schema 40 defaults enable recognition auto-fill and keep new-item automations disabled", async () => {
   const harness = load({ meta: { schemaVersion: 36 } });
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.shujiajia.scripts.luzhouHelper;
-    assert.equal(settings.meta.schemaVersion, 39);
+    assert.equal(settings.meta.schemaVersion, 40);
     assert.equal(harness.constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, "shujiajiaLuzhouHelper");
     assert.equal(settings.platforms.shujiajia.enabled, true);
     assert.equal(script.enabled, false);
@@ -50,15 +50,16 @@ test("Shujiajia schema 39 defaults keep both new-item automations disabled", asy
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, false);
     assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, false);
+    assert.equal(script.aiRecommendAutoFillEnabled, true);
     assert.deepEqual(script.shortcuts, {});
   } finally {
     harness.cleanup();
   }
 });
 
-test("Shujiajia schema 39 migration preserves automation choices and the two AI shortcuts", async () => {
+test("Shujiajia schema 40 migration enables auto-fill and preserves automation choices and five helper shortcuts", async () => {
   const harness = load({
-    meta: { schemaVersion: 38 },
+    meta: { schemaVersion: 39 },
     platforms: { shujiajia: { scripts: { luzhouHelper: {
       enabled: true,
       aiRecommendListenModel: "qwen3.5-omni-plus",
@@ -66,11 +67,14 @@ test("Shujiajia schema 39 migration preserves automation choices and the two AI 
       aiRecommendRequestTimeoutMs: 90000,
       autoCreateWholeSegmentOnNewItemEnabled: true,
       autoRecognizeAfterWholeSegmentEnabled: true,
+      aiRecommendAutoFillEnabled: false,
       shortcuts: {
         togglePlayPause: { key: "p", ctrl: true },
         createWholeSegment: { key: "d", shift: true },
         recognizeWhole: { key: "r", ctrl: true },
         fillRecognition: { key: "f", alt: true },
+        insertOverlapStart: { key: "[", alt: true },
+        insertOverlapEnd: { key: "]", alt: true },
         markEffective: { key: "1" },
         temporarySave: { key: "s", ctrl: true },
         submitNext: { key: "Enter", ctrl: true },
@@ -85,23 +89,42 @@ test("Shujiajia schema 39 migration preserves automation choices and the two AI 
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, true);
     assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, true);
+    assert.equal(script.aiRecommendAutoFillEnabled, true);
     assert.deepEqual(script.shortcuts, {
+      createWholeSegment: { key: "d", shift: true },
       recognizeWhole: { key: "r", ctrl: true },
       fillRecognition: { key: "f", alt: true },
+      insertOverlapStart: { key: "[", alt: true },
+      insertOverlapEnd: { key: "]", alt: true },
     });
   } finally {
     harness.cleanup();
   }
 });
 
-test("setScriptEnabled toggles the Shujiajia helper without enabling AI writes", async () => {
+test("schema 40 preserves an explicit disabled auto-fill choice", async () => {
+  const harness = load({
+    meta: { schemaVersion: 40 },
+    platforms: { shujiajia: { scripts: { luzhouHelper: {
+      aiRecommendAutoFillEnabled: false,
+    } } } },
+  });
+  try {
+    const script = (await harness.storage.getSettings()).platforms.shujiajia.scripts.luzhouHelper;
+    assert.equal(script.aiRecommendAutoFillEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("setScriptEnabled toggles the Shujiajia helper with auto-fill enabled by default", async () => {
   const harness = load({});
   try {
     const settings = await harness.storage.setScriptEnabled("shujiajiaLuzhouHelper", true);
     assert.equal(settings.platforms.shujiajia.enabled, true);
     assert.equal(settings.platforms.shujiajia.scripts.luzhouHelper.enabled, true);
     assert.equal(settings.platforms.shujiajia.scripts.luzhouHelper.aiRecommendEnabled, true);
-    assert.equal(settings.platforms.shujiajia.scripts.luzhouHelper.aiRecommendAutoFillEnabled, false);
+    assert.equal(settings.platforms.shujiajia.scripts.luzhouHelper.aiRecommendAutoFillEnabled, true);
   } finally {
     harness.cleanup();
   }
