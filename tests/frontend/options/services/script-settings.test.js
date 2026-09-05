@@ -328,8 +328,8 @@ describe("script-settings helpers", () => {
     expect(fields.find((field) => field.path === "autoCreateWholeSegmentDelayMs")).toMatchObject({
       kind: "number",
       label: "自动划段延迟（毫秒）",
-      min: 500,
-      max: 10000,
+      min: 0,
+      max: 50000,
       step: 100,
     });
     expect(fields.find((field) => field.path === "autoRecognizeAfterWholeSegmentEnabled")?.label).toBe("助手画段成功后自动识别");

@@ -741,8 +741,8 @@ function shujiajiaSections() {
             kind: "number",
             path: "autoCreateWholeSegmentDelayMs",
             label: "自动划段延迟（毫秒）",
-            min: 500,
-            max: 10000,
+            min: 0,
+            max: 50000,
             step: 100,
           },
           {

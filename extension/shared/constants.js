@@ -4,7 +4,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_LABEL = "脚本中心";
   const STORAGE_KEY = "asrEdgeSettings";
-  const SCHEMA_VERSION = 41;
+  const SCHEMA_VERSION = 42;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -199,7 +199,7 @@
   const shujiajiaDefaults = {
     id: SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, enabled: false, aiRecommendEnabled: true,
     aiRecommendAutoFillEnabled: true, aiRecommendRequestTimeoutMs: 60000,
-    autoCreateWholeSegmentOnNewItemEnabled: false, autoCreateWholeSegmentDelayMs: 2500, autoRecognizeAfterWholeSegmentEnabled: false,
+    autoCreateWholeSegmentOnNewItemEnabled: false, autoCreateWholeSegmentDelayMs: 500, autoRecognizeAfterWholeSegmentEnabled: false,
     aiRecommendListenModel: "qwen3.5-omni-flash", aiRecommendListenPrompt: "",
     aiRecommendRefineModel: "qwen3.5-plus", aiRecommendRefinePrompt: "",
     aiRecommendListenTemperature: "", aiRecommendListenTopP: "", aiRecommendListenMaxTokens: "",

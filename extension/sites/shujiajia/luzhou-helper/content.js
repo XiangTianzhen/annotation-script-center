@@ -270,8 +270,9 @@
         state.contextId !== expectedContextId
       ) return false;
       attemptedAutoDrawContexts.add(expectedContextId);
-      const configuredDelay = Number(currentSettings.autoCreateWholeSegmentDelayMs);
-      const delayMs = configuredDelay >= 500 && configuredDelay <= 10000 ? configuredDelay : 2500;
+      const rawDelay = currentSettings.autoCreateWholeSegmentDelayMs;
+      const configuredDelay = Number(rawDelay);
+      const delayMs = rawDelay !== null && rawDelay !== "" && configuredDelay >= 0 && configuredDelay <= 50000 ? configuredDelay : 500;
       const AbortControllerType = config.AbortController || globalThis.AbortController;
       const abortController = typeof AbortControllerType === "function" ? new AbortControllerType() : null;
       pendingAutoDrawAbortController?.abort?.();

@@ -389,7 +389,9 @@
       if (key === "shortcuts") next[key] = normalizeShujiajiaShortcutMap(scriptSource[key]);
       else if (typeof fallback[key] === "boolean") next[key] = bool(scriptSource[key], fallback[key]);
       else if (key === "aiRecommendRequestTimeoutMs") next[key] = numberInRange(scriptSource[key], fallback[key], 1000, 60000);
-      else if (key === "autoCreateWholeSegmentDelayMs") next[key] = numberInRange(scriptSource[key], fallback[key], 500, 10000);
+      else if (key === "autoCreateWholeSegmentDelayMs") next[key] = scriptSource[key] === null || scriptSource[key] === ""
+        ? fallback[key]
+        : numberInRange(scriptSource[key], fallback[key], 0, 50000);
       else if (typeof scriptSource[key] === "string") next[key] = text(scriptSource[key], fallback[key]);
     });
     next.aiRecommendListenModel = option(scriptSource.aiRecommendListenModel, ["qwen3.5-omni-flash", "qwen3.5-omni-plus"], fallback.aiRecommendListenModel);
@@ -397,6 +399,9 @@
     next.aiRecommendAutoFillEnabled = legacySchema < 40
       ? true
       : bool(scriptSource.aiRecommendAutoFillEnabled, fallback.aiRecommendAutoFillEnabled);
+    if (legacySchema < 42 && Number(scriptSource.autoCreateWholeSegmentDelayMs) === 2500) {
+      next.autoCreateWholeSegmentDelayMs = 500;
+    }
     return {
       enabled: bool(source.enabled, defaults.enabled),
       activeScriptId: next.enabled ? constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID : "",

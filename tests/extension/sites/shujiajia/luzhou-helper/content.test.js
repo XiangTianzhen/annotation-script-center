@@ -534,7 +534,7 @@ test("editor runtime delays the initial and later contexts and draws each contex
     settings: {
       enabled: true,
       autoCreateWholeSegmentOnNewItemEnabled: true,
-      autoCreateWholeSegmentDelayMs: 2500,
+      autoCreateWholeSegmentDelayMs: 500,
       autoRecognizeAfterWholeSegmentEnabled: false,
       shortcuts: {},
     },
@@ -553,8 +553,8 @@ test("editor runtime delays the initial and later contexts and draws each contex
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   await flushAsyncWork();
   assert.equal(drawCalls, 0);
-  assert.deepEqual(delays, [2500]);
-  assert.equal(messages.at(-1), "将在 2.5 秒后自动划段");
+  assert.deepEqual(delays, [500]);
+  assert.equal(messages.at(-1), "将在 0.5 秒后自动划段");
   releases[0]();
   await flushAsyncWork();
   assert.equal(drawCalls, 1);
@@ -564,7 +564,7 @@ test("editor runtime delays the initial and later contexts and draws each contex
   listeners.message(next);
   await flushAsyncWork();
   assert.equal(drawCalls, 1);
-  assert.deepEqual(delays, [2500, 2500]);
+  assert.deepEqual(delays, [500, 500]);
   releases[1]();
   await flushAsyncWork();
   assert.equal(drawCalls, 2);
@@ -617,6 +617,27 @@ test("automatic drawing rechecks the outer URL after the fixed delay", async () 
   releaseDelay(true);
   await flushAsyncWork();
   assert.equal(drawCalls, 0);
+});
+
+test("automatic drawing accepts a configured zero-millisecond delay", async () => {
+  const listeners = {};
+  const delays = [];
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: { referrer: VALID_MARK_URL },
+    settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, autoCreateWholeSegmentDelayMs: 0, shortcuts: {} },
+    waitForDelay: async (delayMs) => { delays.push(delayMs); return true; },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { return { ok: false, code: "waveform-unavailable" }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  await flushAsyncWork();
+  assert.deepEqual(delays, [0]);
 });
 
 test("switching items cancels the previous fixed delay", async () => {

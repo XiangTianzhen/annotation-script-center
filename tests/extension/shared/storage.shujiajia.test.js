@@ -36,12 +36,12 @@ function load(initialSettings) {
   };
 }
 
-test("Shujiajia schema 41 defaults enable recognition auto-fill and keep new-item automations disabled", async () => {
+test("Shujiajia schema 42 defaults use a 500ms automatic whole-segment delay", async () => {
   const harness = load({ meta: { schemaVersion: 36 } });
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.shujiajia.scripts.luzhouHelper;
-    assert.equal(settings.meta.schemaVersion, 41);
+    assert.equal(settings.meta.schemaVersion, 42);
     assert.equal(harness.constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, "shujiajiaLuzhouHelper");
     assert.equal(settings.platforms.shujiajia.enabled, true);
     assert.equal(script.enabled, false);
@@ -49,7 +49,7 @@ test("Shujiajia schema 41 defaults enable recognition auto-fill and keep new-ite
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, false);
-    assert.equal(script.autoCreateWholeSegmentDelayMs, 2500);
+    assert.equal(script.autoCreateWholeSegmentDelayMs, 500);
     assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, false);
     assert.equal(script.aiRecommendAutoFillEnabled, true);
     assert.deepEqual(script.shortcuts, {});
@@ -58,7 +58,7 @@ test("Shujiajia schema 41 defaults enable recognition auto-fill and keep new-ite
   }
 });
 
-test("Shujiajia schema 41 migration enables auto-fill, adds the delay, and preserves automation choices and five helper shortcuts", async () => {
+test("Shujiajia schema 42 migration adds the new 500ms delay and preserves automation choices and five helper shortcuts", async () => {
   const harness = load({
     meta: { schemaVersion: 39 },
     platforms: { shujiajia: { scripts: { luzhouHelper: {
@@ -89,7 +89,7 @@ test("Shujiajia schema 41 migration enables auto-fill, adds the delay, and prese
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, true);
-    assert.equal(script.autoCreateWholeSegmentDelayMs, 2500);
+    assert.equal(script.autoCreateWholeSegmentDelayMs, 500);
     assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, true);
     assert.equal(script.aiRecommendAutoFillEnabled, true);
     assert.deepEqual(script.shortcuts, {
@@ -119,15 +119,31 @@ test("schema 40 preserves an explicit disabled auto-fill choice", async () => {
   }
 });
 
-test("Shujiajia automatic whole-segment delay accepts only 500 through 10000 milliseconds", async () => {
-  for (const [input, expected] of [[500, 500], [10000, 10000], [499, 2500], [10001, 2500], ["2500", 2500]]) {
+test("Shujiajia automatic whole-segment delay accepts 0 through 50000 milliseconds", async () => {
+  for (const [input, expected] of [[0, 0], [50000, 50000], [-1, 500], [50001, 500], [null, 500], ["", 500], ["4200", 4200]]) {
     const harness = load({
-      meta: { schemaVersion: 41 },
+      meta: { schemaVersion: 42 },
       platforms: { shujiajia: { scripts: { luzhouHelper: { autoCreateWholeSegmentDelayMs: input } } } },
     });
     try {
       const script = (await harness.storage.getSettings()).platforms.shujiajia.scripts.luzhouHelper;
       assert.equal(script.autoCreateWholeSegmentDelayMs, expected, String(input));
+    } finally {
+      harness.cleanup();
+    }
+  }
+});
+
+test("schema 42 migrates only the previous 2500ms default and preserves other custom delays", async () => {
+  for (const [input, expected] of [[2500, 500], [0, 0], [4200, 4200], [50000, 50000]]) {
+    const harness = load({
+      meta: { schemaVersion: 41 },
+      platforms: { shujiajia: { scripts: { luzhouHelper: { autoCreateWholeSegmentDelayMs: input } } } },
+    });
+    try {
+      const settings = await harness.storage.getSettings();
+      assert.equal(settings.meta.schemaVersion, 42);
+      assert.equal(settings.platforms.shujiajia.scripts.luzhouHelper.autoCreateWholeSegmentDelayMs, expected, String(input));
     } finally {
       harness.cleanup();
     }
