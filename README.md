@@ -106,10 +106,9 @@ Copy-Item config/env/ai.env.example config/env/ai.env
 
 - `config/env/backend.env`：管理员密码哈希、管理员 JWT 密钥，以及可选的 AI 日志下载独立凭据。
 - `config/env/ai.env`：确实需要覆盖的非密钥 AI 参数。
-- `config/secrets/dashscope-key-1.env`、`config/secrets/dashscope-key-2.env`：两把独立的 DashScope 密钥；每个文件只保存 `DASHSCOPE_API_KEY`。
-- `config/secrets/dashscope-active-key.json`：服务器当前选中的密钥槽位；系统管理的服务器模式可在管理员会话内切换，不会显示或下发密钥。
+- `config/secrets/dashscope-key.env`：唯一的 DashScope 密钥文件，只保存一行 `DASHSCOPE_API_KEY=...`。
 
-上述私有文件均被 Git 忽略。为兼容尚未迁移的服务器，只有密钥一和密钥二都未配置时，后端才临时读取旧 `DASHSCOPE_API_KEY`；一旦任一槽位已配置，后续 AI 请求只使用当前选中的槽位，不会自动切回旧密钥或另一账户。完成两槽位配置和验证后可删除旧变量；不要把真实值复制到 README、日志、测试或提交中。
+上述私有文件均被 Git 忽略。AI provider 严格只读取 `dashscope-key.env`，不会回退 `config/env/ai.env`、进程环境变量或旧双密钥文件。服务器迁移时先创建该文件并限制权限，部署、重启并确认 AI 调用成功后，再由服务器管理员自行删除两个旧 Key 文件、活动状态 JSON 和 PM2/系统环境中的旧变量；不要把真实值复制到 README、日志、测试或提交中。
 
 ### 4. 创建本地 Python 环境
 

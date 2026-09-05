@@ -67,39 +67,6 @@
   background: rgba(255, 255, 255, 0.72);
 }
 
-.admin-ai-key-slots {
-  display: grid;
-  gap: 8px;
-}
-
-.admin-ai-key-current {
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.admin-ai-key-switcher,
-.admin-ai-key-control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.admin-ai-key-switcher {
-  justify-content: space-between;
-  width: 100%;
-  padding: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.admin-ai-key-switcher .primary-button {
-  min-width: 132px;
-  margin-left: auto;
-}
-
 .field-card input.wide-field,
 .field-card textarea,
 .asr-ai-field input,
@@ -416,11 +383,6 @@
   .admin-sidebar {
   @media (max-width: 720px) {
     padding: 18px;
-  }
-
-  .admin-ai-key-switcher,
-  .admin-ai-key-control {
-    align-items: flex-start;
   }
 }
 

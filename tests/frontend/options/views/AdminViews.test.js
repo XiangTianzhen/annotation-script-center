@@ -1,8 +1,6 @@
-import fs from "node:fs";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { resolveRepo } from "#repo-paths";
 import AdminUnlockView from "@/views/AdminUnlockView.vue";
 import AdminOverviewView from "@/views/AdminOverviewView.vue";
 import AdminBackendView from "@/views/AdminBackendView.vue";
@@ -11,45 +9,20 @@ import { useAdminStore } from "@/stores/admin";
 import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
 
-const routeState = vi.hoisted(() => ({
-  path: "/admin/overview",
-}));
-
-const routerMocks = vi.hoisted(() => ({
-  replace: vi.fn(),
-  push: vi.fn(),
-}));
-
-const adminServiceMocks = vi.hoisted(() => ({
-  loadAiKeySlots: vi.fn(),
-  switchAiKeySlot: vi.fn(),
-}));
+const routeState = vi.hoisted(() => ({ path: "/admin/overview" }));
+const routerMocks = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
 
 vi.mock("@/services/admin-service", async () => {
   const actual = await vi.importActual("@/services/admin-service");
   return {
     ...actual,
-    ...adminServiceMocks,
     isAdminSessionExpired() {
       return false;
     },
     async loadProjectDataDownloadOptions() {
       return {
         response: { ok: true },
-        body: {
-          success: true,
-          data: [
-            {
-              id: "project-dataset-a",
-              label: "ASR 快判统计数据",
-              suppliers: [
-                "__all__",
-                "全部",
-                "供应商 A",
-              ],
-            },
-          ],
-        },
+        body: { success: true, data: [] },
       };
     },
     async loadAiCallLogOptions() {
@@ -57,13 +30,7 @@ vi.mock("@/services/admin-service", async () => {
         response: { ok: true },
         body: {
           success: true,
-          data: [
-            {
-              id: "ai-dataset-a",
-              label: "DataBaker 一检 AI 调用记录",
-              hasData: true,
-            },
-          ],
+          data: [{ id: "ai-dataset-a", label: "DataBaker 一检 AI 调用记录", hasData: true }],
         },
       };
     },
@@ -93,8 +60,6 @@ describe("Admin legacy shells", () => {
     globalThis.ASREdgeConstants = {};
     routerMocks.replace.mockReset();
     routerMocks.push.mockReset();
-    adminServiceMocks.loadAiKeySlots.mockReset();
-    adminServiceMocks.switchAiKeySlot.mockReset();
 
     const settingsStore = useSettingsStore();
     settingsStore.settings = {
@@ -109,9 +74,7 @@ describe("Admin legacy shells", () => {
     };
 
     const authStore = useAuthStore();
-    authStore.session = {
-      token: "demo",
-    };
+    authStore.session = { token: "demo" };
 
     const adminStore = useAdminStore();
     adminStore.backendDraft = {
@@ -121,24 +84,11 @@ describe("Admin legacy shells", () => {
         local: "http://127.0.0.1:3333",
       },
     };
-    adminStore.aiKeySlots = {
-      activeKeySource: "slot",
-      activeSlotId: "key-1",
-      slots: [
-        { id: "key-1", label: "密钥一", configured: true, active: true },
-        { id: "key-2", label: "密钥二", configured: true, active: false },
-      ],
-    };
-    adminStore.aiKeySlotsLoading = false;
-    adminStore.aiKeySlotsError = "";
-    adminStore.aiKeySlotSwitchingId = "";
     adminStore.dashboardLoading = false;
     adminStore.dashboardError = "";
     adminStore.dashboard = {
       runtime: {
-        queue: {
-          activePools: [],
-        },
+        queue: { activePools: [] },
         jobs: {
           usedCount: 1,
           capacity: 5,
@@ -151,12 +101,8 @@ describe("Admin legacy shells", () => {
         projectDataDatasets: [{ id: "dataset-a" }],
         aiCallLogDatasets: [{ id: "log-a" }],
       },
-      logsSummary: {
-        retentionDays: 7,
-      },
-      runtimeLogs: {
-        items: [],
-      },
+      logsSummary: { retentionDays: 7 },
+      runtimeLogs: { items: [] },
     };
   });
 
@@ -179,7 +125,7 @@ describe("Admin legacy shells", () => {
     expect(wrapper.find("#admin-overview-status").exists()).toBe(true);
   });
 
-  test("backend and exports views keep the legacy form anchors", async () => {
+  test("backend removes the key selector while exports keeps its current anchors", async () => {
     routeState.path = "/admin/backend";
     const backendWrapper = mount(AdminBackendView);
     routeState.path = "/admin/exports";
@@ -194,221 +140,12 @@ describe("Admin legacy shells", () => {
     expect(backendWrapper.text()).toContain("保存后端根地址");
     expect(backendWrapper.text()).toContain("当前生效：");
     expect(backendWrapper.findAll(".home-endpoint-row input")).toHaveLength(2);
+    expect(backendWrapper.find("#admin-ai-key-slots").exists()).toBe(false);
+    expect(backendWrapper.find("[data-ai-key-save]").exists()).toBe(false);
+    expect(backendWrapper.find("[data-ai-key-choice]").exists()).toBe(false);
     expect(exportsWrapper.find("#admin-download-summary").exists()).toBe(true);
     expect(exportsWrapper.find("#project-data-download-panel").exists()).toBe(false);
     expect(exportsWrapper.find("#ai-call-log-download-panel").exists()).toBe(true);
     expect(exportsWrapper.findAll("select[data-options-custom-select='true']")).toHaveLength(1);
-  });
-
-  test("server backend view embeds the compact key control above root-address actions", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    const wangActiveSlots = {
-      activeKeySource: "slot",
-      activeSlotId: "key-2",
-      slots: [
-        { id: "key-1", label: "密钥一", configured: true, active: false },
-        { id: "key-2", label: "密钥二", configured: true, active: true },
-      ],
-    };
-    adminStore.loadAiKeySlots = vi.fn().mockImplementation(async () => adminStore.aiKeySlots);
-    adminStore.switchAiKeySlot = vi.fn().mockImplementation(async () => {
-      adminStore.aiKeySlots = wangActiveSlots;
-      return wangActiveSlots;
-    });
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    expect(wrapper.find("#admin-ai-key-slots").exists()).toBe(true);
-    const endpointCard = wrapper.find(".home-endpoint-card");
-    expect(endpointCard.find("#admin-ai-key-slots").exists()).toBe(true);
-    const endpointCardChildren = Array.from(endpointCard.element.children);
-    const currentStatusIndex = endpointCardChildren.findIndex((element) =>
-      element.classList.contains("status-text")
-    );
-    const aiKeySlotIndex = endpointCardChildren.findIndex(
-      (element) => element.id === "admin-ai-key-slots"
-    );
-    const rootAddressToggleIndex = endpointCardChildren.findIndex((element) =>
-      element.querySelector(".ghost-button")
-    );
-    expect(aiKeySlotIndex).toBeGreaterThan(currentStatusIndex);
-    expect(rootAddressToggleIndex).toBeGreaterThan(aiKeySlotIndex);
-    expect(wrapper.findAll("[data-ai-key-choice]")).toHaveLength(2);
-    expect(wrapper.find(".admin-ai-key-choice-group").classes()).toContain("segmented-control");
-    expect(wrapper.find("[data-ai-key-choice='key-1']").classes()).toContain("segmented-button");
-    expect(wrapper.find("[data-ai-key-choice='key-2']").classes()).toContain("segmented-button");
-    expect(wrapper.find("[data-ai-key-choice='key-1']").text()).toBe("吴");
-    expect(wrapper.find("[data-ai-key-choice='key-2']").text()).toBe("王");
-    expect(wrapper.find("[data-ai-key-choice='key-1']").attributes("aria-pressed")).toBe("true");
-    expect(wrapper.find("[data-ai-key-save]").attributes("disabled")).toBeDefined();
-
-    await wrapper.find("[data-ai-key-choice='key-2']").trigger("click");
-    expect(adminStore.switchAiKeySlot).not.toHaveBeenCalled();
-    expect(wrapper.find("[data-ai-key-choice='key-2']").attributes("aria-pressed")).toBe("true");
-    expect(wrapper.find("[data-ai-key-save]").attributes("disabled")).toBeUndefined();
-
-    await wrapper.find("[data-ai-key-save]").trigger("click");
-    await flushPromises();
-    expect(adminStore.switchAiKeySlot).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "key-2"
-    );
-    expect(adminStore.loadAiKeySlots).toHaveBeenCalledTimes(2);
-    expect(wrapper.find("[data-ai-key-save]").attributes("disabled")).toBeDefined();
-    expect(wrapper.text()).not.toContain("test-key-one");
-    expect(wrapper.text()).not.toContain("dashscope-key-1.env");
-  });
-
-  test("server backend view disables an unconfigured key choice", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    adminStore.aiKeySlots = {
-      activeKeySource: "slot",
-      activeSlotId: "key-1",
-      slots: [
-        { id: "key-1", label: "密钥一", configured: true, active: true },
-        { id: "key-2", label: "密钥二", configured: false, active: false },
-      ],
-    };
-    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    expect(wrapper.find("[data-ai-key-choice='key-2']").attributes("disabled")).toBeDefined();
-  });
-
-  test("server backend view keeps the key controller visible while refreshing its status", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    adminStore.aiKeySlotsLoading = true;
-    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    expect(wrapper.find("#admin-ai-key-slots").text()).toContain("正在读取密钥状态");
-    expect(wrapper.findAll("[data-ai-key-choice]")).toHaveLength(2);
-    expect(wrapper.find("[data-ai-key-save]").exists()).toBe(true);
-  });
-
-  test("saving a key choice exits the admin session when the server returns 401", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    const authStore = useAuthStore();
-    authStore.logout = vi.fn();
-    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
-    adminStore.switchAiKeySlot = vi.fn().mockResolvedValue({ authFailed: true });
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    await wrapper.find("[data-ai-key-choice='key-2']").trigger("click");
-    await wrapper.find("[data-ai-key-save]").trigger("click");
-    await flushPromises();
-
-    expect(authStore.logout).toHaveBeenCalledTimes(1);
-    expect(routerMocks.replace).toHaveBeenCalledWith({ name: "admin-unlock" });
-  });
-
-  test("local backend mode hides server AI key slots", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    adminStore.backendDraft.backendEndpointMode = "local";
-    adminStore.loadAiKeySlots = vi.fn();
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    expect(wrapper.find("#admin-ai-key-slots").exists()).toBe(false);
-    expect(adminStore.loadAiKeySlots).not.toHaveBeenCalled();
-  });
-
-  test("server backend mode shows a safe key-slot error without exposing configuration details", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    adminStore.aiKeySlots = null;
-    adminStore.aiKeySlotsError = "服务器 AI 密钥状态加载失败。";
-    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(null);
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    expect(wrapper.find("#admin-ai-key-slots [role='status']").text()).toContain("加载失败");
-    expect(wrapper.text()).not.toContain("DASHSCOPE_API_KEY");
-    expect(wrapper.text()).not.toContain("config/secrets");
-  });
-
-  test("server backend view marks a legacy key fallback as migration-only", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    adminStore.aiKeySlots = {
-      activeKeySource: "legacy",
-      activeSlotId: "key-1",
-      slots: [
-        { id: "key-1", label: "密钥一", configured: false, active: true },
-        { id: "key-2", label: "密钥二", configured: false, active: false },
-      ],
-    };
-    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    expect(wrapper.find(".admin-ai-key-current").text()).toContain("旧密钥兼容中");
-    expect(wrapper.text()).toContain("请迁移到密钥一或密钥二");
-    expect(wrapper.find("[data-ai-key-choice='key-1']").attributes("disabled")).toBeDefined();
-    expect(wrapper.find("[data-ai-key-choice='key-2']").attributes("disabled")).toBeDefined();
-  });
-
-  test("server backend view warns when no usable AI key is configured", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    adminStore.aiKeySlots = {
-      activeKeySource: "none",
-      activeSlotId: "key-1",
-      slots: [
-        { id: "key-1", label: "密钥一", configured: false, active: true },
-        { id: "key-2", label: "密钥二", configured: false, active: false },
-      ],
-    };
-    adminStore.loadAiKeySlots = vi.fn().mockResolvedValue(adminStore.aiKeySlots);
-    const wrapper = mount(AdminBackendView);
-    await flushPromises();
-
-    expect(wrapper.find(".admin-ai-key-current").text()).toContain("未配置可用密钥");
-    expect(wrapper.text()).toContain("请配置密钥一或密钥二");
-  });
-
-  test("a missing dual-key endpoint has a clear save message without raw endpoint details", async () => {
-    routeState.path = "/admin/backend";
-    const adminStore = useAdminStore();
-    adminServiceMocks.switchAiKeySlot.mockResolvedValue({
-      response: { ok: false, status: 404 },
-      body: { success: false, message: "接口不存在。" },
-      authFailed: false,
-    });
-
-    const result = await adminStore.switchAiKeySlot({}, { token: "demo" }, "key-2");
-
-    expect(result).toBeNull();
-    expect(adminStore.aiKeySlotsError).toBe("服务器尚未部署双密钥接口，无法保存。");
-  });
-
-  test("AI key selector style remains compact and wraps on narrow screens", () => {
-    const adminStyleSource = fs.readFileSync(
-      resolveRepo("frontend", "options-app", "src", "styles", "layouts", "_admin.scss"),
-      "utf8"
-    );
-    const formStyleSource = fs.readFileSync(
-      resolveRepo("frontend", "options-app", "src", "styles", "components", "_forms.scss"),
-      "utf8"
-    );
-    const buttonStyleSource = fs.readFileSync(
-      resolveRepo("frontend", "options-app", "src", "styles", "components", "_buttons.scss"),
-      "utf8"
-    );
-
-    expect(adminStyleSource).toContain(".admin-ai-key-switcher");
-    expect(adminStyleSource).toContain("flex-wrap: wrap");
-    expect(adminStyleSource).not.toContain(".admin-ai-key-choice");
-    expect(formStyleSource).toContain(".segmented-control");
-    expect(buttonStyleSource).toContain(".segmented-button");
   });
 });

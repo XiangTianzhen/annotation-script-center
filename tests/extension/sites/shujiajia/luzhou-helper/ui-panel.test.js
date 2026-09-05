@@ -94,7 +94,7 @@ test("panel shows and copies detailed AI error diagnostics without clearing reco
     success: false,
     requestId: "request-400",
     code: "provider-http-error",
-    message: "Qwen 接口请求失败（HTTP 400）。",
+    message: "API Key 所属的阿里云账号存在欠费，导致访问被拒绝。",
     providerStatus: 400,
     providerCode: "invalid_parameter",
     summary: "audio format is invalid",
@@ -114,6 +114,8 @@ test("panel shows and copies detailed AI error diagnostics without clearing reco
   assert.match(diagnostic.textContent, /HTTP 400/);
   assert.match(diagnostic.textContent, /invalid_parameter/);
   assert.match(diagnostic.textContent, /request-400/);
+  assert.match(diagnostic.textContent, /错误说明：API Key 所属的阿里云账号存在欠费/);
+  assert.match(diagnostic.textContent, /上游原文：audio format is invalid/);
   assert.match(diagnostic.querySelector("[data-role='error-raw']").textContent, /audio format is invalid/);
   assert.equal(drawer.querySelector("[data-role='dialect']").textContent, "保留的识别文本");
 

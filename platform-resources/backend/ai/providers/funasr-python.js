@@ -13,9 +13,10 @@ const {
   createPythonRuntimeError,
 } = require("../errors");
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
+const { resolveAliyunProviderError } = require("../aliyun-error-message");
 const {
   getDashscopeCredentialAuthFailureMessage,
-} = require("../../dashscope-key-slots");
+} = require("../../dashscope-credential");
 
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: false });
 
@@ -96,7 +97,7 @@ function createJsonParseError(stdoutText, stderrText) {
   );
 }
 
-function normalizeFailureMessage(code, providerStatus, message) {
+function normalizeFailureMessage(code, providerStatus, message, providerCode) {
   if (code === "fun-asr-python-not-configured") {
     return "Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv 创建统一 Python 虚拟环境，并执行 .venv\\Scripts\\python.exe -m pip install -r ai\\python\\requirements.txt。";
   }
@@ -109,10 +110,15 @@ function normalizeFailureMessage(code, providerStatus, message) {
   if (code === "fun-asr-mojibake-text") {
     return "Fun-ASR 返回文本疑似编码异常，请检查 Python stdout UTF-8 配置或结果文件编码。";
   }
-  if (providerStatus === 401) {
-    return getDashscopeCredentialAuthFailureMessage(getFunAsrPythonConfig());
+  if (providerStatus > 0) {
+    return resolveAliyunProviderError({
+      providerStatus,
+      providerCode: providerCode || code,
+      providerMessage: message,
+      fallbackMessage: "Fun-ASR 调用失败。",
+    }).displayMessage;
   }
-  if (providerStatus === 403 || code === "fun-asr-forbidden") {
+  if (code === "fun-asr-forbidden") {
     return "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。可先切换到 qwen3.5-omni-flash 或 qwen3.5-omni-plus 恢复使用。";
   }
   return String(message || "Fun-ASR 调用失败。").slice(0, 240);
@@ -311,13 +317,16 @@ async function requestFunAsrRecognition(input, options) {
     const providerStatus = Number(payload.providerStatus) || 0;
     const code = String(payload.code || "fun-asr-python-error");
     const error = createPythonRuntimeError(
-      normalizeFailureMessage(code, providerStatus, payload.message),
+      normalizeFailureMessage(code, providerStatus, payload.message, payload.providerCode),
       code,
       providerStatus > 0 ? providerStatus : 502,
       payload.message || result.stderrText || ""
     );
     if (providerStatus > 0) {
       error.providerStatus = providerStatus;
+    }
+    if (payload.providerCode) {
+      error.providerCode = String(payload.providerCode).trim();
     }
     throw error;
   }

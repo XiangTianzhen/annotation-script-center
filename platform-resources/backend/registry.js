@@ -19,7 +19,6 @@ const {
   registerRoutes: registerShujiajiaLuzhouRoutes,
 } = require("../shujiajia/luzhou-helper/backend");
 const { registerRoutes: registerAdminSessionRoutes } = require("./admin-session");
-const { registerAdminAiKeySlotRoutes } = require("./admin-ai-key-slots");
 const { registerRoutes: registerAdminDashboardRoutes } = require("./admin-dashboard");
 const { registerRoutes: registerAdminDownloadCenterRoutes } = require("./admin-download-center");
 const { registerRoutes: registerAiCallLogDownloadRoutes } = require("./ai-call-log-download");
@@ -33,7 +32,6 @@ function registerProjectRoutes(router, options) {
   registerMagicDataHangzhouRoutes(router, config.magicDataHangzhouHelper || {});
   registerShujiajiaLuzhouRoutes(router, config.shujiajiaLuzhouHelper || {});
   registerAdminSessionRoutes(router, config.adminSession || {});
-  registerAdminAiKeySlotRoutes(router, config.aiKeySlots || {});
   registerAdminDashboardRoutes(router, {
     aiCallLogDownload: config.aiCallLogDownload || {},
   });

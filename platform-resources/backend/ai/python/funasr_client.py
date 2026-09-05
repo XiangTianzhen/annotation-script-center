@@ -185,7 +185,7 @@ def emit(payload, exit_code=0):
     raise SystemExit(exit_code)
 
 
-def fail(code, message, provider_status=None, raw_status=""):
+def fail(code, message, provider_status=None, raw_status="", provider_code=""):
     payload = {
         "success": False,
         "code": code,
@@ -195,6 +195,8 @@ def fail(code, message, provider_status=None, raw_status=""):
         payload["providerStatus"] = int(provider_status)
     if raw_status:
         payload["rawStatus"] = str(raw_status)
+    if provider_code:
+        payload["providerCode"] = str(provider_code)
     emit(payload, 1)
 
 
@@ -282,6 +284,28 @@ def extract_message(response):
     ).strip()
 
 
+def extract_provider_code(response):
+    output = extract_output(response)
+    return str(
+        response_attr(output, "code", "")
+        or response_attr(output, "error_code", "")
+        or response_attr(response, "code", "")
+        or ""
+    ).strip()
+
+
+def extract_provider_code_from_text(value):
+    try:
+        payload = json.loads(str(value or ""))
+    except Exception:
+        return ""
+    error = payload.get("error") if isinstance(payload, dict) else None
+    source = error if isinstance(error, dict) else payload
+    if not isinstance(source, dict):
+        return ""
+    return str(source.get("code") or source.get("error_code") or "").strip()
+
+
 def extract_transcription_url(response):
     output = extract_output(response)
     results = response_attr(output, "results", []) or []
@@ -309,9 +333,9 @@ def is_invalid_model(text):
     return "model" in lowered and any(keyword in lowered for keyword in ["invalid", "not found", "unsupported", "illegal"])
 
 
-def classify_provider_failure(status_code, message, raw_status=""):
+def classify_provider_failure(status_code, message, raw_status="", provider_code=""):
     if is_invalid_model(message):
-        fail("invalid-fun-asr-model", "Fun-ASR 模型名应为 fun-asr。", status_code or None, raw_status)
+        fail("invalid-fun-asr-model", "Fun-ASR 模型名应为 fun-asr。", status_code or None, raw_status, provider_code)
     if status_code == 403:
         if is_audio_url_unreachable(message):
             fail(
@@ -319,12 +343,14 @@ def classify_provider_failure(status_code, message, raw_status=""):
                 "Fun-ASR 调用被拒绝，疑似平台音频 URL 对模型服务不可访问。",
                 status_code,
                 raw_status,
+                provider_code,
             )
         fail(
             "fun-asr-forbidden",
-            "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。",
+            message or "Fun-ASR 调用被拒绝。",
             status_code,
             raw_status,
+            provider_code,
         )
     if is_audio_url_unreachable(message):
         fail(
@@ -332,8 +358,9 @@ def classify_provider_failure(status_code, message, raw_status=""):
             "Fun-ASR 无法访问当前音频链接，请确认平台 audioUrl 对模型服务可访问。",
             status_code or None,
             raw_status,
+            provider_code,
         )
-    fail("fun-asr-provider-error", message or "Fun-ASR 调用失败。", status_code or None, raw_status)
+    fail("fun-asr-provider-error", message or "Fun-ASR 调用失败。", status_code or None, raw_status, provider_code)
 
 
 def fetch_json_from_url(url):
@@ -342,7 +369,7 @@ def fetch_json_from_url(url):
             raw_bytes = response.read()
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
-        classify_provider_failure(error.code, body)
+        classify_provider_failure(error.code, body, provider_code=extract_provider_code_from_text(body))
     except Exception as error:
         fail("fun-asr-transcription-download-failed", "Fun-ASR 结果读取失败：" + sanitize_text(error))
     should_try_gb18030 = False
@@ -429,7 +456,7 @@ def main():
     message = extract_message(task_response)
 
     if submit_status not in (0, 200):
-        classify_provider_failure(submit_status, message, raw_status)
+        classify_provider_failure(submit_status, message, raw_status, extract_provider_code(task_response))
     if not task_id:
         fail("fun-asr-task-id-missing", "Fun-ASR 未返回 task_id。", submit_status or None, raw_status)
 
@@ -441,7 +468,12 @@ def main():
         if current_status in ("SUCCEEDED", "SUCCESS"):
             break
         if current_status in ("FAILED", "FAIL", "CANCELED", "CANCELLED"):
-            classify_provider_failure(extract_status_code(fetch_response), extract_message(fetch_response), current_status)
+            classify_provider_failure(
+                extract_status_code(fetch_response),
+                extract_message(fetch_response),
+                current_status,
+                extract_provider_code(fetch_response),
+            )
         time.sleep(1.0)
         try:
             fetch_response = Transcription.fetch(task=task_id)

@@ -77,7 +77,7 @@ http://127.0.0.1:3333
 - `ASC_ADMIN_PASSWORD_SHA256`
 - `ASC_ADMIN_JWT_SECRET`
 
-AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashscope-key-2.env` 中的独立 `DASHSCOPE_API_KEY`，当前槽位由 `config/secrets/dashscope-active-key.json` 决定。仅当两个槽位均未配置时才临时回退旧 `DASHSCOPE_API_KEY`；任一槽位存在后，后续请求只使用当前槽位，401 不会自动切换另一账户。管理员接口只返回槽位状态及来源，不返回密钥、路径或指纹。环境加载顺序和迁移规则见 [config/README.md](../../config/README.md)。
+AI 调用严格只读取 `config/secrets/dashscope-key.env` 中的 `DASHSCOPE_API_KEY`。文件缺失、空值或无法解析时返回安全 503，不发送上游请求，也不回退旧双密钥文件、活动状态、`config/env/ai.env` 或进程环境变量。环境加载顺序和服务器人工迁移规则见 [config/README.md](../../config/README.md)。
 
 ## 六脚本路由
 
@@ -107,7 +107,6 @@ AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashsco
 ## 管理员接口
 
 - `/api/admin/session/*`：管理员会话解锁与状态。
-- `/api/admin/ai-key-slots`：读取服务器双 DashScope 密钥槽位的安全摘要；`POST /api/admin/ai-key-slots/active` 仅接受 `key-1` 或 `key-2`，并在有效管理员会话内持久化切换。Options 固定映射为“吴”对应 `key-1`、“王”对应 `key-2`，先选择、再保存；接口未部署时页面只提示部署状态，不暴露路由细节。
 - `/api/admin/dashboard/*`：后端运行概况与脱敏运行日志。
 - `/api/admin/download-center/*`：读取公开 `/downloads/` 目录索引，只返回版本化 ZIP。
 - `/api/admin/ai-call-log/*`：六脚本 AI 日志选项、申请下载和签名文件下载。
@@ -122,6 +121,7 @@ AI 调用使用 `config/secrets/dashscope-key-1.env` 与 `config/secrets/dashsco
 - `ai/provider-queue.js` 按具体模型隔离并发和容量。
 - `ai/model-pricing.js` 读取 `config/aliyun-bailian-model-pricing.json`。
 - `ai/model-response-utils.js` 统一 usage、JSON 文本解析和中文句末标点。
+- `ai/aliyun-error-message.js` 统一翻译已知阿里云错误；精确上游文本优先于业务错误码，未知错误显示脱敏后的上游原文，未收到上游响应的断网和超时仍保留原网络提示。
 - 金华话、台州话仅在请求明确传入 `true` 时向百炼发送 `enable_thinking: true`；参数不受模型支持时移除该参数后重试。
 - AI 日志默认记录输入、输出、总 Token 和可用的人民币估算。
 - 普通运行日志只保留 requestId、hostname、status、model、duration 和错误摘要。
@@ -157,7 +157,7 @@ curl -fsS http://127.0.0.1:3333/api/magic-data/hangzhou-helper/ai/defaults
 
 - 无法连接：确认 PM2 进程、监听地址、Nginx upstream 和 Options 后端模式。
 - `401/403`：确认管理员哈希、JWT 密钥和请求凭据是否一致。
-- AI 请求失败：检查当前 DashScope 槽位、模型名、60 秒超时和 PM2 脱敏日志；密钥槽位不会自动切换，需管理员在系统管理中手动选择另一槽位。
+- AI 请求失败：检查 `config/secrets/dashscope-key.env`、模型名、60 秒超时和 PM2 脱敏日志。已收到阿里云响应时优先查看中文错误说明及脱敏上游原文；网络失败继续按连接、DNS 或超时排查。
 - `CVPC 画段 Python 环境未配置`：确认 `platform-resources/backend/.venv/bin/python`（Linux）或 `.venv\Scripts\python.exe`（Windows）存在，并重新安装 `ai/python/requirements.txt`。
 - `cvpc-segment-python-dependency-missing` 或 `fun-asr-python-dependency-missing`：使用虚拟环境中的 Python 执行 import 验证，不要使用系统 Python 代替验证。
 - 下载中心为空：确认 `dist/` 存在 ZIP、Nginx autoindex 已开启、`ASC_DOWNLOAD_BASE_URL` 可访问。

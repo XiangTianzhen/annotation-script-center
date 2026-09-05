@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const { getActiveDashscopeKeyResolution } = require("../dashscope-key-slots");
+const { getDashscopeCredentialResolution } = require("../dashscope-credential");
 const {
   buildModelOptionsByFamily,
   getModelDocs,
@@ -309,14 +309,13 @@ function resolveDataBakerDefaultSingleModel() {
 }
 
 function getQwenProviderConfig() {
-  const keyResolution = getActiveDashscopeKeyResolution();
+  const keyResolution = getDashscopeCredentialResolution();
   const apiKey = String(keyResolution.apiKey || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
   const omniModel = String(process.env.DATABAKER_AI_OMNI_MODEL || DEFAULT_OMNI_MODEL).trim();
   const compareModel = String(process.env.DATABAKER_AI_COMPARE_MODEL || DEFAULT_COMPARE_MODEL).trim();
   return {
     apiKey,
-    activeSlotId: keyResolution.activeSlotId,
     apiKeySource: keyResolution.source,
     baseUrl,
     omniModel: omniModel || DEFAULT_OMNI_MODEL,
@@ -332,7 +331,7 @@ function getQwenProviderConfig() {
 }
 
 function getQwenPythonConfig() {
-  const keyResolution = getActiveDashscopeKeyResolution();
+  const keyResolution = getDashscopeCredentialResolution();
   const apiKey = String(keyResolution.apiKey || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
   const pythonBin = String(
@@ -340,7 +339,6 @@ function getQwenPythonConfig() {
   ).trim();
   return {
     apiKey,
-    activeSlotId: keyResolution.activeSlotId,
     apiKeySource: keyResolution.source,
     baseUrl,
     timeoutMs: parseTimeoutMs(),
@@ -357,13 +355,12 @@ function getQwenPythonConfig() {
 }
 
 function getFunAsrPythonConfig() {
-  const keyResolution = getActiveDashscopeKeyResolution();
+  const keyResolution = getDashscopeCredentialResolution();
   const apiKey = String(keyResolution.apiKey || "").trim();
   const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
   const pythonBin = String(process.env.DATABAKER_FUNASR_PYTHON_BIN || "").trim();
   return {
     apiKey,
-    activeSlotId: keyResolution.activeSlotId,
     apiKeySource: keyResolution.source,
     model: model || DEFAULT_FUN_ASR_MODEL,
     timeoutMs: parseTimeoutMs(),
@@ -382,13 +379,12 @@ function getFunAsrPythonConfig() {
 }
 
 function getFunAsrRestConfig() {
-  const keyResolution = getActiveDashscopeKeyResolution();
+  const keyResolution = getDashscopeCredentialResolution();
   const apiKey = String(keyResolution.apiKey || "").trim();
   const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
   const apiBase = getFunAsrRestBaseUrl();
   return {
     apiKey,
-    activeSlotId: keyResolution.activeSlotId,
     apiKeySource: keyResolution.source,
     model: model || DEFAULT_FUN_ASR_MODEL,
     timeoutMs: parseTimeoutMs(),

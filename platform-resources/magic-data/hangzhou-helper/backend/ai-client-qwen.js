@@ -1,9 +1,12 @@
 "use strict";
 
 const {
-  getActiveDashscopeKeyResolution,
+  getDashscopeCredentialResolution,
   getDashscopeCredentialAuthFailureMessage,
-} = require("../../../backend/dashscope-key-slots");
+} = require("../../../backend/dashscope-credential");
+const {
+  resolveAliyunProviderError,
+} = require("../../../backend/ai/aliyun-error-message");
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
@@ -220,7 +223,7 @@ function applyAiOptionsToRequestBody(requestBody, aiOptions) {
 }
 
 function getClientConfig() {
-  const keyResolution = getActiveDashscopeKeyResolution();
+  const keyResolution = getDashscopeCredentialResolution();
   const apiKey = String(keyResolution.apiKey || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
   const listenModel = sanitizeModelName(readProfileEnv("LISTEN_MODEL", ""), DEFAULT_LISTEN_MODEL);
@@ -235,7 +238,6 @@ function getClientConfig() {
   const enableThinkingDefault = parseEnableThinkingDefault();
   return {
     apiKey,
-    activeSlotId: keyResolution.activeSlotId,
     apiKeySource: keyResolution.source,
     baseUrl,
     listenModel: listenModel || DEFAULT_LISTEN_MODEL,
@@ -412,16 +414,21 @@ async function requestChatCompletion(requestBody, options) {
 
     if (!response.ok) {
       const bodyText = await response.text();
+      const resolvedProviderError = resolveAliyunProviderError({
+        providerStatus: response.status,
+        responseBody: bodyText,
+        fallbackMessage: "Qwen 接口请求失败（HTTP " + String(response.status) + "）。",
+      });
       const providerError = new Error(
-        "Qwen 接口请求失败（HTTP " + String(response.status) + "）。"
+        resolvedProviderError.displayMessage
       );
       providerError.code = "provider-http-error";
       providerError.statusCode = response.status;
       providerError.summary = sanitizeProviderErrorSummary(bodyText);
+      providerError.providerCode = resolvedProviderError.providerCode;
+      providerError.providerStatus = Number(response.status) || 0;
       if (response.status === 401) {
         providerError.code = "dashscope-key-auth-failed";
-        providerError.message = getDashscopeCredentialAuthFailureMessage(config);
-        providerError.summary = providerError.message;
       }
       throw providerError;
     }

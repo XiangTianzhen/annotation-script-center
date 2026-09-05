@@ -28,7 +28,7 @@ const {
 } = require("../sanitizer");
 const {
   getDashscopeCredentialAuthFailureMessage,
-} = require("../../dashscope-key-slots");
+} = require("../../dashscope-credential");
 const {
   applyAiOptionsToRequestBody,
   inferAudioFormat,
@@ -102,7 +102,7 @@ function createJsonParseError(stdoutText, stderrText) {
   );
 }
 
-function buildProviderError(model, stage, parsed, credentialContext) {
+function buildProviderError(model, stage, parsed) {
   const code = String(parsed?.code || "provider-http-error");
   const summary = sanitizeProviderErrorSummary(parsed?.summary || parsed?.message || "");
   if (isRateLimitProviderCode(parsed?.providerCode || code)) {
@@ -124,15 +124,14 @@ function buildProviderError(model, stage, parsed, credentialContext) {
   }
   const error = createProviderHttpError(
     Number(parsed?.providerStatus || parsed?.statusCode || 502) || 502,
-    parsed?.summary || parsed?.message || "",
-    parsed?.message || "Qwen 接口请求失败。"
+    parsed?.responseBody || parsed?.summary || parsed?.message || "",
+    parsed?.message || "Qwen 接口请求失败。",
+    parsed?.providerCode
   );
   error.providerStatus = Number(parsed?.providerStatus || parsed?.statusCode || error.statusCode || 502) || 502;
-  error.providerCode = String(parsed?.providerCode || "").trim();
+  error.providerCode = String(parsed?.providerCode || error.providerCode || "").trim();
   if (error.providerStatus === 401) {
     error.code = "dashscope-key-auth-failed";
-    error.message = getDashscopeCredentialAuthFailureMessage(credentialContext);
-    error.summary = error.message;
   }
   error.debugRawAiResponse = {
     provider: "qwen",
@@ -155,7 +154,7 @@ function buildSseProviderError(model, stage, providerError, parsed) {
         providerCode: code,
         providerStatus: 429,
       })
-    : createProviderHttpError(429, summary, "Qwen SSE 返回错误。");
+    : createProviderHttpError(429, summary, "Qwen SSE 返回错误。", code);
   error.providerStatus = 429;
   error.providerCode = code;
   error.summary = summary;
@@ -355,7 +354,7 @@ function runPythonClient(payload, timeoutMs, clientConfig, options) {
           return;
         }
         if (!parsed || parsed.success !== true) {
-          reject(buildProviderError(model, stage, parsed || {}, config));
+          reject(buildProviderError(model, stage, parsed || {}));
           return;
         }
         if (parsed.providerError && typeof parsed.providerError === "object") {

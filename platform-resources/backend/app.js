@@ -20,7 +20,6 @@ function createPlatformResourcesServer(options) {
         "magic-data/hangzhou-helper",
         "shujiajia/luzhou-helper",
         "admin/session",
-        "admin/ai-key-slots",
         "admin/dashboard",
         "admin/dashboard/runtime-logs",
         "admin/download-center",

@@ -34,8 +34,6 @@ server.listen(config.port, config.host, function () {
     "/api/shujiajia/luzhou-helper/ai/recommend/health",
     "/api/shujiajia/luzhou-helper/ai/recommend/defaults",
     "/api/admin/session/unlock",
-    "/api/admin/ai-key-slots",
-    "/api/admin/ai-key-slots/active",
     "/api/admin/dashboard/overview",
     "/api/admin/dashboard/runtime-logs",
     "/api/admin/download-center/releases",

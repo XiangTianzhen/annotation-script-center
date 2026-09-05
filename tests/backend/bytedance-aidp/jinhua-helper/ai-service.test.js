@@ -103,13 +103,12 @@ test("Qwen Omni forwards an explicitly enabled thinking switch to the Bailian re
   const originalFetch = global.fetch;
   const originalExistsSync = fs.existsSync;
   const originalReadFileSync = fs.readFileSync;
-  const keyPath = resolveRepo("config", "secrets", "dashscope-key-1.env");
-  const statePath = resolveRepo("config", "secrets", "dashscope-active-key.json");
+  const keyPath = resolveRepo("config", "secrets", "dashscope-key.env");
   let requestBody = null;
 
   fs.existsSync = function (filePath) {
     const resolvedPath = String(filePath || "");
-    if (resolvedPath === keyPath || resolvedPath === statePath) {
+    if (resolvedPath === keyPath) {
       return true;
     }
     return originalExistsSync.apply(this, arguments);
@@ -118,9 +117,6 @@ test("Qwen Omni forwards an explicitly enabled thinking switch to the Bailian re
     const resolvedPath = String(filePath || "");
     if (resolvedPath === keyPath) {
       return "DASHSCOPE_API_KEY=test-key\n";
-    }
-    if (resolvedPath === statePath) {
-      return "{\"activeSlotId\":\"key-1\"}";
     }
     return originalReadFileSync.apply(this, arguments);
   };

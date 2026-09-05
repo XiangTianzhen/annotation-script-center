@@ -1,6 +1,7 @@
 "use strict";
 
 const { sanitizeProviderErrorSummary } = require("./sanitizer");
+const { resolveAliyunProviderError } = require("./aliyun-error-message");
 
 function createError(message, code, statusCode) {
   const error = new Error(message);
@@ -9,25 +10,39 @@ function createError(message, code, statusCode) {
   return error;
 }
 
-function createProviderHttpError(statusCode, summary, message) {
+function createProviderHttpError(statusCode, summary, message, providerCode) {
+  const provider = resolveAliyunProviderError({
+    providerStatus: statusCode,
+    providerCode,
+    responseBody: summary,
+    fallbackMessage: message,
+  });
   const error = createError(
-    message || "上游模型请求失败（HTTP " + String(statusCode || 500) + "）。",
+    provider.displayMessage || message || "上游模型请求失败（HTTP " + String(statusCode || 500) + "）。",
     "provider-http-error",
     Number(statusCode) || 500
   );
   error.summary = sanitizeProviderErrorSummary(summary || "");
+  error.providerCode = provider.providerCode;
+  error.providerStatus = Number(statusCode) || 500;
   return error;
 }
 
 function createFunAsrProviderError(message, code, statusCode, options) {
   const source = options && typeof options === "object" ? options : {};
+  const provider = resolveAliyunProviderError({
+    providerStatus: source.providerStatus || statusCode,
+    providerCode: source.providerCode,
+    responseBody: source.summary,
+    fallbackMessage: message,
+  });
   const error = createError(
-    message || "Fun-ASR 上游模型接口返回错误，可查看原始AI返回。",
+    provider.displayMessage || message || "Fun-ASR 上游模型接口返回错误，可查看原始AI返回。",
     code || "fun-asr-provider-error",
     Number(statusCode) || 502
   );
   error.providerStatus = Number(source.providerStatus || statusCode) || Number(statusCode) || 502;
-  error.providerCode = String(source.providerCode || "").trim();
+  error.providerCode = String(provider.providerCode || source.providerCode || "").trim();
   error.rawStatus = String(source.rawStatus || "").trim();
   error.summary = sanitizeProviderErrorSummary(source.summary || "");
   return error;

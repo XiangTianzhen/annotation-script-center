@@ -194,7 +194,8 @@
         `错误：${String(error.code || "recognition-failed")} · HTTP ${providerStatus || "未知"}`,
       ];
       if (error.providerCode) lines.push(`百炼错误码：${String(error.providerCode)}`);
-      if (error.summary) lines.push(`错误摘要：${String(error.summary)}`);
+      if (error.message) lines.push(`错误说明：${String(error.message)}`);
+      if (error.summary) lines.push(`上游原文：${String(error.summary)}`);
       if (error.requestId) lines.push(`requestId：${String(error.requestId)}`);
       errorMetaNode.textContent = lines.join("\n");
       errorCopyText = JSON.stringify(error, null, 2);

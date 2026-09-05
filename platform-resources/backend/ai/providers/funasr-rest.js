@@ -17,7 +17,7 @@ const {
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
 const {
   getDashscopeCredentialAuthFailureMessage,
-} = require("../../dashscope-key-slots");
+} = require("../../dashscope-credential");
 
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: false });
 const MOCK_TEXT = "mock 听音文本";
@@ -176,16 +176,18 @@ function createMojibakeError(summary) {
   );
 }
 
-function createForbiddenError(summary, rawStatus) {
-  const error = createError(
+function createForbiddenError(summary, rawStatus, providerCode) {
+  return createFunAsrProviderError(
     "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。",
     "fun-asr-forbidden",
     403,
-    summary
+    {
+      providerStatus: 403,
+      providerCode,
+      rawStatus,
+      summary,
+    }
   );
-  error.providerStatus = 403;
-  error.rawStatus = String(rawStatus || "").trim();
-  return error;
 }
 
 function createFunAsrAuthError(summary, rawStatus) {
@@ -369,7 +371,7 @@ function classifyRestFailure(options) {
         rawStatus
       );
     } else {
-      error = createForbiddenError(summary, rawStatus);
+      error = createForbiddenError(summary, rawStatus, providerCode);
     }
   } else if (isDownloadFailedSummary(providerCode, summary)) {
     error = createAudioUrlUnavailableError(

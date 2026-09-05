@@ -23,7 +23,7 @@ const {
 } = require("../sanitizer");
 const {
   getDashscopeCredentialAuthFailureMessage,
-} = require("../../dashscope-key-slots");
+} = require("../../dashscope-credential");
 
 function resolveThinkingPreference(options, config) {
   void config;
@@ -305,7 +305,8 @@ function createQwenSseProviderError(model, stage, providerError, result) {
     : createProviderHttpError(
         429,
         message || JSON.stringify(providerError || {}),
-        "Qwen SSE 返回错误。"
+        "Qwen SSE 返回错误。",
+        code
       );
   error.providerStatus = 429;
   error.providerCode = code;
@@ -480,14 +481,13 @@ async function requestChatCompletion(requestBody, options) {
       error.providerStatus = Number(response.status) || 0;
       if (error.providerStatus === 401) {
         error.code = "dashscope-key-auth-failed";
-        error.message = getDashscopeCredentialAuthFailureMessage(config);
-        error.summary = error.message;
       }
       error.debugRawAiResponse = {
         provider: "qwen",
         model,
         stage,
         providerStatus: Number(response.status) || 0,
+        providerCode: error.providerCode,
         responseBody: sanitizeProviderDebugPayload(bodyText || "", { textLimit: 20000 }),
       };
       throw error;

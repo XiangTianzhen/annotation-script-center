@@ -176,7 +176,7 @@
       return "Magic Data 杭州话助手后端接口不存在，请确认已启动 node platform-resources\\\\backend\\\\server.js。";
     }
     if (mappedCode === "missing-api-key") {
-      return "后端未读取到 DASHSCOPE_API_KEY，请检查 config/env/ai.env 或环境变量。";
+      return "服务器未从 config/secrets/dashscope-key.env 读取到有效的 DASHSCOPE_API_KEY。";
     }
     if (mappedCode === "empty-provider-response") {
       return "Qwen 未返回有效文本，可能是音频 URL 过期或模型无法访问该音频，请刷新页面后重试。";
@@ -187,7 +187,7 @@
     if (mappedCode) {
       const detail = sanitizeMessage(message || "", 180);
       const extra = sanitizeMessage(summary || "", 120);
-      return mappedCode + (detail ? "：" + detail : "") + (extra ? "（" + extra + "）" : "");
+      return detail || extra || mappedCode;
     }
     return sanitizeMessage(message || "AI 复核调用失败。", 220);
   }
