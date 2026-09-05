@@ -6,6 +6,97 @@ const { resolveRepo } = require("#repo-paths");
 
 const controller = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "whole-segment-controller.js"));
 
+function flushAsyncWork() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+function createResourceTimingHarness(initialEntries) {
+  let observerCallback = null;
+  let disconnected = false;
+  const entries = Array.from(initialEntries || []);
+  class FakePerformanceObserver {
+    constructor(callback) { observerCallback = callback; }
+    observe() {}
+    disconnect() { disconnected = true; }
+  }
+  return {
+    window: {
+      performance: { getEntriesByType: () => entries.slice() },
+      PerformanceObserver: FakePerformanceObserver,
+      setTimeout,
+      clearTimeout,
+    },
+    emit(nextEntries) {
+      observerCallback?.({ getEntries: () => Array.from(nextEntries || []) });
+    },
+    wasDisconnected() { return disconnected; },
+  };
+}
+
+test("page readiness waits for a successful element-icons resource completed after the item switch", async () => {
+  assert.equal(typeof controller.waitForPageResourceReady, "function", "controller must expose the page-resource gate");
+  const harness = createResourceTimingHarness();
+  let settled = false;
+  const pending = controller.waitForPageResourceReady(harness.window, { notBeforeMs: 100, timeoutMs: 1000 })
+    .then((value) => { settled = true; return value; });
+
+  await flushAsyncWork();
+  assert.equal(settled, false);
+  harness.emit([{
+    name: "https://template.shujiajia.com/dist/v4.10.14/multi-audio4/fonts/element-icons.woff?cache=1",
+    responseStatus: 200,
+    responseEnd: 125,
+  }]);
+
+  assert.deepEqual(await pending, { status: "ready" });
+  assert.equal(harness.wasDisconnected(), true);
+});
+
+test("page readiness ignores stale, failed, and unrelated entries before accepting a cached success", async () => {
+  const harness = createResourceTimingHarness([{
+    name: "https://template.shujiajia.com/dist/v4.10.13/multi-audio4/fonts/element-icons.woff",
+    responseStatus: 200,
+    responseEnd: 100,
+  }]);
+  let settled = false;
+  const pending = controller.waitForPageResourceReady(harness.window, { notBeforeMs: 100, timeoutMs: 1000 })
+    .then((value) => { settled = true; return value; });
+
+  harness.emit([
+    { name: "https://template.shujiajia.com/dist/v4.10.14/multi-audio4/fonts/element-icons.woff", responseStatus: 404, responseEnd: 120 },
+    { name: "https://template.shujiajia.com/dist/v4.10.14/other/fonts/element-icons.woff", responseStatus: 200, responseEnd: 121 },
+    { name: "https://example.test/dist/v4.10.14/multi-audio4/fonts/element-icons.woff", responseStatus: 200, responseEnd: 122 },
+  ]);
+  await flushAsyncWork();
+  assert.equal(settled, false);
+
+  harness.emit([{
+    name: "https://template.shujiajia.com/dist/v5.0.0/multi-audio4/fonts/element-icons.woff",
+    responseStatus: 304,
+    responseEnd: 123,
+  }]);
+  assert.deepEqual(await pending, { status: "ready" });
+});
+
+test("page readiness times out and supports cancellation", async () => {
+  const timeoutHarness = createResourceTimingHarness();
+  assert.deepEqual(
+    await controller.waitForPageResourceReady(timeoutHarness.window, { notBeforeMs: 100, timeoutMs: 5 }),
+    { status: "timeout" }
+  );
+
+  const cancelHarness = createResourceTimingHarness();
+  const abortController = new AbortController();
+  const pending = controller.waitForPageResourceReady(cancelHarness.window, {
+    notBeforeMs: 100,
+    timeoutMs: 1000,
+    signal: abortController.signal,
+  });
+  abortController.abort();
+  assert.deepEqual(await pending, { status: "cancelled" });
+  assert.equal(cancelHarness.wasDisconnected(), true);
+});
+
 test("automatic drawing waits until the editor waveform is ready", async () => {
   let readinessChecks = 0;
   const ready = await controller.waitForWaveformReady({
@@ -19,6 +110,26 @@ test("automatic drawing waits until the editor waveform is ready", async () => {
   });
   assert.equal(ready, true);
   assert.equal(readinessChecks, 2);
+});
+
+test("waveform readiness stops polling after cancellation", async () => {
+  const abortController = new AbortController();
+  let sleepCalls = 0;
+  const ready = await controller.waitForWaveformReady({
+    getSegments: () => [],
+    getAudioDurationMs: () => 0,
+    getWaveformWidth: () => 0,
+  }, {
+    timeoutMs: 20,
+    intervalMs: 1,
+    signal: abortController.signal,
+    sleep: async () => {
+      sleepCalls += 1;
+      abortController.abort();
+    },
+  });
+  assert.equal(ready, false);
+  assert.equal(sleepCalls, 1);
 });
 
 test("Peaks.js adapter reads the selected segment boundary text instead of Wavesurfer regions", () => {

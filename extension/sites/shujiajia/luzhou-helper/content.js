@@ -102,6 +102,7 @@
     let storageChangeListener = null;
     let recognitionSerial = 0;
     let activeRecognition = null;
+    let pendingAutoDrawAbortController = null;
     const pendingTrustedInputs = new Map();
     const attemptedAutoDrawContexts = new Set();
 
@@ -157,6 +158,8 @@
     function cancelPendingAutomation() {
       state.pendingAutoRecognitionContextId = "";
       state.autoRecognitionStartedContextId = "";
+      pendingAutoDrawAbortController?.abort?.();
+      pendingAutoDrawAbortController = null;
     }
     async function refreshSettings(requireAi) {
       let root = null;
@@ -213,7 +216,7 @@
       }
       return true;
     }
-    async function autoDrawNewContext(contextId) {
+    async function autoDrawNewContext(contextId, pageReadyNotBeforeMs) {
       const expectedContextId = String(contextId || "");
       if (!isEditorRuntime() || !expectedContextId || state.contextId !== expectedContextId) return false;
       if (attemptedAutoDrawContexts.has(expectedContextId)) return false;
@@ -224,18 +227,40 @@
         state.contextId !== expectedContextId
       ) return false;
       attemptedAutoDrawContexts.add(expectedContextId);
-      const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
-      const ready = typeof segmentController.waitForWaveformReady === "function"
-        ? await segmentController.waitForWaveformReady(adapter || {})
-        : true;
-      if (state.contextId !== expectedContextId) return false;
-      if (state.settings?.enabled !== true || state.settings?.autoCreateWholeSegmentOnNewItemEnabled !== true) return false;
-      if (!ready) {
-        message(formatWholeSegmentFailure("waveform-unavailable"));
-        return false;
+      const AbortControllerType = config.AbortController || globalThis.AbortController;
+      const abortController = typeof AbortControllerType === "function" ? new AbortControllerType() : null;
+      pendingAutoDrawAbortController?.abort?.();
+      pendingAutoDrawAbortController = abortController;
+      try {
+        message("页面资源加载中，等待后自动划段");
+        const pageReady = typeof segmentController.waitForPageResourceReady === "function"
+          ? await segmentController.waitForPageResourceReady(windowLike, {
+            notBeforeMs: Number(pageReadyNotBeforeMs) || 0,
+            timeoutMs: 10000,
+            signal: abortController?.signal,
+          })
+          : { status: "unsupported" };
+        if (state.contextId !== expectedContextId || abortController?.signal?.aborted) return false;
+        if (state.settings?.enabled !== true || state.settings?.autoCreateWholeSegmentOnNewItemEnabled !== true) return false;
+        if (pageReady?.status !== "ready") {
+          message("页面资源未就绪，本题未自动划段");
+          return false;
+        }
+        const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
+        const ready = typeof segmentController.waitForWaveformReady === "function"
+          ? await segmentController.waitForWaveformReady(adapter || {}, { signal: abortController?.signal })
+          : true;
+        if (state.contextId !== expectedContextId || abortController?.signal?.aborted) return false;
+        if (state.settings?.enabled !== true || state.settings?.autoCreateWholeSegmentOnNewItemEnabled !== true) return false;
+        if (!ready) {
+          message(formatWholeSegmentFailure("waveform-unavailable"));
+          return false;
+        }
+        await actions.createWholeSegment();
+        return true;
+      } finally {
+        if (pendingAutoDrawAbortController === abortController) pendingAutoDrawAbortController = null;
       }
-      await actions.createWholeSegment();
-      return true;
     }
     function onMessage(event) {
       if (event?.origin && event.origin !== origin()) return;
@@ -263,7 +288,10 @@
         if (changed) postLocal({ source: SOURCE, type: CONTEXT_READY, payload: { contextId: next } });
         if (changed && windowLike?.top && windowLike.top !== windowLike) postTop({ source: SOURCE, type: REQUEST_AUDIO, payload: { contextId: next } });
         if (changed && windowLike?.top === windowLike) relayToFrames(data);
-        if (changed && hadSeenContext) void autoDrawNewContext(next);
+        if (changed && hadSeenContext) {
+          const pageReadyNotBeforeMs = Number(windowLike?.performance?.now?.() || 0);
+          void autoDrawNewContext(next, pageReadyNotBeforeMs);
+        }
       } else if (data.type === AUDIO_READY && /^data:audio\//i.test(String(data.payload?.audioDataUrl || ""))) {
         if (!state.contextId || String(data.payload?.contextId || "") !== state.contextId) return;
         state.audioDataUrl = String(data.payload.audioDataUrl);
@@ -492,6 +520,10 @@
           if (root?.platforms?.shujiajia?.enabled === true && next?.enabled === true) {
             state.settings = next;
             if (next.autoRecognizeAfterWholeSegmentEnabled !== true) state.pendingAutoRecognitionContextId = "";
+            if (next.autoCreateWholeSegmentOnNewItemEnabled !== true) {
+              pendingAutoDrawAbortController?.abort?.();
+              pendingAutoDrawAbortController = null;
+            }
             postLocal({ source: SOURCE, type: OBSERVER_ENABLE, payload: {} });
           } else {
             state.settings = { ...(next || {}), enabled: false };
@@ -515,6 +547,8 @@
         pending.resolve({ ok: false, reason: "trusted-input-cancelled" });
       });
       pendingTrustedInputs.clear();
+      pendingAutoDrawAbortController?.abort?.();
+      pendingAutoDrawAbortController = null;
       attemptedAutoDrawContexts.clear();
       panel.remove?.();
       postLocal({ source: SOURCE, type: OBSERVER_DISABLE, payload: {} });

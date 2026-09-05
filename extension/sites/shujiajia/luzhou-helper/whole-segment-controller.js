@@ -9,14 +9,77 @@
     return Object.assign({ ok, code }, extra || {});
   }
 
+  function isSuccessfulPageResourceEntry(entry, notBeforeMs) {
+    const status = Number(entry?.responseStatus);
+    const responseEnd = Number(entry?.responseEnd);
+    if (!((status >= 200 && status < 300) || status === 304) || !Number.isFinite(responseEnd) || responseEnd <= notBeforeMs) {
+      return false;
+    }
+    try {
+      const url = new URL(String(entry?.name || ""));
+      return url.hostname.toLowerCase() === "template.shujiajia.com" &&
+        url.pathname.endsWith("/multi-audio4/fonts/element-icons.woff");
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function waitForPageResourceReady(windowLike, options) {
+    const target = windowLike || globalThis.window;
+    const config = options || {};
+    const performanceApi = config.performance || target?.performance;
+    const Observer = config.PerformanceObserver || target?.PerformanceObserver;
+    const notBeforeMs = Number.isFinite(Number(config.notBeforeMs)) ? Number(config.notBeforeMs) : 0;
+    const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 10000;
+    const signal = config.signal;
+    if (!performanceApi?.getEntriesByType || typeof Observer !== "function") {
+      return Promise.resolve({ status: "unsupported" });
+    }
+    if (signal?.aborted) return Promise.resolve({ status: "cancelled" });
+
+    return new Promise((resolve) => {
+      let observer = null;
+      let timer = null;
+      let settled = false;
+      const setTimer = target?.setTimeout?.bind(target) || globalThis.setTimeout;
+      const clearTimer = target?.clearTimeout?.bind(target) || globalThis.clearTimeout;
+      function finish(status) {
+        if (settled) return;
+        settled = true;
+        observer?.disconnect?.();
+        if (timer !== null) clearTimer(timer);
+        signal?.removeEventListener?.("abort", onAbort);
+        resolve({ status });
+      }
+      function inspect(entries) {
+        if (Array.from(entries || []).some((entry) => isSuccessfulPageResourceEntry(entry, notBeforeMs))) {
+          finish("ready");
+        }
+      }
+      function onAbort() { finish("cancelled"); }
+
+      try {
+        observer = new Observer((list) => inspect(list?.getEntries?.()));
+        observer.observe({ type: "resource", buffered: true });
+        signal?.addEventListener?.("abort", onAbort, { once: true });
+        inspect(performanceApi.getEntriesByType("resource"));
+        if (!settled) timer = setTimer(() => finish("timeout"), timeoutMs);
+      } catch (_error) {
+        finish("unsupported");
+      }
+    });
+  }
+
   async function waitForWaveformReady(adapter, options) {
     const api = adapter || {};
     const config = options || {};
     const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 10000;
     const intervalMs = Number(config.intervalMs) > 0 ? Number(config.intervalMs) : 50;
     const sleep = typeof config.sleep === "function" ? config.sleep : wait;
+    const signal = config.signal;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() <= deadline) {
+      if (signal?.aborted) return false;
       if (Array.from(api.getSegments?.() || []).length > 0) return true;
       if (Number(api.getAudioDurationMs?.() || 0) > 0 && Number(api.getWaveformWidth?.() || 0) > 1) return true;
       await sleep(intervalMs);
@@ -165,7 +228,7 @@
     };
   }
 
-  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment, waitForWaveformReady };
+  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment, waitForPageResourceReady, waitForWaveformReady };
   globalThis.__ASREdgeShujiajiaWholeSegmentController = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
