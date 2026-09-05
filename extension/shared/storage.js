@@ -389,6 +389,7 @@
       if (key === "shortcuts") next[key] = normalizeShujiajiaShortcutMap(scriptSource[key]);
       else if (typeof fallback[key] === "boolean") next[key] = bool(scriptSource[key], fallback[key]);
       else if (key === "aiRecommendRequestTimeoutMs") next[key] = numberInRange(scriptSource[key], fallback[key], 1000, 60000);
+      else if (key === "autoCreateWholeSegmentDelayMs") next[key] = numberInRange(scriptSource[key], fallback[key], 500, 10000);
       else if (typeof scriptSource[key] === "string") next[key] = text(scriptSource[key], fallback[key]);
     });
     next.aiRecommendListenModel = option(scriptSource.aiRecommendListenModel, ["qwen3.5-omni-flash", "qwen3.5-omni-plus"], fallback.aiRecommendListenModel);

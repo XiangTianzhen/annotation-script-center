@@ -10,6 +10,57 @@ function flushAsyncWork() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+const VALID_MARK_URL = "https://www.shujiajia.com/workbench/piece/mark.html?taskId=10000593-2026090100034&executeClass=TAG_PIECE";
+
+test("supported mark-page URL requires the exact HTTPS route, taskId, and TAG_PIECE class", () => {
+  assert.equal(content.isSupportedMarkPageUrl(VALID_MARK_URL), true);
+  assert.equal(content.isSupportedMarkPageUrl(`${VALID_MARK_URL}&foo=bar`), true);
+  for (const rawUrl of [
+    "http://www.shujiajia.com/workbench/piece/mark.html?taskId=1&executeClass=TAG_PIECE",
+    "https://shujiajia.com/workbench/piece/mark.html?taskId=1&executeClass=TAG_PIECE",
+    "https://www.shujiajia.com/workbench/piece/mark.html/extra?taskId=1&executeClass=TAG_PIECE",
+    "https://www.shujiajia.com/workbench/piece/mark.html?executeClass=TAG_PIECE",
+    "https://www.shujiajia.com/workbench/piece/mark.html?taskId=%20&executeClass=TAG_PIECE",
+    "https://www.shujiajia.com/workbench/piece/mark.html?taskId=1&executeClass=OTHER",
+    "not-a-url",
+  ]) assert.equal(content.isSupportedMarkPageUrl(rawUrl), false, rawUrl);
+});
+
+test("cancellable delay resolves only after its timer and reports cancellation", async () => {
+  let timerCallback;
+  let cleared = false;
+  const controller = new AbortController();
+  const pending = content.waitForDelay(2500, {
+    signal: controller.signal,
+    setTimeout(callback, delay) { assert.equal(delay, 2500); timerCallback = callback; return 7; },
+    clearTimeout(id) { assert.equal(id, 7); cleared = true; },
+  });
+  let settled = false;
+  pending.then(() => { settled = true; });
+  await Promise.resolve();
+  assert.equal(settled, false);
+  timerCallback();
+  assert.equal(await pending, true);
+  assert.equal(cleared, false);
+
+  const cancelController = new AbortController();
+  const cancelled = content.waitForDelay(2500, {
+    signal: cancelController.signal,
+    setTimeout() { return 9; },
+    clearTimeout(id) { assert.equal(id, 9); cleared = true; },
+  });
+  cancelController.abort();
+  assert.equal(await cancelled, false);
+  assert.equal(cleared, true);
+
+  controller.abort();
+  const alreadyCancelled = content.waitForDelay(2500, {
+    signal: controller.signal,
+    setTimeout() { throw new Error("an aborted signal must not schedule a timer"); },
+  });
+  assert.equal(await alreadyCancelled, false);
+});
+
 test("audio status messages stay sanitized and guide recognition failures", async () => {
   const listeners = {};
   const messages = [];
@@ -465,31 +516,35 @@ test("duplicate recognition triggers for the same item start only one AI request
   assert.equal(runtime.getState().result.refinedText, "唯一结果");
 });
 
-test("editor runtime skips the initial context and auto-draws each later context only once", async () => {
+test("editor runtime delays the initial and later contexts and draws each context only once", async () => {
   const listeners = {};
+  const delays = [];
+  const releases = [];
+  const messages = [];
   let drawCalls = 0;
-  let panelRevision = 1;
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
+    document: { referrer: VALID_MARK_URL },
+    waitForDelay(delayMs, options) {
+      delays.push(delayMs);
+      return new Promise((resolve) => {
+        releases.push(() => resolve(options.signal?.aborted !== true));
+      });
+    },
     settings: {
       enabled: true,
       autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoCreateWholeSegmentDelayMs: 2500,
       autoRecognizeAfterWholeSegmentEnabled: false,
       shortcuts: {},
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshResultPanel(_documentLike, options) {
-        panelRevision = Math.max(panelRevision, options.afterRevision + 1);
-        return { status: "ready", revision: panelRevision };
-      },
       async createWholeSegment() { drawCalls += 1; return { ok: true, code: "whole-segment-created", pageChanged: true }; },
     },
     panel: {
       ensureMounted() { return true; },
-      getResultPanelMountState() { return { node: {}, revision: panelRevision }; },
-      setActions() {}, setMessage() {},
+      setActions() {}, setMessage(value) { messages.push(value); },
     },
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
@@ -498,155 +553,33 @@ test("editor runtime skips the initial context and auto-draws each later context
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   await flushAsyncWork();
   assert.equal(drawCalls, 0);
+  assert.deepEqual(delays, [2500]);
+  assert.equal(messages.at(-1), "将在 2.5 秒后自动划段");
+  releases[0]();
+  await flushAsyncWork();
+  assert.equal(drawCalls, 1);
 
   const next = { data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" };
   listeners.message(next);
   listeners.message(next);
   await flushAsyncWork();
   assert.equal(drawCalls, 1);
-
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
-  await flushAsyncWork();
-  assert.equal(drawCalls, 2);
-  listeners.message(next);
+  assert.deepEqual(delays, [2500, 2500]);
+  releases[1]();
   await flushAsyncWork();
   assert.equal(drawCalls, 2);
 });
 
-test("new-item auto-draw waits for a fresh result-panel mount before checking the waveform", async () => {
+test("invalid outer URL prevents automatic drawing without affecting manual drawing", async () => {
   const listeners = {};
-  const runtimeDocument = {};
-  const resultPanel = {};
-  let releaseResultPanel;
-  let resultPanelCalls = 0;
-  let waveformCalls = 0;
-  let drawCalls = 0;
-  const runtime = content.createRuntime({
-    window: {
-      top: {},
-      addEventListener(type, fn) { listeners[type] = fn; },
-    },
-    document: runtimeDocument,
-    settings: {
-      enabled: true,
-      autoCreateWholeSegmentOnNewItemEnabled: true,
-      autoRecognizeAfterWholeSegmentEnabled: false,
-      shortcuts: {},
-    },
-    segmentController: {
-      createDomAdapter() { return {}; },
-      waitForFreshResultPanel(documentLike, options) {
-        resultPanelCalls += 1;
-        assert.equal(documentLike, runtimeDocument);
-        assert.equal(options.afterRevision, 1);
-        assert.equal(options.getMountState().node, resultPanel);
-        return new Promise((resolve) => { releaseResultPanel = resolve; });
-      },
-      async waitForWaveformReady() { waveformCalls += 1; return true; },
-      async createWholeSegment() { drawCalls += 1; return { ok: true, code: "whole-segment-created", pageChanged: true }; },
-    },
-    panel: {
-      ensureMounted() { return true; },
-      getResultPanelMountState() { return { node: resultPanel, revision: 1 }; },
-      setActions() {}, setMessage() {},
-    },
-    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
-  });
-  await runtime.start();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
-  await flushAsyncWork();
-
-  assert.equal(resultPanelCalls, 1);
-  assert.equal(waveformCalls, 0);
-  assert.equal(drawCalls, 0);
-
-  releaseResultPanel({ status: "ready", revision: 2 });
-  await flushAsyncWork();
-  assert.equal(waveformCalls, 1);
-  assert.equal(drawCalls, 1);
-});
-
-test("initial context records a result panel that mounts after its context message", async () => {
-  const listeners = {};
-  const releases = [];
-  const previousRevisions = [];
   let drawCalls = 0;
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
+    document: { referrer: "https://www.shujiajia.com/workbench/piece/other.html?taskId=1&executeClass=TAG_PIECE" },
     settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
+    waitForDelay() { throw new Error("invalid outer URLs must not schedule"); },
     segmentController: {
       createDomAdapter() { return {}; },
-      waitForFreshResultPanel(_documentLike, options) {
-        previousRevisions.push(options.afterRevision);
-        return new Promise((resolve) => { releases.push(resolve); });
-      },
-      async createWholeSegment() { drawCalls += 1; return { ok: true }; },
-    },
-    panel: {
-      ensureMounted() { return true; },
-      getResultPanelMountState() { return { node: null, revision: 0 }; },
-      setActions() {}, setMessage() {},
-    },
-    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
-  });
-  await runtime.start();
-
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
-  await flushAsyncWork();
-  assert.deepEqual(previousRevisions, [0]);
-  releases[0]({ status: "ready", revision: 1 });
-  await flushAsyncWork();
-
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
-  await flushAsyncWork();
-  assert.equal(previousRevisions[1], 1);
-  releases[1]({ status: "ready", revision: 2 });
-  await flushAsyncWork();
-  assert.equal(drawCalls, 1);
-});
-
-test("new-item auto-draw fails closed when the result panel is not ready", async () => {
-  const listeners = {};
-  const messages = [];
-  let drawCalls = 0;
-  const runtime = content.createRuntime({
-    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
-    settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
-    segmentController: {
-      createDomAdapter() { return {}; },
-      async waitForFreshResultPanel() { return { status: "timeout" }; },
-      async waitForWaveformReady() { throw new Error("waveform must not be checked after a result-panel timeout"); },
-      async createWholeSegment() { drawCalls += 1; return { ok: true }; },
-    },
-    panel: { ensureMounted() { return true; }, setActions() {}, setMessage(value) { messages.push(value); } },
-    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
-  });
-  await runtime.start();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
-  await flushAsyncWork();
-
-  assert.equal(drawCalls, 0);
-  assert.equal(messages.at(-1), "AI 识别结果区域未就绪，本题未自动划段");
-});
-
-test("switching items cancels the previous result-panel wait", async () => {
-  const listeners = {};
-  const signals = [];
-  let drawCalls = 0;
-  const runtime = content.createRuntime({
-    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
-    settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
-    segmentController: {
-      createDomAdapter() { return {}; },
-      waitForFreshResultPanel(_documentLike, options) {
-        signals.push(options.signal);
-        return new Promise((resolve) => options.signal.addEventListener("abort", () => resolve({ status: "cancelled" }), { once: true }));
-      },
       async createWholeSegment() { drawCalls += 1; return { ok: true }; },
     },
     panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
@@ -654,16 +587,61 @@ test("switching items cancels the previous result-panel wait", async () => {
   });
   await runtime.start();
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
   await flushAsyncWork();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:third" } }, origin: "" });
-  await flushAsyncWork();
+  assert.equal(drawCalls, 0);
+  await runtime.actions.createWholeSegment();
+  assert.equal(drawCalls, 1);
+});
 
+test("automatic drawing rechecks the outer URL after the fixed delay", async () => {
+  const listeners = {};
+  const documentLike = { referrer: VALID_MARK_URL };
+  let releaseDelay;
+  let drawCalls = 0;
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: documentLike,
+    settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
+    waitForDelay() { return new Promise((resolve) => { releaseDelay = resolve; }); },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { drawCalls += 1; return { ok: false, code: "waveform-unavailable" }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  await flushAsyncWork();
+  documentLike.referrer = "https://www.shujiajia.com/workbench/piece/other.html?taskId=1&executeClass=TAG_PIECE";
+  releaseDelay(true);
+  await flushAsyncWork();
+  assert.equal(drawCalls, 0);
+});
+
+test("switching items cancels the previous fixed delay", async () => {
+  const listeners = {};
+  const signals = [];
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: { referrer: VALID_MARK_URL },
+    settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
+    waitForDelay(_delay, options) {
+      signals.push(options.signal);
+      return new Promise((resolve) => options.signal.addEventListener("abort", () => resolve(false), { once: true }));
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  for (const contextId of ["task:first", "task:second", "task:third"]) {
+    listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId } }, origin: "" });
+    await flushAsyncWork();
+  }
   assert.equal(signals.length, 3);
   assert.equal(signals[0].aborted, true);
   assert.equal(signals[1].aborted, true);
   assert.equal(signals[2].aborted, false);
-  assert.equal(drawCalls, 0);
   runtime.stop();
 });
 
@@ -695,7 +673,8 @@ test("successful auto-draw waits for matching audio before recognizing", async (
   let recognitionCalls = 0;
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
+    document: { referrer: VALID_MARK_URL },
+    waitForDelay: async () => true,
     settings: {
       enabled: true,
       aiRecommendEnabled: true,
@@ -705,7 +684,6 @@ test("successful auto-draw waits for matching audio before recognizing", async (
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -714,7 +692,6 @@ test("successful auto-draw waits for matching audio before recognizing", async (
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
   await flushAsyncWork();
   assert.equal(recognitionCalls, 0);
@@ -739,7 +716,6 @@ test("successful helper-button draw also starts enabled automatic recognition", 
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -760,7 +736,8 @@ test("audio failure cancels queued recognition for the current context", async (
   let recognitionCalls = 0;
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
+    document: { referrer: VALID_MARK_URL },
+    waitForDelay: async () => true,
     settings: {
       enabled: true,
       aiRecommendEnabled: true,
@@ -770,7 +747,6 @@ test("audio failure cancels queued recognition for the current context", async (
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -779,7 +755,6 @@ test("audio failure cancels queued recognition for the current context", async (
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
   await flushAsyncWork();
   assert.equal(runtime.getState().pendingAutoRecognitionContextId, "task:second");
@@ -813,11 +788,11 @@ test("disabling automatic recognition cancels its queued call before audio arriv
   });
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
+    document: { referrer: VALID_MARK_URL },
+    waitForDelay: async () => true,
     settings: settingsRoot.platforms.shujiajia.scripts.luzhouHelper,
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -826,7 +801,6 @@ test("disabling automatic recognition cancels its queued call before audio arriv
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
   await flushAsyncWork();
   assert.equal(runtime.getState().pendingAutoRecognitionContextId, "task:second");
@@ -844,10 +818,10 @@ test("disabling automatic recognition cancels its queued call before audio arriv
   assert.equal(recognitionCalls, 0);
 });
 
-test("disabling new-item auto-draw while waiting for the waveform prevents trusted drawing", async (t) => {
+test("disabling new-item auto-draw while waiting for the fixed delay prevents trusted drawing", async (t) => {
   const listeners = {};
   let storageListener = null;
-  let releaseWaveform;
+  let releaseDelay;
   let drawCalls = 0;
   let settingsRoot = {
     platforms: { shujiajia: { enabled: true, scripts: { luzhouHelper: {
@@ -868,19 +842,21 @@ test("disabling new-item auto-draw while waiting for the waveform prevents trust
   });
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: {},
+    document: { referrer: VALID_MARK_URL },
+    waitForDelay(_delay, options) {
+      return new Promise((resolve) => {
+        releaseDelay = () => resolve(options.signal?.aborted !== true);
+      });
+    },
     settings: settingsRoot.platforms.shujiajia.scripts.luzhouHelper,
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
-      waitForWaveformReady() { return new Promise((resolve) => { releaseWaveform = resolve; }); },
       async createWholeSegment() { drawCalls += 1; return { ok: true }; },
     },
     panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
   await flushAsyncWork();
 
@@ -891,7 +867,7 @@ test("disabling new-item auto-draw while waiting for the waveform prevents trust
     shortcuts: {},
   } } } } };
   await storageListener({}, "local");
-  releaseWaveform(true);
+  releaseDelay();
   await flushAsyncWork();
   assert.equal(drawCalls, 0);
 });

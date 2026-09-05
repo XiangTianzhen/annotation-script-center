@@ -9,86 +9,6 @@
     return Object.assign({ ok, code }, extra || {});
   }
 
-  function waitForFreshResultPanel(documentLike, options) {
-    const doc = documentLike || globalThis.document;
-    const config = options || {};
-    const target = doc?.defaultView || globalThis.window;
-    const Observer = config.MutationObserver || target?.MutationObserver || globalThis.MutationObserver;
-    const selector = String(config.selector || "[data-asc-shujiajia-luzhou-drawer]");
-    const afterRevision = Number(config.afterRevision) || 0;
-    const getMountState = config.getMountState;
-    const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 10000;
-    const signal = config.signal;
-    const root = doc?.documentElement || doc?.body;
-    if (typeof doc?.querySelectorAll !== "function" || !root || typeof Observer !== "function" || typeof getMountState !== "function") return Promise.resolve({ status: "unsupported" });
-    if (signal?.aborted) return Promise.resolve({ status: "cancelled" });
-
-    return new Promise((resolve) => {
-      let observer = null;
-      let timer = null;
-      let settled = false;
-      const setTimer = config.setTimeout || target?.setTimeout?.bind(target) || globalThis.setTimeout;
-      const clearTimer = config.clearTimeout || target?.clearTimeout?.bind(target) || globalThis.clearTimeout;
-      function finish(status, revision) {
-        if (settled) return;
-        settled = true;
-        observer?.disconnect?.();
-        if (timer !== null) clearTimer(timer);
-        signal?.removeEventListener?.("abort", onAbort);
-        resolve(Number(revision) > 0 ? { status, revision: Number(revision) } : { status });
-      }
-      function inspect() {
-        const mountState = getMountState() || {};
-        const revision = Number(mountState.revision) || 0;
-        if (revision <= afterRevision) return;
-        const nodes = Array.from(doc.querySelectorAll(selector) || []);
-        if (nodes.length !== 1) return;
-        const node = nodes[0];
-        const rect = node?.getBoundingClientRect?.();
-        const style = target?.getComputedStyle?.(node);
-        if (
-          mountState.node !== node ||
-          node?.isConnected !== true ||
-          node.hidden === true ||
-          style?.display === "none" ||
-          style?.visibility === "hidden" ||
-          !node.getClientRects?.().length ||
-          !(Number(rect?.width) > 0) ||
-          !(Number(rect?.height) > 0)
-        ) return;
-        finish("ready", revision);
-      }
-      function onAbort() { finish("cancelled"); }
-
-      try {
-        observer = new Observer(inspect);
-        observer.observe(root, { childList: true, subtree: true, attributes: true });
-        signal?.addEventListener?.("abort", onAbort, { once: true });
-        inspect();
-        if (!settled) timer = setTimer(() => finish("timeout"), timeoutMs);
-      } catch (_error) {
-        finish("unsupported");
-      }
-    });
-  }
-
-  async function waitForWaveformReady(adapter, options) {
-    const api = adapter || {};
-    const config = options || {};
-    const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 10000;
-    const intervalMs = Number(config.intervalMs) > 0 ? Number(config.intervalMs) : 50;
-    const sleep = typeof config.sleep === "function" ? config.sleep : wait;
-    const signal = config.signal;
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() <= deadline) {
-      if (signal?.aborted) return false;
-      if (Array.from(api.getSegments?.() || []).length > 0) return true;
-      if (Number(api.getAudioDurationMs?.() || 0) > 0 && Number(api.getWaveformWidth?.() || 0) > 1) return true;
-      await sleep(intervalMs);
-    }
-    return false;
-  }
-
   function verifyWholeSegment(adapter) {
     const api = adapter || {};
     const segments = Array.from(api.getSegments?.() || []);
@@ -230,7 +150,7 @@
     };
   }
 
-  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment, waitForFreshResultPanel, waitForWaveformReady };
+  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment };
   globalThis.__ASREdgeShujiajiaWholeSegmentController = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

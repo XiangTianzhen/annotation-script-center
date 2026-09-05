@@ -325,6 +325,13 @@ describe("script-settings helpers", () => {
     expect(fields.find((field) => field.path === "aiRecommendRefineModel")).toBeUndefined();
     expect(fields.find((field) => field.path === "aiRecommendListenPrompt")?.label).toBe("泸州方言识别 Prompt");
     expect(fields.find((field) => field.path === "autoCreateWholeSegmentOnNewItemEnabled")?.label).toBe("进入新条目后自动划整段");
+    expect(fields.find((field) => field.path === "autoCreateWholeSegmentDelayMs")).toMatchObject({
+      kind: "number",
+      label: "自动划段延迟（毫秒）",
+      min: 500,
+      max: 10000,
+      step: 100,
+    });
     expect(fields.find((field) => field.path === "autoRecognizeAfterWholeSegmentEnabled")?.label).toBe("助手画段成功后自动识别");
     expect(fields.some((field) => /Lexicon/.test(field.path || ""))).toBe(false);
     expect(fields.find((field) => field.path === "aiRecommendAutoFillEnabled")?.label).toBe("识别完成后自动填入");

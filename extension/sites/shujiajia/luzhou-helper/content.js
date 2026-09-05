@@ -15,6 +15,47 @@
   const TRUSTED_INPUT_RESPONSE = "ASC_SHUJIAJIA_TRUSTED_INPUT_RESPONSE";
   const BACKGROUND_TRUSTED_INPUT = "ASR_EDGE_SHUJIAJIA_TRUSTED_INPUT";
 
+  function isSupportedMarkPageUrl(rawUrl) {
+    try {
+      const url = new URL(String(rawUrl || ""));
+      return url.protocol === "https:" &&
+        url.hostname === "www.shujiajia.com" &&
+        url.pathname === "/workbench/piece/mark.html" &&
+        String(url.searchParams.get("taskId") || "").trim() !== "" &&
+        url.searchParams.get("executeClass") === "TAG_PIECE";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function waitForDelay(delayMs, options) {
+    const config = options || {};
+    const signal = config.signal;
+    if (signal?.aborted) return Promise.resolve(false);
+    const setTimer = config.setTimeout || globalThis.setTimeout;
+    const clearTimer = config.clearTimeout || globalThis.clearTimeout;
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
+      function finish(value) {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener?.("abort", onAbort);
+        resolve(value);
+      }
+      function onAbort() {
+        if (timer !== null) clearTimer(timer);
+        finish(false);
+      }
+      signal?.addEventListener?.("abort", onAbort, { once: true });
+      timer = setTimer(() => finish(true), Number(delayMs) || 0);
+    });
+  }
+
+  function formatDelaySeconds(delayMs) {
+    return String(Number((Number(delayMs) / 1000).toFixed(1)));
+  }
+
   function settleObserverBeforeBoot(settings, windowLike) {
     const script = settings?.platforms?.shujiajia?.scripts?.luzhouHelper;
     const enabled = settings?.platforms?.shujiajia?.enabled === true && script?.enabled === true;
@@ -94,7 +135,7 @@
     const state = {
       audioDataUrl: "", audioContextId: "", audioStatusCode: "", contextId: "",
       dirty: false, dirtyToken: "", result: null, resultContextId: "", error: null, settings: config.settings || null,
-      hasSeenContext: false, pendingAutoRecognitionContextId: "",
+      pendingAutoRecognitionContextId: "",
       autoRecognitionStartedContextId: "",
     };
     let shortcutRuntime = null;
@@ -103,14 +144,13 @@
     let recognitionSerial = 0;
     let activeRecognition = null;
     let pendingAutoDrawAbortController = null;
-    let baselineResultPanelAbortController = null;
-    let lastResultPanelMountRevision = 0;
     const pendingTrustedInputs = new Map();
     const attemptedAutoDrawContexts = new Set();
 
     function message(text) { panel.setMessage?.(text); }
     function origin() { return windowLike?.location?.origin || "*"; }
     function isEditorRuntime() { return Boolean(windowLike?.top && windowLike.top !== windowLike); }
+    function hasSupportedOuterPage() { return isSupportedMarkPageUrl(documentLike?.referrer); }
     function postLocal(data) { windowLike?.postMessage?.(data, origin()); }
     function postTop(data) { (windowLike?.top || windowLike)?.postMessage?.(data, origin()); }
     function relayToFrames(data) {
@@ -160,35 +200,8 @@
     function cancelPendingAutomation() {
       state.pendingAutoRecognitionContextId = "";
       state.autoRecognitionStartedContextId = "";
-      baselineResultPanelAbortController?.abort?.();
-      baselineResultPanelAbortController = null;
       pendingAutoDrawAbortController?.abort?.();
       pendingAutoDrawAbortController = null;
-    }
-    function recordInitialResultPanel(contextId) {
-      const currentState = panel.getResultPanelMountState?.() || {};
-      const currentRevision = Number(currentState.revision) || 0;
-      if (currentState.node && currentRevision > 0) {
-        lastResultPanelMountRevision = currentRevision;
-        return;
-      }
-      if (typeof segmentController.waitForFreshResultPanel !== "function") return;
-      const AbortControllerType = config.AbortController || globalThis.AbortController;
-      const abortController = typeof AbortControllerType === "function" ? new AbortControllerType() : null;
-      baselineResultPanelAbortController?.abort?.();
-      baselineResultPanelAbortController = abortController;
-      void segmentController.waitForFreshResultPanel(documentLike, {
-        afterRevision: currentRevision,
-        getMountState: () => panel.getResultPanelMountState?.() || {},
-        timeoutMs: 10000,
-        signal: abortController?.signal,
-      }).then((ready) => {
-        if (ready?.status === "ready" && state.contextId === contextId && !abortController?.signal?.aborted) {
-          lastResultPanelMountRevision = Number(ready.revision) || lastResultPanelMountRevision;
-        }
-      }).finally(() => {
-        if (baselineResultPanelAbortController === abortController) baselineResultPanelAbortController = null;
-      });
     }
     async function refreshSettings(requireAi) {
       let root = null;
@@ -247,46 +260,29 @@
     }
     async function autoDrawNewContext(contextId) {
       const expectedContextId = String(contextId || "");
-      if (!isEditorRuntime() || !expectedContextId || state.contextId !== expectedContextId) return false;
+      if (!isEditorRuntime() || !hasSupportedOuterPage() || !expectedContextId || state.contextId !== expectedContextId) return false;
       if (attemptedAutoDrawContexts.has(expectedContextId)) return false;
       const currentSettings = await refreshSettings(false);
       if (
         !currentSettings ||
         currentSettings.autoCreateWholeSegmentOnNewItemEnabled !== true ||
+        !hasSupportedOuterPage() ||
         state.contextId !== expectedContextId
       ) return false;
       attemptedAutoDrawContexts.add(expectedContextId);
+      const configuredDelay = Number(currentSettings.autoCreateWholeSegmentDelayMs);
+      const delayMs = configuredDelay >= 500 && configuredDelay <= 10000 ? configuredDelay : 2500;
       const AbortControllerType = config.AbortController || globalThis.AbortController;
       const abortController = typeof AbortControllerType === "function" ? new AbortControllerType() : null;
       pendingAutoDrawAbortController?.abort?.();
       pendingAutoDrawAbortController = abortController;
       try {
-        message("AI 识别结果区域加载中，等待后自动划段");
-        const resultPanelReady = typeof segmentController.waitForFreshResultPanel === "function"
-          ? await segmentController.waitForFreshResultPanel(documentLike, {
-            afterRevision: lastResultPanelMountRevision,
-            getMountState: () => panel.getResultPanelMountState?.() || {},
-            timeoutMs: 10000,
-            signal: abortController?.signal,
-          })
-          : { status: "unsupported" };
-        if (state.contextId !== expectedContextId || abortController?.signal?.aborted) return false;
-        if (state.settings?.enabled !== true || state.settings?.autoCreateWholeSegmentOnNewItemEnabled !== true) return false;
-        if (resultPanelReady?.status !== "ready") {
-          message("AI 识别结果区域未就绪，本题未自动划段");
-          return false;
-        }
-        lastResultPanelMountRevision = Number(resultPanelReady.revision) || lastResultPanelMountRevision;
-        const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
-        const ready = typeof segmentController.waitForWaveformReady === "function"
-          ? await segmentController.waitForWaveformReady(adapter || {}, { signal: abortController?.signal })
-          : true;
-        if (state.contextId !== expectedContextId || abortController?.signal?.aborted) return false;
-        if (state.settings?.enabled !== true || state.settings?.autoCreateWholeSegmentOnNewItemEnabled !== true) return false;
-        if (!ready) {
-          message(formatWholeSegmentFailure("waveform-unavailable"));
-          return false;
-        }
+        message(`将在 ${formatDelaySeconds(delayMs)} 秒后自动划段`);
+        const delay = config.waitForDelay || waitForDelay;
+        const elapsed = await delay(delayMs, { signal: abortController?.signal });
+        if (!elapsed || state.contextId !== expectedContextId || abortController?.signal?.aborted || !hasSupportedOuterPage()) return false;
+        const latestSettings = await refreshSettings(false);
+        if (!latestSettings || latestSettings.autoCreateWholeSegmentOnNewItemEnabled !== true || state.contextId !== expectedContextId || !hasSupportedOuterPage()) return false;
         await actions.createWholeSegment();
         return true;
       } finally {
@@ -300,7 +296,6 @@
       if (data.type === CONTEXT_READY && data.payload?.contextId) {
         const next = String(data.payload.contextId);
         const changed = state.contextId !== next;
-        const hadSeenContext = state.hasSeenContext;
         if (changed) state.audioStatusCode = "";
         if (state.contextId && state.contextId !== next) {
           state.audioDataUrl = "";
@@ -315,12 +310,10 @@
           panel.setError?.(null);
         }
         state.contextId = next;
-        state.hasSeenContext = true;
-        if (changed && !hadSeenContext) recordInitialResultPanel(next);
         if (changed) postLocal({ source: SOURCE, type: CONTEXT_READY, payload: { contextId: next } });
         if (changed && windowLike?.top && windowLike.top !== windowLike) postTop({ source: SOURCE, type: REQUEST_AUDIO, payload: { contextId: next } });
         if (changed && windowLike?.top === windowLike) relayToFrames(data);
-        if (changed && hadSeenContext) {
+        if (changed) {
           void autoDrawNewContext(next);
         }
       } else if (data.type === AUDIO_READY && /^data:audio\//i.test(String(data.payload?.audioDataUrl || ""))) {
@@ -552,8 +545,6 @@
             state.settings = next;
             if (next.autoRecognizeAfterWholeSegmentEnabled !== true) state.pendingAutoRecognitionContextId = "";
             if (next.autoCreateWholeSegmentOnNewItemEnabled !== true) {
-              baselineResultPanelAbortController?.abort?.();
-              baselineResultPanelAbortController = null;
               pendingAutoDrawAbortController?.abort?.();
               pendingAutoDrawAbortController = null;
             }
@@ -580,8 +571,6 @@
         pending.resolve({ ok: false, reason: "trusted-input-cancelled" });
       });
       pendingTrustedInputs.clear();
-      baselineResultPanelAbortController?.abort?.();
-      baselineResultPanelAbortController = null;
       pendingAutoDrawAbortController?.abort?.();
       pendingAutoDrawAbortController = null;
       attemptedAutoDrawContexts.clear();
@@ -594,7 +583,7 @@
     return { actions, getState, setRecognitionResult, start, stop };
   }
 
-  const api = { buildTopTrustedInputMessage, createRuntime, formatAudioStatus, formatWholeSegmentFailure, settleObserverBeforeBoot, constants: { SOURCE, AUDIO_READY, AUDIO_STATUS, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT, TRUSTED_INPUT_REQUEST, TRUSTED_INPUT_RESPONSE, BACKGROUND_TRUSTED_INPUT } };
+  const api = { buildTopTrustedInputMessage, createRuntime, formatAudioStatus, formatWholeSegmentFailure, isSupportedMarkPageUrl, settleObserverBeforeBoot, waitForDelay, constants: { SOURCE, AUDIO_READY, AUDIO_STATUS, CONTEXT_READY, TEMP_SAVE_SUCCEEDED, REQUEST_AUDIO, DIRTY_CHANGED, OBSERVER_ENABLE, OBSERVER_DISABLE, SAVE_INTENT, TRUSTED_INPUT_REQUEST, TRUSTED_INPUT_RESPONSE, BACKGROUND_TRUSTED_INPUT } };
   globalThis.__ASREdgeShujiajiaContent = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 

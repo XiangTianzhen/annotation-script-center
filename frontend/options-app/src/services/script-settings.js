@@ -725,7 +725,7 @@ function shujiajiaSections() {
     {
       key: "basic",
       title: "基础设置",
-      help: "可选择在后续新条目自动划整段，并在助手画段成功后自动识别。",
+      help: "可选择在首次及后续新条目按固定延迟自动划整段，并在助手画段成功后自动识别。",
       groups: [{
         key: "automation",
         title: "自动化设置",
@@ -735,7 +735,15 @@ function shujiajiaSections() {
             kind: "boolean",
             path: "autoCreateWholeSegmentOnNewItemEnabled",
             label: "进入新条目后自动划整段",
-            help: "首次加载当前条目不执行；之后切换到零段落条目时，每条最多自动尝试一次。",
+            help: "首次及后续新条目均按设置延迟执行；每条最多自动尝试一次。",
+          },
+          {
+            kind: "number",
+            path: "autoCreateWholeSegmentDelayMs",
+            label: "自动划段延迟（毫秒）",
+            min: 500,
+            max: 10000,
+            step: 100,
           },
           {
             kind: "boolean",

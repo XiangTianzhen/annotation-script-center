@@ -42,11 +42,8 @@ test("panel mounts controls below validity and results below the native transfer
   assert.equal(transfer.lastElementChild.hasAttribute("data-asc-shujiajia-luzhou-drawer"), true);
   assert.equal(tabs.children.length, nativeTabsChildren + 1);
   assert.equal(transfer.children.length, nativeTransferChildren + 1);
-  const firstMount = runtime.getResultPanelMountState();
-  assert.equal(firstMount.node, document.querySelector("[data-asc-shujiajia-luzhou-drawer]"));
-  assert.equal(firstMount.revision, 1);
   runtime.ensureMounted();
-  assert.equal(runtime.getResultPanelMountState().revision, 1);
+  assert.equal(document.querySelectorAll("[data-asc-shujiajia-luzhou-drawer]").length, 1);
 });
 
 test("panel restores both native-area mounts after platform subtree rerender", async () => {
@@ -61,27 +58,6 @@ test("panel restores both native-area mounts after platform subtree rerender", a
 
   assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-helper]")?.parentElement, document.querySelector(".tabs-container"));
   assert.equal(document.querySelector("[data-asc-shujiajia-luzhou-drawer]")?.parentElement, document.querySelector(".transfer"));
-  assert.equal(runtime.getResultPanelMountState().revision, 2);
-  runtime.remove();
-});
-
-test("result panel increments its mount revision when the same node is reattached", async () => {
-  const dom = createPlatformDom({ pretendToBeVisual: true });
-  const document = dom.window.document;
-  const runtime = panel.createPanel({ document, MutationObserver: dom.window.MutationObserver });
-  runtime.ensureMounted();
-  const first = runtime.getResultPanelMountState();
-
-  document.querySelector(".transfer").remove();
-  const transfer = document.createElement("div");
-  transfer.className = "transfer";
-  document.querySelector(".operate-container").appendChild(transfer);
-  await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
-
-  const second = runtime.getResultPanelMountState();
-  assert.equal(second.node, first.node);
-  assert.equal(second.node.parentElement, transfer);
-  assert.equal(second.revision, first.revision + 1);
   runtime.remove();
 });
 

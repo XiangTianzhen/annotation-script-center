@@ -68,7 +68,7 @@ test("ByteDance AIDP storage defaults expose promoted helper settings", async fu
     const jinhuaScript = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
     const taizhouScript = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 40);
+    assert.equal(settings.meta.schemaVersion, 41);
     assert.deepEqual(Object.keys(settings.platforms).sort(), [
       "bytedanceAidp",
       "dataBakerCvpc",
@@ -186,7 +186,7 @@ test("ByteDance AIDP storage drops the legacy internal task id and keeps only th
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
 
-    assert.equal(settings.meta.schemaVersion, 40);
+    assert.equal(settings.meta.schemaVersion, 41);
     assert.equal(script.aiRecommendOmniPrompt, "保留旧配置");
     assert.equal(script.recordingImportTaskCode, "");
     assert.equal(Object.hasOwn(script, "recordingImportTaskId"), false);
@@ -376,7 +376,7 @@ test("ByteDance AIDP storage migrates Jinhua listen model to Omni and retains in
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.jinhuaHelper;
 
-    assert.equal(settings.meta.schemaVersion, 40);
+    assert.equal(settings.meta.schemaVersion, 41);
     assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendOmniPrompt, "");
     assert.equal(script.aiRecommendOmniTemperature, "");
@@ -403,7 +403,7 @@ test("ByteDance AIDP storage migrates schema 30 Jinhua-only settings with Taizho
   try {
     const settings = await harness.storage.getSettings();
     const aidp = settings.platforms.bytedanceAidp;
-    assert.equal(settings.meta.schemaVersion, 40);
+    assert.equal(settings.meta.schemaVersion, 41);
     assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper");
     assert.equal(aidp.scripts.jinhuaHelper.enabled, true);
     assert.equal(aidp.scripts.suzhouHelper.enabled, false);
@@ -428,7 +428,7 @@ test("ByteDance AIDP storage migrates the Taizhou listen model to the single Omn
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.taizhouHelper;
-    assert.equal(settings.meta.schemaVersion, 40);
+    assert.equal(settings.meta.schemaVersion, 41);
     assert.equal(script.aiRecommendOmniModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendOmniPrompt, "");
     assert.equal(script.aiRecommendOmniTemperature, "");
@@ -447,7 +447,7 @@ test("ByteDance AIDP storage keeps explicitly enabled Jinhua for missing or inva
     try {
       const settings = await harness.storage.getSettings();
       const aidp = settings.platforms.bytedanceAidp;
-      assert.equal(settings.meta.schemaVersion, 40, String(activeScriptId));
+      assert.equal(settings.meta.schemaVersion, 41, String(activeScriptId));
       assert.equal(aidp.activeScriptId, "bytedanceAidpJinhuaHelper", String(activeScriptId));
       assert.equal(aidp.scripts.jinhuaHelper.enabled, true, String(activeScriptId));
       assert.equal(aidp.scripts.suzhouHelper.enabled, false, String(activeScriptId));
