@@ -2,6 +2,8 @@
 
 ## 2026-09-05
 
+- 修复(shujiajia): “进入新条目后自动划整段”移除 `element-icons.woff` Resource Timing 门禁，改为等待本题新建的唯一、已连接、可见且尺寸有效的 `.audio-peaks .waveform`，随后再检查音频时长和波形宽度；首题波形晚于上下文创建时也会记录为基线，旧节点不放行。
+- 测试(shujiajia): 覆盖新波形出现前不画段、切题前已创建的新节点、隐藏/断连/零尺寸/重复节点、超时、取消、首题延迟基线、DOM 后波形顺序及手动入口不受影响。
 - 修复(shujiajia): MAIN world 网络观察器不再替换全局 `XMLHttpRequest.prototype.send`；改为仅包装 `open`，通过私有 `WeakMap` 和 `loadstart/load` 观察必要响应，避免 `templateTypeSummary.json` 等无关平台请求经过扩展 `send` 调用边界。
 - 测试(shujiajia): 覆盖原生 XHR `send` 引用保持、无关请求零扩展消息、复用实例单次处理、tempsave 业务成功及旧题音频响应丢弃；明确字体门禁只读取既有 Resource Timing，不主动请求字体、WASM 或 favicon。
 - 修复(shujiajia): “进入新条目后自动划整段”不再因旧页面波形可读而提前拖拽；现在按本次切题性能时间点等待版本无关的 `element-icons.woff` 成功 Resource Timing，再检查波形。旧记录、失败状态和无关资源不放行，10 秒未就绪严格取消；切题、关闭开关或禁用脚本会取消旧等待，手动画段保持原流程。

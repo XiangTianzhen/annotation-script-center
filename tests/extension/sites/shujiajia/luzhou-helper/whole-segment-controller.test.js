@@ -10,85 +10,93 @@ function flushAsyncWork() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-function createResourceTimingHarness(initialEntries) {
+function createAudioRegion(width = 843, height = 172) {
+  return {
+    isConnected: true,
+    getClientRects: () => width > 0 && height > 0 ? [{}] : [],
+    getBoundingClientRect: () => ({ width, height }),
+  };
+}
+
+function createAudioRegionHarness(initialNodes) {
   let observerCallback = null;
   let disconnected = false;
-  const entries = Array.from(initialEntries || []);
-  class FakePerformanceObserver {
+  let nodes = Array.from(initialNodes || []);
+  class FakeMutationObserver {
     constructor(callback) { observerCallback = callback; }
     observe() {}
     disconnect() { disconnected = true; }
   }
   return {
-    window: {
-      performance: { getEntriesByType: () => entries.slice() },
-      PerformanceObserver: FakePerformanceObserver,
-      setTimeout,
-      clearTimeout,
+    document: {
+      documentElement: {},
+      defaultView: { MutationObserver: FakeMutationObserver, setTimeout, clearTimeout },
+      querySelectorAll(selector) {
+        assert.equal(selector, ".audio-peaks .waveform");
+        return nodes.slice();
+      },
     },
-    emit(nextEntries) {
-      observerCallback?.({ getEntries: () => Array.from(nextEntries || []) });
+    replace(nextNodes) {
+      nodes = Array.from(nextNodes || []);
+      observerCallback?.([]);
     },
     wasDisconnected() { return disconnected; },
   };
 }
 
-test("page readiness waits for a successful element-icons resource completed after the item switch", async () => {
-  assert.equal(typeof controller.waitForPageResourceReady, "function", "controller must expose the page-resource gate");
-  const harness = createResourceTimingHarness();
+test("audio readiness ignores the previous waveform until a fresh visible node is created", async () => {
+  assert.equal(typeof controller.waitForFreshAudioRegion, "function", "controller must expose the DOM readiness gate");
+  const previousNode = createAudioRegion();
+  const nextNode = createAudioRegion();
+  const harness = createAudioRegionHarness([previousNode]);
   let settled = false;
-  const pending = controller.waitForPageResourceReady(harness.window, { notBeforeMs: 100, timeoutMs: 1000 })
+  const pending = controller.waitForFreshAudioRegion(harness.document, { previousNode, timeoutMs: 1000 })
     .then((value) => { settled = true; return value; });
 
   await flushAsyncWork();
   assert.equal(settled, false);
-  harness.emit([{
-    name: "https://template.shujiajia.com/dist/v4.10.14/multi-audio4/fonts/element-icons.woff?cache=1",
-    responseStatus: 200,
-    responseEnd: 125,
-  }]);
+  harness.replace([nextNode]);
 
-  assert.deepEqual(await pending, { status: "ready" });
+  assert.deepEqual(await pending, { status: "ready", node: nextNode });
   assert.equal(harness.wasDisconnected(), true);
 });
 
-test("page readiness ignores stale, failed, and unrelated entries before accepting a cached success", async () => {
-  const harness = createResourceTimingHarness([{
-    name: "https://template.shujiajia.com/dist/v4.10.13/multi-audio4/fonts/element-icons.woff",
-    responseStatus: 200,
-    responseEnd: 100,
-  }]);
-  let settled = false;
-  const pending = controller.waitForPageResourceReady(harness.window, { notBeforeMs: 100, timeoutMs: 1000 })
-    .then((value) => { settled = true; return value; });
-
-  harness.emit([
-    { name: "https://template.shujiajia.com/dist/v4.10.14/multi-audio4/fonts/element-icons.woff", responseStatus: 404, responseEnd: 120 },
-    { name: "https://template.shujiajia.com/dist/v4.10.14/other/fonts/element-icons.woff", responseStatus: 200, responseEnd: 121 },
-    { name: "https://example.test/dist/v4.10.14/multi-audio4/fonts/element-icons.woff", responseStatus: 200, responseEnd: 122 },
-  ]);
-  await flushAsyncWork();
-  assert.equal(settled, false);
-
-  harness.emit([{
-    name: "https://template.shujiajia.com/dist/v5.0.0/multi-audio4/fonts/element-icons.woff",
-    responseStatus: 304,
-    responseEnd: 123,
-  }]);
-  assert.deepEqual(await pending, { status: "ready" });
+test("audio readiness immediately accepts a fresh node created before the context message", async () => {
+  const previousNode = createAudioRegion();
+  const nextNode = createAudioRegion();
+  const harness = createAudioRegionHarness([nextNode]);
+  assert.deepEqual(
+    await controller.waitForFreshAudioRegion(harness.document, { previousNode, timeoutMs: 1000 }),
+    { status: "ready", node: nextNode }
+  );
 });
 
-test("page readiness times out and supports cancellation", async () => {
-  const timeoutHarness = createResourceTimingHarness();
+test("audio readiness rejects hidden, disconnected, and ambiguous waveform matches", async () => {
+  const previousNode = createAudioRegion();
+  const harness = createAudioRegionHarness([createAudioRegion(0, 172)]);
+  const pending = controller.waitForFreshAudioRegion(harness.document, { previousNode, timeoutMs: 1000 });
+  const disconnectedNode = createAudioRegion();
+  disconnectedNode.isConnected = false;
+  harness.replace([disconnectedNode]);
+  const first = createAudioRegion();
+  const second = createAudioRegion();
+  harness.replace([first, second]);
+  await flushAsyncWork();
+  harness.replace([second]);
+  assert.deepEqual(await pending, { status: "ready", node: second });
+});
+
+test("audio readiness times out and supports cancellation", async () => {
+  const timeoutHarness = createAudioRegionHarness([]);
   assert.deepEqual(
-    await controller.waitForPageResourceReady(timeoutHarness.window, { notBeforeMs: 100, timeoutMs: 5 }),
+    await controller.waitForFreshAudioRegion(timeoutHarness.document, { previousNode: null, timeoutMs: 5 }),
     { status: "timeout" }
   );
 
-  const cancelHarness = createResourceTimingHarness();
+  const cancelHarness = createAudioRegionHarness([]);
   const abortController = new AbortController();
-  const pending = controller.waitForPageResourceReady(cancelHarness.window, {
-    notBeforeMs: 100,
+  const pending = controller.waitForFreshAudioRegion(cancelHarness.document, {
+    previousNode: null,
     timeoutMs: 1000,
     signal: abortController.signal,
   });

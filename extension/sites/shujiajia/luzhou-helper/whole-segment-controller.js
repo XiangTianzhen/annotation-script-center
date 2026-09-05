@@ -9,60 +9,54 @@
     return Object.assign({ ok, code }, extra || {});
   }
 
-  function isSuccessfulPageResourceEntry(entry, notBeforeMs) {
-    const status = Number(entry?.responseStatus);
-    const responseEnd = Number(entry?.responseEnd);
-    if (!((status >= 200 && status < 300) || status === 304) || !Number.isFinite(responseEnd) || responseEnd <= notBeforeMs) {
-      return false;
-    }
-    try {
-      const url = new URL(String(entry?.name || ""));
-      return url.hostname.toLowerCase() === "template.shujiajia.com" &&
-        url.pathname.endsWith("/multi-audio4/fonts/element-icons.woff");
-    } catch (_error) {
-      return false;
-    }
-  }
-
-  function waitForPageResourceReady(windowLike, options) {
-    const target = windowLike || globalThis.window;
+  function waitForFreshAudioRegion(documentLike, options) {
+    const doc = documentLike || globalThis.document;
     const config = options || {};
-    const performanceApi = config.performance || target?.performance;
-    const Observer = config.PerformanceObserver || target?.PerformanceObserver;
-    const notBeforeMs = Number.isFinite(Number(config.notBeforeMs)) ? Number(config.notBeforeMs) : 0;
+    const target = doc?.defaultView || globalThis.window;
+    const Observer = config.MutationObserver || target?.MutationObserver || globalThis.MutationObserver;
+    const selector = String(config.selector || ".audio-peaks .waveform");
+    const previousNode = config.previousNode || null;
     const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 10000;
     const signal = config.signal;
-    if (!performanceApi?.getEntriesByType || typeof Observer !== "function") {
-      return Promise.resolve({ status: "unsupported" });
-    }
+    const root = doc?.documentElement || doc?.body;
+    if (typeof doc?.querySelectorAll !== "function" || !root || typeof Observer !== "function") return Promise.resolve({ status: "unsupported" });
     if (signal?.aborted) return Promise.resolve({ status: "cancelled" });
 
     return new Promise((resolve) => {
       let observer = null;
       let timer = null;
       let settled = false;
-      const setTimer = target?.setTimeout?.bind(target) || globalThis.setTimeout;
-      const clearTimer = target?.clearTimeout?.bind(target) || globalThis.clearTimeout;
-      function finish(status) {
+      const setTimer = config.setTimeout || target?.setTimeout?.bind(target) || globalThis.setTimeout;
+      const clearTimer = config.clearTimeout || target?.clearTimeout?.bind(target) || globalThis.clearTimeout;
+      function finish(status, node) {
         if (settled) return;
         settled = true;
         observer?.disconnect?.();
         if (timer !== null) clearTimer(timer);
         signal?.removeEventListener?.("abort", onAbort);
-        resolve({ status });
+        resolve(node ? { status, node } : { status });
       }
-      function inspect(entries) {
-        if (Array.from(entries || []).some((entry) => isSuccessfulPageResourceEntry(entry, notBeforeMs))) {
-          finish("ready");
-        }
+      function inspect() {
+        const nodes = Array.from(doc.querySelectorAll(selector) || []);
+        if (nodes.length !== 1) return;
+        const node = nodes[0];
+        const rect = node?.getBoundingClientRect?.();
+        if (
+          node === previousNode ||
+          node?.isConnected !== true ||
+          !node.getClientRects?.().length ||
+          !(Number(rect?.width) > 0) ||
+          !(Number(rect?.height) > 0)
+        ) return;
+        finish("ready", node);
       }
       function onAbort() { finish("cancelled"); }
 
       try {
-        observer = new Observer((list) => inspect(list?.getEntries?.()));
-        observer.observe({ type: "resource", buffered: true });
+        observer = new Observer(inspect);
+        observer.observe(root, { childList: true, subtree: true, attributes: true });
         signal?.addEventListener?.("abort", onAbort, { once: true });
-        inspect(performanceApi.getEntriesByType("resource"));
+        inspect();
         if (!settled) timer = setTimer(() => finish("timeout"), timeoutMs);
       } catch (_error) {
         finish("unsupported");
@@ -228,7 +222,7 @@
     };
   }
 
-  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment, waitForPageResourceReady, waitForWaveformReady };
+  const api = { createDomAdapter, createWholeSegment, verifyWholeSegment, waitForFreshAudioRegion, waitForWaveformReady };
   globalThis.__ASREdgeShujiajiaWholeSegmentController = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
