@@ -4,6 +4,7 @@ const {
   requestOmniInputAudio,
   sanitizeProviderErrorSummary,
 } = require("../../../backend/ai/providers/qwen-openai-compatible");
+const { sanitizeProviderDebugPayload } = require("../../../backend/ai/sanitizer");
 const { normalizeUsage } = require("../../../backend/ai/model-response-utils");
 const { estimateProjectCost } = require("../../../backend/ai/model-pricing");
 
@@ -138,16 +139,45 @@ function buildRecommendSuccessBody(context) {
   return Object.assign({ success: true, requestId: text(context?.requestId || context?.normalizedRequest?.requestId) }, result);
 }
 
+function readProviderCode(rawResponse, fallback) {
+  const direct = text(fallback || rawResponse?.providerCode);
+  if (direct) return direct;
+  let responseBody = rawResponse?.responseBody;
+  if (typeof responseBody === "string") {
+    try { responseBody = JSON.parse(responseBody); } catch (_error) { responseBody = null; }
+  }
+  if (!responseBody || typeof responseBody !== "object") return "";
+  return text(responseBody.error?.code || responseBody.code);
+}
+
+function normalizeProviderRawResponse(value) {
+  if (!value || typeof value !== "object") return null;
+  const source = Object.assign({}, value);
+  if (typeof source.responseBody === "string") {
+    try { source.responseBody = JSON.parse(source.responseBody); } catch (_error) {}
+  }
+  return sanitizeProviderDebugPayload(source, { textLimit: 20000 });
+}
+
 function buildRecommendErrorBody(context) {
   const error = context?.error || {};
   const safeMessage = sanitizeProviderErrorSummary(error.safeMessage || error.message)
     .replace(/https?:\/\/\S+/gi, "[url-redacted]");
-  return {
+  const body = {
     success: false,
     requestId: text(context?.requestId || error.requestId),
     code: text(error.code) || "ai-recommend-failed",
     message: safeMessage || "泸州话 AI 识别失败。",
   };
+  const rawResponse = normalizeProviderRawResponse(error.debugRawAiResponse);
+  const providerStatus = Number(error.providerStatus || rawResponse?.providerStatus) || 0;
+  const providerCode = readProviderCode(rawResponse, error.providerCode);
+  const summary = sanitizeProviderErrorSummary(error.summary || "");
+  if (providerStatus) body.providerStatus = providerStatus;
+  if (providerCode) body.providerCode = providerCode;
+  if (summary) body.summary = summary;
+  if (rawResponse) body.rawResponse = rawResponse;
+  return body;
 }
 
 module.exports = {

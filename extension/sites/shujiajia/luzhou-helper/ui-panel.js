@@ -63,6 +63,11 @@
     let statusNode = null;
     let dialectNode = null;
     let metaNode = null;
+    let errorDiagnosticNode = null;
+    let errorMetaNode = null;
+    let errorRawNode = null;
+    let copyErrorButtonNode = null;
+    let errorCopyText = "";
     let observer = null;
     let removed = false;
     const MutationObserverClass = config.MutationObserver || doc.defaultView?.MutationObserver || globalThis.MutationObserver;
@@ -90,6 +95,9 @@
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{display:grid;grid-template-columns:1fr;gap:10px}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result{min-height:72px;padding:9px;background:#252629;border-radius:4px;white-space:pre-wrap;word-break:break-word}",
         "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-meta{margin:8px 0;color:#909399}",
+        "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-error{margin-top:12px;padding:10px;border:1px solid #f56c6c;border-radius:4px;background:#3a2929}",
+        "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-error-meta{margin:6px 0;white-space:pre-wrap;word-break:break-word}",
+        "[data-asc-shujiajia-luzhou-drawer] .asc-sjj-error-raw{max-height:260px;overflow:auto;margin:6px 0;padding:8px;background:#252629;white-space:pre-wrap;word-break:break-all;font:12px/1.5 Consolas,monospace}",
         "@media(max-width:700px){[data-asc-shujiajia-luzhou-drawer] .asc-sjj-result-grid{grid-template-columns:1fr}}",
       ].join("");
       (doc.head || doc.documentElement).appendChild(style);
@@ -139,12 +147,21 @@
       drawer = doc.querySelector(`[${DRAWER_ATTR}]`) || doc.createElement("section");
       drawer.setAttribute(DRAWER_ATTR, "");
       drawer.hidden = false;
-      drawer.innerHTML = "<div class='asc-sjj-title'>AI 识别结果</div><div class='asc-sjj-result-grid'><div><b>泸州方言文本</b><div class='asc-sjj-result' data-role='dialect'></div></div></div><div class='asc-sjj-meta' data-role='meta'>尚未识别</div>";
+      drawer.innerHTML = "<div class='asc-sjj-title'>AI 识别结果</div><div class='asc-sjj-result-grid'><div><b>泸州方言文本</b><div class='asc-sjj-result' data-role='dialect'></div></div></div><div class='asc-sjj-meta' data-role='meta'>尚未识别</div><section class='asc-sjj-error' data-role='error-diagnostic' hidden><b>AI 错误诊断</b><div class='asc-sjj-error-meta' data-role='error-meta'></div><pre class='asc-sjj-error-raw' data-role='error-raw'></pre><button type='button' class='asc-sjj-btn' data-role='copy-error'>复制错误信息</button></section>";
       const fill = wire(createButton(doc, "填入转写", "fillRecognition"));
       fill.classList.add("asc-sjj-primary");
       drawer.append(fill);
       dialectNode = drawer.querySelector("[data-role='dialect']");
       metaNode = drawer.querySelector("[data-role='meta']");
+      errorDiagnosticNode = drawer.querySelector("[data-role='error-diagnostic']");
+      errorMetaNode = drawer.querySelector("[data-role='error-meta']");
+      errorRawNode = drawer.querySelector("[data-role='error-raw']");
+      copyErrorButtonNode = drawer.querySelector("[data-role='copy-error']");
+      copyErrorButtonNode.addEventListener("click", async () => {
+        const writeClipboard = config.writeClipboard || globalThis.navigator?.clipboard?.writeText?.bind(globalThis.navigator.clipboard);
+        if (!errorCopyText || typeof writeClipboard !== "function") return;
+        await writeClipboard(errorCopyText);
+      });
       hosts.results.appendChild(drawer);
       observeMount();
       return Boolean(root.isConnected && drawer.isConnected);
@@ -163,6 +180,27 @@
       dialectNode.textContent = view.dialectText || "（空）";
       metaNode.textContent = view.usageText + " · " + view.costText;
     }
+    function setError(error) {
+      if (!ensureMounted()) return;
+      if (!error || typeof error !== "object") {
+        errorCopyText = "";
+        errorMetaNode.textContent = "";
+        errorRawNode.textContent = "";
+        errorDiagnosticNode.hidden = true;
+        return;
+      }
+      const providerStatus = number(error.providerStatus || error.rawResponse?.providerStatus);
+      const lines = [
+        `错误：${String(error.code || "recognition-failed")} · HTTP ${providerStatus || "未知"}`,
+      ];
+      if (error.providerCode) lines.push(`百炼错误码：${String(error.providerCode)}`);
+      if (error.summary) lines.push(`错误摘要：${String(error.summary)}`);
+      if (error.requestId) lines.push(`requestId：${String(error.requestId)}`);
+      errorMetaNode.textContent = lines.join("\n");
+      errorCopyText = JSON.stringify(error, null, 2);
+      errorRawNode.textContent = errorCopyText;
+      errorDiagnosticNode.hidden = false;
+    }
     function remove() {
       removed = true;
       observer?.disconnect?.();
@@ -172,7 +210,7 @@
       doc.querySelector(`[${RESULT_HOST_ATTR}]`)?.remove();
       root = drawer = null;
     }
-    return { ensureMounted, remove, setActions, setMessage, setResult };
+    return { ensureMounted, remove, setActions, setError, setMessage, setResult };
   }
   const api = { PANEL_ACTIONS, buildResultView, createPanel };
   globalThis.__ASREdgeShujiajiaUiPanel = api;

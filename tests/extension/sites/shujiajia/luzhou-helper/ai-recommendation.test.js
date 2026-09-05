@@ -28,6 +28,16 @@ test("AI client serializes only temporary audio data and the dialect stage", () 
 });
 
 test("AI client preserves the backend error code and request id", async () => {
+  const payload = {
+    success: false,
+    code: "provider-http-error",
+    requestId: "server-request",
+    message: "识别失败",
+    providerStatus: 400,
+    providerCode: "invalid_parameter",
+    summary: "audio format is invalid",
+    rawResponse: { provider: "qwen", responseBody: { error: { code: "invalid_parameter" } } },
+  };
   await assert.rejects(
     client.recognize({
       audioDataUrl: "data:audio/wav;base64,AAAA",
@@ -36,9 +46,12 @@ test("AI client preserves the backend error code and request id", async () => {
       settingsRoot: { meta: { aiUsageOperatorName: "测试人员" } },
       fetchImpl: async () => ({
         ok: false,
-        json: async () => ({ success: false, code: "provider-timeout", requestId: "server-request", message: "识别超时" }),
+        json: async () => payload,
       }),
     }),
-    (error) => error.code === "provider-timeout" && error.requestId === "server-request"
+    (error) =>
+      error.code === "provider-http-error" &&
+      error.requestId === "server-request" &&
+      error.payload === payload
   );
 });

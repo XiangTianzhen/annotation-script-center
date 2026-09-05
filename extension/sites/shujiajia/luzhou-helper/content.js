@@ -93,7 +93,7 @@
     const runtimeApi = config.runtimeApi || globalThis.chrome?.runtime;
     const state = {
       audioDataUrl: "", audioContextId: "", audioStatusCode: "", contextId: "",
-      dirty: false, dirtyToken: "", result: null, resultContextId: "", settings: config.settings || null,
+      dirty: false, dirtyToken: "", result: null, resultContextId: "", error: null, settings: config.settings || null,
       hasSeenContext: false, pendingAutoRecognitionContextId: "",
       autoRecognitionStartedContextId: "",
     };
@@ -251,10 +251,12 @@
           state.audioContextId = "";
           state.result = null;
           state.resultContextId = "";
+          state.error = null;
           state.dirty = false;
           state.dirtyToken = "";
           cancelPendingAutomation();
           panel.setResult?.(null);
+          panel.setError?.(null);
         }
         state.contextId = next;
         state.hasSeenContext = true;
@@ -362,7 +364,9 @@
           }
           state.result = result;
           state.resultContextId = recognitionContextId;
+          state.error = null;
           panel.setResult?.(result);
+          panel.setError?.(null);
           const latestSettings = await refreshSettings(false);
           if (latestSettings?.aiRecommendAutoFillEnabled === true) {
             const fillResult = await actions.fillRecognition({ requireAutoFillEnabled: true, automatic: true });
@@ -371,6 +375,16 @@
           message("识别完成，请确认后填入");
           return { ok: true, result };
         } catch (error) {
+          const errorPayload = error?.payload && typeof error.payload === "object"
+            ? error.payload
+            : {
+                success: false,
+                code: error?.code || "recognition-failed",
+                message: String(error?.message || "识别失败"),
+                requestId: error?.requestId || "",
+              };
+          state.error = errorPayload;
+          panel.setError?.(errorPayload);
           message(String(error?.message || "识别失败"));
           return { ok: false, code: error?.code || "recognition-failed", requestId: error?.requestId || "" };
         } finally {

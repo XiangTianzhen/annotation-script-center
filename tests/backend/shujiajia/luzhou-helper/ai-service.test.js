@@ -81,3 +81,62 @@ test("Shujiajia error response redacts URLs and credential-like values", () => {
   assert.equal(body.message.includes("https://"), false);
   assert.equal(body.message.includes("fake-value"), false);
 });
+
+test("Shujiajia provider errors expose sanitized upstream diagnostics", () => {
+  const service = require(servicePath);
+  const body = service.buildRecommendErrorBody({
+    requestId: "safe-request",
+    error: {
+      code: "provider-http-error",
+      message: "Qwen 接口请求失败（HTTP 400）。",
+      summary: '{"error":{"code":"invalid_parameter","message":"bad audio https://example.invalid/private.wav?token=secret"}}',
+      providerStatus: 400,
+      debugRawAiResponse: {
+        provider: "qwen",
+        model: "qwen3.5-omni-flash",
+        stage: "omni_single",
+        providerStatus: 400,
+        responseBody: '{"error":{"code":"invalid_parameter","message":"bad audio https://example.invalid/private.wav?token=secret","authorization":"Bearer secret-value"}}',
+      },
+    },
+  });
+
+  assert.equal(body.providerStatus, 400);
+  assert.equal(body.providerCode, "invalid_parameter");
+  assert.match(body.summary, /invalid_parameter/);
+  assert.deepEqual(
+    {
+      provider: body.rawResponse.provider,
+      model: body.rawResponse.model,
+      stage: body.rawResponse.stage,
+      providerStatus: body.rawResponse.providerStatus,
+    },
+    {
+      provider: "qwen",
+      model: "qwen3.5-omni-flash",
+      stage: "omni_single",
+      providerStatus: 400,
+    }
+  );
+  const serialized = JSON.stringify(body);
+  assert.equal(serialized.includes("private.wav"), false);
+  assert.equal(serialized.includes("secret-value"), false);
+  assert.equal(serialized.includes("Bearer secret-value"), false);
+});
+
+test("Shujiajia provider raw response is capped at 20000 characters", () => {
+  const service = require(servicePath);
+  const body = service.buildRecommendErrorBody({
+    error: {
+      code: "provider-http-error",
+      message: "Qwen failed",
+      debugRawAiResponse: {
+        provider: "qwen",
+        providerStatus: 400,
+        responseBody: "x".repeat(25000),
+      },
+    },
+  });
+
+  assert.equal(body.rawResponse.responseBody.length, 20000);
+});

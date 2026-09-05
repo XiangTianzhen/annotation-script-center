@@ -40,6 +40,8 @@
 
 POST 只接受临时 `audioDataUrl`、requestId、AI 使用人和 `aiStages.listen` 安全模型配置。模型请求超时上限固定为 `60000ms`。响应以 `dialectText` 为规范结果字段，同时返回内容相同的 `refinedText` 兼容别名；`usage`、`cost` 和 `timing` 只统计单阶段调用。旧整理模型与 Prompt 仍保留在本地存储中，但 Options 不显示、请求不发送、后端不使用。
 
+Qwen 上游请求失败时，错误响应除 `success / requestId / code / message` 外，可返回 `providerStatus / providerCode / summary / rawResponse`。`rawResponse` 仅包含 provider、model、stage、状态码和百炼响应体的脱敏副本，单个文本字段最多保留 `20000` 字符；API Key、Authorization、Cookie、Token、签名参数和完整 URL 会被移除，不返回 Prompt、音频 Base64 或请求头。
+
 ## 音频边界
 
 `taskId` 来自 execute 请求查询参数，`dataId` 与音频地址分别来自响应的 `data.detail.dataId`、`data.detail.fileFolder`。只接受 `https://storage.shujiajia.com/` 的完整 HTTPS 地址。页面初始化响应可在脚本设置加载期间暂存为 MAIN world 最小快照，确认启用后立即消费；禁用或切题时清除，不主动重放 execute 请求。页面世界以不携带 Cookie、无 Referer 的方式读取音频，兼容已有的被动音频响应捕获；字节仅保存在页面内存和单次 AI 请求体中，并绑定当前 `taskId + dataId`。原始地址不跨世界、不持久化、不进入日志或资料文件，失败状态只传递上下文与脱敏错误码。

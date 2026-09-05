@@ -330,6 +330,67 @@ test("recognition success keeps the result without filling when auto-fill is dis
   assert.equal(runtime.getState().dirty, false);
 });
 
+test("recognition diagnostics survive failure, clear on success, and reset after switching items", async () => {
+  const listeners = {};
+  const errorStates = [];
+  let calls = 0;
+  const failurePayload = {
+    success: false,
+    requestId: "request-400",
+    code: "provider-http-error",
+    message: "Qwen 接口请求失败（HTTP 400）。",
+    providerStatus: 400,
+    rawResponse: { provider: "qwen", responseBody: { error: { code: "invalid_parameter" } } },
+  };
+  const runtime = content.createRuntime({
+    window: { addEventListener(type, fn) { listeners[type] = fn; } },
+    document: {},
+    settings: { enabled: true, aiRecommendEnabled: true, aiRecommendAutoFillEnabled: false, shortcuts: {} },
+    aiClient: {
+      async recognize() {
+        calls += 1;
+        if (calls === 1) {
+          const error = new Error(failurePayload.message);
+          error.code = failurePayload.code;
+          error.requestId = failurePayload.requestId;
+          error.payload = failurePayload;
+          throw error;
+        }
+        return { dialectText: "新识别文本" };
+      },
+    },
+    panel: {
+      ensureMounted() { return true; },
+      setActions() {},
+      setMessage() {},
+      setResult() {},
+      setError(value) { errorStates.push(value); },
+    },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  runtime.setRecognitionResult({ dialectText: "旧识别文本" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.AUDIO_READY, payload: { contextId: "task:item", audioDataUrl: "data:audio/wav;base64,AAAA" } }, origin: "" });
+
+  const failed = await runtime.actions.recognizeWhole();
+  assert.equal(failed.ok, false);
+  assert.equal(runtime.getState().result.dialectText, "旧识别文本");
+  assert.equal(runtime.getState().error, failurePayload);
+  assert.equal(errorStates.at(-1), failurePayload);
+
+  const succeeded = await runtime.actions.recognizeWhole();
+  assert.equal(succeeded.ok, true);
+  assert.equal(runtime.getState().error, null);
+  assert.equal(errorStates.at(-1), null);
+
+  runtime.setRecognitionResult({ dialectText: "保留到切题前" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:next" } }, origin: "" });
+  assert.equal(runtime.getState().result, null);
+  assert.equal(runtime.getState().error, null);
+  assert.equal(errorStates.at(-1), null);
+});
+
 test("automatic fill rechecks the switch immediately before writing", async () => {
   const listeners = {};
   let settingsReads = 0;

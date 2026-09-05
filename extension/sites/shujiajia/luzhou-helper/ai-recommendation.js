@@ -62,6 +62,7 @@
       const error = new Error(String(body.message || "泸州话 AI 识别失败。"));
       error.code = String(body.code || "recommend-request-failed");
       error.requestId = String(body.requestId || "");
+      error.payload = body;
       throw error;
     }
     return body.data && typeof body.data === "object" ? body.data : body;

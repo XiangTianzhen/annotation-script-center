@@ -80,6 +80,52 @@ test("recognition result stays visible without expand or close controls", () => 
   assert.equal(result.querySelector("[data-role='meta']").textContent, "尚未识别");
 });
 
+test("panel shows and copies detailed AI error diagnostics without clearing recognition text", async () => {
+  const dom = createPlatformDom();
+  const document = dom.window.document;
+  const copied = [];
+  const runtime = panel.createPanel({
+    document,
+    writeClipboard: async (value) => copied.push(value),
+  });
+  runtime.ensureMounted();
+  runtime.setResult({ dialectText: "保留的识别文本" });
+  runtime.setError({
+    success: false,
+    requestId: "request-400",
+    code: "provider-http-error",
+    message: "Qwen 接口请求失败（HTTP 400）。",
+    providerStatus: 400,
+    providerCode: "invalid_parameter",
+    summary: "audio format is invalid",
+    rawResponse: {
+      provider: "qwen",
+      model: "qwen3.5-omni-flash",
+      stage: "omni_single",
+      providerStatus: 400,
+      responseBody: { error: { code: "invalid_parameter", message: "audio format is invalid" } },
+    },
+  });
+
+  const drawer = document.querySelector("[data-asc-shujiajia-luzhou-drawer]");
+  const diagnostic = drawer.querySelector("[data-role='error-diagnostic']");
+  assert.equal(diagnostic.hidden, false);
+  assert.match(diagnostic.textContent, /AI 错误诊断/);
+  assert.match(diagnostic.textContent, /HTTP 400/);
+  assert.match(diagnostic.textContent, /invalid_parameter/);
+  assert.match(diagnostic.textContent, /request-400/);
+  assert.match(diagnostic.querySelector("[data-role='error-raw']").textContent, /audio format is invalid/);
+  assert.equal(drawer.querySelector("[data-role='dialect']").textContent, "保留的识别文本");
+
+  diagnostic.querySelector("[data-role='copy-error']").click();
+  await Promise.resolve();
+  assert.equal(copied.length, 1);
+  assert.match(copied[0], /"providerCode": "invalid_parameter"/);
+
+  runtime.setError(null);
+  assert.equal(diagnostic.hidden, true);
+});
+
 test("zero-segment layout uses extension-owned fallback hosts", () => {
   const dom = new JSDOM("<body><div class='form-tabs'><div class='border-line'></div></div><div class='operate-container'><div class='paragraph'></div></div></body>");
   const document = dom.window.document;
