@@ -108,6 +108,8 @@
     let pendingExecuteSnapshot = null;
     let executeSequence = 0;
     let lifecycleGeneration = 0;
+    const xhrMetadata = new WeakMap();
+    const observedXhrs = new WeakSet();
 
     function setContext(nextContextId) {
       const next = String(nextContextId || "");
@@ -254,39 +256,47 @@
       const NativeXhr = target.XMLHttpRequest;
       if (NativeXhr?.prototype) {
         const open = NativeXhr.prototype.open;
-        const send = NativeXhr.prototype.send;
         NativeXhr.prototype.open = function (_method, url) {
-          this.__ascShujiajiaUrl = String(url || "");
-          this.__ascShujiajiaMethod = String(_method || "GET").toUpperCase();
-          return open.apply(this, arguments);
-        };
-        NativeXhr.prototype.send = function () {
           const xhr = this;
-          xhr.__ascShujiajiaContextId = contextId;
-          xhr.addEventListener?.("load", function () {
-            const rawUrl = xhr.__ascShujiajiaUrl;
-            if ((isExecuteUrl(rawUrl) && xhr.__ascShujiajiaMethod === "GET") || isTempSaveUrl(rawUrl)) {
-              let body = null;
-              try { body = typeof xhr.response === "object" ? xhr.response : JSON.parse(xhr.responseText || "null"); } catch (_error) {}
-              void handleJsonResponse(rawUrl, xhr.status, body, xhr.__ascShujiajiaMethod);
-              return;
-            }
-            if (!enabled) return;
-            const mime = getAudioMime(xhr.getResponseHeader?.("content-type"), rawUrl);
-            const requestContextId = String(xhr.__ascShujiajiaContextId || "");
-            if (!requestContextId || requestContextId !== contextId || !mime) return;
-            const value = xhr.response;
-            const promise = value instanceof ArrayBuffer ? Promise.resolve(value) : value?.arrayBuffer ? value.arrayBuffer() : Promise.resolve(null);
-            void promise.then(function (buffer) {
-              const audioDataUrl = bufferToAudioDataUrl(buffer, mime);
-              if (!audioDataUrl) return;
-              latestAudioDataUrl = audioDataUrl;
-              audioFetchContextId = requestContextId;
-              if (requestContextId !== contextId) return;
-              emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: requestContextId, audioDataUrl: latestAudioDataUrl } });
-            }).catch(function () {});
+          const result = open.apply(xhr, arguments);
+          xhrMetadata.set(xhr, {
+            rawUrl: String(url || ""),
+            method: String(_method || "GET").toUpperCase(),
+            requestContextId: "",
           });
-          return send.apply(this, arguments);
+          if (!observedXhrs.has(xhr)) {
+            observedXhrs.add(xhr);
+            xhr.addEventListener?.("loadstart", function () {
+              const meta = xhrMetadata.get(xhr);
+              if (meta) meta.requestContextId = contextId;
+            });
+            xhr.addEventListener?.("load", function () {
+              const meta = xhrMetadata.get(xhr) || {};
+              const rawUrl = String(meta.rawUrl || "");
+              const method = String(meta.method || "GET").toUpperCase();
+              if ((isExecuteUrl(rawUrl) && method === "GET") || isTempSaveUrl(rawUrl)) {
+                let body = null;
+                try { body = typeof xhr.response === "object" ? xhr.response : JSON.parse(xhr.responseText || "null"); } catch (_error) {}
+                void handleJsonResponse(rawUrl, xhr.status, body, method);
+                return;
+              }
+              if (!enabled) return;
+              const mime = getAudioMime(xhr.getResponseHeader?.("content-type"), rawUrl);
+              const requestContextId = String(meta.requestContextId || "");
+              if (!requestContextId || requestContextId !== contextId || !mime) return;
+              const value = xhr.response;
+              const promise = value instanceof ArrayBuffer ? Promise.resolve(value) : value?.arrayBuffer ? value.arrayBuffer() : Promise.resolve(null);
+              void promise.then(function (buffer) {
+                const audioDataUrl = bufferToAudioDataUrl(buffer, mime);
+                if (!audioDataUrl) return;
+                latestAudioDataUrl = audioDataUrl;
+                audioFetchContextId = requestContextId;
+                if (requestContextId !== contextId) return;
+                emit({ source: SOURCE, type: AUDIO_READY, payload: { contextId: requestContextId, audioDataUrl: latestAudioDataUrl } });
+              }).catch(function () {});
+            });
+          }
+          return result;
         };
       }
     }

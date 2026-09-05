@@ -48,7 +48,7 @@
 | 段落有效性 | 当前段落属性区内“有效 / 无效”单选语义 | 中 | 只允许用户显式设置 |
 | 助手控制区 | `.form-tabs .tabs-container`，缺失时 `.form-tabs` | 中 | 正式节点出现后自动迁回，不移动已有子节点 |
 | 助手结果区 | `.operate-container .transfer`，缺失时 `.operate-container` 内 `.paragraph` 前的扩展专属占位区 | 中 | 始终显示；正式节点出现后迁回并清理空占位区 |
-| 编辑器加载标记 | `https://template.shujiajia.com/dist/{version}/multi-audio4/fonts/element-icons.woff` | 中 | 仅用于切题自动划段；要求本次切题后成功完成，不锁定版本号或查询参数 |
+| 编辑器加载标记 | `https://template.shujiajia.com/dist/{version}/multi-audio4/fonts/element-icons.woff` | 中 | 仅被动读取 Resource Timing 用于切题自动划段；扩展不发起字体、WASM 或 favicon 请求，要求本次切题后成功完成且不锁定版本号或查询参数 |
 | Peaks.js 波形 | `.audio-peaks .waveform`，内部为 `#peaks-waveform` Canvas | 中 | 画段前重新读取可见尺寸；段落本身不提供 Wavesurfer region DOM |
 | 当前段边界 | 可见文字“段落…区域:【开始 结束】…时长” | 中 | 与表格唯一行共同验证，兼容中英文括号和可选逗号 |
 | 播放/暂停 | `.center .pause` | 中 | 使用平台原生控件或平台快捷键 |
@@ -58,6 +58,7 @@
 
 - `#bdIframe` 会随切题或模板初始化重新加载，旧 `contentDocument` 和节点引用会失效。
 - 切题上下文可能早于编辑器资源加载完成；旧页面波形即使仍可读，也不能作为新条目自动划段的就绪依据。
+- 平台 XHR 保持原生 `send`；扩展只借助 `open` 与生命周期事件观察必要响应，`templateTypeSummary.json` 等无关请求不进入扩展业务处理。
 - 分段表格增删段落后可能整表重绘，行索引不应作为段落身份。
 - Peaks.js 使用 Canvas 绘制波形和选区，不能通过 `.wavesurfer-region`、临时 DOM ID 或节点几何读取段落。
 - 输入、选段和波形操作会触发平台事件链；是否发生平台内部自动暂存不作为扩展成功依据，直接赋值也不能代表真实写入成功。

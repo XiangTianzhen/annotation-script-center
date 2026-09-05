@@ -2,6 +2,8 @@
 
 ## 2026-09-05
 
+- 修复(shujiajia): MAIN world 网络观察器不再替换全局 `XMLHttpRequest.prototype.send`；改为仅包装 `open`，通过私有 `WeakMap` 和 `loadstart/load` 观察必要响应，避免 `templateTypeSummary.json` 等无关平台请求经过扩展 `send` 调用边界。
+- 测试(shujiajia): 覆盖原生 XHR `send` 引用保持、无关请求零扩展消息、复用实例单次处理、tempsave 业务成功及旧题音频响应丢弃；明确字体门禁只读取既有 Resource Timing，不主动请求字体、WASM 或 favicon。
 - 修复(shujiajia): “进入新条目后自动划整段”不再因旧页面波形可读而提前拖拽；现在按本次切题性能时间点等待版本无关的 `element-icons.woff` 成功 Resource Timing，再检查波形。旧记录、失败状态和无关资源不放行，10 秒未就绪严格取消；切题、关闭开关或禁用脚本会取消旧等待，手动画段保持原流程。
 - 测试(shujiajia): 覆盖资源完成前不画段、切题前旧记录、版本与查询参数兼容、失败及无关资源、缓存成功、超时、取消、资源后波形顺序和手动入口不受影响。
 - 优化(shujiajia): 使用实测效果更好的直接听音规则替换泸州话单阶段默认 Prompt，强调原音优先、禁止同义替换、保留方言细节、内部复听及专名/数字/英文/标点规范；为适配现有 `dialectText` 直填链路，将原文 JSON 输出要求收口为最终纯文本。已保存的自定义 Prompt 不受影响。

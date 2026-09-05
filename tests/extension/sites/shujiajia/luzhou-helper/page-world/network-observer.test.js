@@ -6,6 +6,50 @@ const { resolveRepo } = require("#repo-paths");
 
 const observer = require(resolveRepo("extension", "sites", "shujiajia", "luzhou-helper", "page-world", "network-observer.js"));
 
+function createFakeXhrClass() {
+  return class FakeXMLHttpRequest {
+    constructor() {
+      this.listeners = new Map();
+      this.status = 0;
+      this.response = null;
+      this.responseText = "";
+      this.responseHeaders = {};
+      this.sendCount = 0;
+    }
+
+    addEventListener(type, listener) {
+      const listeners = this.listeners.get(type) || [];
+      listeners.push(listener);
+      this.listeners.set(type, listeners);
+    }
+
+    open(method, url) {
+      this.method = method;
+      this.url = url;
+    }
+
+    send() {
+      this.sendCount += 1;
+      this.dispatch("loadstart");
+      this.dispatch("load");
+    }
+
+    dispatch(type) {
+      for (const listener of this.listeners.get(type) || []) listener.call(this, { type });
+    }
+
+    getResponseHeader(name) {
+      return this.responseHeaders[String(name || "").toLowerCase()] || "";
+    }
+  };
+}
+
+async function flushAsyncWork() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+}
+
 test("execute request URL supplies taskId when response body only has detail dataId", async () => {
   const messages = [];
   const calls = [];
@@ -115,6 +159,99 @@ test("observer installs a dormant request wrapper before explicit enable", () =>
   const wrappedFetch = windowLike.fetch;
   instance.enable(windowLike);
   assert.equal(windowLike.fetch, wrappedFetch);
+});
+
+test("XHR observation preserves native send and ignores unrelated platform requests", async () => {
+  const messages = [];
+  const FakeXMLHttpRequest = createFakeXhrClass();
+  const nativeSend = FakeXMLHttpRequest.prototype.send;
+  const windowLike = { XMLHttpRequest: FakeXMLHttpRequest, addEventListener() {} };
+  const instance = observer.createObserver({ emit: (message) => messages.push(message) });
+
+  instance.installController(windowLike);
+
+  assert.equal(FakeXMLHttpRequest.prototype.send, nativeSend);
+  const xhr = new FakeXMLHttpRequest();
+  xhr.status = 200;
+  xhr.response = { templateTypes: [] };
+  xhr.open("GET", "https://template.shujiajia.com/dist/templateTypeSummary.json");
+  xhr.send();
+  await flushAsyncWork();
+
+  assert.equal(xhr.sendCount, 1);
+  assert.equal(Object.keys(xhr).some((key) => key.startsWith("__ascShujiajia")), false);
+  assert.deepEqual(messages, []);
+});
+
+test("XHR observation handles reused instances once per execute response", async () => {
+  const messages = [];
+  const FakeXMLHttpRequest = createFakeXhrClass();
+  const windowLike = { XMLHttpRequest: FakeXMLHttpRequest, addEventListener() {} };
+  const instance = observer.createObserver({ emit: (message) => messages.push(message) });
+  await instance.enable(windowLike);
+  const xhr = new FakeXMLHttpRequest();
+
+  xhr.status = 200;
+  xhr.response = { data: { detail: { dataId: "first" } } };
+  xhr.open("GET", "/web-task-alone-api/task/piece/execute?taskId=task");
+  xhr.send();
+  await flushAsyncWork();
+  xhr.response = { data: { detail: { dataId: "second" } } };
+  xhr.open("GET", "/web-task-alone-api/task/piece/execute?taskId=task");
+  xhr.send();
+  await flushAsyncWork();
+
+  assert.deepEqual(
+    messages.filter((message) => message.type === observer.constants.CONTEXT_READY).map((message) => message.payload.contextId),
+    ["task:first", "task:second"]
+  );
+});
+
+test("XHR observation confirms only a matching successful temporary save", async () => {
+  const messages = [];
+  const FakeXMLHttpRequest = createFakeXhrClass();
+  const windowLike = { XMLHttpRequest: FakeXMLHttpRequest, addEventListener() {} };
+  const instance = observer.createObserver({ emit: (message) => messages.push(message) });
+  await instance.enable(windowLike);
+  instance.setContext("task:item");
+  messages.length = 0;
+  instance.setSaveIntent({ contextId: "task:item", dirtyToken: "save-1" });
+  const xhr = new FakeXMLHttpRequest();
+  xhr.status = 200;
+  xhr.response = { success: true };
+
+  xhr.open("POST", "/web-task-alone-api/task/piece/execute/tempsave");
+  xhr.send();
+  await flushAsyncWork();
+
+  assert.deepEqual(messages, [{
+    source: observer.constants.SOURCE,
+    type: observer.constants.TEMP_SAVE_SUCCEEDED,
+    payload: { ok: true, contextId: "task:item", dirtyToken: "save-1" },
+  }]);
+});
+
+test("XHR observation drops audio whose load started on the previous item", async () => {
+  const messages = [];
+  const FakeXMLHttpRequest = createFakeXhrClass();
+  const windowLike = { XMLHttpRequest: FakeXMLHttpRequest, addEventListener() {} };
+  const instance = observer.createObserver({ emit: (message) => messages.push(message) });
+  await instance.enable(windowLike);
+  instance.setContext("task:old");
+  messages.length = 0;
+  const xhr = new FakeXMLHttpRequest();
+  xhr.status = 200;
+  xhr.response = Uint8Array.from([1, 2, 3]).buffer;
+  xhr.responseHeaders["content-type"] = "audio/wav";
+
+  xhr.open("GET", "https://storage.shujiajia.com/store/old.wav");
+  xhr.dispatch("loadstart");
+  instance.setContext("task:new");
+  messages.length = 0;
+  xhr.dispatch("load");
+  await flushAsyncWork();
+
+  assert.deepEqual(messages, []);
 });
 
 test("observer consumes the latest execute snapshot after delayed enable", async () => {
