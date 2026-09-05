@@ -2,6 +2,7 @@
 
 ## 2026-09-05
 
+- 优化(shujiajia): 使用实测效果更好的直接听音规则替换泸州话单阶段默认 Prompt，强调原音优先、禁止同义替换、保留方言细节、内部复听及专名/数字/英文/标点规范；为适配现有 `dialectText` 直填链路，将原文 JSON 输出要求收口为最终纯文本。已保存的自定义 Prompt 不受影响。
 - 重构(backend): DashScope 凭据收口为唯一 `config/secrets/dashscope-key.env`，Qwen、Qwen Python、Fun-ASR REST/Python 与杭州话客户端共用同一读取入口；缺失或无效配置安全返回 503，不再回退旧双密钥文件、活动状态、AI env 或进程环境变量。
 - 移除(options): 删除双密钥管理路由、活动槽位状态及 Options 密钥选择/保存功能；服务器旧私有文件只按文档人工迁移，本次不执行删除。
 - 优化(ai): 所有公共 provider 统一翻译已知阿里云错误，精确 `good standing` 欠费原文优先于参数错误码；未知上游错误显示脱敏原文，断网和超时维持原网络诊断。
