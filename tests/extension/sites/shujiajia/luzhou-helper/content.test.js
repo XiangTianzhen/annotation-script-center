@@ -468,10 +468,10 @@ test("duplicate recognition triggers for the same item start only one AI request
 test("editor runtime skips the initial context and auto-draws each later context only once", async () => {
   const listeners = {};
   let drawCalls = 0;
-  const initialWaveform = {};
+  let panelRevision = 1;
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: { querySelectorAll: () => [initialWaveform] },
+    document: {},
     settings: {
       enabled: true,
       autoCreateWholeSegmentOnNewItemEnabled: true,
@@ -480,12 +480,17 @@ test("editor runtime skips the initial context and auto-draws each later context
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshAudioRegion(_documentLike, options) {
-        return { status: "ready", node: options.previousNode === initialWaveform ? {} : initialWaveform };
+      async waitForFreshResultPanel(_documentLike, options) {
+        panelRevision = Math.max(panelRevision, options.afterRevision + 1);
+        return { status: "ready", revision: panelRevision };
       },
       async createWholeSegment() { drawCalls += 1; return { ok: true, code: "whole-segment-created", pageChanged: true }; },
     },
-    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    panel: {
+      ensureMounted() { return true; },
+      getResultPanelMountState() { return { node: {}, revision: panelRevision }; },
+      setActions() {}, setMessage() {},
+    },
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
@@ -508,12 +513,12 @@ test("editor runtime skips the initial context and auto-draws each later context
   assert.equal(drawCalls, 2);
 });
 
-test("new-item auto-draw waits for a fresh audio region before checking the waveform", async () => {
+test("new-item auto-draw waits for a fresh result-panel mount before checking the waveform", async () => {
   const listeners = {};
-  const initialWaveform = {};
-  const nextWaveform = {};
-  let releaseAudioRegion;
-  let audioRegionCalls = 0;
+  const runtimeDocument = {};
+  const resultPanel = {};
+  let releaseResultPanel;
+  let resultPanelCalls = 0;
   let waveformCalls = 0;
   let drawCalls = 0;
   const runtime = content.createRuntime({
@@ -521,7 +526,7 @@ test("new-item auto-draw waits for a fresh audio region before checking the wave
       top: {},
       addEventListener(type, fn) { listeners[type] = fn; },
     },
-    document: { querySelectorAll: () => [initialWaveform] },
+    document: runtimeDocument,
     settings: {
       enabled: true,
       autoCreateWholeSegmentOnNewItemEnabled: true,
@@ -530,16 +535,21 @@ test("new-item auto-draw waits for a fresh audio region before checking the wave
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      waitForFreshAudioRegion(documentLike, options) {
-        audioRegionCalls += 1;
-        assert.equal(documentLike.querySelectorAll()[0], initialWaveform);
-        assert.equal(options.previousNode, initialWaveform);
-        return new Promise((resolve) => { releaseAudioRegion = resolve; });
+      waitForFreshResultPanel(documentLike, options) {
+        resultPanelCalls += 1;
+        assert.equal(documentLike, runtimeDocument);
+        assert.equal(options.afterRevision, 1);
+        assert.equal(options.getMountState().node, resultPanel);
+        return new Promise((resolve) => { releaseResultPanel = resolve; });
       },
       async waitForWaveformReady() { waveformCalls += 1; return true; },
       async createWholeSegment() { drawCalls += 1; return { ok: true, code: "whole-segment-created", pageChanged: true }; },
     },
-    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    panel: {
+      ensureMounted() { return true; },
+      getResultPanelMountState() { return { node: resultPanel, revision: 1 }; },
+      setActions() {}, setMessage() {},
+    },
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
@@ -547,55 +557,57 @@ test("new-item auto-draw waits for a fresh audio region before checking the wave
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
   await flushAsyncWork();
 
-  assert.equal(audioRegionCalls, 1);
+  assert.equal(resultPanelCalls, 1);
   assert.equal(waveformCalls, 0);
   assert.equal(drawCalls, 0);
 
-  releaseAudioRegion({ status: "ready", node: nextWaveform });
+  releaseResultPanel({ status: "ready", revision: 2 });
   await flushAsyncWork();
   assert.equal(waveformCalls, 1);
   assert.equal(drawCalls, 1);
 });
 
-test("initial context records a waveform that appears after its context message", async () => {
+test("initial context records a result panel that mounts after its context message", async () => {
   const listeners = {};
-  const initialWaveform = {};
-  const nextWaveform = {};
   const releases = [];
-  const previousNodes = [];
+  const previousRevisions = [];
   let drawCalls = 0;
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: { querySelectorAll: () => [] },
+    document: {},
     settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
     segmentController: {
       createDomAdapter() { return {}; },
-      waitForFreshAudioRegion(_documentLike, options) {
-        previousNodes.push(options.previousNode);
+      waitForFreshResultPanel(_documentLike, options) {
+        previousRevisions.push(options.afterRevision);
         return new Promise((resolve) => { releases.push(resolve); });
       },
       async createWholeSegment() { drawCalls += 1; return { ok: true }; },
     },
-    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    panel: {
+      ensureMounted() { return true; },
+      getResultPanelMountState() { return { node: null, revision: 0 }; },
+      setActions() {}, setMessage() {},
+    },
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
 
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   await flushAsyncWork();
-  assert.deepEqual(previousNodes, [null]);
-  releases[0]({ status: "ready", node: initialWaveform });
+  assert.deepEqual(previousRevisions, [0]);
+  releases[0]({ status: "ready", revision: 1 });
   await flushAsyncWork();
 
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
   await flushAsyncWork();
-  assert.equal(previousNodes[1], initialWaveform);
-  releases[1]({ status: "ready", node: nextWaveform });
+  assert.equal(previousRevisions[1], 1);
+  releases[1]({ status: "ready", revision: 2 });
   await flushAsyncWork();
   assert.equal(drawCalls, 1);
 });
 
-test("new-item auto-draw fails closed when the audio region is not ready", async () => {
+test("new-item auto-draw fails closed when the result panel is not ready", async () => {
   const listeners = {};
   const messages = [];
   let drawCalls = 0;
@@ -605,8 +617,8 @@ test("new-item auto-draw fails closed when the audio region is not ready", async
     settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshAudioRegion() { return { status: "timeout" }; },
-      async waitForWaveformReady() { throw new Error("waveform must not be checked after an audio-region timeout"); },
+      async waitForFreshResultPanel() { return { status: "timeout" }; },
+      async waitForWaveformReady() { throw new Error("waveform must not be checked after a result-panel timeout"); },
       async createWholeSegment() { drawCalls += 1; return { ok: true }; },
     },
     panel: { ensureMounted() { return true; }, setActions() {}, setMessage(value) { messages.push(value); } },
@@ -618,10 +630,10 @@ test("new-item auto-draw fails closed when the audio region is not ready", async
   await flushAsyncWork();
 
   assert.equal(drawCalls, 0);
-  assert.equal(messages.at(-1), "音频区域未就绪，本题未自动划段");
+  assert.equal(messages.at(-1), "AI 识别结果区域未就绪，本题未自动划段");
 });
 
-test("switching items cancels the previous audio-region wait", async () => {
+test("switching items cancels the previous result-panel wait", async () => {
   const listeners = {};
   const signals = [];
   let drawCalls = 0;
@@ -631,7 +643,7 @@ test("switching items cancels the previous audio-region wait", async () => {
     settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, shortcuts: {} },
     segmentController: {
       createDomAdapter() { return {}; },
-      waitForFreshAudioRegion(_documentLike, options) {
+      waitForFreshResultPanel(_documentLike, options) {
         signals.push(options.signal);
         return new Promise((resolve) => options.signal.addEventListener("abort", () => resolve({ status: "cancelled" }), { once: true }));
       },
@@ -693,7 +705,7 @@ test("successful auto-draw waits for matching audio before recognizing", async (
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshAudioRegion() { return { status: "ready", node: {} }; },
+      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -727,7 +739,7 @@ test("successful helper-button draw also starts enabled automatic recognition", 
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshAudioRegion() { return { status: "ready", node: {} }; },
+      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -758,7 +770,7 @@ test("audio failure cancels queued recognition for the current context", async (
     },
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshAudioRegion() { return { status: "ready", node: {} }; },
+      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -805,7 +817,7 @@ test("disabling automatic recognition cancels its queued call before audio arriv
     settings: settingsRoot.platforms.shujiajia.scripts.luzhouHelper,
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshAudioRegion() { return { status: "ready", node: {} }; },
+      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       async createWholeSegment() { return { ok: true, code: "whole-segment-created", pageChanged: true }; },
       verifyWholeSegment() { return { ok: true }; },
     },
@@ -860,7 +872,7 @@ test("disabling new-item auto-draw while waiting for the waveform prevents trust
     settings: settingsRoot.platforms.shujiajia.scripts.luzhouHelper,
     segmentController: {
       createDomAdapter() { return {}; },
-      async waitForFreshAudioRegion() { return { status: "ready", node: {} }; },
+      async waitForFreshResultPanel() { return { status: "ready", revision: 2 }; },
       waitForWaveformReady() { return new Promise((resolve) => { releaseWaveform = resolve; }); },
       async createWholeSegment() { drawCalls += 1; return { ok: true }; },
     },

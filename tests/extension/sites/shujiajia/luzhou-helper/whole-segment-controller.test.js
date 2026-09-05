@@ -10,18 +10,20 @@ function flushAsyncWork() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-function createAudioRegion(width = 843, height = 172) {
+function createResultPanel(width = 843, height = 172) {
   return {
     isConnected: true,
+    hidden: false,
     getClientRects: () => width > 0 && height > 0 ? [{}] : [],
     getBoundingClientRect: () => ({ width, height }),
   };
 }
 
-function createAudioRegionHarness(initialNodes) {
+function createResultPanelHarness(initialNodes, initialState) {
   let observerCallback = null;
   let disconnected = false;
   let nodes = Array.from(initialNodes || []);
+  let mountState = initialState || { node: nodes[0] || null, revision: 0 };
   class FakeMutationObserver {
     constructor(callback) { observerCallback = callback; }
     observe() {}
@@ -32,71 +34,91 @@ function createAudioRegionHarness(initialNodes) {
       documentElement: {},
       defaultView: { MutationObserver: FakeMutationObserver, setTimeout, clearTimeout },
       querySelectorAll(selector) {
-        assert.equal(selector, ".audio-peaks .waveform");
+        assert.equal(selector, "[data-asc-shujiajia-luzhou-drawer]");
         return nodes.slice();
       },
     },
-    replace(nextNodes) {
+    getMountState() { return mountState; },
+    replace(nextNodes, nextState = mountState) {
       nodes = Array.from(nextNodes || []);
+      mountState = nextState;
       observerCallback?.([]);
     },
     wasDisconnected() { return disconnected; },
   };
 }
 
-test("audio readiness ignores the previous waveform until a fresh visible node is created", async () => {
-  assert.equal(typeof controller.waitForFreshAudioRegion, "function", "controller must expose the DOM readiness gate");
-  const previousNode = createAudioRegion();
-  const nextNode = createAudioRegion();
-  const harness = createAudioRegionHarness([previousNode]);
+test("result-panel readiness ignores a still-mounted old generation", async () => {
+  assert.equal(typeof controller.waitForFreshResultPanel, "function", "controller must expose the result-panel readiness gate");
+  const panel = createResultPanel();
+  const harness = createResultPanelHarness([panel], { node: panel, revision: 3 });
   let settled = false;
-  const pending = controller.waitForFreshAudioRegion(harness.document, { previousNode, timeoutMs: 1000 })
+  const pending = controller.waitForFreshResultPanel(harness.document, {
+    afterRevision: 3,
+    getMountState: harness.getMountState,
+    timeoutMs: 1000,
+  })
     .then((value) => { settled = true; return value; });
 
   await flushAsyncWork();
   assert.equal(settled, false);
-  harness.replace([nextNode]);
+  harness.replace([panel], { node: panel, revision: 4 });
 
-  assert.deepEqual(await pending, { status: "ready", node: nextNode });
+  assert.deepEqual(await pending, { status: "ready", revision: 4 });
   assert.equal(harness.wasDisconnected(), true);
 });
 
-test("audio readiness immediately accepts a fresh node created before the context message", async () => {
-  const previousNode = createAudioRegion();
-  const nextNode = createAudioRegion();
-  const harness = createAudioRegionHarness([nextNode]);
+test("result-panel readiness immediately accepts a remount before the context message", async () => {
+  const panel = createResultPanel();
+  const harness = createResultPanelHarness([panel], { node: panel, revision: 7 });
   assert.deepEqual(
-    await controller.waitForFreshAudioRegion(harness.document, { previousNode, timeoutMs: 1000 }),
-    { status: "ready", node: nextNode }
+    await controller.waitForFreshResultPanel(harness.document, {
+      afterRevision: 6,
+      getMountState: harness.getMountState,
+      timeoutMs: 1000,
+    }),
+    { status: "ready", revision: 7 }
   );
 });
 
-test("audio readiness rejects hidden, disconnected, and ambiguous waveform matches", async () => {
-  const previousNode = createAudioRegion();
-  const harness = createAudioRegionHarness([createAudioRegion(0, 172)]);
-  const pending = controller.waitForFreshAudioRegion(harness.document, { previousNode, timeoutMs: 1000 });
-  const disconnectedNode = createAudioRegion();
+test("result-panel readiness rejects hidden, disconnected, zero-size, and ambiguous matches", async () => {
+  const zeroSize = createResultPanel(0, 172);
+  const harness = createResultPanelHarness([zeroSize], { node: zeroSize, revision: 2 });
+  const pending = controller.waitForFreshResultPanel(harness.document, {
+    afterRevision: 1,
+    getMountState: harness.getMountState,
+    timeoutMs: 1000,
+  });
+  const disconnectedNode = createResultPanel();
   disconnectedNode.isConnected = false;
-  harness.replace([disconnectedNode]);
-  const first = createAudioRegion();
-  const second = createAudioRegion();
-  harness.replace([first, second]);
+  harness.replace([disconnectedNode], { node: disconnectedNode, revision: 3 });
+  const hiddenNode = createResultPanel();
+  hiddenNode.hidden = true;
+  harness.replace([hiddenNode], { node: hiddenNode, revision: 4 });
+  const first = createResultPanel();
+  const second = createResultPanel();
+  harness.replace([first, second], { node: second, revision: 5 });
   await flushAsyncWork();
-  harness.replace([second]);
-  assert.deepEqual(await pending, { status: "ready", node: second });
+  harness.replace([second], { node: second, revision: 5 });
+  assert.deepEqual(await pending, { status: "ready", revision: 5 });
 });
 
-test("audio readiness times out and supports cancellation", async () => {
-  const timeoutHarness = createAudioRegionHarness([]);
+test("result-panel readiness times out and supports cancellation", async () => {
+  const timeoutHarness = createResultPanelHarness([], { node: null, revision: 0 });
   assert.deepEqual(
-    await controller.waitForFreshAudioRegion(timeoutHarness.document, { previousNode: null, timeoutMs: 5 }),
+    await controller.waitForFreshResultPanel(timeoutHarness.document, {
+      afterRevision: 0,
+      getMountState: timeoutHarness.getMountState,
+      timeoutMs: 5,
+    }),
     { status: "timeout" }
   );
 
-  const cancelHarness = createAudioRegionHarness([]);
+  const cancelHarness = createResultPanelHarness([], { node: null, revision: 0 });
   const abortController = new AbortController();
-  const pending = controller.waitForFreshAudioRegion(cancelHarness.document, {
-    previousNode: null,
+  const pending = controller.waitForFreshResultPanel(cancelHarness.document, {
+    afterRevision: 0,
+    getMountState: cancelHarness.getMountState,
     timeoutMs: 1000,
     signal: abortController.signal,
   });

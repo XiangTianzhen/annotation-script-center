@@ -103,8 +103,8 @@
     let recognitionSerial = 0;
     let activeRecognition = null;
     let pendingAutoDrawAbortController = null;
-    let baselineAudioRegionAbortController = null;
-    let lastAudioRegionNode = null;
+    let baselineResultPanelAbortController = null;
+    let lastResultPanelMountRevision = 0;
     const pendingTrustedInputs = new Map();
     const attemptedAutoDrawContexts = new Set();
 
@@ -140,10 +140,6 @@
         postTop({ source: SOURCE, type: TRUSTED_INPUT_REQUEST, payload: { ...payload, requestId } });
       });
     }
-    function getCurrentAudioRegionNode() {
-      const nodes = Array.from(documentLike?.querySelectorAll?.(".audio-peaks .waveform") || []);
-      return nodes.length === 1 ? nodes[0] : null;
-    }
     const trustedInput = config.trustedInput || requestTrustedInput;
     function newDirtyToken() {
       return globalThis.crypto?.randomUUID?.() || String(Date.now()) + "-" + Math.random().toString(36).slice(2);
@@ -164,32 +160,34 @@
     function cancelPendingAutomation() {
       state.pendingAutoRecognitionContextId = "";
       state.autoRecognitionStartedContextId = "";
-      baselineAudioRegionAbortController?.abort?.();
-      baselineAudioRegionAbortController = null;
+      baselineResultPanelAbortController?.abort?.();
+      baselineResultPanelAbortController = null;
       pendingAutoDrawAbortController?.abort?.();
       pendingAutoDrawAbortController = null;
     }
-    function recordInitialAudioRegion(contextId) {
-      const currentNode = getCurrentAudioRegionNode();
-      if (currentNode) {
-        lastAudioRegionNode = currentNode;
+    function recordInitialResultPanel(contextId) {
+      const currentState = panel.getResultPanelMountState?.() || {};
+      const currentRevision = Number(currentState.revision) || 0;
+      if (currentState.node && currentRevision > 0) {
+        lastResultPanelMountRevision = currentRevision;
         return;
       }
-      if (typeof segmentController.waitForFreshAudioRegion !== "function") return;
+      if (typeof segmentController.waitForFreshResultPanel !== "function") return;
       const AbortControllerType = config.AbortController || globalThis.AbortController;
       const abortController = typeof AbortControllerType === "function" ? new AbortControllerType() : null;
-      baselineAudioRegionAbortController?.abort?.();
-      baselineAudioRegionAbortController = abortController;
-      void segmentController.waitForFreshAudioRegion(documentLike, {
-        previousNode: null,
+      baselineResultPanelAbortController?.abort?.();
+      baselineResultPanelAbortController = abortController;
+      void segmentController.waitForFreshResultPanel(documentLike, {
+        afterRevision: currentRevision,
+        getMountState: () => panel.getResultPanelMountState?.() || {},
         timeoutMs: 10000,
         signal: abortController?.signal,
       }).then((ready) => {
         if (ready?.status === "ready" && state.contextId === contextId && !abortController?.signal?.aborted) {
-          lastAudioRegionNode = ready.node || null;
+          lastResultPanelMountRevision = Number(ready.revision) || lastResultPanelMountRevision;
         }
       }).finally(() => {
-        if (baselineAudioRegionAbortController === abortController) baselineAudioRegionAbortController = null;
+        if (baselineResultPanelAbortController === abortController) baselineResultPanelAbortController = null;
       });
     }
     async function refreshSettings(requireAi) {
@@ -263,21 +261,22 @@
       pendingAutoDrawAbortController?.abort?.();
       pendingAutoDrawAbortController = abortController;
       try {
-        message("音频区域加载中，等待后自动划段");
-        const audioRegionReady = typeof segmentController.waitForFreshAudioRegion === "function"
-          ? await segmentController.waitForFreshAudioRegion(documentLike, {
-            previousNode: lastAudioRegionNode,
+        message("AI 识别结果区域加载中，等待后自动划段");
+        const resultPanelReady = typeof segmentController.waitForFreshResultPanel === "function"
+          ? await segmentController.waitForFreshResultPanel(documentLike, {
+            afterRevision: lastResultPanelMountRevision,
+            getMountState: () => panel.getResultPanelMountState?.() || {},
             timeoutMs: 10000,
             signal: abortController?.signal,
           })
           : { status: "unsupported" };
         if (state.contextId !== expectedContextId || abortController?.signal?.aborted) return false;
         if (state.settings?.enabled !== true || state.settings?.autoCreateWholeSegmentOnNewItemEnabled !== true) return false;
-        if (audioRegionReady?.status !== "ready") {
-          message("音频区域未就绪，本题未自动划段");
+        if (resultPanelReady?.status !== "ready") {
+          message("AI 识别结果区域未就绪，本题未自动划段");
           return false;
         }
-        lastAudioRegionNode = audioRegionReady.node || null;
+        lastResultPanelMountRevision = Number(resultPanelReady.revision) || lastResultPanelMountRevision;
         const adapter = config.segmentAdapter || segmentController.createDomAdapter?.(documentLike, { trustedInput });
         const ready = typeof segmentController.waitForWaveformReady === "function"
           ? await segmentController.waitForWaveformReady(adapter || {}, { signal: abortController?.signal })
@@ -317,7 +316,7 @@
         }
         state.contextId = next;
         state.hasSeenContext = true;
-        if (changed && !hadSeenContext) recordInitialAudioRegion(next);
+        if (changed && !hadSeenContext) recordInitialResultPanel(next);
         if (changed) postLocal({ source: SOURCE, type: CONTEXT_READY, payload: { contextId: next } });
         if (changed && windowLike?.top && windowLike.top !== windowLike) postTop({ source: SOURCE, type: REQUEST_AUDIO, payload: { contextId: next } });
         if (changed && windowLike?.top === windowLike) relayToFrames(data);
@@ -553,8 +552,8 @@
             state.settings = next;
             if (next.autoRecognizeAfterWholeSegmentEnabled !== true) state.pendingAutoRecognitionContextId = "";
             if (next.autoCreateWholeSegmentOnNewItemEnabled !== true) {
-              baselineAudioRegionAbortController?.abort?.();
-              baselineAudioRegionAbortController = null;
+              baselineResultPanelAbortController?.abort?.();
+              baselineResultPanelAbortController = null;
               pendingAutoDrawAbortController?.abort?.();
               pendingAutoDrawAbortController = null;
             }
@@ -581,8 +580,8 @@
         pending.resolve({ ok: false, reason: "trusted-input-cancelled" });
       });
       pendingTrustedInputs.clear();
-      baselineAudioRegionAbortController?.abort?.();
-      baselineAudioRegionAbortController = null;
+      baselineResultPanelAbortController?.abort?.();
+      baselineResultPanelAbortController = null;
       pendingAutoDrawAbortController?.abort?.();
       pendingAutoDrawAbortController = null;
       attemptedAutoDrawContexts.clear();

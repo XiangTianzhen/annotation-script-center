@@ -70,6 +70,7 @@
     let errorCopyText = "";
     let observer = null;
     let removed = false;
+    let resultPanelMountRevision = 0;
     const MutationObserverClass = config.MutationObserver || doc.defaultView?.MutationObserver || globalThis.MutationObserver;
     function observeMount() {
       if (observer || typeof MutationObserverClass !== "function" || !doc.body) return;
@@ -115,15 +116,24 @@
       if (divider?.parentElement === hosts.controls) divider.insertAdjacentElement("afterend", root);
       else hosts.controls?.appendChild(root);
     }
+    function mountResultPanel(hosts) {
+      const changed = !drawer?.isConnected || drawer.parentElement !== hosts.results;
+      if (changed) hosts.results.appendChild(drawer);
+      if (changed || resultPanelMountRevision === 0) resultPanelMountRevision += 1;
+    }
     function ensureMounted() {
       if (removed) return false;
       const hosts = findMountHosts(doc);
       if (!hosts.controls || !hosts.results) return false;
-      if (root?.isConnected && drawer?.isConnected && root.parentElement === hosts.controls && drawer.parentElement === hosts.results) { observeMount(); return true; }
+      if (root?.isConnected && drawer?.isConnected && root.parentElement === hosts.controls && drawer.parentElement === hosts.results) {
+        if (resultPanelMountRevision === 0) resultPanelMountRevision = 1;
+        observeMount();
+        return true;
+      }
       installStyle();
       if (root && drawer) {
         if (root.parentElement !== hosts.controls) mountControls(hosts);
-        if (drawer.parentElement !== hosts.results) hosts.results.appendChild(drawer);
+        mountResultPanel(hosts);
         if (hosts.primaryResults) doc.querySelector(`[${RESULT_HOST_ATTR}]`)?.remove();
         observeMount();
         return true;
@@ -162,9 +172,12 @@
         if (!errorCopyText || typeof writeClipboard !== "function") return;
         await writeClipboard(errorCopyText);
       });
-      hosts.results.appendChild(drawer);
+      mountResultPanel(hosts);
       observeMount();
       return Boolean(root.isConnected && drawer.isConnected);
+    }
+    function getResultPanelMountState() {
+      return { node: drawer || null, revision: resultPanelMountRevision };
     }
     function setActions(next) { actions = next || {}; }
     function setMessage(message) { if (ensureMounted()) statusNode.textContent = String(message || ""); }
@@ -211,7 +224,7 @@
       doc.querySelector(`[${RESULT_HOST_ATTR}]`)?.remove();
       root = drawer = null;
     }
-    return { ensureMounted, remove, setActions, setError, setMessage, setResult };
+    return { ensureMounted, getResultPanelMountState, remove, setActions, setError, setMessage, setResult };
   }
   const api = { PANEL_ACTIONS, buildResultView, createPanel };
   globalThis.__ASREdgeShujiajiaUiPanel = api;
