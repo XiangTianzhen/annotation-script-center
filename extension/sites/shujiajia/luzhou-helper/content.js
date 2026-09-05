@@ -144,6 +144,7 @@
     let recognitionSerial = 0;
     let activeRecognition = null;
     let pendingAutoDrawAbortController = null;
+    let hasSeenContext = false;
     const pendingTrustedInputs = new Map();
     const attemptedAutoDrawContexts = new Set();
 
@@ -258,7 +259,7 @@
       }
       return true;
     }
-    async function autoDrawNewContext(contextId) {
+    async function autoDrawNewContext(contextId, isInitialContext) {
       const expectedContextId = String(contextId || "");
       if (!isEditorRuntime() || !hasSupportedOuterPage() || !expectedContextId || state.contextId !== expectedContextId) return false;
       if (attemptedAutoDrawContexts.has(expectedContextId)) return false;
@@ -270,9 +271,13 @@
         state.contextId !== expectedContextId
       ) return false;
       attemptedAutoDrawContexts.add(expectedContextId);
-      const rawDelay = currentSettings.autoCreateWholeSegmentDelayMs;
+      const delayKey = isInitialContext ? "autoCreateWholeSegmentInitialDelayMs" : "autoCreateWholeSegmentNextDelayMs";
+      const fallbackDelay = isInitialContext ? 2500 : 500;
+      const rawDelay = currentSettings[delayKey];
       const configuredDelay = Number(rawDelay);
-      const delayMs = rawDelay !== null && rawDelay !== "" && configuredDelay >= 0 && configuredDelay <= 50000 ? configuredDelay : 500;
+      const delayMs = rawDelay !== null && rawDelay !== "" && configuredDelay >= 500 && configuredDelay <= 5000
+        ? configuredDelay
+        : fallbackDelay;
       const AbortControllerType = config.AbortController || globalThis.AbortController;
       const abortController = typeof AbortControllerType === "function" ? new AbortControllerType() : null;
       pendingAutoDrawAbortController?.abort?.();
@@ -297,6 +302,8 @@
       if (data.type === CONTEXT_READY && data.payload?.contextId) {
         const next = String(data.payload.contextId);
         const changed = state.contextId !== next;
+        const isInitialContext = changed && !hasSeenContext;
+        if (changed) hasSeenContext = true;
         if (changed) state.audioStatusCode = "";
         if (state.contextId && state.contextId !== next) {
           state.audioDataUrl = "";
@@ -315,7 +322,7 @@
         if (changed && windowLike?.top && windowLike.top !== windowLike) postTop({ source: SOURCE, type: REQUEST_AUDIO, payload: { contextId: next } });
         if (changed && windowLike?.top === windowLike) relayToFrames(data);
         if (changed) {
-          void autoDrawNewContext(next);
+          void autoDrawNewContext(next, isInitialContext);
         }
       } else if (data.type === AUDIO_READY && /^data:audio\//i.test(String(data.payload?.audioDataUrl || ""))) {
         if (!state.contextId || String(data.payload?.contextId || "") !== state.contextId) return;

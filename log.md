@@ -2,6 +2,7 @@
 
 ## 2026-09-05
 
+- 优化(shujiajia): 自动划段拆分为页面会话首次延迟和后续条目延迟，默认分别为 2500ms 与 500ms，可配置范围统一收紧为 500–5000ms；storage schema 升至 43，旧单一延迟在有效范围内迁到后续条目字段，越界时回退 500ms。
 - 优化(shujiajia): 自动划段默认延迟由 2500ms 调整为 500ms，可配置范围扩展为 0–50000ms；storage schema 升至 42，旧 schema 中原默认值 2500ms 自动迁移为 500ms，其他合法自定义值保留。
 - 重构(shujiajia): 自动划段删除网络资源、波形节点身份、AI 结果框挂载代次及波形轮询门禁；首题和后续新 `taskId:dataId` 在合法外层标注页 URL 下按可配置固定延迟单次调用现有整段动作，默认 2500ms，范围 500–10000ms。延迟期间切题、关闭开关、禁用脚本或停止运行时取消，延迟到期不轮询、不重试。
 - 配置(shujiajia): storage schema 升至 41，新增 `autoCreateWholeSegmentDelayMs`；Options 增加“自动划段延迟（毫秒）”，并重新生成扩展 Options 产物。

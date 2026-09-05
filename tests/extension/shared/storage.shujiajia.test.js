@@ -36,12 +36,12 @@ function load(initialSettings) {
   };
 }
 
-test("Shujiajia schema 42 defaults use a 500ms automatic whole-segment delay", async () => {
+test("Shujiajia schema 43 defaults separate initial and next automatic whole-segment delays", async () => {
   const harness = load({ meta: { schemaVersion: 36 } });
   try {
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.shujiajia.scripts.luzhouHelper;
-    assert.equal(settings.meta.schemaVersion, 42);
+    assert.equal(settings.meta.schemaVersion, 43);
     assert.equal(harness.constants.SHUJIAJIA_LUZHOU_HELPER_SCRIPT_ID, "shujiajiaLuzhouHelper");
     assert.equal(settings.platforms.shujiajia.enabled, true);
     assert.equal(script.enabled, false);
@@ -49,7 +49,9 @@ test("Shujiajia schema 42 defaults use a 500ms automatic whole-segment delay", a
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, false);
-    assert.equal(script.autoCreateWholeSegmentDelayMs, 500);
+    assert.equal(script.autoCreateWholeSegmentInitialDelayMs, 2500);
+    assert.equal(script.autoCreateWholeSegmentNextDelayMs, 500);
+    assert.equal("autoCreateWholeSegmentDelayMs" in script, false);
     assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, false);
     assert.equal(script.aiRecommendAutoFillEnabled, true);
     assert.deepEqual(script.shortcuts, {});
@@ -58,7 +60,7 @@ test("Shujiajia schema 42 defaults use a 500ms automatic whole-segment delay", a
   }
 });
 
-test("Shujiajia schema 42 migration adds the new 500ms delay and preserves automation choices and five helper shortcuts", async () => {
+test("Shujiajia schema 43 migration adds both delay defaults and preserves automation choices and five helper shortcuts", async () => {
   const harness = load({
     meta: { schemaVersion: 39 },
     platforms: { shujiajia: { scripts: { luzhouHelper: {
@@ -89,7 +91,8 @@ test("Shujiajia schema 42 migration adds the new 500ms delay and preserves autom
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-flash");
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.autoCreateWholeSegmentOnNewItemEnabled, true);
-    assert.equal(script.autoCreateWholeSegmentDelayMs, 500);
+    assert.equal(script.autoCreateWholeSegmentInitialDelayMs, 2500);
+    assert.equal(script.autoCreateWholeSegmentNextDelayMs, 500);
     assert.equal(script.autoRecognizeAfterWholeSegmentEnabled, true);
     assert.equal(script.aiRecommendAutoFillEnabled, true);
     assert.deepEqual(script.shortcuts, {
@@ -119,31 +122,41 @@ test("schema 40 preserves an explicit disabled auto-fill choice", async () => {
   }
 });
 
-test("Shujiajia automatic whole-segment delay accepts 0 through 50000 milliseconds", async () => {
-  for (const [input, expected] of [[0, 0], [50000, 50000], [-1, 500], [50001, 500], [null, 500], ["", 500], ["4200", 4200]]) {
+test("Shujiajia initial and next automatic whole-segment delays accept 500 through 5000 milliseconds", async () => {
+  const cases = [
+    ["autoCreateWholeSegmentInitialDelayMs", "autoCreateWholeSegmentNextDelayMs", 500, [[500, 500], [5000, 5000], [499, 2500], [5001, 2500], [null, 2500], ["", 2500], ["4200", 4200]]],
+    ["autoCreateWholeSegmentNextDelayMs", "autoCreateWholeSegmentInitialDelayMs", 2500, [[500, 500], [5000, 5000], [499, 500], [5001, 500], [null, 500], ["", 500], ["4200", 4200]]],
+  ];
+  for (const [field, otherField, otherDefault, values] of cases) {
+    for (const [input, expected] of values) {
+      const harness = load({
+        meta: { schemaVersion: 43 },
+        platforms: { shujiajia: { scripts: { luzhouHelper: { [field]: input } } } },
+      });
+      try {
+        const script = (await harness.storage.getSettings()).platforms.shujiajia.scripts.luzhouHelper;
+        assert.equal(script[field], expected, `${field}:${input}`);
+        assert.equal(script[otherField], otherDefault);
+      } finally {
+        harness.cleanup();
+      }
+    }
+  }
+});
+
+test("schema 43 migrates the legacy single delay to next delay and supplies the initial delay", async () => {
+  for (const [input, expected] of [[500, 500], [2500, 2500], [4200, 4200], [0, 500], [50000, 500]]) {
     const harness = load({
       meta: { schemaVersion: 42 },
       platforms: { shujiajia: { scripts: { luzhouHelper: { autoCreateWholeSegmentDelayMs: input } } } },
     });
     try {
-      const script = (await harness.storage.getSettings()).platforms.shujiajia.scripts.luzhouHelper;
-      assert.equal(script.autoCreateWholeSegmentDelayMs, expected, String(input));
-    } finally {
-      harness.cleanup();
-    }
-  }
-});
-
-test("schema 42 migrates only the previous 2500ms default and preserves other custom delays", async () => {
-  for (const [input, expected] of [[2500, 500], [0, 0], [4200, 4200], [50000, 50000]]) {
-    const harness = load({
-      meta: { schemaVersion: 41 },
-      platforms: { shujiajia: { scripts: { luzhouHelper: { autoCreateWholeSegmentDelayMs: input } } } },
-    });
-    try {
       const settings = await harness.storage.getSettings();
-      assert.equal(settings.meta.schemaVersion, 42);
-      assert.equal(settings.platforms.shujiajia.scripts.luzhouHelper.autoCreateWholeSegmentDelayMs, expected, String(input));
+      const script = settings.platforms.shujiajia.scripts.luzhouHelper;
+      assert.equal(settings.meta.schemaVersion, 43);
+      assert.equal(script.autoCreateWholeSegmentInitialDelayMs, 2500, String(input));
+      assert.equal(script.autoCreateWholeSegmentNextDelayMs, expected, String(input));
+      assert.equal("autoCreateWholeSegmentDelayMs" in script, false);
     } finally {
       harness.cleanup();
     }

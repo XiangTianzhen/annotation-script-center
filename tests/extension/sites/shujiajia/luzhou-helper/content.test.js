@@ -516,7 +516,7 @@ test("duplicate recognition triggers for the same item start only one AI request
   assert.equal(runtime.getState().result.refinedText, "唯一结果");
 });
 
-test("editor runtime delays the initial and later contexts and draws each context only once", async () => {
+test("editor runtime uses the initial delay once and the next delay for later contexts", async () => {
   const listeners = {};
   const delays = [];
   const releases = [];
@@ -534,7 +534,8 @@ test("editor runtime delays the initial and later contexts and draws each contex
     settings: {
       enabled: true,
       autoCreateWholeSegmentOnNewItemEnabled: true,
-      autoCreateWholeSegmentDelayMs: 500,
+      autoCreateWholeSegmentInitialDelayMs: 2500,
+      autoCreateWholeSegmentNextDelayMs: 500,
       autoRecognizeAfterWholeSegmentEnabled: false,
       shortcuts: {},
     },
@@ -553,8 +554,8 @@ test("editor runtime delays the initial and later contexts and draws each contex
   listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   await flushAsyncWork();
   assert.equal(drawCalls, 0);
-  assert.deepEqual(delays, [500]);
-  assert.equal(messages.at(-1), "将在 0.5 秒后自动划段");
+  assert.deepEqual(delays, [2500]);
+  assert.equal(messages.at(-1), "将在 2.5 秒后自动划段");
   releases[0]();
   await flushAsyncWork();
   assert.equal(drawCalls, 1);
@@ -564,7 +565,8 @@ test("editor runtime delays the initial and later contexts and draws each contex
   listeners.message(next);
   await flushAsyncWork();
   assert.equal(drawCalls, 1);
-  assert.deepEqual(delays, [500, 500]);
+  assert.deepEqual(delays, [2500, 500]);
+  assert.equal(messages.at(-1), "将在 0.5 秒后自动划段");
   releases[1]();
   await flushAsyncWork();
   assert.equal(drawCalls, 2);
@@ -619,13 +621,20 @@ test("automatic drawing rechecks the outer URL after the fixed delay", async () 
   assert.equal(drawCalls, 0);
 });
 
-test("automatic drawing accepts a configured zero-millisecond delay", async () => {
+test("the first context remains initial even when its URL is unsupported", async () => {
   const listeners = {};
   const delays = [];
+  const documentLike = { referrer: "https://www.shujiajia.com/workbench/piece/other.html?taskId=1&executeClass=TAG_PIECE" };
   const runtime = content.createRuntime({
     window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
-    document: { referrer: VALID_MARK_URL },
-    settings: { enabled: true, autoCreateWholeSegmentOnNewItemEnabled: true, autoCreateWholeSegmentDelayMs: 0, shortcuts: {} },
+    document: documentLike,
+    settings: {
+      enabled: true,
+      autoCreateWholeSegmentOnNewItemEnabled: true,
+      autoCreateWholeSegmentInitialDelayMs: 2500,
+      autoCreateWholeSegmentNextDelayMs: 700,
+      shortcuts: {},
+    },
     waitForDelay: async (delayMs) => { delays.push(delayMs); return true; },
     segmentController: {
       createDomAdapter() { return {}; },
@@ -635,9 +644,43 @@ test("automatic drawing accepts a configured zero-millisecond delay", async () =
     shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
   });
   await runtime.start();
-  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:item" } }, origin: "" });
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
   await flushAsyncWork();
-  assert.deepEqual(delays, [0]);
+  documentLike.referrer = VALID_MARK_URL;
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
+  await flushAsyncWork();
+  assert.deepEqual(delays, [700]);
+});
+
+test("the first context remains initial when automatic drawing is initially disabled", async () => {
+  const listeners = {};
+  const delays = [];
+  const settings = {
+    enabled: true,
+    autoCreateWholeSegmentOnNewItemEnabled: false,
+    autoCreateWholeSegmentInitialDelayMs: 2500,
+    autoCreateWholeSegmentNextDelayMs: 800,
+    shortcuts: {},
+  };
+  const runtime = content.createRuntime({
+    window: { top: {}, addEventListener(type, fn) { listeners[type] = fn; } },
+    document: { referrer: VALID_MARK_URL },
+    settings,
+    waitForDelay: async (delayMs) => { delays.push(delayMs); return true; },
+    segmentController: {
+      createDomAdapter() { return {}; },
+      async createWholeSegment() { return { ok: false, code: "waveform-unavailable" }; },
+    },
+    panel: { ensureMounted() { return true; }, setActions() {}, setMessage() {} },
+    shortcuts: { createRuntime() { return { start() {}, stop() {} }; } },
+  });
+  await runtime.start();
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:first" } }, origin: "" });
+  await flushAsyncWork();
+  settings.autoCreateWholeSegmentOnNewItemEnabled = true;
+  listeners.message({ data: { source: content.constants.SOURCE, type: content.constants.CONTEXT_READY, payload: { contextId: "task:second" } }, origin: "" });
+  await flushAsyncWork();
+  assert.deepEqual(delays, [800]);
 });
 
 test("switching items cancels the previous fixed delay", async () => {
